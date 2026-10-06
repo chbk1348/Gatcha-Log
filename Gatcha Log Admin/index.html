@@ -39,10 +39,11 @@
     <p id="page-desc" class="muted"></p>
   </div>
   <div class="topbar-actions">
+    <!-- 상태 꼬리표 — 누르면 반영 화면으로 간다(「반영 안 된 변경 3건」). -->
+    <a id="dirty" class="badge badge-clean" href="#" role="button">변경 없음</a>
     <!-- 되돌리기 — 세션 안에서만 산다. 창을 닫으면 사라지므로 초안(localStorage)과는 다른 물건이다. -->
-    <button id="btn-undo" class="btn btn-step" disabled>↶</button>
-    <button id="btn-redo" class="btn btn-step" disabled>↷</button>
-    <span id="dirty" class="badge badge-clean">변경 없음</span>
+    <button id="btn-undo" class="btn" disabled><span class="t-long">되돌리기</span><span class="t-short" aria-hidden="true">↶</span></button>
+    <button id="btn-redo" class="btn" disabled><span class="t-long">다시 하기</span><span class="t-short" aria-hidden="true">↷</span></button>
     <span id="who" class="badge badge-clean" hidden></span>
     <button id="btn-load-remote" class="btn">불러오기</button>
     <label class="btn" for="file-input">파일 열기</label>
@@ -61,6 +62,7 @@
 
 <script src="firebase-config.js"></script>
 <script type="module" src="cloud.js"></script>
+<script src="github.js" defer></script>
 <script src="ui.js" defer></script>
 <script src="admin.js" defer></script>
 </body>

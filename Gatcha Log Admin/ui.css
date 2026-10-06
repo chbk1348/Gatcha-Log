@@ -1,119 +1,126 @@
-/* Gatcha Log Admin — 커스텀 UI 컴포넌트 스타일. admin.css 의 토큰(--panel · --line …)을 그대로 쓴다.
-   여기 있는 규칙만으로 브라우저 기본 위젯의 자리를 메운다. */
+/* Gatcha Log Admin — 커스텀 UI 컴포넌트 스타일. admin.css 의 토큰(--panel-2 · --line …)을 그대로 쓴다.
+   여기 있는 규칙만으로 브라우저 기본 위젯의 자리를 메운다. 값은 GLDS 를 따른다(admin.css 머리말). */
 
-/* 공통 — admin.css 의 input 과 같은 높이 · 테두리를 쓴다. 테이블 안에서는 한 칸 좁아진다. */
+/* 공통 껍데기 — GLDS 입력필드(채운 면 · 테두리 없음 · 포커스는 흰 면 + 안쪽 1.5 강조색).
+   드롭다운 · 숫자 · 날짜 · 색이 전부 이 면 하나를 쓴다. 기본은 M(48), 표 같은 좁은 자리는 S(38). */
 .gl-field {
   display: flex; align-items: center; gap: 8px;
-  width: 100%; padding: 8px 10px;
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--line); border-radius: 8px;
-  font: inherit; text-align: left;
+  width: 100%; height: 48px; padding: 0 14px;
+  background: var(--panel-2); color: var(--text);
+  border: 0; border-radius: 14px;
+  box-shadow: inset 0 0 0 1.5px transparent;
+  font-family: inherit; font-size: 16px; text-align: left;
+  transition: background .15s, box-shadow .15s;
 }
-td .gl-field { padding: 6px 8px; }
-.gl-field:focus-within { border-color: var(--accent); }
+td .gl-field, .day-head .gl-field, .list-fill .gl-field, .gl-pop .gl-field {
+  height: 38px; padding: 0 12px; border-radius: 12px; font-size: 14px;
+}
+.gl-field:focus-within, .gl-select:focus, .gl-select[aria-expanded=true] {
+  outline: 0; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent);
+}
 
-/* .gl-field 안에 들어가는 입력은 껍데기가 테두리를 그리므로 자기 테두리를 지운다. */
-.gl-field > .gl-input {
-  flex: 1; min-width: 0;
-  padding: 0; background: none; border: 0; border-radius: 0;
+/* .gl-field 안에 들어가는 입력은 껍데기가 면을 그리므로 자기 면 · 높이를 지운다. */
+.gl-field > .gl-input, .gl-field > .gl-input:focus {
+  flex: 1; min-width: 0; height: auto;
+  padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none;
+  font-size: inherit;
 }
-.gl-field > .gl-input:focus { outline: 0; }
 
 .gl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.14) inset; }
-.gl-note { font-size: 11px; color: var(--muted); }
+.gl-note { font-size: 12px; color: var(--muted); }
 
-/* ── 드롭다운 ─────────────────────────────────────── */
+/* ── 드롭다운 — 「누르는 필드」(오른쪽 표시 · 회색) ──── */
 .gl-select { cursor: pointer; }
-.gl-select:hover, .gl-select:focus { border-color: var(--accent); outline: 0; }
 .gl-select .gl-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gl-select .gl-ph { color: #888f9e; }
+.gl-select .gl-ph { color: var(--ph); }
 .gl-select .gl-tag {
-  flex: none; font-size: 10px; padding: 1px 6px; border-radius: 999px;
-  background: rgba(69,89,217,.12); color: var(--accent);
+  flex: none; font-size: 12px; font-weight: 700; padding: 0 6px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-deep);
 }
 .gl-caret {
   flex: none; width: 8px; height: 8px; margin-left: 2px;
-  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
   transform: translateY(-2px) rotate(45deg);
 }
 .gl-select[aria-expanded=true] .gl-caret { transform: translateY(1px) rotate(-135deg); }
 
-/* ── 팝오버 공통 ──────────────────────────────────── */
+/* ── 팝오버 공통 — 화면 위에 뜨는 면은 남긴다 ───────── */
 .gl-pop {
   position: fixed; z-index: 60;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(20,24,36,.14);
+  background: var(--panel); border: 1px solid #F0F0F0; border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
   overflow: hidden;
 }
 .gl-menu { max-width: min(420px, calc(100vw - 16px)); }
-.gl-menu-head { padding: 8px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+.gl-menu-head { padding: 10px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .gl-menu-head .gl-search {
-  width: 100%; padding: 7px 9px;
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--line); border-radius: 7px; font: inherit;
+  width: 100%; height: 38px; padding: 0 12px;
+  background: var(--panel-2); color: var(--text);
+  border: 0; border-radius: 12px; box-shadow: inset 0 0 0 1.5px transparent;
+  font-family: inherit; font-size: 14px;
 }
-.gl-menu-head .gl-search:focus { outline: 0; border-color: var(--accent); }
-.gl-menu-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+.gl-menu-head .gl-search:focus { outline: 0; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.gl-menu-foot { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 
 .gl-opts { max-height: 288px; overflow-y: auto; padding: 6px; }
 .gl-opts:focus { outline: 0; }
 .gl-opt {
-  display: flex; align-items: center; gap: 9px;
-  padding: 7px 9px; border-radius: 7px; cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 10px; cursor: pointer; font-size: 14px;
 }
 .gl-opt.cur { background: var(--panel-2); }
-.gl-opt.on { color: var(--text); font-weight: 600; }
+.gl-opt.on { color: var(--accent-deep); font-weight: 600; }
 .gl-opt.muted { color: var(--muted); }
-.gl-opt.custom { color: var(--accent); }
+.gl-opt.custom { color: var(--accent-deep); }
 .gl-opt-t { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.gl-opt-t small { font-size: 11px; color: var(--muted); }
+.gl-opt-t small { font-size: 12px; font-weight: 400; color: var(--muted); }
 .gl-opt .gl-check { margin-left: auto; color: var(--accent); }
-.gl-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 12px; }
+.gl-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 13px; }
 
-/* ── 스위치 ───────────────────────────────────────── */
+/* ── 스위치 — 앱 GlgSwitch 와 같은 값(50×30 · 손잡이 24 · 꺼짐 #D8D8DE) ── */
 .gl-switch {
-  width: 38px; height: 22px; padding: 2px; flex: none;
-  border: 1px solid var(--line); border-radius: 999px;
-  background: var(--panel-2); cursor: pointer;
+  width: 50px; height: 30px; padding: 3px; flex: none;
+  border: 0; border-radius: 15px;
+  background: var(--disabled); cursor: pointer;
   display: inline-flex; align-items: center;
+  transition: background .2s;
 }
 .gl-switch .gl-knob {
-  width: 16px; height: 16px; border-radius: 50%;
-  background: var(--muted); transition: transform .13s ease, background .13s ease;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; transition: transform .2s;
 }
-.gl-switch.on { background: var(--accent); border-color: var(--accent); }
-.gl-switch.on .gl-knob { transform: translateX(16px); background: #fff; }
-.gl-switch:focus { outline: 0; border-color: var(--accent); }
+.gl-switch.on { background: var(--accent); }
+.gl-switch.on .gl-knob { transform: translateX(20px); }
 
-/* ── 체크박스 ─────────────────────────────────────── */
+/* ── 체크박스 — 가이드에 없는 어드민 부품(표에서 여러 행 고르기). 색 · 테두리만 칩 토큰을 쓴다. ── */
 .gl-cb {
-  width: 18px; height: 18px; flex: none; padding: 0;
-  border: 1px solid var(--line); border-radius: 5px;
-  background: var(--panel); cursor: pointer;
+  width: 20px; height: 20px; flex: none; padding: 0;
+  border: 0; border-radius: 6px;
+  background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--chip-line); cursor: pointer;
   display: inline-grid; place-items: center;
 }
-.gl-cb:hover { border-color: var(--accent); }
-.gl-cb.on { background: var(--accent); border-color: var(--accent); }
+.gl-cb:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.gl-cb.on { background: var(--accent); box-shadow: none; }
 /* 체크 표시 — 글자가 아니라 꺾인 선이라 크기를 줄여도 뭉개지지 않는다. */
 .gl-cb.on::after {
-  content: ''; width: 4px; height: 8px;
+  content: ''; width: 5px; height: 9px;
   border: solid #fff; border-width: 0 2px 2px 0;
   transform: translateY(-1px) rotate(45deg);
 }
-.gl-cb:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gl-cb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ── 숫자 스테퍼 ──────────────────────────────────── */
-.gl-num { gap: 2px; padding: 3px 4px; }
-td .gl-num { padding: 2px 3px; }
-.gl-num.tight { width: 78px; flex: none; }
+/* ── 숫자 스테퍼 — 입력필드 면 안에 −/+ 두 칸 ─────────── */
+.gl-num { gap: 2px; padding: 0 6px; }
+td .gl-num { padding: 0 4px; }
+.gl-num.tight { width: 86px; flex: none; }
 .gl-num-b {
-  flex: none; width: 24px; height: 24px; line-height: 1;
-  /* 테이블 열은 좁다 — 버튼을 줄여 숫자에 자리를 내준다 */
-  border: 0; border-radius: 6px; background: none;
-  color: var(--muted); font: inherit; cursor: pointer;
+  flex: none; width: 28px; height: 26px; line-height: 1;
+  border: 0; border-radius: 9px; background: none;
+  color: var(--muted); font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
 }
-.gl-num-b:hover { background: var(--panel-2); color: var(--text); }
-td .gl-num-b { width: 20px; height: 22px; }
+.gl-num-b:hover { background: var(--panel); color: var(--text); }
+/* 테이블 열은 좁다 — 버튼을 줄여 숫자에 자리를 내준다 */
+td .gl-num-b { width: 22px; }
 .gl-num-in { flex: 1; min-width: 0; text-align: center; }
 
 /* ── 날짜 · 시각 ──────────────────────────────────── */
@@ -121,135 +128,131 @@ td .gl-num-b { width: 20px; height: 22px; }
 .gl-date .gl-date-in { letter-spacing: .01em; }
 .gl-icon-b {
   flex: none; display: grid; place-items: center;
-  width: 26px; height: 24px; padding: 0;
-  border: 0; border-radius: 6px; background: none;
-  color: var(--muted); font: inherit; cursor: pointer;
+  width: 28px; height: 26px; padding: 0;
+  border: 0; border-radius: 9px; background: none;
+  color: var(--muted); font-family: inherit; font-size: 14px; cursor: pointer;
 }
-.gl-icon-b:hover { background: var(--panel-2); color: var(--text); }
+.gl-icon-b:hover { background: var(--panel); color: var(--text); }
+.gl-pop .gl-icon-b:hover { background: var(--panel-2); }
 .gl-cal-ico {
   width: 13px; height: 12px; border: 1.5px solid currentColor; border-radius: 2px;
   border-top-width: 4px; display: block;
 }
 
-.gl-cal-pop { padding: 10px; }
+.gl-cal-pop { padding: 12px; }
 .gl-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.gl-cal-head strong { font-size: 13px; }
-.gl-cal-grid { display: grid; grid-template-columns: repeat(7, 32px); gap: 2px; }
-.gl-cal-w { display: grid; place-items: center; height: 22px; font-size: 11px; color: var(--muted); }
+.gl-cal-head strong { font-size: 14px; font-weight: 700; }
+.gl-cal-grid { display: grid; grid-template-columns: repeat(7, 34px); gap: 2px; }
+.gl-cal-w { display: grid; place-items: center; height: 24px; font-size: 12px; color: var(--muted); }
 .gl-cal-d {
-  height: 30px; border: 1px solid transparent; border-radius: 7px;
-  background: none; color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+  height: 34px; border: 0; border-radius: 50%;
+  background: none; color: var(--text); font-family: inherit; font-size: 13px; cursor: pointer;
 }
 .gl-cal-d:hover { background: var(--panel-2); }
-.gl-cal-d.today { border-color: var(--line); color: var(--warn); }
-.gl-cal-d.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.gl-cal-foot { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
+.gl-cal-d.today { color: var(--accent-deep); font-weight: 700; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 40%, transparent); }
+.gl-cal-d.on { background: var(--accent); color: #fff; font-weight: 700; box-shadow: none; }
+.gl-cal-foot { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+/* 팝오버 안 작은 버튼 — GLDS 버튼 XS · Neutral. */
 .gl-mini {
-  padding: 4px 9px; border: 1px solid var(--line); border-radius: 7px;
-  background: var(--panel-2); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 28px; padding: 0 12px; border: 0; border-radius: 9px;
+  background: var(--neutral); color: var(--text);
+  font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: transform .12s, background .12s;
 }
-.gl-mini:hover { border-color: var(--accent); color: var(--text); }
+.gl-mini:hover { background: #E3E6EB; }
+.gl-mini:active { transform: scale(.97); background: #D9DCE0; }
 
-.gl-time { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
-.gl-time-l { font-size: 11px; color: var(--muted); }
+.gl-time { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.gl-time-l { font-size: 12px; color: var(--muted); }
 .gl-time-c { color: var(--muted); }
 
 /* 시각만 고르는 팝오버 — 위에 달력이 없으니 구분선도 없다. */
-.gl-time-pop { min-width: 188px; }
+.gl-time-pop { min-width: 200px; }
 .gl-time-pop .gl-time { justify-content: center; margin-top: 0; padding-top: 0; border-top: 0; }
+/* 미리 정해 둔 값(종일 · 수시 · 미정) — GLDS 칩(높이 32 · 캡슐 · 13 Bold). 선택은 면을 채우지 않고 테두리와 글자색으로만. */
 .gl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.gl-mini.on { background: var(--accent-2); border-color: var(--accent); color: var(--accent); }
+.gl-chips .gl-mini, .gl-chips .gl-mini:hover {
+  height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px;
+  background: var(--panel); box-shadow: inset 0 0 0 1px var(--chip-line);
+}
+.gl-chips .gl-mini:active { transform: scale(.95); }
+.gl-chips .gl-mini.on { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-deep); }
 
-/* ── 색 ───────────────────────────────────────────── */
+/* ── 색 — 가이드에 없는 어드민 부품 ───────────────── */
 .gl-color { gap: 8px; }
 .gl-swatch {
-  flex: none; width: 20px; height: 20px; padding: 0;
-  border: 1px solid var(--line); border-radius: 5px; cursor: pointer;
+  flex: none; width: 22px; height: 22px; padding: 0;
+  border: 0; border-radius: 7px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.14); cursor: pointer;
 }
 .gl-swatch.empty {
-  background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%),
-                    linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%);
+  background-image: linear-gradient(45deg, var(--chip-line) 25%, transparent 25%, transparent 75%, var(--chip-line) 75%),
+                    linear-gradient(45deg, var(--chip-line) 25%, transparent 25%, transparent 75%, var(--chip-line) 75%);
   background-size: 8px 8px; background-position: 0 0, 4px 4px;
 }
-.gl-color-pop { width: 194px; padding: 0; }
-.gl-color-pop .gl-cal-foot { flex-wrap: wrap; margin: 0; padding: 9px 10px; }
+.gl-color-pop { width: 206px; padding: 0; }
+.gl-color-pop .gl-cal-foot { flex-wrap: wrap; margin: 0; padding: 10px 12px; }
 .gl-color-pop .gl-note { flex: 1 1 100%; }
-.gl-pal { display: grid; grid-template-columns: repeat(5, 30px); gap: 6px; padding: 10px; }
-.gl-pal-c { height: 30px; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; }
-.gl-pal-c.on { box-shadow: 0 0 0 2px var(--accent); }
+.gl-pal { display: grid; grid-template-columns: repeat(5, 30px); gap: 7px; padding: 12px; }
+.gl-pal-c { height: 30px; border: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.14); cursor: pointer; }
+.gl-pal-c.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--text); }
 
-/* ── 확인 모달 ────────────────────────────────────── */
+/* ── 확인 모달 — 앱 GlgDialog 와 같은 값 ──────────────
+ * 반경 24 · 안쪽 22 · 제목 17 Bold(아래 16) · 본문 14 회색 · 버튼 M 한 쌍(1 : 1.4, 위 20). */
 .gl-backdrop {
   position: fixed; inset: 0; z-index: 80;
   display: grid; place-items: center;
-  background: rgba(23,27,38,.42);
+  background: rgba(0,0,0,.4);
 }
 .gl-modal {
-  width: min(420px, calc(100vw - 32px)); padding: 20px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  box-shadow: 0 18px 48px rgba(20,24,36,.18);
+  width: min(380px, calc(100vw - 32px)); padding: 22px;
+  background: var(--panel); border: 1px solid #F0F0F0; border-radius: 24px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.14);
 }
-.gl-modal h3 { margin: 0 0 8px; font-size: 15px; }
-.gl-modal p { margin: 0 0 6px; font-size: 13px; color: var(--text); line-height: 1.65; }
-.gl-modal .gl-note { margin-top: 10px; font-size: 11px; color: var(--muted); }
-.gl-modal-act { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.btn-danger-solid { background: var(--err); border-color: var(--err); color: #fff; font-weight: 600; }
+.gl-modal h3 { margin: 0 0 16px; font-size: 17px; font-weight: 700; color: var(--text); }
+.gl-modal p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.6; }
+.gl-modal .gl-note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.gl-modal-act { display: flex; gap: 10px; margin-top: 20px; }
+.gl-modal-act .btn { height: 44px; padding: 0 18px; border-radius: 16px; font-size: 15px; min-width: 0; }
+/* 취소는 Secondary, 확인은 Primary(위험한 확인은 Danger) — ui.js 가 [취소, 확인] 순으로 넣는다. */
+.gl-modal-act .btn:first-child { flex: 1; background: var(--accent-2); color: var(--accent-deep); }
+.gl-modal-act .btn:first-child:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.gl-modal-act .btn:first-child:active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.gl-modal-act .btn:last-child { flex: 1.4; }
 
-/* 포커스 링 — 브라우저 기본 링은 파란 고정색이라 테마 색과 겉돈다. */
+/* 포커스 링 — 브라우저 기본 링은 파란 고정색이라 테마 색과 겉돈다. 키보드로 옮길 때만 그린다. */
 .btn:focus-visible, .gl-mini:focus-visible, .gl-icon-b:focus-visible, .gl-num-b:focus-visible,
-.gl-cal-d:focus-visible, .gl-swatch:focus-visible, .gl-pal-c:focus-visible, .gl-switch:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 1px;
+.gl-cal-d:focus-visible, .gl-swatch:focus-visible, .gl-pal-c:focus-visible, .gl-switch:focus-visible,
+.nav-item:focus-visible, .res-picker:focus-visible, .icon-btn:focus-visible, .gate-go:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
 }
 
 /* ── 배치 보정 ────────────────────────────────────── */
-.day-head .gl-field { width: 176px; flex: none; }
+.day-head .gl-field { width: 190px; flex: none; }
 .day-head > .gl-input { width: 240px; flex: none; }
 
-/* ── 로그인 화면 ──────────────────────────────────── */
+/* ── 로그인 화면 ──────────────────────────────────────
+ * 카드로 두르지 않는다 — 흰 바탕 가운데에 내용만 세운다. 예전의 그라데이션 바탕 · 격자 · 카드
+ * 그림자는 "섹션을 감싸기만 하는 면" 이라 걷었다. */
 .gate {
   position: fixed; inset: 0; z-index: 90;
   display: grid; place-content: center; justify-items: center; gap: 20px;
-  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px))
-           max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
-  /* 어드민 본문은 평평한 단색이라, 여기만 accent 두 색으로 깊이를 준다.
-     라이트 바탕에서는 같은 농도가 탁하게 번진다 — 절반 아래로 낮춰 물든 정도만 남긴다. */
-  background:
-    radial-gradient(880px 520px at 12% -12%, rgba(69,89,217,.12), transparent 62%),
-    radial-gradient(680px 460px at 96% 104%, rgba(155,92,240,.10), transparent 62%),
-    var(--bg);
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
+           max(24px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  background: var(--bg);
   overflow: hidden;
 }
 .gate[hidden] { display: none; }
 body.gated { overflow: hidden; }
 
-/* 격자 — 가운데만 남기고 가장자리로 사라지게 마스크를 씌운다. */
-.gate::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 46px 46px;
-  opacity: .8;
-  -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 70%);
-  mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 70%);
-}
-
 .gate-card {
   position: relative;
-  width: min(392px, calc(100vw - 32px)); padding: 32px 30px 24px;
-  background: linear-gradient(180deg, #ffffff, #fafbfe);
-  border: 1px solid var(--line); border-radius: 18px;
-  box-shadow: 0 24px 60px rgba(20,24,36,.14), 0 2px 6px rgba(20,24,36,.06);
+  width: min(360px, calc(100vw - 40px));
   text-align: center;
-  animation: gate-in .34s cubic-bezier(.2,.7,.3,1) both;
-}
-/* 카드 윗변을 훑는 한 줄 — 브랜드 마크의 그라데이션과 같은 색을 쓴다. */
-.gate-card::before {
-  content: ''; position: absolute; left: 26px; right: 26px; top: -1px; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), #9b5cf0, transparent);
+  animation: gate-in .3s cubic-bezier(.2,.7,.3,1) both;
 }
 @keyframes gate-in {
-  from { opacity: 0; transform: translateY(12px) scale(.985); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -257,86 +260,83 @@ body.gated { overflow: hidden; }
   width: 58px; height: 58px; margin: 0 auto 14px;
   display: grid; place-items: center;
   border-radius: 17px;
-  background: linear-gradient(135deg, var(--accent), #9b5cf0);
-  color: #fff; font-size: 21px; font-weight: 800; letter-spacing: .02em;
-  box-shadow: 0 12px 28px rgba(69,89,217,.30);
+  background: var(--accent);
+  color: #fff; font-size: 21px; font-weight: 900; letter-spacing: .02em;
 }
-.gate-brand { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
-.gate-brand strong { font-size: 15px; }
-.gate-brand span { font-size: 11px; color: var(--muted); }
+.gate-brand { display: flex; flex-direction: column; gap: 2px; margin-bottom: 26px; }
+.gate-brand strong { font-size: 15px; font-weight: 700; }
+.gate-brand span { font-size: 12px; color: var(--muted); }
 
 .gate-badge {
   display: inline-block; margin-bottom: 10px;
-  padding: 3px 10px; border-radius: 999px;
-  background: rgba(208,52,58,.12); color: var(--err);
-  font-size: 11px; font-weight: 700;
+  padding: 1px 7px; border-radius: 6px;
+  background: var(--err-bg); color: var(--err);
+  font-size: 12px; font-weight: 700;
 }
-.gate-card h2 { margin: 0 0 10px; font-size: 18px; }
+.gate-card h2 { margin: 0 0 8px; font-size: 22px; font-weight: 900; }
 .gate-lead {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin: 0 0 22px; font-size: 13px; line-height: 1.7; color: var(--muted);
+  margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: var(--muted);
 }
 .gate-lead.warn { color: var(--warn); }
 
 .gate-spin {
-  flex: none; width: 14px; height: 14px; border-radius: 50%;
-  border: 2px solid rgba(69,89,217,.22); border-top-color: var(--accent);
+  flex: none; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid transparent; border-top-color: var(--accent);
   animation: gate-spin .8s linear infinite;
 }
 @keyframes gate-spin { to { transform: rotate(360deg); } }
 
+/* 로그인 화면의 버튼 — GLDS 버튼 L(높이 50 · 반경 16 · 15 Bold). 기본은 Neutral. */
 .gate-go {
   display: flex; align-items: center; justify-content: center; gap: 10px;
-  width: 100%; padding: 12px;
-  border: 1px solid var(--line); border-radius: 10px;
-  background: var(--panel-2); color: var(--text);
-  font: inherit; font-weight: 600; cursor: pointer;
-  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  width: 100%; height: 50px; padding: 0 20px;
+  border: 0; border-radius: 16px;
+  background: var(--neutral); color: var(--text);
+  font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  transition: transform .12s, background .12s;
 }
-.gate-go:hover { border-color: var(--accent); }
-.gate-go:active { transform: translateY(1px); }
-.gate-go[disabled] { opacity: .45; cursor: default; }
-.gate-go[disabled]:hover { border-color: var(--line); }
-/* 구글 버튼은 구글 표기를 따른다 — 흰 배경 · 회색 테두리 · 검정에 가까운 글자.
-   카드도 흰색이라 배경으로는 갈리지 않는다. 테두리를 한 단계 진하게 써서 면을 세운다. */
-.gate-go.google { background: #fff; border-color: #c6cad4; color: #1f1f1f; }
-.gate-go.google:hover { background: #f5f6fa; border-color: #a8aeba; }
+.gate-go:hover { background: #E3E6EB; }
+.gate-go:active { transform: scale(.97); background: #D9DCE0; }
+.gate-go[disabled], .gate-go[disabled]:hover { background: var(--disabled); color: var(--muted); cursor: default; transform: none; }
+/* 구글 버튼은 구글 표기를 따른다 — 흰 배경 · #747775 테두리 · #1F1F1F 글자(앱 온보딩의 구글 버튼과 같은 값). */
+.gate-go.google { background: #fff; box-shadow: inset 0 0 0 1px #747775; color: #1F1F1F; }
+.gate-go.google:hover { background: #F5F6FA; }
 .gate-g { display: grid; place-items: center; }
 
 .gate-note {
-  margin: 20px 0 0; padding-top: 16px;
+  margin: 22px 0 0; padding-top: 16px;
   border-top: 1px solid var(--line);
-  font-size: 11px; line-height: 1.7; color: var(--muted); text-align: left;
+  font-size: 12px; line-height: 1.6; color: var(--muted); text-align: left;
 }
 .gate-uid { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .gate-uid code {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 5px 8px; border-radius: 6px; background: var(--panel-2);
-  font-size: 11px; color: var(--text);
+  padding: 6px 10px; border-radius: 9px; background: var(--panel-2);
+  font-size: 12px; color: var(--text);
 }
 
-.gate-foot { font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+.gate-foot { font-size: 12px; color: var(--muted); }
 
 /* iOS 사파리는 16px 미만 입력에 자동 확대를 건다 — 키보드가 뜨며 화면이 튄다.
-   .gl-menu-head 가 11px 이라 그 안의 검색창이 상속으로 작아진다(font: inherit). */
+   S 자리(14)와 팝오버 검색창도 좁은 화면에서는 16 으로 올린다. */
 @media (max-width: 900px) {
-  .gl-input, .gl-menu-head .gl-search { font-size: 16px; }
+  .gl-input, .gl-menu-head .gl-search,
+  td .gl-field, .day-head .gl-field, .list-fill .gl-field, .gl-pop .gl-field { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .gate-card { animation: none; }
   .gate-spin { animation-duration: 2s; }
+  .btn, .gl-mini, .gate-go, .gl-switch, .gl-switch .gl-knob { transition: none; }
 }
 .gate-err {
-  margin: -12px 0 18px; padding: 9px 12px;
-  border-radius: 8px; background: rgba(208,52,58,.08); border: 1px solid rgba(208,52,58,.22);
-  font-size: 11px; line-height: 1.6; color: var(--err); text-align: left; word-break: break-word;
+  margin: -12px 0 18px; padding: 10px 12px;
+  border-radius: 12px; background: var(--err-bg);
+  font-size: 12px; line-height: 1.6; color: var(--err); text-align: left; word-break: break-word;
 }
 
-/* 로그인 여부를 아직 모르는 동안 — 카드 대신 이것만 둔다. */
+/* 로그인 여부를 아직 모르는 동안 — 내용 대신 이것만 둔다. */
 .gate-splash { display: grid; place-items: center; gap: 22px; }
-.gate-splash .gate-mark {
-  margin: 0; width: 68px; height: 68px; border-radius: 20px; font-size: 25px;
-  box-shadow: 0 14px 34px rgba(69,89,217,.34);
-}
+.gate-splash .gate-mark { margin: 0; width: 68px; height: 68px; border-radius: 20px; font-size: 25px; }
 .gate-splash .gate-spin { width: 22px; height: 22px; border-width: 2.5px; }
