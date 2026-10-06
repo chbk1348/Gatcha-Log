@@ -1,0 +1,217 @@
+{
+  "edition": "호요랜드 2024",
+  "editionEn": "HOYOLAND 2024",
+  "startYmd": "2024-10-31",
+  "endYmd": "2024-11-03",
+  "venueName": "일산 킨텍스 제2전시장",
+  "venueHall": "7·8홀(실내) · 후면광장(야외)",
+  "venueAddress": "경기도 고양시 일산서구 킨텍스로 217-60",
+  "mapUrl": "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
+  "mapFallbackUrl": "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
+  "officialUrl": "",
+  "announceYmd": "",
+  "ticket": {
+    "status": "sold_out",
+    "vendor": "티켓링크",
+    "openLabel": "10월 14일(월) 20:00",
+    "openYmd": "2024-10-14",
+    "openHour": 20,
+    "priceLabel": "13,000원",
+    "url": "",
+    "note": "",
+    "appPackage": "",
+    "appScheme": ""
+  },
+  "entryGroups": [],
+  "map": {},
+  "lineup": [
+    {
+      "game": "원신",
+      "theme": "연극! 추리? 폰타인 탐정단"
+    },
+    {
+      "game": "붕괴: 스타레일",
+      "theme": "【꿈세계로의 초대】 ~ 황금의 순간~"
+    },
+    {
+      "game": "젠레스 존 제로",
+      "theme": "뉴에리두 가든파티"
+    },
+    {
+      "game": "붕괴3rd",
+      "theme": "Welcome! 붕괴학당!",
+      "abbr": "HI3",
+      "colorArgb": "0xFF30C6E8"
+    },
+    {
+      "game": "미해결사건부",
+      "theme": "화려한 밤의 축제",
+      "abbr": "ToT",
+      "colorArgb": "0xFFE0557B"
+    }
+  ],
+  "programs": [
+    {
+      "title": "원신",
+      "desc": "· 무대 — 라이브 퀴즈쇼 · 도전 원신벨 · 폰타인 성우 토크쇼 · 미니 콘서트\n· 현장 이벤트 「가을 축제 여행자 긴급 체포」"
+    },
+    {
+      "title": "붕괴: 스타레일",
+      "desc": "· 무대 — 밴드공연(with Chevy) · 리듬게임 빅매치 · 뭇별의 워프: 가차타임\n· XR 체험 「페니코니 몰입형 체험」"
+    },
+    {
+      "title": "젠레스 존 제로",
+      "desc": "· 무대 — 노토리우스 사냥 · 릴레이 그리기 · Bangboo는 알고 있다!\n· 미니게임 — 사격 「별빛 기사」 · 볼링 「휠 스트라이크!」\n· 그래피티 공간"
+    },
+    {
+      "title": "붕괴3rd",
+      "desc": "· 무대 — 미니콘서트 · 붕괴학당 2024 공개수업"
+    },
+    {
+      "title": "미해결사건부",
+      "desc": "· 주말 이틀 후면광장 야외 전시장에서 따로 운영\n· 입장권은 윗치폼에서 따로 팔았어요",
+      "deadline": "11.2(토) · 11.3(일)"
+    },
+    {
+      "title": "코스프레 퍼레이드 · 드론쇼",
+      "desc": "주말 이틀 저녁, 야외 후면광장에서 열렸어요.\n드론쇼는 원신 · 붕괴: 스타레일을 주제로 약 10분.",
+      "deadline": "11.2(토) · 11.3(일)"
+    },
+    {
+      "title": "웰컴 키트",
+      "desc": "· 부직포백\n· 가이드북\n· 리딤코드\n· 갤럭시 스토어 쿠폰\n· 티켓"
+    },
+    {
+      "title": "부대 시설",
+      "desc": "· 굿즈존\n· 푸드존(게임 테마 푸드트럭)\n· 2차 창작 부스\n· DIY존"
+    },
+    {
+      "title": "파트너사",
+      "desc": "· 갤럭시 스토어\n· 소니인터랙티브엔터테인먼트(플레이스테이션)\n· 호요크리에이터\n· 하나카드\n· IPX\n· 스냅드래곤\n· 달콤커피"
+    }
+  ],
+  "notice": "",
+  "days": [
+    {
+      "ymd": "2024-10-31",
+      "slots": [
+        {
+          "time": "11:00",
+          "minutes": 60,
+          "title": "코스프레 런웨이"
+        },
+        {
+          "time": "12:30",
+          "minutes": 60,
+          "game": "원신",
+          "title": "라이브 퀴즈쇼"
+        },
+        {
+          "time": "14:00",
+          "minutes": 60,
+          "game": "젠레스 존 제로",
+          "title": "노토리우스 사냥"
+        },
+        {
+          "time": "15:30",
+          "minutes": 60,
+          "game": "붕괴: 스타레일",
+          "title": "뭇별의 워프: 가차타임"
+        }
+      ]
+    },
+    {
+      "ymd": "2024-11-01",
+      "slots": [
+        {
+          "time": "11:00",
+          "minutes": 60,
+          "game": "원신",
+          "title": "별과 심연을 향해 기원 이벤트"
+        },
+        {
+          "time": "12:30",
+          "minutes": 60,
+          "game": "젠레스 존 제로",
+          "title": "릴레이 그리기"
+        },
+        {
+          "time": "14:00",
+          "minutes": 60,
+          "game": "붕괴: 스타레일",
+          "title": "리듬게임 빅매치"
+        },
+        {
+          "time": "15:30",
+          "minutes": 60,
+          "game": "원신",
+          "title": "도전 원신벨"
+        }
+      ]
+    },
+    {
+      "ymd": "2024-11-02",
+      "slots": [
+        {
+          "time": "11:00",
+          "minutes": 60,
+          "game": "붕괴: 스타레일",
+          "title": "밴드공연",
+          "cast": "Chevy"
+        },
+        {
+          "time": "12:30",
+          "minutes": 60,
+          "game": "원신",
+          "title": "폰타인 성우 토크쇼"
+        },
+        {
+          "time": "14:00",
+          "minutes": 60,
+          "game": "젠레스 존 제로",
+          "title": "무대 이벤트"
+        },
+        {
+          "time": "15:30",
+          "minutes": 60,
+          "game": "붕괴3rd",
+          "title": "미니콘서트"
+        }
+      ]
+    },
+    {
+      "ymd": "2024-11-03",
+      "slots": [
+        {
+          "time": "11:00",
+          "minutes": 60,
+          "game": "젠레스 존 제로",
+          "title": "Bangboo는 알고 있다!"
+        },
+        {
+          "time": "12:30",
+          "minutes": 60,
+          "game": "붕괴3rd",
+          "title": "붕괴학당 2024 공개수업"
+        },
+        {
+          "time": "14:00",
+          "minutes": 60,
+          "game": "원신",
+          "title": "미니 콘서트"
+        },
+        {
+          "time": "15:30",
+          "minutes": 60,
+          "game": "붕괴: 스타레일",
+          "title": "밴드공연",
+          "cast": "Chevy"
+        }
+      ]
+    }
+  ],
+  "goods": [],
+  "goodsGuide": "",
+  "booths": [],
+  "past": []
+}
