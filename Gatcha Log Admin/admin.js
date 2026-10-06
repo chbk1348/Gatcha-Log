@@ -1500,11 +1500,11 @@ function editionDialog() {
     };
     const card = el('div', { class: 'gl-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ed-title' }, [
       el('h3', { id: 'ed-title', text: '행사 추가' }),
-      el('p', { text: '새 회차를 일정 미정으로 만듭니다. 만들기만 해서는 앱이 바뀌지 않습니다.' }),
+      el('p', {}, glLines('새 회차를 일정 미정으로 만듭니다. 만들기만 해서는 앱이 바뀌지 않습니다.')),
       el('div', { class: 'field', style: 'margin-top:16px' }, [
         el('label', { for: 'ed-name', text: '행사명' }), el('div', { class: 'gl-field' }, [input]), note,
       ]),
-      el('p', { class: 'gl-note', text: `내용을 채운 뒤 그 회차의 「반영 · 이력」에서 「이 회차를 앱에 게시」를 눌러야 앱에 나갑니다. 그때 지금 게시 중인 ${editionTab(editions.published)}이 지난 행사로 넘어갑니다.` }),
+      el('p', { class: 'gl-note' }, glLines(`내용을 채운 뒤 그 회차의 「반영 · 이력」에서 「이 회차를 앱에 게시」를 눌러야 앱에 나갑니다. 그때 지금 게시 중인 ${editionTab(editions.published)}이 지난 행사로 넘어갑니다.`)),
       el('div', { class: 'gl-modal-act' }, [cancel, ok]),
     ]);
     const back = el('div', { class: 'gl-backdrop' }, [card]);
@@ -5153,6 +5153,13 @@ function selftest() {
     const used = ['goods/2026/zzz-105.webp', 'goods/2027/gi-002.webp'];
     assert(assetPathFor({ dir: 'goods/2027', abbr: 'hsr', digits: 3, used, ext: 'webp', current: '' }) === 'goods/2027/hsr-003.webp', '회차 폴더의 번호를 잇지 않았다');
     assert(assetPathFor({ dir: 'goods/2027', abbr: 'hsr', digits: 3, used, ext: 'webp', current: 'goods/2027/gi-002.webp' }) === 'goods/2027/gi-002.webp', '회차 폴더에 있던 이름을 버렸다');
+  });
+  check('모달 본문은 문장마다 한 줄', () => {
+    const lines = (t) => glLines(t).map((n) => n.textContent);
+    assert(lines('호요랜드 을 라이브(config/hoyolandV2)에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.').length === 2, '문장을 가르지 않았다');
+    // 버전 · 파일명 · 날짜의 점은 문장 끝이 아니다.
+    assert(lines('27.51.0 이상 앱이 config/hoyoland_v2.json 을 읽습니다. 9.20(토) 14:00 에 엽니다.').join('|') === '27.51.0 이상 앱이 config/hoyoland_v2.json 을 읽습니다.|9.20(토) 14:00 에 엽니다.', '문장 끝이 아닌 점에서 갈랐다');
+    assert(lines('첫 줄\n둘째 줄').length === 2 && lines('  ').length === 0 && lines('되돌릴 수 없습니다.').length === 1, '줄바꿈 · 빈 글을 잘못 다뤘다');
   });
   check('version.json 만 PR 로 올린다', () => {
     // main 에 바로 쓰면 raw 로 즉시 나가 라이브 반영과 다를 것이 없다 — 라이브에서 뺀 이유가 사라진다.
