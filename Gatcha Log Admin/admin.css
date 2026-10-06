@@ -551,14 +551,15 @@ td.sel, th.sel { text-align: center; }
 .guide-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 2px; }
 
 /* 굿즈존 안내 미리보기 — 앱 시트(묶음 · [이름 | 값] 줄 · 부연)의 축소판이라 앱의 면을 그대로 둔다.
-   치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게. */
+   치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게.
+   라벨은 **한 줄** — 78 을 넘는 이름(「가을축제 스페셜 굿즈」)은 접지 않고 칸이 늘어 값을 민다(10/6). */
 .gp-group { padding: 12px 14px; border-radius: 14px; background: var(--panel-2); }
 .note-preview > .k + .gp-group { margin-top: 6px; }
 .gp-group + .gp-group { margin-top: 8px; }
 .gp-title { margin-bottom: 7px; font-size: 13px; font-weight: 800; color: var(--accent); }
 .gp-row { display: flex; gap: 10px; }
 .gp-row + .gp-row { margin-top: 8px; }
-.gp-label { flex: none; width: 78px; font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.gp-label { flex: none; min-width: 78px; font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.5; white-space: nowrap; }
 .gp-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .gp-value { font-size: 14px; color: var(--text); line-height: 1.5; }
 .gp-sub { margin-top: 2px; font-size: 12px; color: var(--muted); line-height: 1.5; }

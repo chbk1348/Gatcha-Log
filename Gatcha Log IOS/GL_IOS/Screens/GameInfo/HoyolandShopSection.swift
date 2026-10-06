@@ -1202,8 +1202,11 @@ struct HoyolandGuideContent: View {
                     }
                     ForEach(Array(g.rows.enumerated()), id: \.offset) { _, r in
                         HStack(alignment: .firstTextBaseline, spacing: 0) {
+                            // 이름은 **한 줄**(10/6) — 78 을 넘는 이름은 접지 않고 칸이 늘어 값을 민다.
+                            // 짧은 이름은 예전처럼 78 칸, 긴 이름만 값과 10 을 띄운다. Android · 어드민 미리보기와 같다.
                             Text(r.label).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                                .frame(width: 78, alignment: .leading)
+                                .lineLimit(1).fixedSize().padding(.trailing, 10)
+                                .frame(minWidth: 78, alignment: .leading)
                             VStack(alignment: .leading, spacing: 2) {
                                 if !r.value.isEmpty {
                                     Text(r.value).font(.pretendard(size: 13.5, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
