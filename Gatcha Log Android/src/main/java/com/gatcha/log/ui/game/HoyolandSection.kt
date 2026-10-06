@@ -1021,24 +1021,18 @@ fun HoyolandDetailContent(
         if (!phase.isOffSeason) sections += ticketSection
     }
 
-    // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
-    //
-    // 한 장짜리 카드에 구분선으로 쌓다가 **항목당 카드**로 갈아탔다. 웰컴 키트가 들어오면서
-    // 항목이 다섯으로 늘고 본문이 여러 줄이 되자, 구분선 하나로는 어디서 끊기는지 안 보여
-    // 글자 벽이 됐다. 굿즈·부스가 이미 카드 목록이라 규격도 그쪽에 맞춘다.
+    // ── 입장 특전 — 웰컴 키트(10/6, 「응모 · 특전」 섹션에서 갈라 섰다). 표에 딸린 것이라 예매 바로 아래다.
+    // 리딤코드 교환 기한이 따로 있어 마감을 배지로 눈에 띄게 둔다.
     //
     // 게임 배지는 [HoyolandEvent.programGame] 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
     // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
     //
-    // 항목당 카드였던 것을 **헤어라인 목록**으로 바꿨다(10/1) — 글 위주로 반복되는 줄이라 카드 대신
-    // 구분선이 끊는 자리를 맡는다(줄 위아래 14 로 덩이를 띄운다).
-    val programSection: @Composable () -> Unit = {
-        // 제목이 "프로그램" 이었을 때는 시간표·부스·푸드존까지 다 프로그램이라 위 「현장에서」와
-        // 경계가 없었다. 푸드존이 빠져나간 지금 이 섹션에 남은 건 **미리 신청하거나(전시존)
-        // 받는 것(웰컴 키트)** 뿐이라, 하는 일로 부른다.
-        // 지난 회차 화면은 이 자리가 그 회차의 기록이라 제목이 다르다(「행사 구성」 — HoyolandApi.asArchive).
-        Text(e.programSectionTitle, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
-        e.otherPrograms.forEachIndexed { i, p ->
+    // **헤어라인 목록**(10/1) — 글 위주로 반복되는 줄이라 카드 대신 구분선이 끊는 자리를 맡는다
+    // (줄 위아래 14 로 덩이를 띄운다).
+    @Composable
+    fun programList(title: String, list: List<com.gatcha.log.data.HoyolandProgram>) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
+        list.forEachIndexed { i, p ->
             if (i > 0) HoyolandHairlineDivider()
             // 지난 회차 화면은 줄 제목에 게임 이름이 이미 있어 배지를 세우지 않는다([HoyolandEvent.programGameTags]).
             val pg = if (e.programGameTags) e.programGame(p.title) else ""
@@ -1071,7 +1065,10 @@ fun HoyolandDetailContent(
                 }
         }
     }
-    if (e.otherPrograms.isNotEmpty()) sections += programSection
+    // 「프로그램」 섹션은 뺐다(10/6) — 무대 시간표와 같은 말을 되풀이했다. 남은 줄(전시존 · 게임별 구성)은
+    // 문서에 그대로 있어 옛 빌드는 지금처럼 그린다.
+    val perkSection: @Composable () -> Unit = { programList("입장 특전", e.perkPrograms) }
+    if (e.perkPrograms.isNotEmpty()) sections += perkSection
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 이번 회차 정보다.
@@ -1124,13 +1121,13 @@ fun HoyolandDetailContent(
         if (i > 0) GiBand()
         // 라인업은 줄의 지금 무대 면이 화면 끝까지 깔려야 해서 좌우 20 을 스스로 둔다.
         // 마지막 줄이 스스로 아래 여백을 가진 섹션은 그만큼 덜어 띠까지 눈에 20(10/1) — 라인업 줄 12 → 8,
-        // 응모 · 특전 줄 14 → 6. 지난 행사(늘 맨 아래)는 20.
+        // 입장 특전 줄 14 → 6. 지난 행사(늘 맨 아래)는 20.
         HoyolandSectionBox(
             horizontal = if (section === lineupSection) 0.dp else 20.dp,
             bottom = when {
                 i == sections.lastIndex -> 20.dp
                 section === lineupSection -> 8.dp
-                section === programSection -> 6.dp
+                section === perkSection -> 6.dp
                 else -> 20.dp
             },
         ) { section() }
