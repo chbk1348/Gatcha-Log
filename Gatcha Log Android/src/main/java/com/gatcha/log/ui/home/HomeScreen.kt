@@ -75,6 +75,13 @@ import com.gatcha.log.data.GameInfoAnchor
 import com.gatcha.log.ui.spending.SpendingScreen
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.util.SafIO
+import com.gatcha.log.util.openUrl
+import com.gatcha.log.data.api.AppNotice
+import com.gatcha.log.data.api.AppNoticeApi
+import com.gatcha.log.data.api.AppNoticeLevel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
@@ -360,6 +367,7 @@ fun HomeContent(
     // 호요랜드 — 개막이 가까울 때만 값이 있다(평소 null → 카드 자체가 안 그려진다).
     // 게임정보 탭과 같은 로더를 타므로 어느 탭을 먼저 켜든 같은 값을 본다.
     val featuredHoyoland = rememberFeaturedHoyoland()
+    val notices = rememberAppNotices()
     val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsStateWithLifecycle()
     val gameEvents by viewModel.gameEvents.collectAsStateWithLifecycle()
     val gameChallenges by viewModel.challenges.collectAsStateWithLifecycle()
@@ -551,6 +559,10 @@ fun HomeContent(
                     onNavigateToMyPage()
                 })
             }
+        }
+        // 운영 공지 — 어드민이 올린 것. 기간이 지나면 스스로 빠진다(AppNoticeApi).
+        notices.forEach { notice ->
+            glgCardItem() { AppNoticeBanner(notice) }
         }
         // 홈 3.0(10/1) — 「지출」 묶음 → 10 띠 → 「게임」 묶음. 묶음 안 섹션 사이는 좌우 20 헤어라인.
         // ── 지출 ──
@@ -754,23 +766,75 @@ private fun NotificationRow(alert: HomeAlert, onClick: () -> Unit, onDismiss: ()
  */
 @Composable
 private fun TokenExpiredBanner(onReconnect: () -> Unit) {
-    val accent = LocalAccent.current
-    // 카드 없이 화면 폭 강조색 띠(iOS 와 같다).
-    run {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).background(accent.copy(alpha = 0.10f)).padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Default.Warning, null, tint = accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("HoYoLAB 토큰이 만료된 것 같아요", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text("재연동하지 않으면 자동 출석이 안 돼요", fontSize = 12.sp, color = TextSecondary)
-            }
+    HomeTopBanner(
+        icon = Icons.Default.Warning, tint = LocalAccent.current,
+        title = "HoYoLAB 토큰이 만료된 것 같아요", body = "재연동하지 않으면 자동 출석이 안 돼요",
+        cta = "재연동", onCta = onReconnect,
+    )
+}
+
+/**
+ * 운영 공지 한 건 — 만료 배너와 **같은 모양**이고 색만 무게를 따른다(안내 = 강조색 · 주의 = 경고색 · 긴급 = 급한 경고색).
+ * 주소가 있으면 버튼이 붙어 브라우저로 연다. iOS `AppNoticeBanner` 와 같은 값.
+ */
+@Composable
+private fun AppNoticeBanner(notice: AppNotice) {
+    HomeTopBanner(
+        icon = if (notice.level == AppNoticeLevel.INFO) Icons.Default.Info else Icons.Default.Warning,
+        tint = when (notice.level) {
+            AppNoticeLevel.INFO -> LocalAccent.current
+            AppNoticeLevel.WARN -> WarningText
+            AppNoticeLevel.URGENT -> Urgent
+        },
+        title = notice.title, body = notice.body,
+        cta = notice.cta.takeIf { notice.url.isNotBlank() }, onCta = { openUrl(notice.url) },
+    )
+}
+
+/**
+ * 홈 맨 위 띠 배너 — 카드 없이 화면 폭 [tint] 10% 면(iOS `HomeTopBanner` 와 같다).
+ * 아이콘 24 · 제목 14 Bold · 내용 12 회색 · 버튼은 GLDS S. 아래 8 은 다음 배너 · 묶음 머리와의 간격이다.
+ */
+@Composable
+private fun HomeTopBanner(icon: ImageVector, tint: Color, title: String, body: String, cta: String?, onCta: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).background(tint.copy(alpha = 0.10f)).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            if (body.isNotBlank()) Text(body, fontSize = 12.sp, color = TextSecondary)
+        }
+        if (cta != null) {
             Spacer(Modifier.width(8.dp))
-            GldsButton("재연동", onReconnect, size = GldsSize.S)
+            GldsButton(cta, onCta, size = GldsSize.S)
         }
     }
+}
+
+/**
+ * 지금 띄울 운영 공지 — 첫 프레임은 받아 둔 값으로, 화면에 돌아올 때(ON_RESUME)마다 다시 묻는다.
+ *
+ * 호요랜드 배너(`rememberHoyolandEvent`)와 같은 이유다. 홈은 앱을 켜 두는 내내 composition 에
+ * 남아 있어 한 번만 물으면 어드민에서 공지를 올려도 재실행 전까지 안 뜬다. 매번 네트워크를 타지는
+ * 않는다 — [AppNoticeApi.load] 가 15초 캐시로 막는다.
+ */
+@Composable
+private fun rememberAppNotices(): List<AppNotice> {
+    var notices by remember { mutableStateOf(AppNoticeApi.current) }
+    var resumeTick by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) resumeTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resumeTick) { notices = AppNoticeApi.load() }
+    return notices
 }
 
 /**

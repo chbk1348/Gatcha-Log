@@ -91,23 +91,88 @@ struct DashCardSkeleton: View {
     }
 }
 
+/// 홈 최상단 만료 배너 — 자동 출석에서 HoYoLAB 쿠키 만료가 감지되면 노출. (Android `TokenExpiredBanner`)
 struct TokenExpiredBanner: View {
     let onReconnect: () -> Void
     @Environment(\.glgAccent) private var accent
     var body: some View {
+        HomeTopBanner(icon: "exclamationmark.triangle.fill", tint: accent.primary,
+                      title: "HoYoLAB 토큰이 만료된 것 같아요", message: "재연동하지 않으면 자동 출석이 안 돼요",
+                      cta: "재연동", action: onReconnect)
+    }
+}
+
+/// 운영 공지 한 건 — 만료 배너와 **같은 모양**이고 색만 무게를 따른다(안내 = 강조색 · 주의 = 경고색 · 긴급 = 급한 경고색).
+/// 주소가 있으면 버튼이 붙어 브라우저로 연다. Android `AppNoticeBanner` 와 같은 값.
+struct AppNoticeBanner: View {
+    let notice: AppNotice
+    @Environment(\.glgAccent) private var accent
+    @Environment(\.openURL) private var openURL
+    private var tint: Color {
+        switch notice.level {
+        case .warn: return GLGColor.warningText
+        case .urgent: return GLGColor.urgent
+        default: return accent.primary
+        }
+    }
+    var body: some View {
+        HomeTopBanner(icon: notice.level == .info ? "info.circle.fill" : "exclamationmark.triangle.fill", tint: tint,
+                      title: notice.title, message: notice.body,
+                      cta: notice.url.isEmpty ? nil : notice.cta,
+                      action: { if let url = URL(string: notice.url) { openURL(url) } })
+    }
+}
+
+/// 홈 맨 위 띠 배너 — 카드 없이 화면 폭 `tint` 10% 면(Android `HomeTopBanner` 와 같다).
+/// 아이콘 22 · 제목 14 Bold · 내용 12 회색 · 버튼은 GLDS S.
+struct HomeTopBanner: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let message: String
+    let cta: String?
+    let action: () -> Void
+    var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill").font(.pretendard(size: 22)).foregroundStyle(accent.primary)
+            Image(systemName: icon).font(.pretendard(size: 22)).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 0) {
-                Text("HoYoLAB 토큰이 만료된 것 같아요").font(.pretendard(size: 14, weight: .bold))
-                Text("재연동하지 않으면 자동 출석이 안 돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                Text(title).font(.pretendard(size: 14, weight: .bold))
+                if !message.isEmpty {
+                    Text(message).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                }
             }
             Spacer()
-            GldsButton(title: "재연동", size: .s, fullWidth: false, action: onReconnect)
+            if let cta {
+                GldsButton(title: cta, size: .s, fullWidth: false, action: action)
+            }
         }
-        // 카드 없이 화면 폭 강조색 띠(Android 와 같다).
         .padding(.horizontal, 20).padding(.vertical, 12)
         .frame(maxWidth: .infinity)
-        .background(accent.primary.opacity(0.10))
+        .background(tint.opacity(0.10))
+    }
+}
+
+/**
+ 지금 띄울 운영 공지를 받아 온다 — 진입할 때 + **앱으로 돌아올 때마다** 다시 묻는다.
+
+ 호요랜드 배너(`HoyolandAutoLoad`)와 같은 이유다. 홈은 앱을 켜 두는 내내 살아 있어 한 번만 물으면
+ 어드민에서 공지를 올려도 재실행 전까지 안 뜬다. 매번 네트워크를 타지는 않는다 — `AppNoticeApi.load` 가
+ 15초 캐시로 막는다. Android 는 ON_RESUME 마다 다시 묻는다(`rememberAppNotices`).
+ */
+struct AppNoticeAutoLoad: ViewModifier {
+    @Binding var notices: [AppNotice]
+    @Environment(\.scenePhase) private var scenePhase
+
+    func body(content: Content) -> some View {
+        content
+            .task { await reload() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await reload() } }
+            }
+    }
+
+    private func reload() async {
+        if let fresh = try? await AppNoticeApi.shared.load(force: false) { notices = fresh }
     }
 }
 
