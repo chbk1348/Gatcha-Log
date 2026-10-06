@@ -201,6 +201,14 @@ data class HoyolandProgram(
      * (「행사 구성」)에 섰다. 어드민 `isFoodProgram` 과 **같아야 한다**.
      */
     val isFood: Boolean get() = title.startsWith("푸드") || menuImages.isNotEmpty()
+
+    /**
+     * 입장 특전 줄인가 — 제목이 「웰컴 키트」나 「입장 특전」으로 시작한다(10/6, 「입장 특전」 섹션으로 분리).
+     *
+     * 푸드존과 같은 방식으로 **같은 programs 배열에서 제목으로** 가른다 — 문서 모양이 그대로라 이 값을 모르는
+     * 옛 빌드는 지금처럼 프로그램 섹션에 그린다. 어드민 `isPerkProgram` 과 **같아야 한다**. 푸드가 먼저다.
+     */
+    val isPerk: Boolean get() = !isFood && (title.startsWith("웰컴 키트") || title.startsWith("입장 특전"))
 }
 
 /**
@@ -573,9 +581,10 @@ data class HoyolandEvent(
      */
     val map: HoyolandMap = HoyolandMap(),
     /**
-     * 프로그램 섹션의 제목. 비면 「응모 · 특전」([programSectionTitle]).
+     * 프로그램 섹션의 제목. 비면 「프로그램」([programSectionTitle]).
      *
-     * 지금 회차의 그 섹션에는 미리 신청하거나 받는 것(전시존 · 웰컴 키트)만 남아 그렇게 부른다.
+     * 웰컴 키트가 「입장 특전」 섹션으로 빠진 뒤(10/6) 이 섹션에는 전시존 · 공모 같은 프로그램만 남는다
+     * (예전 이름 「응모 · 특전」의 '특전'이 나갔다).
      * 지난 회차 화면은 같은 자리가 그 회차의 기록(게임별 구성 · 무대 · 부대 시설)이라 「행사 구성」이다 —
      * [com.gatcha.log.data.api.HoyolandApi.loadArchive] 가 채운다. 원격 문서에는 없는 값이다(파서가 읽지 않는다).
      */
@@ -592,8 +601,8 @@ data class HoyolandEvent(
     val archived: Boolean = false,
 ) {
 
-    /** 프로그램 섹션 제목 — [programsTitle] 이 비면 「응모 · 특전」. */
-    val programSectionTitle: String get() = programsTitle.ifBlank { "응모 · 특전" }
+    /** 프로그램 섹션 제목 — [programsTitle] 이 비면 「프로그램」. */
+    val programSectionTitle: String get() = programsTitle.ifBlank { "프로그램" }
 
     /** 대표 이미지 전체 주소. 없으면 빈 문자열이라 호출부는 `isNotEmpty()` 로 가른다. */
     val keyImageUrl: String get() = hoyolandAssetUrl(keyImage)
@@ -1160,9 +1169,13 @@ data class HoyolandEvent(
     val foodPrograms: List<HoyolandProgram>
         get() = programs.filter { it.isFood }
 
-    /** 푸드존을 뺀 나머지 프로그램 — 프로그램 섹션이 쓴다. */
+    /** 입장 특전(웰컴 키트) — 「입장 특전」 섹션이 쓴다. 예매 바로 아래에 선다([HoyolandProgram.isPerk]). */
+    val perkPrograms: List<HoyolandProgram>
+        get() = programs.filter { it.isPerk }
+
+    /** 푸드존 · 입장 특전을 뺀 나머지 프로그램 — 프로그램 섹션이 쓴다. */
     val otherPrograms: List<HoyolandProgram>
-        get() = programs.filterNot { it.isFood }
+        get() = programs.filterNot { it.isFood || it.isPerk }
 
     /**
      * 푸드존 입구 줄 — "3곳 · 3,000원 ~ 13,500원".

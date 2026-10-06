@@ -465,18 +465,18 @@ struct HoyolandDetailView: View {
                         ticketSection(e).hoyolandSection()
                     }
                 }
-                if !e.otherPrograms.isEmpty {
+                if hasPrograms(e) {
                     if hasAbove { GiBand() }
-                    // 마지막 줄이 위아래 14 라 아래 6 — 띠까지 눈에 20(10/1).
-                    programSection(e).hoyolandSection(bottom: 6)
+                    // 입장 특전. 마지막 줄이 위아래 14 라 아래 6 — 띠까지 눈에 20(10/1).
+                    programBlocks(e)
                 }
                 // 지난 회차 화면(보관본)에는 「지난 행사」를 세우지 않는다(10/6) — 그 목록에서 골라 들어온 화면이라
                 // 같은 목록이 또 나오면 어디에 있는지 헷갈린다. (Android 와 같다)
                 if !readOnly {
-                    if hasAbove || !e.otherPrograms.isEmpty { GiBand() }
+                    if hasAbove || hasPrograms(e) { GiBand() }
                     pastSection(e).hoyolandSection()
-                } else if !e.otherPrograms.isEmpty {
-                    // 프로그램 섹션(아래 6)이 페이지 끝이 됐다 — 맨 아래 20 을 채운다.
+                } else if hasPrograms(e) {
+                    // 입장 특전 섹션(아래 6)이 페이지 끝이 됐다 — 맨 아래 20 을 채운다.
                     Color.clear.frame(height: 14)
                 }
                 }
@@ -582,9 +582,9 @@ struct HoyolandDetailView: View {
 
      - **왼쪽 = 이 행사에서 볼 것.** 개막 전에는 라인업 → 둘러보기, 개막하면 둘러보기가 맨 위로
        올라온다 — 한 열일 때와 **같은 순서 규칙**이다.
-     - **오른쪽 = 곁들여 읽는 것.** 예매(개막하면 내린다) · 응모·특전 · 지난 행사.
+     - **오른쪽 = 곁들여 읽는 것.** 예매(개막하면 내린다) · 입장 특전 · 지난 행사.
 
-     개막하면 예매가 빠져 오른쪽이 짧아지므로 응모·특전을 왼쪽으로 옮기고 라인업을 오른쪽 머리로
+     개막하면 예매가 빠져 오른쪽이 짧아지므로 입장 특전을 왼쪽으로 옮기고 라인업을 오른쪽 머리로
      보낸다. 두 열의 첫 섹션은 모두 **제목에 윗여백을 품지 않은** 것이라 머리 줄이 같은 높이에서 선다.
      */
     @ViewBuilder private func wideColumns(_ e: HoyolandEvent) -> some View {
@@ -602,17 +602,17 @@ struct HoyolandDetailView: View {
         let showPast = !readOnly
         // 열 안에서도 한 열과 같은 규칙 — 섹션 + 사이 띠(10/1). 섹션이 위 22 를 품어 열 머리가 같은 높이에 선다.
         if leftEmpty {
-            // 남은 것(예매 · 응모·특전 · 지난 행사)을 **두 열에 나눠** 세운다. 앞의 둘이 있으면 왼쪽에, 지난 행사는 오른쪽에.
+            // 남은 것(예매 · 입장 특전 · 지난 행사)을 **두 열에 나눠** 세운다. 앞의 둘이 있으면 왼쪽에, 지난 행사는 오른쪽에.
             // 지난 행사뿐이면 그 목록을 앞 절반 · 뒤 절반으로 갈라 두 열에 세운다 — 제목은 왼쪽에만 보인다.
-            let hasLead = showTicket || !e.otherPrograms.isEmpty
+            let hasLead = showTicket || hasPrograms(e)
             let half = (e.past.count + 1) / 2
             HStack(alignment: .top, spacing: gap) {
                 VStack(alignment: .leading, spacing: 0) {
                     if hasLead {
                         if showTicket { ticketSection(e).hoyolandSection() }
-                        if !e.otherPrograms.isEmpty {
+                        if hasPrograms(e) {
                             if showTicket { GiBand() }
-                            programSection(e).hoyolandSection(bottom: 6)
+                            programBlocks(e)
                         }
                     } else if showPast {
                         pastSection(e, slice: 0..<half).hoyolandSection()
@@ -632,9 +632,9 @@ struct HoyolandDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if live {
                     onsiteSection(e).hoyolandSection()
-                    if !e.otherPrograms.isEmpty {
+                    if hasPrograms(e) {
                         GiBand()
-                        programSection(e).hoyolandSection()
+                        programBlocks(e, bottom: 20)
                     }
                 } else {
                     if !e.lineup.isEmpty {
@@ -655,11 +655,11 @@ struct HoyolandDetailView: View {
                     }
                 } else {
                     if showTicket { ticketSection(e).hoyolandSection() }
-                    if !e.otherPrograms.isEmpty {
+                    if hasPrograms(e) {
                         if showTicket { GiBand() }
-                        programSection(e).hoyolandSection(bottom: 6)
+                        programBlocks(e)
                     }
-                    if !readOnly && (showTicket || !e.otherPrograms.isEmpty) { GiBand() }
+                    if !readOnly && (showTicket || hasPrograms(e)) { GiBand() }
                 }
                 if !readOnly { pastSection(e).hoyolandSection() }
             }
@@ -1518,23 +1518,33 @@ struct HoyolandDetailView: View {
         return raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
     }
 
-    // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
-    // 항목당 카드였던 것을 **헤어라인 목록**으로 바꿨다(10/1). 섹션 여백 · 띠는 호출부가 건다.
-    @ViewBuilder private func programSection(_ e: HoyolandEvent) -> some View {
-        if !e.otherPrograms.isEmpty {
+    /** 「입장 특전」 섹션이 서는가 — 호출부가 띠 · 자리를 가른다. */
+    private func hasPrograms(_ e: HoyolandEvent) -> Bool { !e.perkPrograms.isEmpty }
+
+    /**
+     「입장 특전」(웰컴 키트) — 「응모 · 특전」 섹션에서 갈라 섰다(10/6). 표에 딸린 것이라 예매 바로 아래다.
+     「프로그램」 섹션은 뺐다 — 무대 시간표와 같은 말을 되풀이했다. 남은 줄은 문서에 그대로 있어 옛 빌드는 그대로 그린다.
+     섹션 여백까지 여기서 건다(마지막 줄이 위아래 14 라 아래 6). (Android `perkSection` 과 파리티)
+     */
+    @ViewBuilder private func programBlocks(_ e: HoyolandEvent, bottom: CGFloat = 6) -> some View {
+        if !e.perkPrograms.isEmpty {
+            programList(e, title: "입장 특전", list: e.perkPrograms).hoyolandSection(bottom: bottom)
+        }
+    }
+
+    // ── 입장 특전 줄 — 리딤코드 교환 기한이 따로 있어 마감을 배지로 눈에 띄게 둔다.
+    // **헤어라인 목록**(10/1). 섹션 여백 · 띠는 호출부가 건다.
+    @ViewBuilder private func programList(_ e: HoyolandEvent, title: String, list: [HoyolandProgram]) -> some View {
+        if !list.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-            // 제목이 "프로그램" 이었을 때는 시간표·부스·푸드존까지 다 프로그램이라 위 「현장에서」와
-            // 경계가 없었다. 푸드존이 빠져나간 지금 이 섹션에 남은 건 **미리 신청하거나(전시존)
-            // 받는 것(웰컴 키트)** 뿐이라, 하는 일로 부른다.
-            // 지난 회차 화면은 이 자리가 그 회차의 기록이라 제목이 다르다(「행사 구성」 — HoyolandApi.asArchive).
-            Text(e.programSectionTitle).font(.pretendard(size: 17, weight: .bold)).padding(.bottom, 2)
+            Text(title).font(.pretendard(size: 17, weight: .bold)).padding(.bottom, 2)
             // 한 장짜리 카드에 구분선으로 쌓다가 **항목당 카드**로 갈아탔다. 웰컴 키트가 들어오며
             // 항목이 다섯으로 늘고 본문이 여러 줄이 되자, 구분선 하나로는 어디서 끊기는지 안 보여
             // 글자 벽이 됐다. 굿즈·부스가 이미 카드 목록이라 규격도 그쪽에 맞춘다.
             //
             // 게임 배지는 HoyolandEvent.programGame 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
             // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
-            ForEach(Array(e.otherPrograms.enumerated()), id: \.offset) { i, p in
+            ForEach(Array(list.enumerated()), id: \.offset) { i, p in
                 // 지난 회차 화면은 줄 제목에 게임 이름이 이미 있어 배지를 세우지 않는다(HoyolandEvent.programGameTags).
                 let pg = e.programGameTags ? e.programGame(title: p.title) : ""
                 let pc = pg.isEmpty ? GLGColor.textSecondary : programColor(e, pg)

@@ -48,6 +48,11 @@ const TICKET_STATUS_ALIAS = { onsale: 'on_sale', soldout: 'sold_out' };
  */
 const isFoodProgram = (p) => String(p?.title ?? '').startsWith('푸드') || hasMenuImages(p);
 /**
+ * 입장 특전 줄 — 제목이 「웰컴 키트」 · 「입장 특전」으로 시작한다(10/6). 앱 Hoyoland.kt `isPerk` 와 **같아야 한다**.
+ * 푸드가 먼저다(메뉴 사진이 걸린 줄은 제목이 무엇이든 푸드존).
+ */
+const isPerkProgram = (p) => !isFoodProgram(p) && /^(웰컴 키트|입장 특전)/.test(String(p?.title ?? ''));
+/**
  * 메뉴 사진이 걸린 줄인가 — 메뉴 사진은 푸드존 탭에서만 걸 수 있어, **그 줄이 푸드존 탭에서 만든 것**이라는 표시가 된다(10/6).
  * 제목만 보던 때는 제목 머리가 빠진 문서(「푸드존 — 원신」 → 「원신」) 하나로 메뉴판이 통째로 프로그램 탭 · 앱의
  * 「행사 구성」에 섰다. 앱 `HoyolandProgram.isFood` 와 같은 기준이다.
@@ -443,7 +448,7 @@ const HOYOLAND = {
       if (n) add('error', section, `${what} ${n}건의 ${key} 가 비어 있습니다 — 앱이 해당 행을 버립니다.`);
     };
     dropped(d.lineup, 'game', 'lineup', '참여 게임');
-    dropped(d.programs, 'title', 'programs', '프로그램');
+    dropped(d.programs, 'title', 'perks', '입장 특전 · 푸드존');
     dropped(d.goods, 'name', 'goods', '굿즈');
     dropped(d.booths, 'title', 'booths', '부스');
     dropped(d.past, 'title', 'past', '지난 행사');
@@ -575,12 +580,15 @@ const HOYOLAND = {
       desc: 'abbr · colorArgb 는 앱 GameData 에 없는 게임(붕괴3rd · 미해결사건부 등)만 채웁니다. 공지 주소를 넣으면 앱에서 그 게임 칩을 눌러 열 수 있습니다.',
       warnEmpty: '비우면 앱이 번들 기본 라인업으로 폴백합니다(빈 목록으로 내릴 수 없음).',
       columns: LINEUP_COLS },
-    // 푸드존은 같은 programs 배열에 있지만 탭을 따로 쓴다(10/6) — 여기에는 푸드가 아닌 줄만 선다([only]).
-    { id: 'programs', group: '행사', label: '프로그램', type: 'list', path: 'programs', countable: true,
-      only: (p) => !isFoodProgram(p),
-      desc: '전시존 · 공모 등 상시 프로그램. 마감이 있으면 deadline 에 적습니다. 제목이 「푸드」로 시작하는 줄은 푸드존 탭에 섭니다.',
+    // 입장 특전 — 같은 programs 배열에서 「웰컴 키트」 · 「입장 특전」으로 시작하는 줄만 선다([only], 10/6).
+    // 예전 「프로그램」 탭은 뺐다 — 앱의 프로그램 섹션이 무대 시간표와 같은 말을 되풀이해 앱에서 걷었다.
+    // 그 밖의 줄(전시존 · 게임별 구성)은 문서에 그대로 남아 옛 빌드가 그린다.
+    { id: 'perks', group: '행사', label: '입장 특전', type: 'list', path: 'programs', countable: true,
+      // 새 줄은 제목 머리를 채워 만든다 — 빈 제목은 특전으로 읽히지 않아 만들자마자 탭에서 사라진다.
+      only: (p) => isPerkProgram(p), seed: { title: '웰컴 키트 — ' },
+      desc: '웰컴 키트 등 입장권에 딸린 특전. 앱 「입장 특전」 섹션(예매 바로 아래)에 섭니다. 제목은 「웰컴 키트 — 원신」처럼 「웰컴 키트」나 「입장 특전」으로 시작해야 이 탭과 앱 섹션에 섭니다. 리딤코드 교환 기한은 마감 표기에 적습니다.',
       columns: [
-        { key: 'title', label: '제목', type: 'text', required: true },
+        { key: 'title', label: '제목', type: 'text', required: true, placeholder: '웰컴 키트 — 원신' },
         { key: 'desc', label: '설명', type: 'text', lines: true },
         { key: 'deadline', label: '마감 표기', type: 'text' },
       ] },
@@ -3399,7 +3407,7 @@ function renderHoyoDashboard() {
     ['ticket', d.ticket.status === 'undecided' ? '' : [ticketShort, d.ticket.vendor, d.ticket.priceLabel].map((v) => String(v || '').trim()).filter(Boolean).join(' · '), '예매 칸이 「미정」으로 보입니다'],
     ['entryGroups', detail(n(d.entryGroups), [...byTime].map(([t, names]) => `${names.join(' · ')} ${t}`.trim()).join(' / ')), '「내 입장권」 섹션이 뜨지 않습니다'],
     ['lineup', detail(n(d.lineup), d.lineup.map((x) => x.game).filter(Boolean).join(' · ')), '앱 내장 라인업으로 메웁니다(빈 목록으로는 못 내립니다)'],
-    ['programs', n(d.programs.filter((p) => !isFoodProgram(p))), ''],
+    ['perks', n(d.programs.filter(isPerkProgram)), '앱에서 「입장 특전」 섹션이 뜨지 않습니다'],
     ['days', slots ? `${d.days.length}일 · ${slots}슬롯` : '', '날짜 탭만 서고 시간표는 비어 보입니다'],
     ['goods', detail(n(d.goods), [...perGame].sort((a, b) => b[1] - a[1]).map(([g, k]) => `${g} ${k}`).join(' · ')), ''],
     ['food', n(d.programs.filter(isFoodProgram)), ''],
@@ -5195,22 +5203,23 @@ function selftest() {
       { title: '갤럭시 스토어', game: '', location: '파트너사 · 제2전시장 8홀' }, { title: '원신 DIY', game: '원신', location: 'DIY존' }];
     const names = (id, rows) => ownRows(sec(id), rows).map((r) => r.title).join();
     assert(names('food', programs) === '푸드존 — 원신,푸드트럭 — 붕괴: 스타레일', '푸드존 탭의 줄이 틀렸다: ' + names('food', programs));
-    assert(names('programs', programs) === '2차 창작물 전시존,웰컴 키트 — 원신', '프로그램 탭에 푸드가 남았다: ' + names('programs', programs));
+    // 입장 특전 탭(10/6) — 웰컴 키트만. 전시존 같은 나머지 줄은 어느 탭에도 서지 않는다(앱의 프로그램 섹션을 걷었다).
+    assert(names('perks', programs) === '웰컴 키트 — 원신', '입장 특전 탭의 줄이 틀렸다: ' + names('perks', programs));
     assert(names('diy', booths) === 'DIY존 이용 안내', 'DIY 탭의 줄이 틀렸다: ' + names('diy', booths));
     assert(names('booths', booths) === '사격,갤럭시 스토어,원신 DIY', '부스 체험 탭의 줄이 틀렸다: ' + names('booths', booths));
-    // 두 탭이 한 배열을 빠짐없이 · 겹침 없이 나눈다.
-    for (const [x, y, rows] of [['programs', 'food', programs], ['booths', 'diy', booths]]) {
-      assert(rows.every((r) => sec(x).only(r) !== sec(y).only(r)), `${x} · ${y} 가 같은 줄을 둘 다 가졌거나 둘 다 놓쳤다`);
-    }
+    // 부스 체험 · DIY 는 한 배열을 빠짐없이 · 겹침 없이 나눈다. 입장 특전 · 푸드존은 겹치지만 않는다.
+    assert(booths.every((r) => sec('booths').only(r) !== sec('diy').only(r)), 'booths · diy 가 같은 줄을 둘 다 가졌거나 둘 다 놓쳤다');
+    assert(programs.every((r) => !(sec('perks').only(r) && sec('food').only(r))), '입장 특전 · 푸드존이 같은 줄을 둘 다 가졌다');
     // 새 줄은 만든 탭에 선다.
     // 푸드존 탭은 음식 한 줄씩 적는 화면이라 새 줄을 따로 만든다(renderFood) — 여기는 DIY 만 본다.
     assert(sec('diy').only(sec('diy').seed), '새 줄이 제 탭에 서지 않는다');
-    assert(sec('programs').only({ title: '' }) && sec('booths').only({ title: '', game: '', location: '' }), '빈 줄이 프로그램 · 부스 체험 탭에 서지 않는다');
+    assert(sec('perks').only(sec('perks').seed), '새 줄이 입장 특전 탭에 서지 않는다');
+    assert(sec('booths').only({ title: '', game: '', location: '' }), '빈 줄이 부스 체험 탭에 서지 않는다');
     // 변경사항도 그 줄이 선 탭의 이름으로 부른다.
     const tree = { programs, booths };
     const say = (p) => { const e = explainPath(p, tree); return [e.section, ...e.crumbs, e.field].filter(Boolean).join('/'); };
     assert(say('programs[1].desc') === '푸드존/푸드존 — 원신/메뉴', '푸드존 경로가 틀렸다: ' + say('programs[1].desc'));
-    assert(say('programs[0].desc') === '프로그램/2차 창작물 전시존/설명', '프로그램 경로가 틀렸다: ' + say('programs[0].desc'));
+    assert(say('programs[2].desc') === '입장 특전/웰컴 키트 — 원신/설명', '입장 특전 경로가 틀렸다: ' + say('programs[2].desc'));
     assert(say('booths[1].price') === 'DIY/DIY존 이용 안내/참가비(원)', 'DIY 경로가 틀렸다: ' + say('booths[1].price'));
     assert(say('booths[0].price') === '부스 체험/사격/참가비(원)', '부스 경로가 틀렸다: ' + say('booths[0].price'));
   });

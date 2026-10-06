@@ -92,7 +92,7 @@ class HoyolandArchiveTest {
         assertEquals("1종", HoyolandApi.asArchive(y2025.copy(goods = goods)).onsiteGoodsLine(empty))
         assertEquals("1종 · 아직 안 담았어요", y2025.copy(goods = goods).onsiteGoodsLine(empty))
         // 지금 회차는 그대로다.
-        assertEquals("응모 · 특전", HoyolandDefaults.event.programSectionTitle)
+        assertEquals("프로그램", HoyolandDefaults.event.programSectionTitle)
         assertEquals(true, HoyolandDefaults.event.programGameTags)
     }
 
@@ -125,7 +125,8 @@ class HoyolandArchiveTest {
             ]}""",
         )!!
         assertEquals(listOf("푸드존 — 원신", "붕괴: 스타레일"), e.foodPrograms.map { it.title })
-        assertEquals(listOf("웰컴 키트 — 원신", "젠레스 존 제로"), e.otherPrograms.map { it.title })
+        assertEquals(listOf("젠레스 존 제로"), e.otherPrograms.map { it.title })
+        assertEquals(listOf("웰컴 키트 — 원신"), e.perkPrograms.map { it.title })
     }
 
     @Test

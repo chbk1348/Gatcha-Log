@@ -43,7 +43,23 @@ class HoyolandFoodTest {
             젠레스,
         )
         assertEquals(listOf("푸드트럭 — 붕괴: 스타레일", "푸드존 — 젠레스 존 제로"), e.foodPrograms.map { it.title })
-        assertEquals(listOf("웰컴 키트 — 공통", "2차 창작물 전시존"), e.otherPrograms.map { it.title })
+        // 웰컴 키트는 「입장 특전」 섹션으로 간다(10/6) — 프로그램 섹션에는 전시존만 남는다.
+        assertEquals(listOf("웰컴 키트 — 공통"), e.perkPrograms.map { it.title })
+        assertEquals(listOf("2차 창작물 전시존"), e.otherPrograms.map { it.title })
+    }
+
+    @Test
+    fun 웰컴_키트와_입장_특전으로_시작하는_줄이_입장_특전이다() {
+        val e = event(
+            HoyolandProgram("웰컴 키트 — 원신", "· 리딤코드"),
+            HoyolandProgram("입장 특전 — 공통", "· 부직포백"),
+            HoyolandProgram("2차 창작물 전시존", "팬아트 전시"),
+            // 푸드가 먼저다 — 메뉴 사진이 걸린 줄은 제목이 무엇이든 푸드존이다.
+            HoyolandProgram("웰컴 키트 카페", "· 라테 — 5,000원", menuImages = mapOf("라테" to "food/x.webp")),
+        )
+        assertEquals(listOf("웰컴 키트 — 원신", "입장 특전 — 공통"), e.perkPrograms.map { it.title })
+        assertEquals(listOf("2차 창작물 전시존"), e.otherPrograms.map { it.title })
+        assertEquals(listOf("웰컴 키트 카페"), e.foodPrograms.map { it.title })
     }
 
     @Test
