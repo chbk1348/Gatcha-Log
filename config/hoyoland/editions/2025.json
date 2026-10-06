@@ -27,15 +27,18 @@
   "lineup": [
     {
       "game": "원신",
-      "theme": "나타가 부른다, 준비됐나?"
+      "theme": "나타가 부른다, 준비됐나?",
+      "colorArgb": "0xFF4F8EF7"
     },
     {
       "game": "붕괴: 스타레일",
-      "theme": "이름 없는 기억의 축가"
+      "theme": "이름 없는 기억의 축가",
+      "colorArgb": "0xFFB06BFF"
     },
     {
       "game": "젠레스 존 제로",
-      "theme": "뉴에리두 특별수행"
+      "theme": "뉴에리두 특별수행",
+      "colorArgb": "0xFFF5A623"
     },
     {
       "game": "붕괴3rd",
