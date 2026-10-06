@@ -3615,8 +3615,9 @@ function renderPublish(sec) {
     ...three,
   ]));
 
-  // ── 시안에 없는 기존 기능 — 예전 모양 그대로(라이브 문서 카드는 앱이 읽는 문서의 것이라 게시 중인 회차에만) ──
-  if (c.available) kids.push(operatorCard(c), ...(side ? [] : [liveDocCard(res)]));
+  // ── 시안에 없는 기존 기능 — 예전 모양 그대로(라이브 문서 카드는 앱이 읽는 문서의 것이라 게시 중인 회차에만,
+  // 보관 · 게시 전 회차는 「정본 불러오기」 한 줄만) ──
+  if (c.available) kids.push(operatorCard(c), side ? editionCanonCard(res) : liveDocCard(res));
   return el('div', {}, kids);
 }
 
@@ -3723,21 +3724,41 @@ function liveDocCard(res) {
         setData(JSON.parse(state.live.json), '라이브 · Firestore');
         toast('라이브 값을 불러왔습니다.');
       } }, ['라이브 값 불러오기']),
-      // 정본을 git 에서 고쳐 커밋했을 때 쓰는 문. 평소 순서(라이브 우선)로는 옛 라이브 문서가
-      // 계속 잡혀 새 정본이 화면에 오지 않는다. 받아온 뒤 '라이브에 반영' 까지 해야 앱이 본다.
-      el('button', { class: 'btn btn-sm', onclick: async () => {
-        if (state.dirty && !await glConfirm('편집 중인 내용을 정본(git) 값으로 덮어씁니다.', {
-          title: '정본 불러오기', ok: '덮어쓰기', danger: true, note: '되돌릴 수 없습니다.',
-        })) return;
-        try {
-          const { raw } = await pullResource(state.res, { rawOnly: true });
-          setData(raw, `정본 main · ${new Date().toLocaleTimeString('ko-KR')}`);
-          toast('정본을 불러왔습니다. 앱에 반영하려면 “라이브에 반영” 을 누르세요.');
-        } catch (e) { toast('정본을 불러오지 못했습니다: ' + e.message); }
-      } }, ['정본 불러오기']),
+      canonLoadButton(),
     ]),
   ]));
   return card({ label: '라이브 문서', desc: `config/${res.doc} — 앱이 가장 먼저 읽는 자리입니다.` }, statusKids);
+}
+
+/**
+ * 「정본 불러오기」 — 정본을 git 에서 고쳐 커밋했을 때 쓰는 문. 평소 순서(문서 우선)로는 옛 문서가
+ * 계속 잡혀 새 정본이 화면에 오지 않는다. 게시 중인 회차는 받아온 뒤 '라이브에 반영' 까지 해야 앱이 보고,
+ * 보관 · 게시 전 회차는 '저장' 해야 회차 문서에 남는다(10/6 — 보관 회차에는 이 문이 없어 git 으로 채운
+ * 2024 · 2025 를 올릴 길이 없었다).
+ */
+function canonLoadButton() {
+  return el('button', { class: 'btn btn-sm', onclick: async () => {
+    if (state.dirty && !await glConfirm('편집 중인 내용을 정본(git) 값으로 덮어씁니다.', {
+      title: '정본 불러오기', ok: '덮어쓰기', danger: true, note: '되돌릴 수 없습니다.',
+    })) return;
+    try {
+      const { raw } = await pullResource(state.res, { rawOnly: true });
+      setData(raw, `정본 main · ${new Date().toLocaleTimeString('ko-KR')}`);
+      toast(state.res.editionId
+        ? '정본을 불러왔습니다. 회차 문서에 남기려면 “저장” 을 누르세요.'
+        : '정본을 불러왔습니다. 앱에 반영하려면 “라이브에 반영” 을 누르세요.');
+    } catch (e) { toast('정본을 불러오지 못했습니다: ' + e.message); }
+  } }, ['정본 불러오기']);
+}
+
+/** 보관 · 게시 전 회차의 정본 카드 — 라이브 문서 카드 대신 선다(앱이 읽는 문서가 아니다). */
+function editionCanonCard(res) {
+  return card({ label: '정본 파일', desc: `${res.file} — git 에서 고쳐 커밋한 값을 이 회차로 가져옵니다.` }, [
+    el('div', { class: 'section-head', style: 'margin:14px 0 0' }, [
+      el('span', {}),
+      el('div', { class: 'tools' }, [canonLoadButton()]),
+    ]),
+  ]);
 }
 
 function renderLive(sec) {
