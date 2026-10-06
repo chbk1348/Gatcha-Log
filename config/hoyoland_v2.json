@@ -1,5 +1,5 @@
 {
-  "_comment": "호요랜드 정보 정본(27.51.0 이상) — 앱 업데이트 없이 갱신되는 원격 소스. 앱은 이 파일을 raw 로 읽고, 실패하면 번들된 HoyolandDefaults 로 폴백한다. 빠진 키는 번들 기본값으로 메워지므로 바뀐 항목만 고쳐도 된다. startYmd · endYmd 를 비우면 '일정 미정' 이다 — 이 뜻을 모르는 27.50.x 이하는 동결된 config/hoyoland.json 을 읽는다.",
+  "_comment": "호요랜드 정보 정본(27.51.0 이상) — 앱 업데이트 없이 갱신되는 원격 소스. 앱은 이 파일을 raw 로 읽고, 실패하면 번들된 HoyolandDefaults 로 폴백한다. 빠진 키는 번들 기본값으로 메워지므로 바뀐 항목만 고쳐도 된다. startYmd · endYmd 를 비우면 '일정 미정' 이다. 날짜가 잡힌 판은 config/hoyoland.json(27.50.x 이하용)에도 같은 내용을 덮어쓰고, 일정 미정인 판은 덮어쓰지 않는다 — 구버전은 빈 날짜를 '개막 전' 으로 읽는다.",
   "edition": "호요랜드 2027",
   "_editionEn_comment": "히어로 머리줄에 쓰는 영문 표기. 비우면 edition(한글)을 그대로 씁니다.",
   "editionEn": "HOYOLAND 2027",

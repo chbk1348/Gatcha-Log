@@ -1,5 +1,5 @@
 {
-  "_comment": "⚠️ 동결 — 27.50.x 이하 구버전 전용. 2026 폐막 상태로 얼려 두고 더 고치지 않는다. 구버전은 빈 날짜(일정 미정)를 '개막 전' 으로 읽어 홈 · 일정 탭에 D-0 배너를 세우므로(2026-10-06 실측), 이 파일과 Firestore config/hoyoland 에는 startYmd · endYmd 를 반드시 채운 채로 둔다. 27.51.0 부터는 config/hoyoland_v2.json(Firestore config/hoyolandV2)을 읽는다 — 새 회차는 거기에 쓴다.",
+  "_comment": "⚠️ 27.50.x 이하 구버전 전용 — 손으로 고치지 않는다. 어드민이 맞춘다: 날짜가 잡힌 판을 반영하면 config/hoyoland_v2.json 과 같은 내용이 여기(· Firestore config/hoyoland)에도 쓰이고, 일정 미정인 동안은 직전 회차 그대로 남는다. 구버전은 빈 날짜(일정 미정)를 '개막 전' 으로 읽어 홈 · 일정 탭에 D-0 배너를 세우므로(2026-10-06 실측), startYmd · endYmd 가 빈 채로는 절대 올리지 않는다.",
   "edition": "호요랜드 2026",
   "_editionEn_comment": "히어로 머리줄에 쓰는 영문 표기. 비우면 edition(한글)을 그대로 씁니다.",
   "editionEn": "HOYOLAND 2026",

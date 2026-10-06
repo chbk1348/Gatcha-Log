@@ -117,15 +117,22 @@ async function boot() {
     });
   };
 
-  cloud.push = async (doc, json) => {
+  /**
+   * `mirrors` — 같은 값을 **같이 받는 문서들**(구버전 앱이 읽는 옛 자리). 한 배치에 넣어
+   * 새 문서만 바뀌고 옛 문서는 그대로인 상태를 만들지 않는다 — 그게 버전마다 다른 정보를 보는 길이다.
+   */
+  cloud.push = async (doc, json, mirrors = []) => {
     if (!cloud.user) throw new Error('로그인이 필요합니다.');
     const at = Date.now();
     const by = cloud.user.email || cloud.user.uid;
     const id = versionId(at);
+    const targets = [doc, ...mirrors];
     // 라이브 문서와 이력을 한 배치로 쓴다 — 둘 중 하나만 성공하는 상태를 만들지 않는다.
     const batch = storeMod.writeBatch(db);
-    batch.set(ref(doc), { data: json, updatedAt: at, updatedBy: by });
-    batch.set(storeMod.doc(db, COLLECTION, doc, HISTORY, id), { data: json, updatedAt: at, updatedBy: by, version: id });
+    for (const name of targets) {
+      batch.set(ref(name), { data: json, updatedAt: at, updatedBy: by });
+      batch.set(storeMod.doc(db, COLLECTION, name, HISTORY, id), { data: json, updatedAt: at, updatedBy: by, version: id });
+    }
     try {
       await batch.commit();
       cloud.historyDisabled = false;
@@ -138,7 +145,9 @@ async function boot() {
        * 라이브만 다시 쓰고 플래그를 세워 어드민이 알리게 한다.
        * (운영자가 아니어서 나는 permission-denied 라면 이 setDoc 도 같은 이유로 실패해 그대로 던진다.)
        */
-      await storeMod.setDoc(ref(doc), { data: json, updatedAt: at, updatedBy: by });
+      const live = storeMod.writeBatch(db);
+      for (const name of targets) live.set(ref(name), { data: json, updatedAt: at, updatedBy: by });
+      await live.commit();
       cloud.historyDisabled = true;
       return null;
     }
