@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DashFive
 import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.GachaReport
-import com.gatcha.log.ui.components.GldsChip
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.theme.LocalAccent
@@ -55,6 +54,8 @@ fun GachaDashboardScreen(
     dashboard: GachaDashboard?,
     spendByGameKey: Map<String, Long>,
     onBack: () -> Unit,
+    /** 보여 줄 게임 — 리포트에서 누른 게임 블록. 없거나 기록에 없는 게임이면 첫 게임. */
+    initialGame: String? = null,
 ) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
@@ -63,7 +64,9 @@ fun GachaDashboardScreen(
             ?.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
             ?: emptyList()
     }
-    var selected by remember(games) { mutableStateOf(games.firstOrNull()) }
+    // 게임은 리포트의 게임 블록에서 고르고 들어온다 — 여기서 바꾸는 칩은 걷었다(10/6). 어느 게임인지는 제목이 말한다.
+    val selected = remember(games, initialGame) { initialGame?.takeIf { it in games } ?: games.firstOrNull() }
+    val title = selected?.let { GachaReport.gameInfo[it]?.first }?.let { "$it 가챠 통계" } ?: "가챠 통계"
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val scrollState = rememberScrollState()
@@ -84,21 +87,13 @@ fun GachaDashboardScreen(
         }
 
         Column(Modifier.weight(1f).verticalScroll(scrollState)) {
-            val gk = selected!!
+            val gk = selected
             val gameColor = GachaReport.gameInfo[gk]?.third?.toColor() ?: accent
             val spend = spendByGameKey[gk] ?: 0L
             val cost = if (spend > 0 && d.five > 0) spend / d.five else 0L
 
-            // 1) 게임 선택 칩 + 요약 — 페이지 맨 위 첫 섹션(위 띠 없음)
+            // 1) 요약 — 페이지 맨 위 첫 섹션(위 띠 없음)
             DashCard() {
-                // 게임 선택 칩 — 공통 칩 단일 규격, 선택색은 게임별 대표색.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    games.forEach { g ->
-                        val (short, _, colorLong) = GachaReport.gameInfo[g] ?: Triple(g, g, 0xFF888888L)
-                        GldsChip(short, { selected = g }, selected = g == selected, color = colorLong.toColor())
-                    }
-                }
-                Spacer(Modifier.height(18.dp))
                 // 지표는 타일 면 없이 값 15 굵게 · 라벨 12(10/1) — 지출 인사이트와 같은 규격.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DashStat(num(d.total), "총 뽑기", Modifier.weight(1f))
@@ -196,7 +191,7 @@ fun GachaDashboardScreen(
             Spacer(Modifier.navigationBarsPadding())
         }
         }
-        GlgDetailHeaderOverlay("가챠 통계", onBack, scrollState = scrollState)
+        GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState)
     }
 }
 
