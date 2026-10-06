@@ -2816,6 +2816,16 @@ function selftest() {
     assert(d.undo[d.undo.length - 1] === 's' + (UNDO_MAX + 4), '최근 것이 빠졌다');
   });
 
+  check('초안을 복원해도 되돌리기 칸이 남는다', () => {
+    const base = { live: 'x', history: undefined, historyDiff: null, undo: ['옛 편집'], redo: [], snap: null };
+    const d = restoredDoc(base, { draft: { edition: '호요랜드 2027' }, original: null }, HOYOLAND);
+    assert(Array.isArray(d.undo) && Array.isArray(d.redo), '되돌리기 칸이 사라졌다 — render 가 죽어 빈 화면이 된다');
+    assert(!d.undo.length, '복원 전 이력이 따라왔다');
+    assert(d.snap === JSON.stringify(d.draft), '되돌리기 기준이 복원한 초안이 아니다');
+    assert('historyDiff' in d, '발행 이력 칸이 사라졌다');
+    assert(d.source === '로컬 초안' && d.draft.edition === '호요랜드 2027', '초안 값이 안 얹혔다');
+  });
+
   // 붙여넣기 — 스프레드시트는 전부 문자열로 준다. 가격이 문자열로 들어가면 앱이 합계를
   // 내지 못하므로(검증기가 잡는 바로 그 사고) 여기서 열 타입에 맞춰 바꿔 둔다.
   check('붙여넣은 표를 열 타입에 맞춰 읽는다', () => {
@@ -3369,7 +3379,7 @@ function init() {
     for (const r of RESOURCES) {
       const s = saved.docs[r.id];
       if (!s) continue;
-      docs[r.id] = { original: s.original, draft: r.normalize(s.draft || {}), live: undefined, source: s.source || '로컬 초안' };
+      docs[r.id] = restoredDoc(docs[r.id], s, r);
     }
     render();
     toast(`로컬 초안을 복원했습니다 · ${new Date(saved.at).toLocaleString('ko-KR')}`);
@@ -3377,6 +3387,22 @@ function init() {
     render();
     loadRemote();
   }
+}
+
+/**
+ * 보관된 초안을 리소스 상태 **위에 얹는다.**
+ *
+ * 초안에는 편집본 · 원본 · 출처만 들어 있다(saveDraft). 예전엔 상태를 그 셋으로 통째로 갈아
+ * 끼워서 되돌리기 칸(undo · redo)이 사라졌고, 바로 다음 render() 의 syncUndoButtons 에서
+ * 죽어 본문이 빈 채로 남았다 — 초안이 한 번이라도 남으면 다시 열 때마다 그랬다(2026-10-06).
+ * 되돌리기 기준(snap)은 복원한 초안으로 잡는다. 빈 문서를 기준으로 두면 첫 되돌리기가 문서를 비운다.
+ */
+function restoredDoc(base, s, res) {
+  const draft = res.normalize(s.draft || {});
+  return {
+    ...base, original: s.original, draft, live: undefined, source: s.source || '로컬 초안',
+    undo: [], redo: [], snap: JSON.stringify(draft),
+  };
 }
 
 function loadDraft() {
