@@ -165,6 +165,8 @@ class SpendingViewModel : ViewModel() {
                 _pendingTab.value = 2
                 refreshGameInfo()   // 목록이 비어 있으면 채운다 — 상세를 열려면 원본 항목이 필요하다
             }
+            // 새 버전 알림 — 업데이트 창을 다시 띄운다(이미 떠 있던 앱은 시작 시 확인이 다시 돌지 않는다).
+            "update" -> checkForUpdate()
         }
     }
     private val _autoCheckIn = MutableStateFlow(appSettings.autoCheckIn)
@@ -213,6 +215,8 @@ class SpendingViewModel : ViewModel() {
     val notifyCombat: StateFlow<Boolean> = _notifyCombat.asStateFlow()
     private val _notifyHoyoland = MutableStateFlow(appSettings.notifyHoyoland)
     val notifyHoyoland: StateFlow<Boolean> = _notifyHoyoland.asStateFlow()
+    private val _notifyAppUpdate = MutableStateFlow(appSettings.notifyAppUpdate)
+    val notifyAppUpdate: StateFlow<Boolean> = _notifyAppUpdate.asStateFlow()
 
     // 방해금지(DnD) — 조용한 시간대 알림 보류
     private val _notifyDndEnabled = MutableStateFlow(appSettings.notifyDndEnabled)
@@ -376,13 +380,14 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyNews(v: Boolean) { appSettings.notifyNews = v; _notifyNews.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyCombat(v: Boolean) { appSettings.notifyCombat = v; _notifyCombat.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyHoyoland(v: Boolean) { appSettings.notifyHoyoland = v; _notifyHoyoland.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyAppUpdate(v: Boolean) { appSettings.notifyAppUpdate = v; _notifyAppUpdate.value = v; applyNativeAfterNotifyChange(v) }
 
     fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
     fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }
     fun setNotifyDndEndHour(v: Int) { appSettings.notifyDndEndHour = v; _notifyDndEndHour.value = appSettings.notifyDndEndHour }
 
     /**
-     * OS 알림 권한을 **처음 허용**했을 때 — 항목별 알림([NotificationCatalog.items]) 일곱 개를 한꺼번에 켠다.
+     * OS 알림 권한을 **처음 허용**했을 때 — 항목별 알림([NotificationCatalog.items])을 전부 한꺼번에 켠다.
      *
      * 권한만 받고 토글이 꺼져 있으면 알림이 한 건도 오지 않는다. 예전엔 온보딩에서 세 개만 켰던 탓에
      * "알림 켜고 시작하기"를 누른 사람도 정기결제·전투 시즌·공지는 조용했다.
@@ -408,6 +413,10 @@ class SpendingViewModel : ViewModel() {
                 // 행사가 끝나 목록에서 빠진 토글은 건드리지 않는다 — 켜 두면 끌 자리가 없는 값이 된다.
                 NotifyKey.HOYOLAND -> if (NotificationCatalog.hoyolandAlertsActive) {
                     appSettings.notifyHoyoland = true; _notifyHoyoland.value = true
+                }
+                // iOS 에는 없는 항목이다 — 같은 이유로 목록에 있을 때만 켠다.
+                NotifyKey.APP_UPDATE -> if (NotificationCatalog.appUpdateAlertsActive) {
+                    appSettings.notifyAppUpdate = true; _notifyAppUpdate.value = true
                 }
             }
         }

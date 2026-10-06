@@ -75,6 +75,8 @@ struct NotificationSettingsView: View {
         case .combat: return notifyBind(\.notifyCombat, store.setNotifyCombat)
         case .news: return notifyBind(\.notifyNews, store.setNotifyNews)
         case .hoyoland: return notifyBind(\.notifyHoyoland, store.setNotifyHoyoland)
+        // Android 전용 — iOS 목록에는 나오지 않는다(NotificationCatalog.appUpdateAlertsActive).
+        case .appUpdate: return .constant(false)
         }
     }
 
@@ -88,6 +90,7 @@ struct NotificationSettingsView: View {
         case .combat: return "trophy"
         case .news: return "megaphone"
         case .hoyoland: return "party.popper"
+        case .appUpdate: return "arrow.down.circle"
         }
     }
 
@@ -101,6 +104,7 @@ struct NotificationSettingsView: View {
         case .combat: return .amber
         case .news: return .slate
         case .hoyoland: return .pink
+        case .appUpdate: return .navy
         }
     }
 

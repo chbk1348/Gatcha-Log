@@ -1,6 +1,7 @@
 package com.gatcha.log.data
 
 import com.gatcha.log.data.api.HoyolandApi
+import com.gatcha.log.data.api.UpdateChecker
 
 /**
  * 항목별 알림 목록 — **Android·iOS 가 이 한 소스를 공유한다.**
@@ -13,7 +14,7 @@ import com.gatcha.log.data.api.HoyolandApi
  */
 
 /** 알림 항목 식별자 — 화면이 토글 상태·설정 함수를 이 키로 연결한다. */
-enum class NotifyKey { BUDGET, RESIN, ATTENDANCE, PICKUP, COMBAT, NEWS, HOYOLAND }
+enum class NotifyKey { BUDGET, RESIN, ATTENDANCE, PICKUP, COMBAT, NEWS, HOYOLAND, APP_UPDATE }
 
 /**
  * 알림 묶음. 일곱 개를 한 덩어리로 늘어놓으면 훑을 수가 없어서 성격으로 나눴다 —
@@ -47,9 +48,25 @@ object NotificationCatalog {
     val hoyolandAlertsActive: Boolean
         get() = !HoyolandApi.current.phase().isOffSeason   // 종료 · 일정 미정이면 알릴 날짜가 없다
 
-    /** 전체 항목 — 묶음 순서대로. 호요랜드는 행사 중일 때만([hoyolandAlertsActive]). */
+    /**
+     * 앱 업데이트 알림을 보여 줄 플랫폼인가 — Android 만([UpdateChecker.notifiesNewVersion]).
+     * iOS 에서는 목록에도 없고 점검도 돌지 않는다.
+     */
+    val appUpdateAlertsActive: Boolean
+        get() = UpdateChecker.notifiesNewVersion
+
+    /**
+     * 전체 항목 — 묶음 순서대로. 호요랜드는 행사 중일 때만([hoyolandAlertsActive]),
+     * 앱 업데이트는 Android 에서만([appUpdateAlertsActive]).
+     */
     val items: List<NotifyItem>
-        get() = allItems.filter { it.key != NotifyKey.HOYOLAND || hoyolandAlertsActive }
+        get() = allItems.filter {
+            when (it.key) {
+                NotifyKey.HOYOLAND -> hoyolandAlertsActive
+                NotifyKey.APP_UPDATE -> appUpdateAlertsActive
+                else -> true
+            }
+        }
 
     private val allItems: List<NotifyItem> = listOf(
         NotifyItem(NotifyKey.BUDGET, NotifyGroup.MONEY, "예산", "이번 달 예산의 90%를 쓰거나 넘겼을 때"),
@@ -61,6 +78,7 @@ object NotificationCatalog {
 
         NotifyItem(NotifyKey.NEWS, NotifyGroup.NEWS, "새 소식", "게임에 새 공지가 올라왔을 때"),
         NotifyItem(NotifyKey.HOYOLAND, NotifyGroup.NEWS, "호요랜드", "예매가 열리기 전과 개막 전에"),
+        NotifyItem(NotifyKey.APP_UPDATE, NotifyGroup.NEWS, "앱 업데이트", "Gatcha LOG 새 버전이 나왔을 때"),
     )
 
     /**

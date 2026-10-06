@@ -60,6 +60,14 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIFY_COMBAT, true)
         set(v) { prefs.putBoolean(KEY_NOTIFY_COMBAT, v) }
 
+    /**
+     * 새 앱 버전 알림(Android 전용 — [NotificationCatalog.appUpdateAlertsActive]).
+     * 기본 ON — APK 직접 배포라 스토어 자동 업데이트가 없다. 알림이 없으면 앱을 열기 전까지 새 버전을 모른다.
+     */
+    var notifyAppUpdate: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_APP_UPDATE, true)
+        set(v) { prefs.putBoolean(KEY_NOTIFY_APP_UPDATE, v) }
+
     // ── 방해금지(DnD) — 조용한 시간대엔 알림 보류. 기준 기기 로컬 시각(출석 베이징과 별개). ──
     var notifyDndEnabled: Boolean
         get() = prefs.getBoolean(KEY_DND_ENABLED, false)
@@ -192,7 +200,8 @@ class AppSettings {
         autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup ||
             notifyNews || notifyCombat ||
             // 호요랜드 토글은 기본 켜짐인데 행사가 끝나면 목록에서 빠져 끌 수가 없다 — 그 뒤엔 세지 않는다.
-            (notifyHoyoland && NotificationCatalog.hoyolandAlertsActive)
+            (notifyHoyoland && NotificationCatalog.hoyolandAlertsActive) ||
+            (notifyAppUpdate && NotificationCatalog.appUpdateAlertsActive)
 
     /**
      * 마지막 포그라운드 점검 시각 — 앱을 열 때마다 밀린 알림을 정리하되, 전환할 때마다
@@ -273,6 +282,7 @@ class AppSettings {
         private const val KEY_NOTIFY_NEWS = "notify_news"
         private const val KEY_NOTIFY_HOYOLAND = "notify_hoyoland"
         private const val KEY_NOTIFY_COMBAT = "notify_combat"
+        private const val KEY_NOTIFY_APP_UPDATE = "notify_app_update"
         private const val KEY_LAST_FG_CHECK = "last_foreground_check"
         private const val KEY_DND_ENABLED = "notify_dnd_enabled"
         private const val KEY_DND_START = "notify_dnd_start"
