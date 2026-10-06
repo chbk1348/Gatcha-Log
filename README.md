@@ -102,7 +102,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 Gatcha Log Android/  Android 앱 (프로덕션 · Jetpack Compose) · baselineprofile/ (Baseline Profile 생성 모듈)
 Gatcha Log Shared/   KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
 Gatcha Log IOS/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
-config/              앱이 원격으로 읽는 정본 JSON(호요랜드 · ZZZ 배너) · goods/ · food/ 사진 — 경로 고정
+config/              앱이 원격으로 읽는 정본 JSON(호요랜드 · ZZZ 배너) · 행사 때는 goods/ · food/ · partner/ 사진 — 경로 고정
 version.json         Android 인앱 업데이트 매니페스트 — 경로 고정
 ```
 

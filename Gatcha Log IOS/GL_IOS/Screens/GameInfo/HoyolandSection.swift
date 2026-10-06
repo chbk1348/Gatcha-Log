@@ -610,6 +610,13 @@ struct HoyolandDetailView: View {
                 Text(phase == .tba ? e.statusLabel(nowMillis: now) : "EVENT ENDED")
                     .font(.pretendard(size: 24, weight: .black)).kerning(1)
                     .foregroundStyle(GLGColor.textSecondary)
+                if phase == .tba && !e.nextEditionNotice.isEmpty {
+                    Text(e.nextEditionNotice)
+                        .font(.pretendard(size: 13)).lineSpacing(3)
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 8)
+                }
             } else {
                 // **밑선으로 맞춘다.** `.bottom` 은 글자 상자의 아래를 맞추는 거라, 64 과 13
                 // 처럼 크기가 크게 벌어지면 큰 쪽 상자 아래 여백만큼 작은 글자가 내려앉아
