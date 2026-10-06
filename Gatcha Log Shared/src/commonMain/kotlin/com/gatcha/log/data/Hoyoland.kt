@@ -192,6 +192,15 @@ data class HoyolandProgram(
 ) {
     /** 메뉴 줄 이름에 걸린 사진의 전체 주소. 없으면 빈 문자열. */
     fun menuImageUrl(name: String): String = hoyolandAssetUrl(menuImages[name.trim()].orEmpty())
+
+    /**
+     * 푸드존 줄인가 — 제목이 「푸드」로 시작하거나(푸드존 · 푸드트럭), **메뉴 사진이 걸려 있다**.
+     *
+     * 메뉴 사진은 어드민의 푸드존 탭에서만 걸 수 있어, 그 줄이 푸드존 탭에서 만든 것이라는 표시가 된다(10/6).
+     * 제목만 보던 때는 제목 머리가 빠진 문서(「푸드존 — 원신」 → 「원신」) 하나로 메뉴판이 통째로 프로그램 섹션
+     * (「행사 구성」)에 섰다. 어드민 `isFoodProgram` 과 **같아야 한다**.
+     */
+    val isFood: Boolean get() = title.startsWith("푸드") || menuImages.isNotEmpty()
 }
 
 /**
@@ -472,8 +481,21 @@ data class HoyolandBooth(
     val partnerHall: String get() = location.removePrefix("파트너사").trimStart(' ', '·').trim()
 }
 
-/** 지난 행사 1건 — 다음 행사 규모를 가늠하는 참고 자료로만 쓴다. */
-data class HoyolandPastEvent(val title: String, val facts: List<HoyolandFact>)
+/** 지난 행사 1건 — 다음 행사 규모를 가늠하는 참고 자료. 보관본이 있는 회차는 상세도 열 수 있다. */
+data class HoyolandPastEvent(val title: String, val facts: List<HoyolandFact>) {
+    /**
+     * 회차 키 — 제목에서 읽은 연도("호요랜드 2026" → "2026"). 못 읽으면 빈 문자열.
+     *
+     * 어드민이 회차를 가르는 방식과 같다(회차 = 연도, 보관본 = `config/hoyoland/editions/{연도}.json`).
+     * 지난 행사 항목에 키 칸을 따로 두지 않는다 — 제목과 키가 따로 놀 자리를 만들지 않으려는 것이고,
+     * 옛 빌드가 읽는 문서 모양도 그대로다. 보관본이 **실제로 있는지**는 [com.gatcha.log.data.api.HoyolandApi.archiveKeyOf] 가 가른다.
+     */
+    val editionYear: String get() = YEAR.find(title)?.value.orEmpty()
+
+    private companion object {
+        val YEAR = Regex("20\\d{2}")
+    }
+}
 
 /**
  * 행사 1회차 전체.
@@ -550,7 +572,28 @@ data class HoyolandEvent(
      * (배치도는 개막 몇 주 전에야 공개된다).
      */
     val map: HoyolandMap = HoyolandMap(),
+    /**
+     * 프로그램 섹션의 제목. 비면 「응모 · 특전」([programSectionTitle]).
+     *
+     * 지금 회차의 그 섹션에는 미리 신청하거나 받는 것(전시존 · 웰컴 키트)만 남아 그렇게 부른다.
+     * 지난 회차 화면은 같은 자리가 그 회차의 기록(게임별 구성 · 무대 · 부대 시설)이라 「행사 구성」이다 —
+     * [com.gatcha.log.data.api.HoyolandApi.loadArchive] 가 채운다. 원격 문서에는 없는 값이다(파서가 읽지 않는다).
+     */
+    val programsTitle: String = "",
+    /**
+     * 프로그램 줄 앞에 게임 배지를 세울지. 지금 회차는 웰컴 키트가 게임마다 나란히 서서 색으로 내 것을 찾는다.
+     * 지난 회차 화면은 줄 제목에 게임 이름이 이미 있어 배지가 같은 말을 두 번 한다 — 끈다.
+     */
+    val programGameTags: Boolean = true,
+    /**
+     * 지난 회차 화면에 그리는 값인가 — [com.gatcha.log.data.api.HoyolandApi.loadArchive] 가 세운다.
+     * 살 수도 담을 수도 없는 회차라, 장바구니를 전제로 한 문구(「아직 안 담았어요」)를 내지 않는다.
+     */
+    val archived: Boolean = false,
 ) {
+
+    /** 프로그램 섹션 제목 — [programsTitle] 이 비면 「응모 · 특전」. */
+    val programSectionTitle: String get() = programsTitle.ifBlank { "응모 · 특전" }
 
     /** 대표 이미지 전체 주소. 없으면 빈 문자열이라 호출부는 `isNotEmpty()` 로 가른다. */
     val keyImageUrl: String get() = hoyolandAssetUrl(keyImage)
@@ -1014,7 +1057,8 @@ data class HoyolandEvent(
     fun onsiteGoodsLine(cart: HoyolandCart): String {
         if (goods.isEmpty()) return "판매 목록 공개 전"
         val picked = cartLines(cart)
-        if (picked.isEmpty()) return "${goods.size}종 · 아직 안 담았어요"
+        // 지난 회차는 담을 수 없다 — 종수만 말한다.
+        if (picked.isEmpty()) return if (archived) "${goods.size}종" else "${goods.size}종 · 아직 안 담았어요"
         val total = cartTotal(cart)
         val kinds = "담은 ${picked.size}종"
         return if (total > 0) "$kinds · ${wonLabel(total)}" else kinds
@@ -1111,15 +1155,14 @@ data class HoyolandEvent(
      * 메뉴판 사이에 파묻혔다. 성격도 다르다 — 나머지는 "신청·수령"이고 이건 **현장에서
      * 골라 사는 것**이라 굿즈와 같은 줄에 있어야 한다.
      *
-     * [programGame] 과 같은 이유로 제목만 본다(config 에 필드를 늘리면 옛 빌드에서 안 걸린다).
-     * '푸드존' · '푸드트럭' 둘 다 쓰이므로 접두사로 받는다.
+     * 가르는 기준은 [HoyolandProgram.isFood] — 제목 머리(푸드존 · 푸드트럭)이거나 메뉴 사진이 걸린 줄이다.
      */
     val foodPrograms: List<HoyolandProgram>
-        get() = programs.filter { it.title.startsWith("푸드") }
+        get() = programs.filter { it.isFood }
 
     /** 푸드존을 뺀 나머지 프로그램 — 프로그램 섹션이 쓴다. */
     val otherPrograms: List<HoyolandProgram>
-        get() = programs.filterNot { it.title.startsWith("푸드") }
+        get() = programs.filterNot { it.isFood }
 
     /**
      * 푸드존 입구 줄 — "3곳 · 3,000원 ~ 13,500원".
@@ -1407,6 +1450,306 @@ data class HoyolandEvent(
     }
 }
 
+
+/** 여러 줄 글의 한 덩이가 무엇인가 — [HoyolandText.lines] 가 가른다. */
+enum class HoyolandTextKind {
+    /** 문단 — 이어진 여러 줄이 한 덩이다(줄바꿈이 들어 있다). */
+    PARA,
+    /** 목록 줄 — 「· 항목」. [HoyolandTextLine.level] 은 들여쓴 깊이다(0 부터) — 점 모양이 깊이마다 다르다([HoyolandText.dot]). */
+    ITEM,
+    /** 번호 줄 — 「1. 항목」. 번호는 [HoyolandTextLine.mark]("1.")에, 깊이는 [HoyolandTextLine.level] 에 있다. */
+    NUM,
+    /** 목록 줄에 딸린 부연 — 들여쓴 줄. [HoyolandTextLine.level] 은 들여쓴 깊이라, 한 단 들이면 위 항목의 글자 아래에 선다. */
+    SUB,
+    /** 빈 줄. */
+    BLANK,
+}
+
+data class HoyolandTextLine(val kind: HoyolandTextKind, val text: String, val level: Int = 0, val mark: String = "")
+
+/**
+ * 어드민에서 적는 **여러 줄 글의 목록 규칙**(10/6) — 설명 · 메뉴 · 공지 · 안내에 공통이다.
+ *
+ * 목록 줄의 머리는 가운뎃점 + 띄어쓰기(`· `)다. 어드민의 글 칸은 줄 머리에 `- ` · `* ` · `+ ` 를 치면
+ * 가운뎃점으로 바꿔 주지만(ui.js `glArea`), 붙여넣은 글이나 손으로 고친 JSON 에는 마크다운 머리가 그대로
+ * 남을 수 있다. 그래서 **읽을 때 한 번 더** 가운뎃점으로 맞춘다([normalize]) — 그 뒤의 화면 규칙
+ * (예매 안내 · 푸드 메뉴 · 굿즈존 안내)은 가운뎃점 하나만 알면 된다.
+ */
+object HoyolandText {
+    /** 목록 줄의 머리 — **저장되는 글자**. 어드민 `GL_BULLET` 과 같다(U+00B7 + 띄어쓰기). */
+    const val BULLET = "· "
+
+    /**
+     * 화면에 그리는 목록 점 — 노션처럼 **굵은 점**(U+2022)이다(10/6 지시). 저장되는 글자는 가운뎃점 그대로다 —
+     * 가운뎃점은 작아서 목록으로 안 읽힌다. 깊이가 없는 자리(예매 안내의 항목 줄)가 쓴다.
+     */
+    const val DOT = "•"
+
+    /**
+     * 깊이마다 다른 목록 점 — 굵은 점 → 빈 동그라미 → 네모, 그 아래는 다시 처음부터(10/6 지시, 노션과 같다).
+     * 어드민 글 칸이 보여 주는 점(`GL_BULLETS`)과 같은 글자 · 같은 순서다. 어느 것이든 저장되는 글자는 가운뎃점이다.
+     */
+    private val DOTS = listOf(DOT, "◦", "▪")
+
+    /** 그 깊이의 목록 점. */
+    fun dot(level: Int): String = DOTS[level.coerceAtLeast(0) % DOTS.size]
+
+    /**
+     * 들여쓰기의 깊이 — 탭 하나, 또는 띄어쓰기 셋까지가 한 단이다. 띄어쓰기 하나는 들여쓰기가 아니다.
+     * 어드민 `glDepth` 와 **같아야 한다** — 어긋나면 어드민에서 본 점과 앱의 점이 달라진다.
+     */
+    fun depth(line: String): Int {
+        val indent = line.takeWhile { it == ' ' || it == '\t' }
+        val tabs = indent.count { it == '\t' }
+        val spaces = indent.length - tabs
+        return tabs + if (spaces >= 2) (spaces + 2) / 3 else 0
+    }
+
+    // 마크다운 머리(- * +)와 **화면용 점**(• ∘ ◦ ▪). 화면용 점은 어드민 글 칸이 보여 주는 글자라 값에는 없어야 하지만,
+    // 손으로 고친 JSON 에 섞여 들어오면 가운뎃점 줄과 똑같이 목록으로 읽는다(어드민 `GL_BULLET_ANY`).
+    private const val MARKS = "-*+•∘◦▪"
+    private val MD_BULLET = Regex("""^([ \t]*)[-*+•∘◦▪] (.*)$""")
+
+    /** 번호 줄 — 「1. 항목」. 세 자리까지만 번호로 본다(「2026. 10. 2.」 같은 날짜로 시작하는 줄을 번호로 읽지 않는다). */
+    private val NUM_LINE = Regex("""^(\d{1,3})\. (.+)$""")
+
+    /** 줄 머리의 `- ` · `* ` · `+ ` 와 화면용 점을 `· ` 로 — 들여쓰기는 그대로 둔다. 줄 가운데의 것(「10:00 - 11:00」)은 안 건드린다. */
+    fun normalize(text: String): String {
+        if (text.none { it in MARKS }) return text
+        return text.split("\n").joinToString("\n") { line ->
+            MD_BULLET.matchEntire(line)?.let { m -> m.groupValues[1] + BULLET + m.groupValues[2] } ?: line
+        }
+    }
+
+    /** 목록 줄 · 번호 줄이 하나라도 있는가 — 없으면 화면은 글을 예전처럼 통째로 그린다. */
+    fun hasList(text: String): Boolean =
+        text.split("\n").any { it.trim().let { b -> b.startsWith(BULLET) || NUM_LINE.matches(b) } }
+
+    /**
+     * 글을 화면이 그릴 덩이로 가른다. 위에서부터 먼저 맞는 것:
+     *  - 빈 줄 → [HoyolandTextKind.BLANK]. 목록이 여기서 끝난다.
+     *  - `· …` → 목록 줄. 들여쓴 깊이([depth])가 단이다 — 단마다 점 모양이 다르다([dot]).
+     *  - `1. …` → 번호 줄. 깊이는 목록 줄과 같이 센다.
+     *  - 목록 안의 들여쓴 줄 → 위 항목의 부연. 들여쓴 깊이만큼 들어간다.
+     *  - 그 외 → 문단. 이어진 줄은 한 덩이로 묶는다.
+     * 맨 앞 · 맨 뒤의 빈 줄은 버린다.
+     */
+    fun lines(text: String): List<HoyolandTextLine> {
+        val out = mutableListOf<HoyolandTextLine>()
+        val para = mutableListOf<String>()
+        var inList = false
+        fun flush() {
+            if (para.isNotEmpty()) { out += HoyolandTextLine(HoyolandTextKind.PARA, para.joinToString("\n")); para.clear() }
+        }
+        for (raw in text.split("\n")) {
+            val line = raw.trimEnd()
+            val body = line.trim()
+            val depth = if (body.isEmpty()) 0 else depth(line)
+            when {
+                body.isEmpty() -> { flush(); out += HoyolandTextLine(HoyolandTextKind.BLANK, ""); inList = false }
+                body.startsWith(BULLET) -> {
+                    flush()
+                    out += HoyolandTextLine(HoyolandTextKind.ITEM, body.removePrefix(BULLET).trim(), depth)
+                    inList = true
+                }
+                NUM_LINE.matches(body) -> {
+                    flush()
+                    val m = NUM_LINE.matchEntire(body)!!
+                    out += HoyolandTextLine(HoyolandTextKind.NUM, m.groupValues[2].trim(), depth, mark = m.groupValues[1] + ".")
+                    inList = true
+                }
+                depth > 0 && inList -> out += HoyolandTextLine(HoyolandTextKind.SUB, body, depth)
+                else -> { para += line; inList = false }
+            }
+        }
+        flush()
+        return out.dropWhile { it.kind == HoyolandTextKind.BLANK }.dropLastWhile { it.kind == HoyolandTextKind.BLANK }
+    }
+}
+
+/**
+ * **앱에 내장한 지난 회차 상세**(2025 · 2024) — 「지난 행사 ▸ 상세 보기」가 연다.
+ *
+ * 어드민으로 운영한 회차는 2026 부터다. 그 전 회차는 여기에 박고(10/6), **같은 내용을 저장소에도 둔다** —
+ * `config/hoyoland/editions/2025.json` · `2024.json`. 앱은 원격 문서를 먼저 읽고 못 받았을 때 이 값을 쓴다
+ * ([com.gatcha.log.data.api.HoyolandApi.loadArchive]). 내용을 고칠 때는 어드민(원격)에서 고치면 되고, 여기는 오프라인용이다.
+ *
+ * **확인된 값만 적는다.** 출처: 킨텍스 행사 안내 · 티켓링크 예매 공지 · 호요버스 보도자료(상세 공개 · 성료),
+ * 일자별 무대 편성과 구역 이름은 나무위키 「호요랜드 2024」·「호요랜드 2025」. 출처끼리 어긋난 값은 공식 쪽을 따랐고
+ * (2024 입장료 13,000원), 끝내 못 맞춘 값(2025 요일별 운영 시간 · 일자별 무대 편성 · 굿즈 · 푸드 · 배치도)은 비웠다 —
+ * 빈 칸은 화면이 섹션째 뺀다. 굿즈 · 부스 · 푸드 · 배치도는 두 회차 모두 없다.
+ */
+object HoyolandArchives {
+
+    private const val KINTEX2 = "일산 킨텍스 제2전시장"
+    private const val KINTEX2_ADDRESS = "경기도 고양시 일산서구 킨텍스로 217-60"
+    private const val KINTEX2_MAP =
+        "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
+    private const val KINTEX2_MAP_FALLBACK =
+        "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
+
+    // 붕괴3rd · 미해결사건부는 GameData 에 없는 게임이라 약칭 · 색을 직접 준다(2026 보관본과 같은 값).
+    private fun hi3(theme: String) = HoyolandLineup("붕괴3rd", theme, abbr = "HI3", colorArgb = 0xFF30C6E8)
+    private fun tot(theme: String) = HoyolandLineup("미해결사건부", theme, abbr = "ToT", colorArgb = 0xFFE0557B)
+
+    private fun slot(time: String, title: String, game: String = "", cast: String = "") =
+        HoyolandSlot(time = time, title = title, game = game, minutes = 60, cast = cast)
+
+    private val y2025 = HoyolandEvent(
+        edition = "호요랜드 2025",
+        editionEn = "HOYOLAND 2025",
+        startYmd = "2025-10-09",
+        endYmd = "2025-10-12",
+        venueName = KINTEX2,
+        venueHall = "9·10홀(실내) · 후면광장(야외)",
+        venueAddress = KINTEX2_ADDRESS,
+        mapUrl = KINTEX2_MAP,
+        mapFallbackUrl = KINTEX2_MAP_FALLBACK,
+        officialUrl = "",
+        announceYmd = "",
+        ticket = HoyolandTicket(
+            status = HoyolandTicketStatus.SOLD_OUT,
+            vendor = "티켓링크",
+            openLabel = "9월 22일(월) 19:00",
+            priceLabel = "29,000원 (예매수수료 별도)",
+        ),
+        lineup = listOf(
+            HoyolandLineup("원신", "나타가 부른다, 준비됐나?"),
+            HoyolandLineup("붕괴: 스타레일", "이름 없는 기억의 축가"),
+            HoyolandLineup("젠레스 존 제로", "뉴에리두 특별수행"),
+            hi3("이상한 나라의 다과회"),
+            tot("달콤달콤 메모리"),
+        ),
+        // 게임부터 — 줄 제목이 게임 이름이다. 구역 이름은 위 라인업이 말하므로 여기엔 한 일만 적는다.
+        programs = listOf(
+            HoyolandProgram("원신", "· 파도수련 · 명중수련 체험"),
+            HoyolandProgram("붕괴: 스타레일", "· 레이저 미션\n· OST 퀴즈"),
+            HoyolandProgram("젠레스 존 제로", "· 미니게임 「달려라 BANGBOO!」"),
+            HoyolandProgram(
+                "붕괴3rd",
+                "· 동화 속 다과회 콘셉트의 야외 부스(후면광장)\n· 입장권은 윗치폼에서 따로 팔았어요",
+                deadline = "별도 입장권 9.23(화) 19:00 판매 시작",
+            ),
+            HoyolandProgram("미해결사건부", "· 3m 크기 풍선 인형(후면광장)"),
+            HoyolandProgram(
+                "메인 무대",
+                "· 원신 라이브 인 티바트 무지갯빛 투어 호요랜드 편\n" +
+                    "· 선율이 흐르는 음악회\n" +
+                    "· Star Symphony at 호요랜드\n   붕괴: 스타레일 OST 참여 가수 Chevy · NIDA\n" +
+                    "· 코스프레 런웨이\n   진행 도티 · 샘웨 · 레나\n" +
+                    "· 일러스트 퀴즈쇼",
+            ),
+            HoyolandProgram(
+                "웰컴 키트",
+                "예매할 때 고른 게임의 것을 받았어요.\n" +
+                    "· 고른 게임의 한정 굿즈 1종\n   원신 2026 달력 · 붕괴: 스타레일 티셔츠 · 젠레스 존 제로 누들스토퍼\n" +
+                    "· 그 게임의 리딤코드\n· 홀로그램 티켓\n· 행사 리플릿\n· 갤럭시 스토어 쿠폰\n· 부직포백",
+            ),
+            HoyolandProgram("부대 시설", "· 굿즈존\n· 푸드존\n· 창작전시존 & DIY존"),
+            HoyolandProgram(
+                "파트너사 부스",
+                "· 갤럭시 스토어\n   갤럭시 AI존을 따로 운영\n· 플레이스테이션\n· 맘스피자\n   야외 · 붕괴: 스타레일 콜라보 메뉴",
+            ),
+        ),
+        notice = "",
+        days = emptyList(),
+        past = emptyList(),
+    )
+
+    private val y2024 = HoyolandEvent(
+        edition = "호요랜드 2024",
+        editionEn = "HOYOLAND 2024",
+        startYmd = "2024-10-31",
+        endYmd = "2024-11-03",
+        venueName = KINTEX2,
+        venueHall = "7·8홀(실내) · 후면광장(야외)",
+        venueAddress = KINTEX2_ADDRESS,
+        mapUrl = KINTEX2_MAP,
+        mapFallbackUrl = KINTEX2_MAP_FALLBACK,
+        officialUrl = "",
+        announceYmd = "",
+        ticket = HoyolandTicket(
+            status = HoyolandTicketStatus.SOLD_OUT,
+            vendor = "티켓링크",
+            openLabel = "10월 14일(월) 20:00",
+            priceLabel = "13,000원",
+        ),
+        lineup = listOf(
+            HoyolandLineup("원신", "연극! 추리? 폰타인 탐정단"),
+            HoyolandLineup("붕괴: 스타레일", "【꿈세계로의 초대】 ~ 황금의 순간~"),
+            HoyolandLineup("젠레스 존 제로", "뉴에리두 가든파티"),
+            hi3("Welcome! 붕괴학당!"),
+            tot("화려한 밤의 축제"),
+        ),
+        programs = listOf(
+            HoyolandProgram(
+                "원신",
+                "· 무대 — 라이브 퀴즈쇼 · 도전 원신벨 · 폰타인 성우 토크쇼 · 미니 콘서트\n· 현장 이벤트 「가을 축제 여행자 긴급 체포」",
+            ),
+            HoyolandProgram(
+                "붕괴: 스타레일",
+                "· 무대 — 밴드공연(with Chevy) · 리듬게임 빅매치 · 뭇별의 워프: 가차타임\n· XR 체험 「페니코니 몰입형 체험」",
+            ),
+            HoyolandProgram(
+                "젠레스 존 제로",
+                "· 무대 — 노토리우스 사냥 · 릴레이 그리기 · Bangboo는 알고 있다!\n· 미니게임 — 사격 「별빛 기사」 · 볼링 「휠 스트라이크!」\n· 그래피티 공간",
+            ),
+            HoyolandProgram("붕괴3rd", "· 무대 — 미니콘서트 · 붕괴학당 2024 공개수업"),
+            HoyolandProgram(
+                "미해결사건부",
+                "· 주말 이틀 후면광장 야외 전시장에서 따로 운영\n· 입장권은 윗치폼에서 따로 팔았어요",
+                deadline = "11.2(토) · 11.3(일)",
+            ),
+            HoyolandProgram(
+                "코스프레 퍼레이드 · 드론쇼",
+                "주말 이틀 저녁, 야외 후면광장에서 열렸어요.\n드론쇼는 원신 · 붕괴: 스타레일을 주제로 약 10분.",
+                deadline = "11.2(토) · 11.3(일)",
+            ),
+            HoyolandProgram(
+                "웰컴 키트",
+                "· 부직포백\n· 가이드북\n· 리딤코드\n· 갤럭시 스토어 쿠폰\n· 티켓",
+            ),
+            HoyolandProgram("부대 시설", "· 굿즈존\n· 푸드존(게임 테마 푸드트럭)\n· 2차 창작 부스\n· DIY존"),
+            HoyolandProgram(
+                "파트너사",
+                "· 갤럭시 스토어\n· 소니인터랙티브엔터테인먼트(플레이스테이션)\n· 호요크리에이터\n· 하나카드\n· IPX\n· 스냅드래곤\n· 달콤커피",
+            ),
+        ),
+        notice = "",
+        // 메인 무대 — 나흘 모두 네 편(각 60분).
+        days = listOf(
+            HoyolandDay("2024-10-31", listOf(
+                slot("11:00", "코스프레 런웨이"),
+                slot("12:30", "라이브 퀴즈쇼", "원신"),
+                slot("14:00", "노토리우스 사냥", "젠레스 존 제로"),
+                slot("15:30", "뭇별의 워프: 가차타임", "붕괴: 스타레일"),
+            )),
+            HoyolandDay("2024-11-01", listOf(
+                slot("11:00", "별과 심연을 향해 기원 이벤트", "원신"),
+                slot("12:30", "릴레이 그리기", "젠레스 존 제로"),
+                slot("14:00", "리듬게임 빅매치", "붕괴: 스타레일"),
+                slot("15:30", "도전 원신벨", "원신"),
+            )),
+            HoyolandDay("2024-11-02", listOf(
+                slot("11:00", "밴드공연", "붕괴: 스타레일", cast = "Chevy"),
+                slot("12:30", "폰타인 성우 토크쇼", "원신"),
+                slot("14:00", "무대 이벤트", "젠레스 존 제로"),
+                slot("15:30", "미니콘서트", "붕괴3rd"),
+            )),
+            HoyolandDay("2024-11-03", listOf(
+                slot("11:00", "Bangboo는 알고 있다!", "젠레스 존 제로"),
+                slot("12:30", "붕괴학당 2024 공개수업", "붕괴3rd"),
+                slot("14:00", "미니 콘서트", "원신"),
+                slot("15:30", "밴드공연", "붕괴: 스타레일", cast = "Chevy"),
+            )),
+        ),
+        past = emptyList(),
+    )
+
+    /** 회차 키("2025") → 내장 상세. */
+    val bundled: Map<String, HoyolandEvent> = mapOf("2025" to y2025, "2024" to y2024)
+}
+
 /**
  * 번들 폴백 — **2027 회차 · 일정 미정**(2026-10-06 전환).
  *
@@ -1418,6 +1761,12 @@ data class HoyolandEvent(
  * ([HoyolandApi] 파서), 여기에 2026 값이 남아 있으면 2027 화면에 작년 라인업이 되살아난다.
  */
 object HoyolandDefaults {
+
+    /**
+     * 보관본(상세)이 있는 지난 회차 — 원격 목록(`config/hoyoland/editions.json` 의 archived)을 받기 전에 쓰는 값.
+     * 회차를 보관할 때마다 여기를 고칠 필요는 없다(원격 목록이 덮는다) — 첫 화면이 링크 없이 서지 않게 하는 용도다.
+     */
+    val archivedEditions: List<String> = listOf("2026")   // 2025 · 2024 는 [HoyolandArchives] 가 앱에 들고 있다
 
     val event: HoyolandEvent = HoyolandEvent(
         edition = "호요랜드 2027",
@@ -1455,7 +1804,7 @@ object HoyolandDefaults {
                     HoyolandFact("장소", "일산 킨텍스 제2전시장 9·10홀"),
                     HoyolandFact("규모", "약 26,000㎡ · 티켓 3만 6천 장 완판"),
                     HoyolandFact("관람객", "약 3만 2천 명 (4일)"),
-                    HoyolandFact("티켓", "30,000원 · 예매 게임별 웰컴키트"),
+                    HoyolandFact("티켓", "29,000원(예매수수료 별도) · 전 회차 매진 · 게임별 웰컴키트"),
                     HoyolandFact("참여 IP", "원신 · 붕괴3rd · 스타레일 · 젠레스 · 미해결사건부"),
                     HoyolandFact("구성", "체험존 · 굿즈 · 푸드 · 창작전시/DIY · 무대"),
                 ),

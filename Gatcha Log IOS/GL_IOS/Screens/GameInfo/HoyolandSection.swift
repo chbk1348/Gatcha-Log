@@ -21,8 +21,55 @@ private func hoyoURL(_ raw: String) -> URL? {
  */
 extension View {
     /// (시간표 페이지도 진입할 때 같은 갱신을 하므로 파일 밖에서도 쓴다)
-    func loadHoyoland(into event: Binding<HoyolandEvent>) -> some View {
-        modifier(HoyolandAutoLoad(event: event))
+    /// `enabled` 가 false 면 아무것도 읽지 않는다 — 지난 회차(보관본)를 그리는 화면은 지금 회차로 덮이면 안 된다.
+    func loadHoyoland(into event: Binding<HoyolandEvent>, enabled: Bool = true) -> some View {
+        modifier(HoyolandAutoLoad(event: event, enabled: enabled))
+    }
+
+    /// 조건부 당겨서 새로고침 — 꺼져 있으면 스피너째 세우지 않는다(지난 회차 상세).
+    @ViewBuilder func hoyolandRefreshable(_ enabled: Bool, _ action: @escaping @MainActor @Sendable () async -> Void) -> some View {
+        if enabled { refreshable { await action() } } else { self }
+    }
+}
+
+/**
+ 지난 회차 상세 — 보관본을 받아 [HoyolandDetailView] 를 읽기 전용으로 그린다. (Android `HoyolandArchivePage` 와 같다)
+
+ 보관본은 번들에 없다(회차 하나가 수십 KB) — 받는 동안과 못 받았을 때의 자리를 여기서 맡는다.
+ 한 번 받으면 `HoyolandApi` 가 들고 있어 다시 열 때는 바로 선다.
+ */
+struct HoyolandArchiveView: View {
+    var store: SpendingStore
+    /// 회차 키("2026").
+    let key: String
+    @State private var event: HoyolandEvent? = nil
+    @State private var failed = false
+    @State private var attempt = 0
+
+    var body: some View {
+        Group {
+            if let event {
+                HoyolandDetailView(store: store, archive: event)
+            } else {
+                // 받는 중 · 실패 — 클리어 편성의 실패 안내와 같은 모양(글 13 + 다시 시도).
+                VStack(spacing: 10) {
+                    Text(failed ? "불러오지 못했어요" : "불러오는 중이에요")
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    if failed {
+                        GldsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { attempt += 1 }
+                    }
+                }
+                .padding(32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .background(Color.white)
+                .glgPageTitle("호요랜드 \(key)")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .task(id: attempt) {
+            failed = false
+            if let loaded = try? await HoyolandApi.shared.loadArchive(key: key) { event = loaded } else { failed = true }
+        }
     }
 }
 
@@ -72,6 +119,7 @@ private struct HoyolandWideReader: ViewModifier {
  */
 private struct HoyolandAutoLoad: ViewModifier {
     @Binding var event: HoyolandEvent
+    var enabled: Bool = true
     @Environment(\.scenePhase) private var scenePhase
 
     func body(content: Content) -> some View {
@@ -83,6 +131,7 @@ private struct HoyolandAutoLoad: ViewModifier {
     }
 
     private func reload() async {
+        guard enabled else { return }
         if let fresh = try? await HoyolandApi.shared.load(force: false) { event = fresh }
     }
 }
@@ -131,10 +180,8 @@ struct HoyolandSection: View {
                         // 상단 한 줄 — 어드민 공지 문구, 없으면 일정 미정의 자동 문구. 상세 히어로와 같은 문장(`topNotice`).
                         let notice = e.topNotice(nowMillis: now)
                         if !notice.isEmpty {
-                            Text(notice)
-                                .font(.pretendard(size: 13)).lineSpacing(3)
+                            HoyolandListText(text: notice, size: 13, lineSpacing: 3)
                                 .foregroundStyle(GLGColor.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     Spacer(minLength: 0)
@@ -330,6 +377,16 @@ struct HoyolandDetailView: View {
     var store: SpendingStore
     /// 게임정보 탭 바로가기에서 곧장 열 하위 페이지. `.none` 이면 상세만. 거기서 뒤로 가면 상세로 온다.
     var initialSub: HoyolandSubPage = .none
+    /// 지난 회차 보관본 — 주면 **그 회차를 읽기 전용으로** 그린다(「지난 행사 ▸ 상세 보기」, 10/6).
+    /// 같은 페이지 · 같은 하위 페이지를 그대로 쓰되 원격 갱신 · 당겨서 새로고침 · 내 입장권 · 굿즈 담기가 없고,
+    /// 제목은 그 회차 이름이다. (Android `HoyolandDetailPage(archive:)` 와 같다)
+    var archive: HoyolandEvent? = nil
+    private var readOnly: Bool { archive != nil }
+    /// 장바구니 · 내 입장권은 **지금 회차**의 것이다 — 지난 회차 화면에 비치지 않게 빈 값으로 둔다.
+    private var liveEntry: Shared.HoyolandEntry { readOnly ? Shared.HoyolandEntry(groups: [:]) : store.hoyolandEntry }
+    private var liveCart: Shared.HoyolandCart { readOnly ? Shared.HoyolandCart(items: [:]) : store.hoyolandCart }
+    /// 보관된 회차 목록을 원격에서 다시 읽으면 올린다 — 「지난 행사」 줄의 「상세 보기」를 다시 그리게 한다.
+    @State private var archiveTick = 0
     @State private var openSub: HoyolandSubPage? = nil
     @State private var didOpenInitial = false
     @Environment(\.glgAccent) private var accent
@@ -358,7 +415,7 @@ struct HoyolandDetailView: View {
     @State private var pageInsets = EdgeInsets()
 
     var body: some View {
-        let e = event
+        let e = archive ?? event
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 heroCard(e)
@@ -382,7 +439,8 @@ struct HoyolandDetailView: View {
                 // 띠 없이 선다([hasAbove]) — 빠진 섹션이 띠만 남기지 않게. (Android 와 파리티)
                 let phase = e.phase(nowMillis: nowMs())
                 let live = phase.isEventLive
-                let showOnsite = live || phase != .tba || e.hasOnsiteContent
+                // 지난 회차(보관본)는 자료가 하나도 없으면 섹션째 뺀다.
+                let showOnsite = readOnly ? e.hasOnsiteContent : (live || phase != .tba || e.hasOnsiteContent)
                 let showTicket = !phase.isOffSeason
                 let hasAbove = live || !e.lineup.isEmpty || showOnsite
                 if live {
@@ -412,8 +470,15 @@ struct HoyolandDetailView: View {
                     // 마지막 줄이 위아래 14 라 아래 6 — 띠까지 눈에 20(10/1).
                     programSection(e).hoyolandSection(bottom: 6)
                 }
-                if hasAbove || !e.otherPrograms.isEmpty { GiBand() }
-                pastSection(e).hoyolandSection()
+                // 지난 회차 화면(보관본)에는 「지난 행사」를 세우지 않는다(10/6) — 그 목록에서 골라 들어온 화면이라
+                // 같은 목록이 또 나오면 어디에 있는지 헷갈린다. (Android 와 같다)
+                if !readOnly {
+                    if hasAbove || !e.otherPrograms.isEmpty { GiBand() }
+                    pastSection(e).hoyolandSection()
+                } else if !e.otherPrograms.isEmpty {
+                    // 프로그램 섹션(아래 6)이 페이지 끝이 됐다 — 맨 아래 20 을 채운다.
+                    Color.clear.frame(height: 14)
+                }
                 }
 
                 // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
@@ -428,7 +493,7 @@ struct HoyolandDetailView: View {
         .scrollIndicators(.hidden)
         // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
         .background(Color.white)
-        .glgPageTitle("호요랜드")
+        .glgPageTitle(archive?.edition ?? "호요랜드")
         .navigationBarTitleDisplayMode(.inline)
         // 머리판이 내비 바 **뒤로** 이어지므로 바의 바탕을 지운다 — 바탕이 남으면 면 위에
         // 회색 띠가 한 겹 더 앉아 머리판이 거기서 잘린 것처럼 보인다.
@@ -439,7 +504,8 @@ struct HoyolandDetailView: View {
         .toolbarBackground(hoyolandBarBackgroundHidden ? .hidden : .automatic, for: .navigationBar)
         // 당겨서 새로고침 — 운영 어드민에서 고친 값을 **기다리지 않고 지금** 확인하는 통로.
         // `force` 라 캐시 나이와 무관하게 라이브부터 다시 훑는다(개발자 목업도 여기서 걷힌다).
-        .refreshable {
+        // 지난 회차는 당겨도 받을 것이 없다 — 스피너째 세우지 않는다.
+        .hoyolandRefreshable(!readOnly) {
             if let fresh = try? await HoyolandApi.shared.load(force: true) { event = fresh }
         }
         .toolbar {
@@ -485,11 +551,11 @@ struct HoyolandDetailView: View {
         }
         .navigationDestination(item: $openSub) { sub in
             switch sub {
-            case .stage: HoyolandStageView(event: e, entry: store.hoyolandEntry)
-            case .goods: HoyolandGoodsView(event: e, store: store)
+            case .stage: HoyolandStageView(event: e, entry: liveEntry, readOnly: readOnly)
+            case .goods: HoyolandGoodsView(event: e, store: store, readOnly: readOnly)
             case .booth: HoyolandBoothView(event: e)
             case .food: HoyolandFoodView(event: e)
-            case .map: HoyolandMapView(event: e, store: store)
+            case .map: HoyolandMapView(event: e, store: store, readOnly: readOnly)
             case .none: EmptyView()
             }
         }
@@ -500,6 +566,12 @@ struct HoyolandDetailView: View {
             if initialSub != .none { openSub = initialSub }
         }
         .loadHoyoland(into: $event)
+        // 보관본이 있는 지난 회차만 「상세 보기」가 선다 — 목록은 원격에서 다시 읽는다(받기 전엔 내장값).
+        .task {
+            guard !readOnly else { return }
+            _ = try? await HoyolandApi.shared.loadArchiveIndex()
+            archiveTick += 1
+        }
     }
 
     /**
@@ -519,12 +591,43 @@ struct HoyolandDetailView: View {
         let phase = e.phase(nowMillis: nowMs())
         let live = phase.isEventLive
         // 종료 · 일정 미정이면 예매를 빼고, 일정 미정(TBA)은 채울 게 없으면 둘러보기도 뺀다(한 열과 같은 규칙).
-        let showOnsite = phase != .tba || e.hasOnsiteContent
+        let showOnsite = readOnly ? e.hasOnsiteContent : (phase != .tba || e.hasOnsiteContent)
         let showTicket = !phase.isOffSeason
         // 경첩이 있으면 **왼쪽 열을 경첩 앞까지**로 잡고 빈틈을 경첩 폭만큼 준다 — 카드가 접힌
         // 선 위에 걸치지 않는다. 경첩이 없으면(iPad · 접은 듀오) 반반으로 나눈다.
         let gap: CGFloat = hinge.map { max($0.width, 20) } ?? 20
+        // 왼쪽 열에 세울 것이 하나도 없는가 — 일정 미정(TBA)처럼 라인업도 둘러보기도 없는 때다.
+        // 그대로 두면 왼쪽 절반이 통째로 비고 목록이 **오른쪽에만** 선다(10/6, 펼친 iPhone Duo 에서 확인).
+        let leftEmpty = !live && e.lineup.isEmpty && !showOnsite
+        let showPast = !readOnly
         // 열 안에서도 한 열과 같은 규칙 — 섹션 + 사이 띠(10/1). 섹션이 위 22 를 품어 열 머리가 같은 높이에 선다.
+        if leftEmpty {
+            // 남은 것(예매 · 응모·특전 · 지난 행사)을 **두 열에 나눠** 세운다. 앞의 둘이 있으면 왼쪽에, 지난 행사는 오른쪽에.
+            // 지난 행사뿐이면 그 목록을 앞 절반 · 뒤 절반으로 갈라 두 열에 세운다 — 제목은 왼쪽에만 보인다.
+            let hasLead = showTicket || !e.otherPrograms.isEmpty
+            let half = (e.past.count + 1) / 2
+            HStack(alignment: .top, spacing: gap) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if hasLead {
+                        if showTicket { ticketSection(e).hoyolandSection() }
+                        if !e.otherPrograms.isEmpty {
+                            if showTicket { GiBand() }
+                            programSection(e).hoyolandSection(bottom: 6)
+                        }
+                    } else if showPast {
+                        pastSection(e, slice: 0..<half).hoyolandSection()
+                    }
+                }
+                .modifier(GLGHingeColumnWidth(hinge: hinge, contentInset: 24))
+                VStack(alignment: .leading, spacing: 0) {
+                    if showPast {
+                        if hasLead { pastSection(e).hoyolandSection() }
+                        else if e.past.count > half { pastSection(e, slice: half..<e.past.count, hideTitle: true).hoyolandSection() }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        } else {
         HStack(alignment: .top, spacing: gap) {
             VStack(alignment: .leading, spacing: 0) {
                 if live {
@@ -556,11 +659,12 @@ struct HoyolandDetailView: View {
                         if showTicket { GiBand() }
                         programSection(e).hoyolandSection(bottom: 6)
                     }
-                    if showTicket || !e.otherPrograms.isEmpty { GiBand() }
+                    if !readOnly && (showTicket || !e.otherPrograms.isEmpty) { GiBand() }
                 }
-                pastSection(e).hoyolandSection()
+                if !readOnly { pastSection(e).hoyolandSection() }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
         }
     }
 
@@ -643,10 +747,8 @@ struct HoyolandDetailView: View {
             // 남은 날짜(또는 EVENT ENDED) 바로 아래 같은 자리 · 같은 모양이다. (Android HeroCountdown 과 같다)
             let topNotice = e.topNotice(nowMillis: now)
             if !topNotice.isEmpty {
-                Text(topNotice)
-                    .font(.pretendard(size: 13)).lineSpacing(3)
+                HoyolandListText(text: topNotice, size: 13, lineSpacing: 3)
                     .foregroundStyle(GLGColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 8)
             }
 
@@ -1280,48 +1382,70 @@ struct HoyolandDetailView: View {
             // 한 줄에 선 두 칸은 **높이를 맞춘다**(`fillHeight` + HStack 의 `fixedSize`). 부제가
             // 한 줄인 칸과 두 줄인 칸이 나란히 서면 카드 아래가 서로 다른 자리에서 끝나 격자가
             // 어긋나 보인다. 높이를 맞춘 뒤 글자는 칸 안에서 **세로 가운데**에 둔다.
-            HStack(spacing: 8) {
-                NavigationLink { HoyolandStageView(event: e, entry: store.hoyolandEntry) } label: {
-                    // 지금 무대가 돌고 있으면 이 칸만 빨갛다 — 넷 중 **지금 열어야 하는 칸**이다.
-                    onsiteTile("clock", "시간표", e.onsiteStageLine(nowMillis: nowMs()),
-                               subColor: e.isStageLiveNow(nowMillis: nowMs()) ? GLGLiveRed : nil,
-                               fillHeight: true)
+            // 푸드존은 **프로그램 목록에서 빼내 여기로** 옮겼다. 성격이 "현장에서 골라 사는 것"
+            // 이라 굿즈·부스와 같은 줄이 맞다. 메뉴가 비면 칸을 세우지 않고 그 자리를 비워 격자를 지킨다.
+            //
+            // **지난 회차(보관본)는 자료가 있는 칸만 세운다**(10/6) — 끝난 행사에 「공개 전」 칸이 서면 틀린 말이다.
+            // 지금 회차는 예전 그대로다(시간표 · 굿즈 · 부스는 비어도 「공개 전」으로 선다). (Android 와 같다)
+            let kinds = onsiteKinds(e)
+            ForEach(Array(stride(from: 0, to: kinds.count, by: 2)), id: \.self) { r in
+                HStack(spacing: 8) {
+                    onsiteLink(kinds[r], e)
+                    if r + 1 < kinds.count { onsiteLink(kinds[r + 1], e) } else { Color.clear.frame(maxWidth: .infinity) }
                 }
-                .buttonStyle(.plain)
-                NavigationLink { HoyolandGoodsView(event: e, store: store) } label: {
-                    onsiteTile("bag.fill", "굿즈", e.onsiteGoodsLine(cart: store.hoyolandCart),
-                               fillHeight: true)
-                }
-                .buttonStyle(.plain)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, r == 0 ? 0 : 8)
             }
-            .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                NavigationLink { HoyolandBoothView(event: e) } label: {
-                    onsiteTile("storefront.fill", "부스", e.onsiteBoothLine(), fillHeight: true)
-                }
-                .buttonStyle(.plain)
-                // 푸드존은 **프로그램 목록에서 빼내 여기로** 옮겼다. 성격이 "현장에서 골라 사는 것"
-                // 이라 굿즈·부스와 같은 줄이 맞다. 메뉴가 비면 빈 칸을 세워 넷의 격자를 지킨다.
-                if !e.foodPrograms.isEmpty {
-                    NavigationLink { HoyolandFoodView(event: e) } label: {
-                        onsiteTile("fork.knife", "푸드존", e.onsiteFoodLine(), fillHeight: true)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Color.clear.frame(maxWidth: .infinity)
-                }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 8)
             // ── 맵스 — 배치도가 공개돼야 선다. 넷과 성격이 달라(고르는 게 아니라 **찾아가는**
             // 것) 한 줄을 통째로 준다 — 지도는 폭이 넓을수록 구역 이름이 안 잘린다.
             if e.hasMap {
-                NavigationLink { HoyolandMapView(event: e, store: store) } label: {
+                NavigationLink { HoyolandMapView(event: e, store: store, readOnly: readOnly) } label: {
                     onsiteWideTile("map", "맵스", e.onsiteMapLine())
                 }
                 .buttonStyle(.plain)
-                .padding(.top, 8)
+                .padding(.top, kinds.isEmpty ? 0 : 8)
             }
+        }
+    }
+
+    /// 둘러보기의 칸 종류 — 지난 회차(보관본)는 자료가 있는 것만.
+    private enum OnsiteKind { case stage, goods, booth, food }
+
+    private func onsiteKinds(_ e: HoyolandEvent) -> [OnsiteKind] {
+        var kinds: [OnsiteKind] = []
+        if !readOnly || e.hasTimetable { kinds.append(.stage) }
+        if !readOnly || !e.visibleGoods.isEmpty { kinds.append(.goods) }
+        if !readOnly || !e.booths.isEmpty { kinds.append(.booth) }
+        if !e.foodPrograms.isEmpty { kinds.append(.food) }
+        return kinds
+    }
+
+    /// 둘러보기 한 칸 — 누르면 그 하위 페이지로 간다.
+    @ViewBuilder private func onsiteLink(_ kind: OnsiteKind, _ e: HoyolandEvent) -> some View {
+        switch kind {
+        case .stage:
+            NavigationLink { HoyolandStageView(event: e, entry: liveEntry, readOnly: readOnly) } label: {
+                // 지금 무대가 돌고 있으면 이 칸만 빨갛다 — 넷 중 **지금 열어야 하는 칸**이다.
+                onsiteTile("clock", "시간표", e.onsiteStageLine(nowMillis: nowMs()),
+                           subColor: e.isStageLiveNow(nowMillis: nowMs()) ? GLGLiveRed : nil,
+                           fillHeight: true)
+            }
+            .buttonStyle(.plain)
+        case .goods:
+            NavigationLink { HoyolandGoodsView(event: e, store: store, readOnly: readOnly) } label: {
+                onsiteTile("bag.fill", "굿즈", e.onsiteGoodsLine(cart: liveCart), fillHeight: true)
+            }
+            .buttonStyle(.plain)
+        case .booth:
+            NavigationLink { HoyolandBoothView(event: e) } label: {
+                onsiteTile("storefront.fill", "부스", e.onsiteBoothLine(), fillHeight: true)
+            }
+            .buttonStyle(.plain)
+        case .food:
+            NavigationLink { HoyolandFoodView(event: e) } label: {
+                onsiteTile("fork.knife", "푸드존", e.onsiteFoodLine(), fillHeight: true)
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -1402,7 +1526,8 @@ struct HoyolandDetailView: View {
             // 제목이 "프로그램" 이었을 때는 시간표·부스·푸드존까지 다 프로그램이라 위 「현장에서」와
             // 경계가 없었다. 푸드존이 빠져나간 지금 이 섹션에 남은 건 **미리 신청하거나(전시존)
             // 받는 것(웰컴 키트)** 뿐이라, 하는 일로 부른다.
-            Text("응모 · 특전").font(.pretendard(size: 17, weight: .bold)).padding(.bottom, 2)
+            // 지난 회차 화면은 이 자리가 그 회차의 기록이라 제목이 다르다(「행사 구성」 — HoyolandApi.asArchive).
+            Text(e.programSectionTitle).font(.pretendard(size: 17, weight: .bold)).padding(.bottom, 2)
             // 한 장짜리 카드에 구분선으로 쌓다가 **항목당 카드**로 갈아탔다. 웰컴 키트가 들어오며
             // 항목이 다섯으로 늘고 본문이 여러 줄이 되자, 구분선 하나로는 어디서 끊기는지 안 보여
             // 글자 벽이 됐다. 굿즈·부스가 이미 카드 목록이라 규격도 그쪽에 맞춘다.
@@ -1410,7 +1535,8 @@ struct HoyolandDetailView: View {
             // 게임 배지는 HoyolandEvent.programGame 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
             // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
             ForEach(Array(e.otherPrograms.enumerated()), id: \.offset) { i, p in
-                let pg = e.programGame(title: p.title)
+                // 지난 회차 화면은 줄 제목에 게임 이름이 이미 있어 배지를 세우지 않는다(HoyolandEvent.programGameTags).
+                let pg = e.programGameTags ? e.programGame(title: p.title) : ""
                 let pc = pg.isEmpty ? GLGColor.textSecondary : programColor(e, pg)
                 if i > 0 { HoyolandHairline() }
                     VStack(alignment: .leading, spacing: 0) {
@@ -1428,10 +1554,8 @@ struct HoyolandDetailView: View {
                         }
                         if !p.desc.isEmpty {
                             // 웰컴 키트처럼 구성품을 줄바꿈으로 늘어놓는 값이 있어 줄간을 넉넉히 준다.
-                            Text(p.desc).font(.pretendard(size: 13))
+                            HoyolandListText(text: p.desc, size: 13, lineSpacing: 5)
                                 .foregroundStyle(GLGColor.textSecondary)
-                                .lineSpacing(5)
-                                .fixedSize(horizontal: false, vertical: true)
                                 .padding(.top, 9)
                         }
                         if !p.deadline.isEmpty {
@@ -1452,13 +1576,19 @@ struct HoyolandDetailView: View {
     // **종료 · 일정 미정이면 접지 않는다**(10/6) — 본론이 비어 이 목록이 페이지에서 읽을 전부라,
     // 접기 · 펼치기는 한 번 더 누르게 할 뿐이다. 머리줄은 누를 수 없는 제목이 된다. (Android 와 같다)
     // 공지 한 줄은 여기 끝에 붙이지 않는다 — 상단(히어로)에만 선다(10/6, `topNotice`). 섹션 여백 · 띠는 호출부가 건다.
-    @ViewBuilder private func pastSection(_ e: HoyolandEvent) -> some View {
+    //
+    // [slice] · [hideTitle] 은 넓은 창이 이 목록을 **두 열에 나눠 세울 때**만 쓴다([wideColumns]) — 오른쪽 열은 뒤쪽 절반만
+    // 그리고, 제목은 자리만 차지하게 숨겨 두 열의 첫 줄이 같은 높이에 선다.
+    @ViewBuilder private func pastSection(_ e: HoyolandEvent, slice: Range<Int>? = nil,
+                                          hideTitle: Bool = false) -> some View {
         let alwaysOpen = e.phase(nowMillis: nowMs()).isOffSeason
         VStack(alignment: .leading, spacing: 0) {
         if alwaysOpen {
             Text("지난 행사").font(.pretendard(size: 17, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
                 .padding(.vertical, 2)
+                .opacity(hideTitle ? 0 : 1)
+                .accessibilityHidden(hideTitle)
         } else {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) { pastExpanded.toggle() }
@@ -1482,9 +1612,27 @@ struct HoyolandDetailView: View {
         // 행사마다 카드였던 것을 헤어라인 목록으로(10/1).
         if alwaysOpen || pastExpanded {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(e.past.enumerated()), id: \.offset) { i, p in
-                    if i > 0 { HoyolandHairline() }
-                    pastEventCard(p.title, p.facts)
+                let _ = archiveTick
+                let rows = Array(e.past.enumerated()).filter { slice?.contains($0.offset) ?? true }
+                ForEach(rows, id: \.offset) { i, p in
+                    if i != rows.first?.offset { HoyolandHairline() }
+                    // 지난 회차 안에서 또 지난 회차로 들어가지는 않는다 — 한 단계만.
+                    let key = readOnly ? "" : HoyolandApi.shared.archiveKeyOf(past: p)
+                    pastEventCard(p.title, p.facts) {
+                        if !key.isEmpty {
+                            // 섹션 머리의 오른쪽 액션과 같은 규격(13 SemiBold 강조색).
+                            NavigationLink { HoyolandArchiveView(store: store, key: key) } label: {
+                                HStack(spacing: 2) {
+                                    Text("상세 보기").font(.pretendard(size: 13, weight: .semibold))
+                                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                                }
+                                .foregroundStyle(accent.primary)
+                                .padding(.leading, 8).padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
             }
             .padding(.top, 2)
@@ -1639,12 +1787,15 @@ struct HoyolandScheduleBanner: View {
 }
 
 /// 지난 행사 1건 — 제목 + "종료" 배지 + 팩트 목록. 카드를 걷고 헤어라인 목록의 한 줄이 됐다(10/1).
+/// `trailing` — 제목 줄 오른쪽 끝(보관본이 있는 회차의 「상세 보기」). 비어 있으면 아무것도 서지 않는다.
 @MainActor
-@ViewBuilder private func pastEventCard(_ title: String, _ facts: [HoyolandFact]) -> some View {
+@ViewBuilder private func pastEventCard<T: View>(_ title: String, _ facts: [HoyolandFact], @ViewBuilder trailing: () -> T) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 hoyoBadge("종료", GLGColor.textSecondary)
+                Spacer(minLength: 0)
+                trailing()
             }
             .padding(.bottom, 12)
             ForEach(Array(facts.enumerated()), id: \.offset) { i, f in

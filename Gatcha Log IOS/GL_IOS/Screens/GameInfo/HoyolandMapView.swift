@@ -17,6 +17,8 @@ import Shared
 struct HoyolandMapView: View {
     let event: HoyolandEvent
     let store: SpendingStore
+    /// 지난 회차 — 구역에서 여는 굿즈 · 시간표도 읽기 전용으로 넘긴다.
+    var readOnly: Bool = false
     @Environment(\.glgAccent) private var accent
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.glgCanvasWidth) private var canvasWidth
@@ -265,8 +267,8 @@ struct HoyolandMapView: View {
                 // 누른 구역의 목록으로 — 지도가 목록의 입구가 된다. 되돌아오기는 내비게이션이
                 // 알아서 하므로(스크롤 위치까지) 따로 기억할 것이 없다.
                 switch z.kind {
-                case "goods": HoyolandGoodsView(event: event, store: store)
-                case "stage": HoyolandStageView(event: event, entry: store.hoyolandEntry)
+                case "goods": HoyolandGoodsView(event: event, store: store, readOnly: readOnly)
+                case "stage": HoyolandStageView(event: event, entry: readOnly ? Shared.HoyolandEntry(groups: [:]) : store.hoyolandEntry, readOnly: readOnly)
                 case "food": HoyolandFoodView(event: event)
                 default: HoyolandBoothView(event: event, initialGame: z.game.isEmpty ? nil : z.game,
                                            initialSpecial: z.label.contains("DIY") ? "diy"

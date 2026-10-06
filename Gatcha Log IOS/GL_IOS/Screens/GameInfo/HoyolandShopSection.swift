@@ -35,6 +35,8 @@ private let GLGGiftBg = Color(hex: 0x14E0557B)
 struct HoyolandGoodsView: View {
     let event: HoyolandEvent
     var store: SpendingStore
+    /// 지난 회차 — 살 수 없으므로 담기 · 합계 바 없이 목록만(10/6). (Android 와 같다)
+    var readOnly: Bool = false
     @Environment(\.glgAccent) private var accent
     @State private var gameFilter: String? = nil
     @State private var showCart = false
@@ -63,7 +65,8 @@ struct HoyolandGoodsView: View {
     var body: some View {
         let all = event.visibleGoods
         let games = event.goodsGames
-        let cart = store.hoyolandCart
+        // 장바구니는 지금 회차의 것 — 지난 회차 목록에는 비치지 않게 빈 값으로 둔다(합계 바도 서지 않는다).
+        let cart = readOnly ? Shared.HoyolandCart(items: [:]) : store.hoyolandCart
         let hasCartLines = event.cartKindCount(cart: cart) > 0   // 지금 목록에 있는 것만
         let shown = all.filter { gameFilter == nil || $0.game == gameFilter }
 
@@ -186,7 +189,7 @@ struct HoyolandGoodsView: View {
         .sheet(isPresented: $showGuide) { HoyolandGuideSheet(text: event.goodsGuide) }
         .sheet(isPresented: Binding(get: { viewing != nil }, set: { if !$0 { viewing = nil } })) {
             if let v = viewing {
-                HoyolandGoodsImageSheet(event: event, store: store, start: v)
+                HoyolandGoodsImageSheet(event: event, store: store, start: v, readOnly: readOnly)
             }
         }
     }
@@ -316,6 +319,7 @@ struct HoyolandGoodsView: View {
             Spacer(minLength: 12)
             // 오른쪽 열에는 **담기만** 남는다 — 가격이 이름 밑으로 내려가면서 이 열은 누르는
             // 것 하나만 갖는다. 값과 버튼이 좁은 한 열에서 시선을 나눠 갖던 것이 풀린다.
+            if !readOnly {
             VStack(alignment: .trailing, spacing: 6) {
                 // 「담기」 ↔ 스테퍼 전환. 값만 갈아 끼우면 버튼이 있던 자리에 스테퍼가 **툭 나타나서**
                 // 내가 누른 것이 반영된 것인지, 원래 그랬던 것인지 순간 헷갈린다. 담을 때도 뺄 때도
@@ -340,6 +344,7 @@ struct HoyolandGoodsView: View {
                     }
                 }
                 .animation(GLGMotion.standard(), value: quantity > 0)
+            }
             }
         }
         .padding(.top, top).padding(.bottom, bottom)
@@ -794,11 +799,8 @@ struct HoyolandBoothView: View {
             }
             // 무엇을 하는 체험인지 — 무료·유료는 제목 줄 알약이 이미 말한다.
             if !b.desc.isEmpty {
-                Text(b.desc)
-                    .font(.pretendard(size: 13))
+                HoyolandListText(text: b.desc, size: 13, lineSpacing: 4)
                     .foregroundStyle(GLGColor.textSecondary)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 10)
             }
@@ -818,8 +820,8 @@ struct HoyolandBoothView: View {
         VStack(alignment: .leading, spacing: 0) {
             if let guide = event.diyGuide {
                 if !guide.desc.isEmpty {
-                    Text(guide.desc).font(.pretendard(size: 13.5)).foregroundStyle(GLGColor.textSecondary)
-                        .lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                    HoyolandListText(text: guide.desc, size: 13.5, lineSpacing: 5)
+                        .foregroundStyle(GLGColor.textSecondary)
                 }
                 if !guide.reward.isEmpty { diyReward(guide.reward).padding(.top, 12) }
             }
@@ -832,8 +834,8 @@ struct HoyolandBoothView: View {
                         .foregroundStyle(accent.primary)
                 }
                 if !b.desc.isEmpty {
-                    Text(b.desc).font(.pretendard(size: 13.5)).foregroundStyle(GLGColor.textSecondary)
-                        .lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                    HoyolandListText(text: b.desc, size: 13.5, lineSpacing: 5)
+                        .foregroundStyle(GLGColor.textSecondary)
                         .padding(.top, 10)
                 }
                 // 받는 것은 **섹션 맨 아래**(2026-09-28 지시) — 설명을 다 읽은 끝에 "그래서 뭘 받나" 로 맺는다.
@@ -881,8 +883,8 @@ struct HoyolandBoothView: View {
                     .padding(.top, 8)
                 }
                 if !b.desc.isEmpty {
-                    Text(b.desc).font(.pretendard(size: 13.5)).foregroundStyle(GLGColor.textSecondary)
-                        .lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                    HoyolandListText(text: b.desc, size: 13.5, lineSpacing: 5)
+                        .foregroundStyle(GLGColor.textSecondary)
                         .padding(.top, 10)
                 }
                 // 받는 것은 **섹션 맨 아래**(2026-09-28 지시).
@@ -901,7 +903,7 @@ struct HoyolandBoothView: View {
     private func diyReward(_ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Image(systemName: "gift").font(.system(size: 13, weight: .semibold))
-            Text(text).font(.pretendard(size: 13, weight: .bold)).fixedSize(horizontal: false, vertical: true)
+            HoyolandListText(text: text, size: 13, weight: .bold, lineSpacing: 0)
             Spacer(minLength: 0)
         }
         .foregroundStyle(GLGGiftText)
@@ -928,6 +930,8 @@ struct HoyolandGoodsImageSheet: View {
     let event: HoyolandEvent
     var store: SpendingStore
     let start: HoyolandGoods
+    /// 지난 회차 — 담기 바 없이 사진과 정보만.
+    var readOnly: Bool = false
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
     @State private var contentHeight: CGFloat = 570
@@ -976,7 +980,8 @@ struct HoyolandGoodsImageSheet: View {
                 }
             }
             // 아래 여백은 담기 바가 이어 받는다 — 바의 윗여백과 합쳐 예전 간격(18)이 된다.
-            .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 6)
+            // 담기 바가 없으면(지난 회차) 아래 여백을 여기서 다 둔다.
+            .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, readOnly ? 18 : 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glgSheetContentHeight($contentHeight)
             // 재고 나서 위로 붙인다 — `NavigationStack` 은 자식을 세로 가운데 놓아,
@@ -989,7 +994,7 @@ struct HoyolandGoodsImageSheet: View {
             // 네비 바 · 홈 인디케이터를 재는 [glgSheetChromeHeight] 보다 **안쪽**에 건다 —
             // 바깥에 걸면 시트가 바 높이를 chrome 으로 한 번, [barHeight] 로 또 한 번 세어
             // 그만큼 아래가 빈다.
-            .safeAreaInset(edge: .bottom) { cartBar(item: item, quantity: quantity) }
+            .safeAreaInset(edge: .bottom) { if !readOnly { cartBar(item: item, quantity: quantity) } }
             .navigationTitle("굿즈 사진")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1004,7 +1009,7 @@ struct HoyolandGoodsImageSheet: View {
         // `presentationSizing(.fitted)` 는 iPhone 시트에서 듣지 않는다(iPad · macOS 용이고,
         // 여기서는 시트가 화면 가까이까지 커져 아래가 통째로 비었다 — 2026-09-17 실측).
         // iPhone 은 detent 가 높이를 정하므로 직접 잰다.
-        .presentationDetents([.height(contentHeight + barHeight + chromeHeight)])
+        .presentationDetents([.height(contentHeight + (readOnly ? 0 : barHeight) + chromeHeight)])
         .presentationDragIndicator(.visible)
         // iOS 26+ 시트 기본 배경은 반투명 유리라 사진 · 가격이 뒤 목록과 겹쳐 보인다 — 흰 면으로 고정.
         .presentationBackground(.white)
