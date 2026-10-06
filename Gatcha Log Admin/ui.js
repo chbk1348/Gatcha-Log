@@ -620,48 +620,37 @@ function glDate(cfg) {
   return el('div', { class: 'gl-field gl-date' }, [input, btn]);
 }
 
-/** yyyy-MM-dd HH:mm (KST) */
+/**
+ * yyyy-MM-dd HH:mm (KST) — **날짜 칸 + 타임 피커 칸** 둘로 고른다(10/6, 「시각을 정하는 곳은 모두 타임 피커」).
+ * 예전엔 글자 칸 하나에 달력 팝업 속 숫자 조절기였다. 값은 예전 그대로 "2026-10-02 10:00" 한 줄로 나간다.
+ * 시각만 먼저 고르면 날짜는 오늘(KST)로 채운다. 날짜만 있고 시각이 비면 00:00 이다.
+ * 앱이 못 읽는 옛 값("내일까지")은 날짜 칸에 그대로 보인다 — 고치기 전까지 값도 그대로다(검증이 짚는다).
+ */
 function glDateTime(cfg) {
-  const input = glText({
-    value: cfg.value, placeholder: 'yyyy-MM-dd HH:mm',
-    onInput: cfg.onInput, onChange: cfg.onChange,
+  const raw = String(cfg.value ?? '').trim();
+  const m = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{1,2}):(\d{2}))?$/.exec(raw);
+  let ymd = m ? m[1] : raw;
+  let hm = m && m[2] != null ? `${pad2(+m[2])}:${m[3]}` : '';
+  const out = () => (!ymd ? '' : /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? `${ymd} ${hm || '00:00'}` : ymd);
+
+  const date = glDate({
+    value: ymd,
+    onInput: (v) => { ymd = String(v ?? '').trim(); if (cfg.onInput) cfg.onInput(out()); },
+    onChange: (v) => { ymd = String(v ?? '').trim(); if (cfg.onChange) cfg.onChange(out()); },
   });
-  input.classList.add('gl-date-in');
-  const btn = el('button', { type: 'button', class: 'gl-icon-b gl-pick', title: '날짜 · 시각 고르기', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, [calIcon()]);
-
-  btn.addEventListener('click', () => {
-    if (isOpen(btn)) { closePop(); return; }
-    const m = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{1,2}):(\d{2}))?/.exec(input.value.trim());
-    let ymd = m ? m[1] : '';
-    let h = m && m[2] != null ? +m[2] : 0;
-    let mi = m && m[3] != null ? +m[3] : 0;
-
-    const emit = () => {
-      const v = ymd ? `${ymd} ${pad2(h)}:${pad2(mi)}` : '';
-      input.value = v;
-      if (cfg.onChange) cfg.onChange(v);
-    };
-    const cal = calendar(() => ymd, (v) => {
-      ymd = v;
-      if (!v) { emit(); closePop(); return; }
-      emit();
-      cal.redraw();
-    });
-
-    const panel = el('div', { class: 'gl-cal-pop' }, [
-      cal,
-      el('div', { class: 'gl-time' }, [
-        el('span', { class: 'gl-time-l', text: '시각(KST)' }),
-        glNumber({ value: h, min: 0, max: 23, pad: true, wrap: true, onChange: (v) => { h = v; if (!ymd) ymd = kstToday(); emit(); cal.redraw(); } }),
-        el('span', { class: 'gl-time-c', text: ':' }),
-        glNumber({ value: mi, min: 0, max: 59, step: 5, pad: true, wrap: true, onChange: (v) => { mi = v; if (!ymd) ymd = kstToday(); emit(); cal.redraw(); } }),
-        el('button', { type: 'button', class: 'gl-mini', style: 'margin-left:auto', onclick: () => closePop() }, ['닫기']),
-      ]),
-    ]);
-    openPop(btn, panel);
+  const time = glTime({
+    value: hm, presets: [], defaultHour: 10, placeholder: '시각',
+    onChange: (v) => {
+      hm = HHMM_RE.test(v) ? v : '';
+      if (hm && !ymd) {
+        ymd = kstToday();
+        const inp = date.querySelector('input');
+        if (inp) inp.value = ymd;
+      }
+      if (cfg.onChange) cfg.onChange(out());
+    },
   });
-
-  return el('div', { class: 'gl-field gl-date gl-dt' }, [input, btn]);
+  return el('div', { class: 'gl-dt' }, [date, time]);
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -670,7 +659,9 @@ function glDateTime(cfg) {
  * 날짜 없이 시각만 받는 자리(무대 시간표의 시작 시각)에 쓴다. 값은 "14:00" 처럼 앱이 읽는
  * 표기 그대로 나가되, "종일" · "수시" 같은 비시각 표기도 유효한 값이라 칩으로 같이 준다.
  *
- * cfg: { value, onChange, placeholder, defaultHour, presets: ['종일', …] }
+ * cfg: { value, onChange, placeholder, defaultHour, presets: ['종일', …], hourOnly }
+ *   hourOnly — 시만 고른다(분은 00 고정). 값이 시 하나뿐인 자리(예매 오픈 시각 openHour)에 쓴다 —
+ *              분을 고르게 하면 저장할 때 버려져, 고른 것과 나간 값이 달라진다.
  * ═════════════════════════════════════════════════════════════ */
 
 const HHMM_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
@@ -700,14 +691,16 @@ function glTime(cfg) {
     if (isOpen(trig)) { closePop(); return; }
     const m = HHMM_RE.exec(value.trim());
     let h = m ? +value.trim().split(':')[0] : (cfg.defaultHour ?? 10);
-    let mi = m ? +value.trim().split(':')[1] : 0;
+    let mi = m && !cfg.hourOnly ? +value.trim().split(':')[1] : 0;
     const emit = () => set(`${pad2(h)}:${pad2(mi)}`);
 
     const panel = el('div', { class: 'gl-cal-pop gl-time-pop' }, [
       el('div', { class: 'gl-time' }, [
         glNumber({ value: h, min: 0, max: 23, pad: true, wrap: true, onChange: (v) => { h = v; emit(); } }),
         el('span', { class: 'gl-time-c', text: ':' }),
-        glNumber({ value: mi, min: 0, max: 59, step: 5, pad: true, wrap: true, onChange: (v) => { mi = v; emit(); } }),
+        cfg.hourOnly
+          ? el('span', { class: 'gl-time-c', text: '00', title: '분은 정하지 않습니다 — 시만 저장됩니다' })
+          : glNumber({ value: mi, min: 0, max: 59, step: 5, pad: true, wrap: true, onChange: (v) => { mi = v; emit(); } }),
       ]),
       (cfg.presets || []).length ? el('div', { class: 'gl-chips' },
         cfg.presets.map((t) => el('button', {

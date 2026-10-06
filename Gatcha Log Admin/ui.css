@@ -126,6 +126,8 @@ td .gl-num-b { width: 22px; }
 /* ── 날짜 · 시각 ──────────────────────────────────── */
 .gl-date { gap: 6px; }
 .gl-date .gl-date-in { letter-spacing: .01em; }
+/* 날짜 · 시각 — 날짜 칸 + 타임 피커 칸(10/6). */
+.gl-dt { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 8px; min-width: 0; }
 .gl-icon-b {
   flex: none; display: grid; place-items: center;
   width: 28px; height: 26px; padding: 0;

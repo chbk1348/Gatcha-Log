@@ -268,6 +268,11 @@ const VENUE_NAMES = ['일산 킨텍스 제1전시장', '일산 킨텍스 제2전
  * 리소스 1 — 호요랜드 (HoyolandApi.parse)
  * ═════════════════════════════════════════════════════════════ */
 
+/** 굿즈존 공통 안내 — 굿즈 목록 맨 위 카드(스크롤하면 올라가 가려진다). 비우면 카드가 없다. 「굿즈샵」 탭 맨 위 섹션이 그린다. */
+const GOODS_GUIDE_FIELD = { key: 'goodsGuide', label: '굿즈존 안내', type: 'textarea',
+  note: '줄 규칙: 글머리 없는 줄은 묶음 제목, “· 항목 — 값”, 들여쓴 줄은 위 항목의 부연',
+  tools: (ta) => guideTools(ta), preview: (v) => guidePreview(v), previewSide: true };
+
 const TICKET_STATUS = [
   { value: 'undecided', label: '미정 — 예매 정보 공개 전' },
   { value: 'announced', label: '공지됨 — 일정만 발표' },
@@ -474,6 +479,10 @@ const HOYOLAND = {
         if (t && !HHMM.test(t))
           add('warn', 'entryGroups', `조 "${n}" 의 시각 "${t}" 이 HH:mm 꼴이 아닙니다 — 앱이 받은 그대로 적습니다.`);
       }
+      // 예매 안내 글(ticket.note)의 조별 시각과 견준다(10/6) — 두 곳에 같은 편성이 적혀 한쪽만 고치기 쉽다.
+      const bad = entryMismatch(d);
+      if (bad && bad.length)
+        add(quiet, 'entryGroups', `입장 조 시각이 예매 안내 글과 다릅니다 — ${bad.map((r) => `${r.name}조 ${r.mine || '(비어 있음)'} · 안내 글 ${r.note}`).join(' / ')}`);
     }
 
     if (!d.lineup.length) add(quiet, 'lineup', '참여 게임이 비었습니다 — 앱이 번들 기본 라인업으로 폴백합니다.');
@@ -527,71 +536,103 @@ const HOYOLAND = {
   },
 
   sections: [
-    { id: 'meta', group: '행사', label: '기본 정보', type: 'form', path: '',
+    /*
+     * 「행사 정보」 여섯 탭 — 시안 「행사 정보 개편」(10/6 확정). 한 판에 쌓던 칸을 **섹션**(제목 17 · 띠)으로 나누고,
+     * 오른쪽에 「앱에서 보이는 모습」을 세운다(`withPreview`). 폼 탭은 `blocks`(섹션마다 칸 묶음),
+     * 목록 탭은 `type: 'rows'`(표 대신 줄 단위 편집 — `renderRows`)로 그린다. `fields` · `columns` 는 그대로 —
+     * 검증 · 변경사항이 이 이름으로 부른다.
+     */
+    { id: 'meta', group: '행사', label: '기본 정보', type: 'blocks', path: '',
       desc: '행사 명칭 · 기간 · 장소 · 공지. 빠뜨린 키는 앱이 번들 기본값으로 메웁니다.',
       fields: [
-        { key: 'edition', label: '행사명', type: 'text', wide: true, placeholder: '호요랜드 2026' },
+        { key: 'edition', label: '행사명', type: 'text', placeholder: '호요랜드 2026' },
         // 히어로 머리줄이 쓰는 영문 표기 — 비우면 한글 행사명을 그대로 쓴다.
-        { key: 'editionEn', label: '행사명(영문)', type: 'text', wide: true, placeholder: 'HOYOLAND 2026',
-          note: '히어로 맨 윗줄. 비우면 한글 행사명을 씁니다' },
-        { key: 'startYmd', label: '시작일', type: 'date', note: '날짜 탭이 이 범위로 만들어집니다' },
+        { key: 'editionEn', label: '영문 표기', type: 'text', placeholder: 'HOYOLAND 2026', note: '히어로 맨 윗줄. 비우면 행사명을 씁니다.' },
+        { key: 'startYmd', label: '시작일', type: 'date' },
         { key: 'endYmd', label: '종료일', type: 'date' },
         { key: 'announceYmd', label: '개최 발표일', type: 'date', note: '카운트다운 진행 바의 출발점' },
         { key: 'venueName', label: '장소', type: 'suggest', options: VENUE_NAMES },
         { key: 'venueHall', label: '홀', type: 'text', placeholder: '7·8홀 · 후면광장' },
-        { key: 'venueAddress', label: '주소', type: 'text', wide: true },
-        { key: 'mapUrl', label: '지도 URL', type: 'url', wide: true, note: '네이버 지도 등 1순위 링크' },
-        { key: 'mapFallbackUrl', label: '지도 대체 URL', type: 'url', wide: true, note: '1순위가 열리지 않을 때' },
-        { key: 'officialUrl', label: '공식 URL', type: 'url', wide: true },
-        { key: 'notice', label: '공지 문구', type: 'textarea', wide: true,
-          note: '상세 화면 상단(남은 날짜 아래) 한 곳에만 그대로 보입니다. 일정 미정일 때 비워 두면 「○○ 행사가 마무리되었어요」 자동 문구가 대신 섭니다.' },
-        // 굿즈존 공통 안내 — 굿즈 목록 맨 위 카드(스크롤하면 올라가 가려진다). 비우면 카드가 없다.
-        { key: 'goodsGuide', label: '굿즈존 안내', type: 'textarea', wide: true,
-          note: '굿즈 목록 맨 위 카드. 줄 규칙: “· 항목 — 값”, 들여쓴 줄은 위 항목의 부연',
-          tools: guideTools, preview: guidePreview },
-      ] },
-    { id: 'ticket', group: '행사', label: '예매', type: 'form', path: 'ticket',
-      desc: '상태를 바꾸면 앱의 예매 카드가 바뀝니다. 알림 예약은 openYmd · openHour 를 읽습니다.',
+        { key: 'venueAddress', label: '주소', type: 'text', span: 'all' },
+        { key: 'mapUrl', label: '지도', type: 'url', note: '네이버 지도 등 1순위' },
+        { key: 'mapFallbackUrl', label: '지도 — 대체', type: 'url', note: '1순위를 열 앱이 없을 때' },
+        { key: 'officialUrl', label: '공식 사이트', type: 'url', span: 'all' },
+        { key: 'notice', label: '공지 문구', type: 'textarea', span: 'all',
+          note: '일정 미정일 때 비워 두면 「○○ 행사가 마무리되었어요」 자동 문구가 대신 섭니다.' },
+      ],
+      blocks: [
+        { title: '행사명', desc: '앱 히어로 머리줄과 「게임 정보」 탭 한 줄에 그대로 섭니다.', keys: ['edition', 'editionEn'] },
+        { title: '일정', desc: '시작일 · 종료일을 둘 다 비우면 앱이 「일정 미정」으로 보여 줍니다. 날짜 탭은 이 범위로 만들어집니다.',
+          keys: ['startYmd', 'endYmd', 'announceYmd'], cols: 3, after: (d) => scheduleReadout(d) },
+        { title: '장소', keys: ['venueName', 'venueHall', 'venueAddress'] },
+        { title: '링크', desc: '앱이 그대로 엽니다 — https:// 로 시작해야 합니다.', keys: ['mapUrl', 'mapFallbackUrl', 'officialUrl'] },
+        { title: '공지 문구', desc: '상세 화면 맨 위(남은 날짜 아래) 한 곳에만 그대로 섭니다.', keys: ['notice'], cols: 1 },
+      ],
+      preview: (d) => metaPreview(d) },
+    { id: 'ticket', group: '행사', label: '예매', type: 'blocks', path: 'ticket',
+      desc: '상태를 바꾸면 앱의 예매 칸이 바뀝니다. 알림은 오픈 날짜 · 시각으로 예약됩니다.',
       fields: [
-        { key: 'status', label: '상태', type: 'select', options: TICKET_STATUS, wide: true },
+        { key: 'status', label: '상태', type: 'segment', options: TICKET_STATUS, span: 'all' },
         { key: 'vendor', label: '예매처', type: 'suggest', options: TICKET_VENDORS },
-        { key: 'priceLabel', label: '가격 표기', type: 'text', placeholder: '30,000원' },
+        { key: 'priceLabel', label: '가격 표기', type: 'text', placeholder: '29,000원 · 수수료 1,000원 (결제 30,000원)',
+          note: '괄호 안(실제로 내는 돈)이 앱에서 크게, 앞부분은 작게 섭니다.' },
+        { key: 'url', label: '예매 페이지', type: 'url', span: 'all' },
+        { key: 'openLabel', label: '오픈 표기', type: 'text', placeholder: '9월 14일(월) 19:00', span: 2, note: '화면에 보이는 문구' },
+        { key: 'openYmd', label: '오픈 날짜', type: 'date' },
+        { key: 'openHour', label: '오픈 시각', type: 'hour' },
+        { key: 'note', label: '안내 글', type: 'textarea', preview: guidePreview, previewSide: true },
         // 예매처 앱 패키지 — 있으면 앱으로 먼저 열고, 없으면 브라우저로 떨어진다(안드로이드 전용).
-        { key: 'appPackage', label: '앱 패키지', type: 'text', width: '180px', placeholder: 'kr.co.ticketlink.cne' },
+        { key: 'appPackage', label: 'Android 패키지', type: 'text', placeholder: 'kr.co.ticketlink.cne', note: 'kr.co.ticketlink.cne 꼴' },
         // iOS 는 패키지로 못 보낸다 — 티켓링크는 유니버설 링크가 없어(AASA 404) 커스텀 스킴만이 길이다.
         // 확인된 값이 없으면 비워 둔다. 틀린 스킴은 조용히 웹으로 떨어져 티가 안 난다.
-        { key: 'appScheme', label: '앱 스킴(iOS)', type: 'text', width: '200px', placeholder: 'ticketlink://…' },
-        { key: 'openLabel', label: '오픈 표기', type: 'text', placeholder: '9.20(토) 14:00', note: '화면에 보이는 문구' },
-        { key: 'openYmd', label: '오픈 날짜', type: 'date', note: '알림 예약이 읽는 값 — 표기와 별도로 채워야 알림이 갑니다' },
-        { key: 'openHour', label: '오픈 시각(시)', type: 'number', min: 0, max: 23 },
-        { key: 'url', label: '예매 URL', type: 'url', wide: true },
-        { key: 'note', label: '안내 문구', type: 'textarea', wide: true },
-      ] },
+        { key: 'appScheme', label: 'iOS 스킴', type: 'text', placeholder: 'ticketlink://…', note: '확인된 값이 없으면 비워 둡니다' },
+      ],
+      blocks: [
+        { title: '상태', desc: '앱의 예매 칸 · 알림이 이 값을 봅니다. 개막하면 앱이 스스로 「진행 중」 · 「종료」로 바꿔 씁니다.',
+          keys: ['status'], cols: 1, after: (d) => ticketStatusLine(d.ticket) },
+        { title: '판매', keys: ['vendor', 'priceLabel', 'url'] },
+        { title: '오픈 일정', desc: '표기는 화면에 보이는 글이고, 알림은 날짜 · 시각으로 예약됩니다 — 둘 다 채웁니다.',
+          keys: ['openLabel', 'openYmd', 'openHour'], cols: 4, after: (d) => ticketAlarmLine(d.ticket) },
+        { title: '예매 안내', desc: '앱 「예매 안내 전체 보기」 시트에 섭니다. 첫 줄은 예매 칸에도 한 줄로 나옵니다.', keys: ['note'] },
+        { title: '예매처 앱으로 열기', desc: '예매 페이지가 있을 때만 쓰입니다. 비우면 브라우저로 엽니다.', keys: ['appPackage', 'appScheme'] },
+      ],
+      preview: (d) => ticketPreview(d) },
     // 입장 조 — 예매 안내문(ticket.note)에도 같은 내용이 글로 있지만 그쪽은 읽는 자리고,
-    // 여기는 앱의 「내 입장권」이 **고르게 할 목록**이다. 편성이 바뀌면 둘 다 고쳐야 한다.
-    { id: 'entryGroups', group: '행사', label: '입장 조', type: 'list', path: 'entryGroups', countable: true,
-      desc: '예매할 때 고르는 회차(조)와 입장 시각. 앱 「내 입장권」이 날짜마다 이 중 하나를 고르게 합니다. 이름은 조 글자만(“A조”가 아니라 “A”), 시각은 24시간 HH:mm.',
+    // 여기는 앱의 「내 입장권」이 **고르게 할 목록**이다. 편성이 바뀌면 둘 다 고쳐야 한다 — 아래 섹션이 견준다.
+    { id: 'entryGroups', group: '행사', label: '입장 조', type: 'rows', path: 'entryGroups', countable: true,
+      desc: '예매할 때 고르는 조와 입장 시각. 앱 「내 입장권」이 날짜마다 이 중 하나를 고르게 합니다. 이름은 조 글자만(“A조”가 아니라 “A”), 시각은 24시간 HH:mm.',
       warnEmpty: '비우면 앱에서 「내 입장권」 섹션이 통째로 사라집니다.',
+      unit: '조', addLabel: '+ 조 추가', rowCols: '110px 150px', twoCol: true,
       columns: [
-        { key: 'name', label: '조', type: 'text', required: true, width: '110px', placeholder: 'A' },
-        { key: 'time', label: '입장 시각', type: 'text', width: '140px', placeholder: '10:00' },
-      ] },
-    { id: 'lineup', group: '행사', label: '참여 게임', type: 'list', path: 'lineup', countable: true,
-      desc: 'abbr · colorArgb 는 앱 GameData 에 없는 게임(붕괴3rd · 미해결사건부 등)만 채웁니다. 공지 주소를 넣으면 앱에서 그 게임 칩을 눌러 열 수 있습니다.',
+        { key: 'name', label: '조', type: 'text', required: true, placeholder: 'A' },
+        { key: 'time', label: '입장 시각', type: 'hhmm', presets: [], defaultHour: 10 },
+      ],
+      after: (d) => entryMatchSection(d),
+      preview: (d) => entryPreview(d) },
+    { id: 'lineup', group: '행사', label: '참여 게임', type: 'rows', path: 'lineup', countable: true,
+      desc: '원신 · 스타레일 · 젠레스는 앱이 색과 약칭을 알고 있어 고를 것이 없습니다. 앱에 없는 게임(붕괴3rd · 미해결사건부 등)만 약칭 · 색 칸이 열립니다.',
       warnEmpty: '비우면 앱이 번들 기본 라인업으로 폴백합니다(빈 목록으로 내릴 수 없음).',
-      columns: LINEUP_COLS },
+      unit: '개', addLabel: '+ 게임 추가', rowCols: '240px minmax(0, 1fr)', rowKeys: ['game', 'theme', 'url'],
+      rowSpan: { url: 'all' },
+      lead: (r) => el('span', { class: 'row-dot', style: `background:${gameColorOf(r)}` }),
+      extra: (r) => lineupExtra(r),
+      columns: LINEUP_COLS,
+      preview: (d) => lineupPreview(d) },
     // 입장 특전 — 같은 programs 배열에서 「웰컴 키트」 · 「입장 특전」으로 시작하는 줄만 선다([only], 10/6).
     // 예전 「프로그램」 탭은 뺐다 — 앱의 프로그램 섹션이 무대 시간표와 같은 말을 되풀이해 앱에서 걷었다.
     // 그 밖의 줄(전시존 · 게임별 구성)은 문서에 그대로 남아 옛 빌드가 그린다.
-    { id: 'perks', group: '행사', label: '입장 특전', type: 'list', path: 'programs', countable: true,
+    { id: 'perks', group: '행사', label: '입장 특전', type: 'rows', path: 'programs', countable: true,
       // 새 줄은 제목 머리를 채워 만든다 — 빈 제목은 특전으로 읽히지 않아 만들자마자 탭에서 사라진다.
       only: (p) => isPerkProgram(p), seed: { title: '웰컴 키트 — ' },
-      desc: '웰컴 키트 등 입장권에 딸린 특전. 앱 「입장 특전」 섹션(예매 바로 아래)에 섭니다. 제목은 「웰컴 키트 — 원신」처럼 「웰컴 키트」나 「입장 특전」으로 시작해야 이 탭과 앱 섹션에 섭니다. 리딤코드 교환 기한은 마감 표기에 적습니다.',
+      desc: '제목이 「웰컴 키트」나 「입장 특전」으로 시작해야 앱 「입장 특전」 섹션(예매 바로 아래)에 섭니다. 게임 이름이 제목에 있으면 앱이 게임 꼬리표를 답니다.',
+      unit: '건', addLabel: '+ 특전 추가', rowCols: 'minmax(0, 1fr) minmax(0, 1fr)', rowKeys: ['title', 'deadline', 'desc'],
+      lead: (r) => perkChip(r),
       columns: [
         { key: 'title', label: '제목', type: 'text', required: true, placeholder: '웰컴 키트 — 원신' },
-        { key: 'desc', label: '설명', type: 'text', lines: true },
-        { key: 'deadline', label: '마감 표기', type: 'text' },
-      ] },
+        { key: 'desc', label: '구성', type: 'text', lines: true, span: 'all' },
+        { key: 'deadline', label: '교환 기한 · 조건', type: 'text', placeholder: '리딤코드 10.1 ~ 12.31 · 계정당 4회' },
+      ],
+      preview: (d) => perksPreview(d) },
     /*
      * 푸드존 — **음식 한 줄씩** 적는 탭이다(10/6). 칸은 게임 · 가게 이름 · 썸네일 · 음식 이름 · 음식 설명 · 가격.
      *
@@ -625,6 +666,8 @@ const HOYOLAND = {
       desc: '일자별 편성. 빈 배열도 유효한 값이라 시간표를 통째로 내릴 수 있습니다.' },
     { id: 'goods', group: '행사', label: '굿즈샵', type: 'goods', path: 'goods', countable: true,
       desc: '가격은 숫자로 넣습니다 — 문자열이면 앱이 합계를 내지 못합니다. 미정이면 0.',
+      // 굿즈존 안내는 문서 맨 위 칸(goodsGuide)이지만 앱에서는 굿즈 목록 위에 서는 글이라 이 탭에 둔다(10/6, 「기본 정보」에서 옮김).
+      rootFields: [GOODS_GUIDE_FIELD],
       columns: [
         { key: 'name', label: '상품명', type: 'text', required: true },
         { key: 'game', label: '게임', type: 'game', width: '150px' },
@@ -664,7 +707,8 @@ const HOYOLAND = {
         { key: 'desc', label: '설명', type: 'text', lines: true },
       ] },
     { id: 'past', group: '연계', label: '지난 행사', type: 'past', path: 'past', countable: true,
-      desc: '이력 카드. 비우면 앱이 번들 기본값으로 폴백합니다.' },
+      desc: '최신순. 비우면 앱 내장값으로 메웁니다. 항목은 「기간 · 장소 · 관람객」처럼 짧은 이름과 한 줄 값입니다.',
+      preview: (d) => pastPreview(d) },
   ],
 };
 
@@ -761,8 +805,8 @@ const ZZZ = {
         { key: 'name', label: '이름', type: 'text', placeholder: '엘런 조' },
         { key: 'type', label: '종류', type: 'select', options: BANNER_TYPES, width: '130px' },
         { key: 'version', label: '버전', type: 'text', width: '90px', placeholder: '2.4' },
-        { key: 'start', label: '시작(KST)', type: 'kstdt', width: '190px' },
-        { key: 'end', label: '종료(KST)', type: 'kstdt', width: '190px' },
+        { key: 'start', label: '시작(KST)', type: 'kstdt', width: '310px' },
+        { key: 'end', label: '종료(KST)', type: 'kstdt', width: '310px' },
       ] },
   ],
 };
@@ -1001,8 +1045,8 @@ const NOTICES = {
         { key: 'body', label: '내용', type: 'text', placeholder: '10월 7일 02:00 ~ 04:00 동기화가 멈춥니다' },
         { key: 'level', label: '종류', type: 'select', options: NOTICE_LEVELS, width: '104px' },
         { key: 'platform', label: '대상', type: 'select', options: NOTICE_PLATFORMS, width: '120px' },
-        { key: 'start', label: '시작(KST)', type: 'kstdt', width: '196px' },
-        { key: 'end', label: '종료(KST)', type: 'kstdt', width: '196px' },
+        { key: 'start', label: '시작(KST)', type: 'kstdt', width: '310px' },
+        { key: 'end', label: '종료(KST)', type: 'kstdt', width: '310px' },
         { key: 'url', label: '주소', type: 'url', width: '200px', placeholder: 'https://' },
         { key: 'cta', label: '버튼 글자', type: 'text', width: '110px', placeholder: '자세히' },
       ] },
@@ -1111,7 +1155,7 @@ const GIFT_CODES = {
         { key: 'code', label: '코드', type: 'text', required: true, width: '190px', placeholder: 'GENSHINGIFT' },
         { key: 'rewards', label: '보상', type: 'text', placeholder: '원석 ×60, 모라 ×10000' },
         { key: 'highlight', label: '강조', type: 'bool', width: '100px' },
-        { key: 'end', label: '만료(KST)', type: 'kstdt', width: '190px' },
+        { key: 'end', label: '만료(KST)', type: 'kstdt', width: '310px' },
       ] },
     { id: 'hidden', group: '보정', label: '숨길 코드', type: 'strlist', path: 'hidden', countable: true,
       placeholder: '숨길 코드 — 대소문자는 가리지 않습니다',
@@ -2098,6 +2142,9 @@ function explainPath(path, tree) {
 
   const secs = sectionsOf(state.res);
   const head = toks[0].key;
+  // 문서 맨 위 칸인데 다른 탭이 그리는 것(굿즈존 안내 → 「굿즈샵」) — 그 탭의 이름으로 부른다.
+  const rooted = toks.length === 1 && secs.find((x) => (x.rootFields || []).some((f) => f.key === head));
+  if (rooted) return { sectionId: rooted.id, section: rooted.label, crumbs: [], field: rooted.rootFields.find((f) => f.key === head).label, cols: rooted.rootFields };
   // 한 배열을 두 탭이 나눠 쓰면(프로그램 · 푸드존, 부스 체험 · DIY) **그 행이 선 탭**의 이름으로 부른다.
   const shared = secs.filter((x) => x.path && x.path === head);
   const headRow = toks[1]?.idx !== undefined ? tree?.[head]?.[toks[1].idx] : undefined;
@@ -2376,7 +2423,17 @@ function inputFor(cfg, value, onChange, row) {
       });
 
     case 'hhmm':
-      return glTime({ value, onChange: commit, defaultHour: 11, presets: STAGE_TIME_PRESETS });
+      return glTime({ value, onChange: commit, defaultHour: cfg.defaultHour ?? 11, presets: cfg.presets ?? STAGE_TIME_PRESETS });
+
+    case 'hour': {
+      // 시 하나(정수 0~23)를 타임 피커로 고른다 — 예매 오픈 시각(openHour). 분은 00 고정(10/6).
+      const h = Number(value);
+      return glTime({
+        value: Number.isInteger(h) && h >= 0 && h <= 23 ? `${pad2(h)}:00` : '', hourOnly: true,
+        defaultHour: cfg.defaultHour ?? 19, presets: [], placeholder: '시각 선택',
+        onChange: (v) => commit(HHMM_RE.test(v) ? Number(v.split(':')[0]) : 0),
+      });
+    }
 
     case 'bool':
       return glToggle({ value: !!value, title: cfg.label || '', onChange: commit });
@@ -2590,6 +2647,389 @@ function formGrid(sec) {
     grid.append(field);
   }
   return grid;
+}
+
+/* ═════════════════════════════════════════════════════════════
+ * 「행사 정보」 개편 화면(시안 「행사 정보 개편」 · 10/6 확정)
+ *
+ * GLDS 2.0 — 섹션(제목 17 Bold · 설명 13 · 좌우 20 · 위 22 · 아래 20) + 사이 띠(10), 목록 줄 사이는 헤어라인.
+ * 섹션 여백 · 띠는 admin.css 의 `#main > div > *` 규칙이 그대로 준다 — 여기서는 섹션을 나란히 내놓기만 한다.
+ * 오른쪽 「앱에서 보이는 모습」은 앱 화면을 줄인 그림이다(면은 앱 화면 축소판이라는 뜻이 있어 남긴다).
+ * ═════════════════════════════════════════════════════════════ */
+
+/** 섹션 하나 — 제목 · 오른쪽 꼬리 · 설명 · 본문. */
+function sect(title, desc, kids, right = null) {
+  return el('section', { class: 'sec' }, [
+    el('div', { class: 'sec-title' }, [el('h2', { text: title }), right]),
+    desc ? el('p', { class: 'hint', text: desc }) : null,
+    ...kids,
+  ]);
+}
+
+/** 섹션들 오른쪽에 앱 미리보기를 세운다. 입력이 일어나면 미리보기만 다시 그린다(포커스를 지킨다). */
+function withPreview(kids, previewFn) {
+  if (!previewFn) return el('div', {}, kids);
+  const body = el('div', { class: 'ap-body' });
+  const paint = () => body.replaceChildren(...[].concat(previewFn(state.draft)).filter(Boolean));
+  paint();
+  const aside = el('aside', { class: 'app-preview', 'aria-label': '앱 미리보기' }, [
+    el('div', { class: 'ap-k', text: '앱에서 보이는 모습' }), el('div', { class: 'ap-frame' }, [body]),
+  ]);
+  const root = el('div', { class: 'with-preview' }, [...kids, aside]);
+  root.addEventListener('input', paint);
+  root.addEventListener('change', paint);
+  return root;
+}
+
+/** 미리보기 머리(17 Bold) + 본문 + 아래 한 줄 메모. */
+const apTitle = (t) => el('div', { class: 'ap-title', text: t });
+const apNote = (t) => el('p', { class: 'ap-note', text: t });
+
+/** 고르는 값이 몇 개 안 되는 칸 — GLDS 탭(흰 트랙 + 고른 칸 강조색). 예매 상태. */
+function segmentFor(f, base) {
+  const wrap = el('div', { class: 'gl-tabs seg', role: 'radiogroup', 'aria-label': f.label });
+  const paint = () => wrap.replaceChildren(...f.options.map((o) => el('button', {
+    type: 'button', role: 'radio', 'aria-checked': String(base[f.key] === o.value),
+    class: 'gl-tab' + (base[f.key] === o.value ? ' on' : ''),
+    onclick: () => {
+      if (base[f.key] === o.value) return;
+      base[f.key] = o.value;
+      paint();
+      wrap.dispatchEvent(new Event('change', { bubbles: true }));
+      markDirty();
+    },
+  }, [String(o.label).split(' — ')[0]])));
+  paint();
+  return wrap;
+}
+
+/** 칸 하나(라벨 · 입력 · 도움말). span — 열 몇 칸을 쓰나('all' = 한 줄 전체). previewSide 면 미리보기를 옆 칸으로 낸다. */
+function fieldCells(f, base) {
+  const style = f.span === 'all' ? 'grid-column:1/-1' : f.span ? `grid-column:span ${f.span}` : '';
+  const cell = el('div', { class: 'field', style });
+  const input = f.type === 'segment' ? segmentFor(f, base) : inputFor(f, base[f.key], (v) => { base[f.key] = v; });
+  if (!f.hideLabel) cell.append(el('label', { text: f.label }));
+  cell.append(input);
+  if (f.tools) cell.insertBefore(f.tools(input), input);
+  if (f.note) cell.append(el('div', { class: 'note', text: f.note }));
+  if (!f.preview) return [cell];
+  const box = el('div', { class: 'field-preview' });
+  const paint = () => box.replaceChildren(f.preview(base[f.key]));
+  paint();
+  cell.addEventListener('input', paint);
+  cell.addEventListener('change', paint);
+  if (f.previewSide) return [cell, box];
+  cell.append(box);
+  return [cell];
+}
+
+/** 폼 탭 — `sec.blocks` 하나가 섹션 하나다. 섹션 아래 `after` 는 그 섹션 값으로 계산한 줄(일정 · 알림 예약). */
+function renderBlocks(sec) {
+  const base = sec.path ? get(state.draft, sec.path) : state.draft;
+  const byKey = Object.fromEntries(sec.fields.map((f) => [f.key, f]));
+  const kids = sec.blocks.map((b) => {
+    const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${b.cols || 2},minmax(0,1fr))` });
+    // 칸 하나뿐인 섹션에서 칸 이름이 섹션 제목과 같으면 이름을 접는다(「상태」 · 「공지 문구」 가 두 번 서지 않게).
+    const solo = b.keys.length === 1 && byKey[b.keys[0]].label === b.title;
+    for (const k of b.keys) grid.append(...fieldCells(solo ? { ...byKey[k], hideLabel: true } : byKey[k], base));
+    const after = b.after ? el('div', { class: 'blk-after' }) : null;
+    const paint = () => after && after.replaceChildren(...[].concat(b.after(state.draft)).filter(Boolean));
+    paint();
+    const s = sect(b.title, b.desc, [grid, after]);
+    if (after) { s.addEventListener('input', paint); s.addEventListener('change', paint); }
+    return s;
+  });
+  return withPreview(kids, sec.preview);
+}
+
+/** 「1인 · 2인」 같은 짧은 꼬리표(GLDS 12 Bold). tone: '' · 'ok' · 'warn' · 'err' · 'accent'. */
+const tag = (text, tone = '') => el('span', { class: 'pill' + (tone ? ' ' + tone : ''), text });
+
+const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+/** "2026-10-02" → "10.2(금)". 못 읽으면 빈 문자열. */
+function ymdShort(ymd) {
+  if (!isRealYmd(ymd)) return '';
+  const [, m, d] = ymd.split('-').map(Number);
+  return `${m}.${d}(${WEEK[new Date(ymd + 'T00:00:00Z').getUTCDay()]})`;
+}
+const daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+
+/** 「일정」 섹션 아래 — 기간 · 지금 단계 · 발표부터 개막까지(새 기능, 10/6). */
+function scheduleReadout(d) {
+  if (!isRealYmd(d.startYmd) || !isRealYmd(d.endYmd) || d.startYmd > d.endYmd) {
+    return el('div', { class: 'tiles' }, [tile('날짜 두 칸이 차면 기간 · D-day 가 여기 섭니다', '일정 미정')]);
+  }
+  const ph = hoyoPhase(d);
+  const kids = [
+    tile(`${daysBetween(d.startYmd, d.endYmd) + 1}일`, `${ymdShort(d.startYmd)} ~ ${ymdShort(d.endYmd)}`),
+    tile(`지금 단계 · ${ymdShort(kstToday())} 기준`, ph.label, '', ph.key === 'ended' ? '' : 'ok'),
+  ];
+  if (isRealYmd(d.announceYmd) && d.announceYmd <= d.startYmd) {
+    kids.push(tile('발표부터 개막까지 — 카운트다운 진행 바의 길이', `${daysBetween(d.announceYmd, d.startYmd)}일`));
+  }
+  return el('div', { class: 'tiles' }, kids);
+}
+
+/** 「상태」 섹션 아래 — 고른 상태가 앱 예매 칸에서 무엇이 되나. */
+function ticketStatusLine(t) {
+  const o = TICKET_STATUS.find((x) => x.value === t.status);
+  const what = {
+    undecided: '예매 정보 공개 전 — 앱 예매 칸이 회색 「미정」으로 섭니다.',
+    announced: '일정만 발표 — 오픈 날짜 · 시각이 차 있으면 앱이 오픈 알림을 예약합니다.',
+    on_sale: '앱 예매 칸 꼬리표가 「판매 중」입니다.',
+    sold_out: '앱 예매 칸 꼬리표가 「매진」입니다.',
+  }[t.status];
+  return el('div', { class: 'blk-line' }, [o ? tag(String(o.label).split(' — ')[0], 'info') : tag('알 수 없음', 'err'),
+    el('span', { text: what || '앱이 모르는 값이라 「미정」으로 읽습니다.' })]);
+}
+
+/** 「오픈 일정」 섹션 아래 — 알림이 언제 예약되나, 표기와 같은 때인가. */
+function ticketAlarmLine(t) {
+  if (!isRealYmd(t.openYmd)) {
+    return el('div', { class: 'blk-line' }, [tag('알림 없음', 'warn'), el('span', { text: '오픈 날짜가 비어 알림이 예약되지 않습니다.' })]);
+  }
+  const [, m, d] = t.openYmd.split('-').map(Number);
+  const h = Number(t.openHour) || 0;
+  const when = `${m}월 ${d}일(${WEEK[new Date(t.openYmd + 'T00:00:00Z').getUTCDay()]}) ${pad2(h)}:00`;
+  const label = String(t.openLabel || '');
+  const sameDay = label.includes(`${m}월 ${d}일`) || label.includes(`${m}.${d}`) || label.includes(`${m}/${d}`);
+  const sameHour = new RegExp(`(^|\\D)${h}:\\d{2}|(^|\\D)${pad2(h)}:\\d{2}|${h}시`).test(label);
+  const same = !label.trim() || (sameDay && sameHour);
+  return el('div', { class: 'blk-line' }, [tag('알림 예약', 'info'),
+    el('span', { text: `${when} — ` + (!label.trim() ? '오픈 표기가 비어 있습니다.' : same ? '표기와 같은 때입니다.' : '표기와 다른 때로 보입니다 — 둘을 맞춥니다.') })]);
+}
+
+/** "오전 10시" · "정오 12시" · "오후 1시 30분" · "10시 반" · "10:30" → "HH:mm". 못 읽으면 빈 문자열. */
+function parseKoTime(s) {
+  const t = String(s ?? '');
+  let m = /(\d{1,2}):(\d{2})/.exec(t);
+  if (m) return `${pad2(+m[1])}:${m[2]}`;
+  m = /(오전|오후|정오)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?/.exec(t);
+  if (!m) return '';
+  let h = +m[2];
+  if (m[1] === '오후' && h < 12) h += 12;
+  if (m[1] === '오전' && h === 12) h = 0;
+  return `${pad2(h)}:${pad2(m[4] ? 30 : +(m[3] || 0))}`;
+}
+
+/** 예매 안내 글의 조별 시각 — "· A·B조 — 오전 10시" 줄을 { A: '10:00', B: '10:00' } 로. */
+function noteEntryTimes(note) {
+  const out = {};
+  for (const line of String(note ?? '').split('\n')) {
+    const m = /^\s*[·•\-*]?\s*([A-Z](?:\s*[·,/]\s*[A-Z])*)\s*조\s*[—:\-]\s*(.+)$/.exec(line);
+    if (!m) continue;
+    const t = parseKoTime(m[2]);
+    if (!t) continue;
+    for (const g of m[1].split(/[·,/]/)) out[g.trim()] = t;
+  }
+  return out;
+}
+
+/** 입장 조와 예매 안내 글이 어긋나는 조 — [{ name, mine, note }]. 안내 글에 조 시각이 없으면 null. */
+function entryMismatch(d) {
+  const note = noteEntryTimes(d.ticket.note);
+  if (!Object.keys(note).length) return null;
+  return d.entryGroups
+    .map((g) => ({ name: String(g.name ?? '').trim(), mine: String(g.time ?? '').trim(), note: note[String(g.name ?? '').trim()] }))
+    .filter((r) => r.name && r.note && r.note !== r.mine);
+}
+
+/** 「입장 조」 아래 섹션 — 예매 안내 글과 맞추기(새 기능, 10/6). */
+function entryMatchSection(d) {
+  const byTime = new Map();
+  for (const g of d.entryGroups) {
+    const t = String(g.time ?? '').trim();
+    if (!byTime.has(t)) byTime.set(t, []);
+    byTime.get(t).push(String(g.name ?? '').trim());
+  }
+  const bad = entryMismatch(d);
+  const line = bad === null
+    ? el('div', { class: 'blk-line' }, [tag('견줄 글 없음'), el('span', { text: '「예매」 탭 안내 글에 「· A·B조 — 오전 10시」 꼴의 줄이 없습니다.' })])
+    : bad.length
+      ? el('div', { class: 'blk-line' }, [tag('다름', 'warn'), el('span', {
+        text: bad.map((r) => `${r.name}조 — 여기 ${r.mine || '(비어 있음)'} · 안내 글 ${r.note}`).join(' / ') + ' — 한쪽을 고쳐 맞춥니다.' })])
+      : el('div', { class: 'blk-line' }, [tag('같음', 'ok'), el('span', { text: '예매 안내 글의 조별 시각과 같습니다.' })]);
+  return sect('예매 안내와 맞추기', '조 편성은 「예매」 탭의 안내 글에도 글로 적혀 있습니다 — 편성이 바뀌면 둘 다 고칩니다.', [
+    byTime.size ? el('div', { class: 'tiles' }, [...byTime].map(([t, names]) => tile(t || '시각 비어 있음', names.filter(Boolean).join('·') + '조'))) : null,
+    line,
+  ]);
+}
+
+/** 목록 탭 — 표 대신 **줄 단위 편집**. 줄마다 앞 꼬리표(lead) · 칸 격자 · 위 · 아래 · 지우기. */
+function renderRows(sec) {
+  const rows = get(state.draft, sec.path);
+  const own = (r) => !sec.only || sec.only(r);
+  const cols = Object.fromEntries(sec.columns.map((c) => [c.key, c]));
+  const keys = sec.rowKeys || sec.columns.map((c) => c.key);
+  const blank = () => ({ ...Object.fromEntries(sec.columns.map((c) => [c.key, c.type === 'number' ? 0 : ''])), ...(sec.seed || null) });
+  const hits = rows.map((r, i) => ({ r, i })).filter(({ r }) => own(r));
+  const ico = (d, label, onclick, disabled) => el('button', { type: 'button', class: 'row-ico', title: label, 'aria-label': label, disabled, onclick },
+    [navIcon(d)]);
+
+  const list = el('div', { class: 'rows' + (sec.twoCol ? ' two-col' : '') });
+  hits.forEach(({ r, i }, k) => {
+    const grid = el('div', { class: 'grid', style: `grid-template-columns:${sec.rowCols || 'repeat(2,minmax(0,1fr))'}` });
+    for (const key of keys) {
+      const c = cols[key];
+      const span = (sec.rowSpan || {})[key] || c.span;
+      const cell = el('div', { class: 'field', style: span === 'all' ? 'grid-column:1/-1' : '' }, [
+        el('label', { text: c.label }),
+        inputFor(c, r[key], (v) => { r[key] = v; }, r),
+      ]);
+      grid.append(cell);
+    }
+    if (sec.extra) { const x = sec.extra(r); if (x) grid.append(x); }
+    list.append(el('div', { class: 'row-item' }, [
+      sec.lead ? el('div', { class: 'row-lead' }, [sec.lead(r)]) : null,
+      grid,
+      el('div', { class: 'row-tools' }, [
+        ico('up', '위로', () => { reorderAt(rows, hits.map((h) => h.i), k, k - 1); markDirty(); render(); }, k === 0),
+        ico('down', '아래로', () => { reorderAt(rows, hits.map((h) => h.i), k, k + 1); markDirty(); render(); }, k === hits.length - 1),
+        ico('x', '지우기', () => { rows.splice(i, 1); markDirty(); render(); }),
+      ]),
+    ]));
+  });
+  if (!hits.length) list.append(el('div', { class: 'row-empty', text: sec.warnEmpty ? '비어 있습니다 — ' + sec.warnEmpty : '비어 있습니다.' }));
+
+  const add = el('button', { class: 'btn btn-sm btn-secondary', onclick: () => {
+    let at = rows.length;
+    if (sec.only) for (let j = rows.length - 1; j >= 0; j--) if (own(rows[j])) { at = j + 1; break; }
+    rows.splice(at, 0, blank());
+    markDirty();
+    render();
+  } }, [sec.addLabel || '+ 추가']);
+
+  const kids = [sect(sec.label, sec.desc, [list, el('div', { class: 'row-add' }, [add])],
+    tag(`${hits.length}${sec.unit || '건'}`))];
+  if (sec.after) kids.push(...[].concat(sec.after(state.draft)).filter(Boolean));
+  return withPreview(kids, sec.preview);
+}
+
+/** 게임 색 — 줄의 색(앱에 없는 게임) > 카탈로그 색 > 회색. */
+function gameColorOf(r) {
+  return argbToHex(r.colorArgb) || argbToHex((GAME_CATALOG.find((g) => g.name === r.game) || {}).argb) || '#A7B1AE';
+}
+
+/** 참여 게임 — 앱이 모르는 게임만 약칭 · 색 칸을 연다. 앱이 아는 게임이면 두 값은 앱이 정한다(비워 둔다). */
+function lineupExtra(r) {
+  const known = GAME_CATALOG.some((g) => g.app && g.name === r.game);
+  if (known || !String(r.game ?? '').trim()) return null;
+  const col = (k) => LINEUP_COLS.find((c) => c.key === k);
+  return el('div', { class: 'row-extra', style: 'grid-column:1/-1' }, [
+    el('div', { class: 'row-extra-k', text: '앱에 없는 게임 — 꼬리표 약칭 · 색을 정합니다' }),
+    el('div', { class: 'grid', style: 'grid-template-columns:140px 240px auto;align-items:end' }, [
+      el('div', { class: 'field' }, [el('label', { text: '약칭' }), inputFor(col('abbr'), r.abbr, (v) => { r.abbr = v; }, r)]),
+      el('div', { class: 'field' }, [el('label', { text: '색' }), inputFor(col('colorArgb'), r.colorArgb, (v) => { r.colorArgb = v; }, r)]),
+      el('div', { style: 'padding-bottom:14px' }, [el('span', { class: 'game-chip', style: `--c:${gameColorOf(r)}`, text: r.abbr || '약칭' })]),
+    ]),
+  ]);
+}
+
+/** 입장 특전 줄 앞 꼬리표 — 제목 속 게임 이름(없으면 「공통」). 앱도 제목에서 게임을 가려 꼬리표를 단다. */
+function perkGame(r) {
+  return GAME_CATALOG.find((g) => String(r.title ?? '').includes(g.name)) || null;
+}
+function perkChip(r) {
+  const g = perkGame(r);
+  return g ? el('span', { class: 'game-chip', style: `--c:${argbToHex(g.argb)}`, text: g.abbr }) : el('span', { class: 'game-chip', style: '--c:#6C727A', text: '공통' });
+}
+
+/* ── 앱 미리보기 — 앱 화면을 줄인 그림. 앱 코드의 배치 · 문구 규칙을 따른다(HoyolandSection.kt). ── */
+
+function metaPreview(d) {
+  const period = isRealYmd(d.startYmd) && isRealYmd(d.endYmd)
+    ? `${ymdShort(d.startYmd)} ~ ${ymdShort(d.endYmd)} · ${daysBetween(d.startYmd, d.endYmd) + 1}일` : '일정 미정';
+  const link = (label, url) => (String(url || '').trim() ? el('a', { class: 'btn btn-sm', href: url, target: '_blank', rel: 'noopener' }, [label]) : null);
+  return [
+    apTitle('호요랜드'),
+    el('div', { class: 'ap-kicker', text: d.editionEn || d.edition || '행사명' }),
+    el('div', { class: 'ap-big', text: d.edition || '행사명' }),
+    el('div', { class: 'ap-line', text: period }),
+    el('div', { class: 'ap-sub', text: [d.venueName, d.venueHall].filter((x) => String(x || '').trim()).join(' · ') || '장소 미정' }),
+    String(d.notice || '').trim() ? el('div', { class: 'ap-notice', text: d.notice }) : null,
+    el('div', { class: 'ap-hair' }),
+    el('div', { class: 'ap-row' }, [link('지도', d.mapUrl || d.mapFallbackUrl), link('공식 사이트', d.officialUrl)]),
+    apNote('히어로를 줄인 그림입니다 — 색과 그림은 앱이 회차마다 정합니다.'),
+  ];
+}
+
+function ticketPreview(d) {
+  const t = d.ticket;
+  const ph = hoyoPhase(d);
+  const label = ph.key === 'ended' ? '종료' : ph.key === 'live' ? '진행 중'
+    : String((TICKET_STATUS.find((x) => x.value === t.status) || TICKET_STATUS[0]).label).split(' — ')[0];
+  const price = String(t.priceLabel || '');
+  const paid = price.includes('(') ? price.slice(price.indexOf('(') + 1).split(')')[0].trim() : '';
+  const breakdown = price.split('(')[0].trim();
+  const first = String(t.note || '').split('\n').map((x) => x.trim()).find(Boolean) || (t.openLabel ? `${t.openLabel} 오픈` : '');
+  return [
+    apTitle('예매'),
+    el('div', { class: 'ap-row' }, [
+      tag(label, t.status === 'undecided' || ph.key === 'ended' || ph.key === 'live' ? '' : 'info'),
+      t.vendor ? tag(t.vendor) : null,
+      el('span', { style: 'flex:1' }),
+      price ? el('span', { class: 'ap-price', text: paid || breakdown }) : null,
+    ]),
+    paid && breakdown ? el('div', { class: 'ap-sub', style: 'text-align:right', text: breakdown }) : null,
+    first ? el('div', { class: 'ap-hair' }) : null,
+    first ? el('div', { class: 'ap-sub', text: first }) : null,
+    String(t.note || '').trim() ? el('div', { class: 'ap-more', text: '예매 안내 전체 보기 ›' }) : null,
+    apNote(ph.key === 'live' || ph.key === 'ended' ? '개막한 뒤에는 이 섹션이 앱에서 내려갑니다.' : '개막 전 화면입니다. 개막하면 이 섹션은 앱에서 내려갑니다.'),
+  ];
+}
+
+function perksPreview(d) {
+  const list = d.programs.filter(isPerkProgram);
+  if (!list.length) return [apTitle('입장 특전'), el('div', { class: 'ap-sub', text: '비어 있으면 앱에 이 섹션이 서지 않습니다.' })];
+  return [
+    apTitle('입장 특전'),
+    ...list.slice(0, 3).flatMap((p, i) => [
+      i ? el('div', { class: 'ap-hair' }) : null,
+      el('div', { class: 'ap-row' }, [perkGame(p) ? perkChip(p) : null, el('strong', { text: p.title })]),
+      String(p.desc || '').trim() ? el('div', { class: 'ap-sub ap-pre', text: String(p.desc).split('\n').slice(0, 3).join('\n') }) : null,
+      String(p.deadline || '').trim() ? el('div', {}, [tag(p.deadline, 'info')]) : null,
+    ]),
+    list.length > 3 ? apNote(`앞의 3건만 줄여 그렸습니다(모두 ${list.length}건).`) : null,
+  ];
+}
+
+function entryPreview(d) {
+  const g = d.entryGroups.filter((x) => String(x.name ?? '').trim());
+  if (!g.length) return [apTitle('내 입장권'), el('div', { class: 'ap-sub', text: '비우면 앱에서 「내 입장권」이 통째로 사라집니다.' })];
+  return [
+    apTitle('내 입장권'),
+    el('div', { class: 'ap-sub', text: `${isRealYmd(d.startYmd) ? ymdShort(d.startYmd) : '첫날'} 입장 조` }),
+    el('div', { class: 'ap-chips' }, g.map((x, i) => el('div', { class: 'ap-chip' + (i === 0 ? ' on' : '') }, [
+      el('strong', { text: `${x.name}조` }), el('small', { text: x.time || '—' }),
+    ]))),
+  ];
+}
+
+function lineupPreview(d) {
+  if (!d.lineup.length) return [apTitle('참여 게임'), el('div', { class: 'ap-sub', text: '비우면 앱 내장 라인업이 섭니다.' })];
+  return [
+    apTitle('참여 게임'),
+    ...d.lineup.flatMap((l, i) => [
+      i ? el('div', { class: 'ap-hair' }) : null,
+      el('div', { class: 'ap-row' }, [
+        el('span', { class: 'row-dot', style: `background:${gameColorOf(l)}` }),
+        el('div', { style: 'flex:1;min-width:0' }, [el('strong', { text: l.game || '게임' }), el('div', { class: 'ap-sub ap-ellipsis', text: l.theme || '' })]),
+        String(l.url || '').trim() ? el('span', { class: 'ap-more', text: '공지 ›' }) : null,
+      ]),
+    ]),
+  ];
+}
+
+function pastPreview(d) {
+  const p = d.past[0];
+  if (!p) return [apTitle('지난 행사'), el('div', { class: 'ap-sub', text: '비우면 앱 내장값이 섭니다.' })];
+  return [
+    apTitle('지난 행사'),
+    el('div', { class: 'ap-row' }, [el('strong', { style: 'flex:1', text: p.title || '행사 이름' }),
+      editionYear(p.title) ? el('span', { class: 'ap-more', text: '상세 보기 ›' }) : null]),
+    ...p.facts.slice(0, 6).map((f) => el('div', { class: 'ap-fact' }, [el('span', { text: f.label }), el('span', { text: f.value })])),
+    apNote('맨 앞 행사를 줄여 그렸습니다. 보관된 회차면 앱에 「상세 보기」가 섭니다.'),
+  ];
 }
 
 /** 한 행을 검색어와 맞춰 본다 — 열 값을 다 이어 붙여 놓고 공백으로 끊은 낱말을 **모두** 품는지 본다. */
@@ -2987,7 +3427,11 @@ function renderGoods(sec) {
   const node = renderList(sec, { summary: el('div', {}, [tiles, preview]) });
   node.addEventListener('input', paint);    // 입력 칸의 onInput 이 먼저 row 를 고친 뒤 여기로 올라온다
   node.addEventListener('change', paint);
-  return node;
+  // 맨 위 섹션 — 굿즈존 안내(10/6, 「기본 정보」에서 옮김). 왼쪽 글 · 오른쪽 앱 시트 미리보기.
+  const guide = sect('굿즈존 안내', '앱 굿즈 목록 맨 위에 서는 안내입니다. 비우면 안내가 뜨지 않습니다.', [
+    el('div', { class: 'grid', style: 'grid-template-columns:repeat(2,minmax(0,1fr));align-items:start' }, fieldCells(GOODS_GUIDE_FIELD, state.draft)),
+  ]);
+  return el('div', {}, [guide, node]);
 }
 
 function renderDays(sec) {
@@ -3053,35 +3497,46 @@ function fillDaysFromRange() {
   toast(added ? `${added}일 추가했습니다.` : '이미 모든 날짜가 있습니다.');
 }
 
+/**
+ * 지난 행사 — 행사마다 이름 + 「항목 | 값」 줄(시안 「행사 정보 개편 · 지난 행사」, 10/6). 표 대신 줄 단위로 고친다.
+ * 행사 · 항목 모두 위 · 아래 · 지우기가 줄 끝에 있다. 행사를 지울 때만 묻는다(항목이 같이 사라진다).
+ */
 function renderPast(sec) {
   const list = get(state.draft, sec.path);
-  const kids = [el('div', { class: 'section-head' }, [
-    el('span', { class: 'muted', text: `${list.length}건` }),
-    el('div', { class: 'tools' }, [
-      el('button', { class: 'btn btn-sm', onclick: () => { list.push({ title: '', facts: [] }); markDirty(); render(); } }, ['+ 행사 추가']),
-    ]),
-  ])];
-  if (!list.length) kids.push(el('div', { class: 'row-empty', text: '비어 있습니다 — 앱이 번들 기본값으로 폴백합니다.' }));
+  const ico = (d, label, onclick, disabled) => el('button', { type: 'button', class: 'row-ico', title: label, 'aria-label': label, disabled, onclick }, [navIcon(d)]);
+  const tools = (arr, i, onDel) => el('div', { class: 'row-tools' }, [
+    ico('up', '위로', () => { moveTo(arr, i, i - 1); }, i === 0),
+    ico('down', '아래로', () => { moveTo(arr, i, i + 1); }, i === arr.length - 1),
+    ico('x', '지우기', onDel),
+  ]);
+  const body = el('div', { class: 'rows' });
   list.forEach((ev, i) => {
-    kids.push(el('div', { class: 'day-block' }, [
-      el('div', { class: 'day-head' }, [
-        inputFor({ type: 'text', placeholder: '호요랜드 2025' }, ev.title, (v) => { ev.title = v; }),
-        el('span', { class: 'pill', text: `${ev.facts.length}항목` }),
-        el('div', { class: 'tools' }, [
-          glDragHandle({
-            group: sec.path, index: i, items: () => kids.filter((n) => n.classList.contains('day-block')),
-            disabled: list.length < 2, onMove: (from, to) => moveTo(list, from, to),
-          }),
-          el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
-            const ok = await glConfirm(`“${ev.title || '무제'}” 를 삭제합니다.`, { title: '지난 행사 삭제', ok: '삭제', danger: true });
-            if (ok) { list.splice(i, 1); markDirty(); render(); }
-          } }, ['✕']),
-        ]),
+    const facts = el('div', { class: 'facts' });
+    ev.facts.forEach((f, j) => facts.append(el('div', { class: 'fact-row' }, [
+      inputFor(FACT_COLS[0], f.label, (v) => { f.label = v; }, f),
+      inputFor(FACT_COLS[1], f.value, (v) => { f.value = v; }, f),
+      tools(ev.facts, j, () => { ev.facts.splice(j, 1); markDirty(); render(); }),
+    ])));
+    body.append(el('div', { class: 'past-block' }, [
+      el('div', { class: 'row-item' }, [
+        el('div', { class: 'grid', style: 'grid-template-columns:minmax(0,1fr)' }, [el('div', { class: 'field' }, [
+          el('label', { text: '행사 이름' }),
+          inputFor({ type: 'text', placeholder: '호요랜드 2025' }, ev.title, (v) => { ev.title = v; }),
+          el('div', { class: 'note', text: '끝의 연도가 회차입니다 — 보관된 회차면 앱에 「상세 보기」가 섭니다.' }),
+        ])]),
+        tools(list, i, async () => {
+          const ok = await glConfirm(`“${ev.title || '무제'}” 를 삭제합니다.`, { title: '지난 행사 삭제', ok: '삭제', danger: true,
+            note: ev.facts.length ? `항목 ${ev.facts.length}줄도 같이 사라집니다.` : '' });
+          if (ok) { list.splice(i, 1); markDirty(); render(); }
+        }),
       ]),
-      el('div', { class: 'day-body' }, [renderList({}, { path: `${sec.path}.${i}.facts`, columns: FACT_COLS, bare: true })]),
+      facts,
+      el('div', { class: 'row-add' }, [el('button', { class: 'btn btn-sm', onclick: () => { ev.facts.push({ label: '', value: '' }); markDirty(); render(); } }, ['+ 항목 추가'])]),
     ]));
   });
-  return card(sec, kids);
+  if (!list.length) body.append(el('div', { class: 'row-empty', text: '비어 있습니다 — 앱이 내장값으로 메웁니다.' }));
+  const add = el('button', { class: 'btn btn-sm btn-secondary', onclick: () => { list.push({ title: '', facts: [] }); markDirty(); render(); } }, ['+ 행사 추가']);
+  return withPreview([sect(sec.label, sec.desc, [body, el('div', { class: 'row-add' }, [add])], tag(`${list.length}건`))], sec.preview);
 }
 
 function renderDashboard(sec) {
@@ -4749,7 +5204,7 @@ const RENDERERS = {
   dashboard: renderDashboard, form: renderForm, list: renderList, strlist: renderStrList,
   days: renderDays, goods: renderGoods, past: renderPast, food: renderFood,
   apis: renderApis, export: renderExport, live: renderLive,
-  publish: renderPublish, info: renderInfo,
+  publish: renderPublish, info: renderInfo, blocks: renderBlocks, rows: renderRows,
   changes: renderChanges, history: renderHistory,
 };
 
@@ -4911,6 +5366,10 @@ const NAV_ICONS = {
   hidden: 'M3 3l18 18M10.6 6.1A10 10 0 0 1 22 12a14 14 0 0 1-2.4 3.2M6.3 6.6A14 14 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.3-1M9.9 9.9a3 3 0 0 0 4.2 4.2',
   export: 'M12 4v11M7 10l5 5 5-5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4',
   apis: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  // 줄 도구(위 · 아래 · 지우기) — 「행사 정보」 줄 편집(renderRows · renderPast)이 같이 쓴다.
+  up: 'M6 15l6-6 6 6',
+  down: 'M6 9l6 6 6-6',
+  x: 'M6 6l12 12M18 6L6 18',
 };
 function navIcon(id) {
   const ns = 'http://www.w3.org/2000/svg';
@@ -5287,7 +5746,7 @@ function selftest() {
     assert(say('goods[0]') === '굿즈샵/아크릴 스탠드', '행 전체 경로가 틀렸다: ' + say('goods[0]'));
     assert(say('days[0].slots[0].title') === '무대 시간표/2026-10-02/개막 무대/제목', '중첩 경로가 틀렸다: ' + say('days[0].slots[0].title'));
     assert(say('past[0].facts[0].value') === '지난 행사/호요랜드 2025/기간/내용', '지난 행사 경로가 틀렸다: ' + say('past[0].facts[0].value'));
-    assert(say('ticket.url') === '예매/예매 URL', '예매 경로가 틀렸다: ' + say('ticket.url'));
+    assert(say('ticket.url') === '예매/예매 페이지', '예매 경로가 틀렸다: ' + say('ticket.url'));
     assert(say('notice') === '기본 정보/공지 문구', '최상위 필드 경로가 틀렸다: ' + say('notice'));
   });
 
@@ -5316,7 +5775,7 @@ function selftest() {
     const tree = { programs, booths };
     const say = (p) => { const e = explainPath(p, tree); return [e.section, ...e.crumbs, e.field].filter(Boolean).join('/'); };
     assert(say('programs[1].desc') === '푸드존/푸드존 — 원신/메뉴', '푸드존 경로가 틀렸다: ' + say('programs[1].desc'));
-    assert(say('programs[2].desc') === '입장 특전/웰컴 키트 — 원신/설명', '입장 특전 경로가 틀렸다: ' + say('programs[2].desc'));
+    assert(say('programs[2].desc') === '입장 특전/웰컴 키트 — 원신/구성', '입장 특전 경로가 틀렸다: ' + say('programs[2].desc'));
     assert(say('booths[1].price') === 'DIY/DIY존 이용 안내/참가비(원)', 'DIY 경로가 틀렸다: ' + say('booths[1].price'));
     assert(say('booths[0].price') === '부스 체험/사격/참가비(원)', '부스 경로가 틀렸다: ' + say('booths[0].price'));
   });
