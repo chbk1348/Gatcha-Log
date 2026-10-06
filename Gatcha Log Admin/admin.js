@@ -182,8 +182,12 @@ const HOYOLAND = {
     const out = [];
     const add = (level, section, msg) => out.push({ level, section, msg });
 
-    if (!YMD.test(d.startYmd)) add('error', 'meta', `시작일이 yyyy-MM-dd 형식이 아닙니다: "${d.startYmd}"`);
-    if (!YMD.test(d.endYmd)) add('error', 'meta', `종료일이 yyyy-MM-dd 형식이 아닙니다: "${d.endYmd}"`);
+    // 둘 다 비면 **일정 미정**이다 — 앱이 D-day · 예매 · 알림 없이 행사명과 지난 행사만 보여 준다(27.51.0~).
+    if (!d.startYmd && !d.endYmd) add('info', 'meta', '시작일 · 종료일이 비어 앱이 「일정 미정」으로 보여 줍니다.');
+    else {
+      if (!YMD.test(d.startYmd)) add('error', 'meta', `시작일이 yyyy-MM-dd 형식이 아닙니다: "${d.startYmd}"`);
+      if (!YMD.test(d.endYmd)) add('error', 'meta', `종료일이 yyyy-MM-dd 형식이 아닙니다: "${d.endYmd}"`);
+    }
     if (YMD.test(d.startYmd) && YMD.test(d.endYmd) && d.startYmd > d.endYmd)
       add('error', 'meta', '시작일이 종료일보다 늦습니다 — 날짜 탭이 만들어지지 않습니다.');
     if (d.announceYmd && !YMD.test(d.announceYmd))
@@ -2754,6 +2758,10 @@ function selftest() {
   }));
 
   check('호요랜드 · 정상 데이터는 오류 없음', () => assert(!H({}).some((i) => i.level === 'error'), '오류가 잡혔다'));
+  check('호요랜드 · 날짜가 둘 다 비면 일정 미정(오류 아님)', () => {
+    assert(!H({ startYmd: '', endYmd: '' }).some((i) => i.level === 'error'), '오류가 잡혔다');
+    assert(has(H({ startYmd: '2027-10-01', endYmd: '' }), 'error', /종료일/), '한쪽만 빈 것을 못 잡았다');
+  });
   check('호요랜드 · 제목 없는 슬롯은 오류', () =>
     assert(has(H({ days: [{ ymd: '2026-10-02', slots: [{ time: '10:00', title: '' }] }] }), 'error', /슬롯/), '못 잡았다'));
   check('호요랜드 · 기간 밖 날짜는 경고', () =>
