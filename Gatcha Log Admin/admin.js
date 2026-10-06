@@ -3241,6 +3241,42 @@ function canonFiles(res, json) {
 }
 
 /**
+ * 새 판을 정본에 얹되 **정본에만 있는 키는 지킨다.**
+ *
+ * 정본 파일에는 라이브에 없는 것이 산다 — 칸마다 붙은 주석(`_…_comment`)과, 어드민이 다루지 않는 키(배치도 `map`,
+ * 예매의 앱 패키지처럼 한 겹 아래 키). 편집본이 그것을 들고 있을 때만 `serialize` 가 지켜 주는데, 라이브에서 불러온
+ * 판은 처음부터 들고 있지 않을 수 있다. 그대로 정본을 덮으면 조용히 사라진다 — 빈 문서에서 시작한 판이 자동 커밋으로
+ * 주석 12개를 지운 일이 있었다(2026-10-06).
+ *
+ * 규칙: 정본에 있고 새 판에 **없는** 키는 정본 값을 남긴다. 새 판에 있는 키는 값이 비어 있어도 새 판이 이긴다 —
+ * 비운 것은 편집이다(그래서 빈 목록으로 덮인 「지난 행사」까지 되살리지는 않는다). 객체는 한 겹 아래까지 같은 규칙.
+ */
+function mergeCanon(nextJson, curJson) {
+  const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  let next;
+  let cur;
+  try { next = JSON.parse(nextJson); cur = JSON.parse(curJson); } catch (e) { return nextJson; }
+  if (!isObj(next) || !isObj(cur)) return nextJson;
+  const out = {};
+  for (const k of Object.keys(cur)) {   // 키 순서는 정본을 따른다 — 주석이 제 칸 위에 그대로 붙어 있게
+    if (!(k in next)) out[k] = cur[k];
+    else out[k] = isObj(next[k]) && isObj(cur[k]) ? { ...cur[k], ...next[k] } : next[k];
+  }
+  for (const k of Object.keys(next)) if (!(k in out)) out[k] = next[k];
+  return JSON.stringify(out, null, 2) + '\n';
+}
+
+/** 커밋할 정본 파일들 — 저장소의 지금 내용을 받아 [mergeCanon] 으로 얹는다. 못 받으면(새 파일 · 오프라인) 새 판 그대로. */
+async function canonFilesMerged(res, json) {
+  return Promise.all(canonFiles(res, json).map(async (f) => {
+    try {
+      const r = await fetch(REPO_RAW + f.path + '?t=' + Date.now(), { cache: 'no-store' });
+      return r.ok ? { path: f.path, text: mergeCanon(f.text, await r.text()) } : f;
+    } catch (e) { return f; }
+  }));
+}
+
+/**
  * 방금 라이브에 쓴 [json] 을 정본에도 커밋한다. 화면에 붙일 한마디를 돌려준다(연결이 없으면 빈 문자열).
  * 결과는 ghState.canon 에 남겨 「라이브 반영」 화면이 계속 보여 준다 — 토스트는 몇 초면 사라진다.
  */
@@ -3249,7 +3285,7 @@ async function syncCanon(res, json) {
   const g = window.gh;
   const at = new Date().toLocaleTimeString('ko-KR');
   try {
-    const r = await g.commit({ files: canonFiles(res, json), message: `chore: ${res.label} 정본 갱신 — 어드민 라이브 반영` });
+    const r = await g.commit({ files: await canonFilesMerged(res, json), message: `chore: ${res.label} 정본 갱신 — 어드민 라이브 반영` });
     docs[res.id].reach = undefined;
     ghState.canon[res.id] = r.unchanged
       ? { ok: true, text: `정본이 이미 같은 내용입니다 · ${at}` }
@@ -3697,7 +3733,7 @@ async function commitCanon(message) {
   render();
   try {
     const r = await g.commit({
-      files: canonFiles(res, json), message: msg,
+      files: await canonFilesMerged(res, json), message: msg,
       pr: viaPr ? {
         branch: `admin/${res.id}-${kstStamp()}`, title: msg.split('\n')[0],
         body: `어드민 「정본 내보내기」에서 올렸습니다.\n\n- 파일: \`${res.file}\`\n- 검증 오류: ${errCount}건`,
@@ -4424,6 +4460,19 @@ function selftest() {
     assert(canonFiles(HOYOLAND, J({ startYmd: '2027-10-01', endYmd: '2027-10-04' })).map((f) => f.path).join() === 'config/hoyoland_v2.json,config/hoyoland.json', '날짜가 잡힌 판인데 구버전 정본을 빼먹었다');
     assert(canonFiles(HOYOLAND, J({ startYmd: '', endYmd: '' })).length === 1, '일정 미정인데 구버전 정본에 쓰려 한다');
     assert(canonFiles(NOTICES, J({ notices: [] }))[0].path === 'config/notices.json', '공지 정본 경로가 다르다');
+  });
+  check('정본에만 있는 키는 새 판을 얹어도 남는다', () => {
+    const cur = JSON.stringify({ _comment: '설명', edition: 'A', _t: '예매 설명', ticket: { status: 'undecided', appPackage: 'kr.x' }, map: { zones: [1] }, past: [{ title: 'p' }] });
+    const next = JSON.stringify({ edition: 'B', ticket: { status: 'sold_out' }, past: [], notice: '새 공지' });
+    const out = JSON.parse(mergeCanon(next, cur));
+    assert(out._comment === '설명' && out._t === '예매 설명', '주석을 지웠다');
+    assert(out.map && out.map.zones.length === 1, '어드민이 다루지 않는 키(map)를 지웠다');
+    assert(out.ticket.status === 'sold_out' && out.ticket.appPackage === 'kr.x', '한 겹 아래 키를 지웠거나 새 값을 못 얹었다');
+    assert(out.edition === 'B' && out.notice === '새 공지', '새 판의 값이 얹히지 않았다');
+    // 비운 것은 편집이다 — 빈 목록을 정본 값으로 되살리지 않는다.
+    assert(Array.isArray(out.past) && out.past.length === 0, '비운 목록을 되살렸다');
+    assert(Object.keys(out).join() === '_comment,edition,_t,ticket,map,past,notice', '키 순서가 정본을 따르지 않는다');
+    assert(mergeCanon('{깨진', cur) === '{깨진', '깨진 JSON 을 건드렸다');
   });
   check('GitHub 브릿지가 앱이 읽는 가지에 쓴다', () => {
     assert(window.gh && typeof window.gh.commit === 'function', 'github.js 가 로드되지 않았다');

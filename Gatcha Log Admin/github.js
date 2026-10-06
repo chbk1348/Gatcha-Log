@@ -96,6 +96,25 @@
     return { path: f.path, mode: '100644', type: 'blob', sha: blob.sha };
   }
 
+  /**
+   * 커밋 작성자 **이름**을 계정 아이디로 맞춘다.
+   *
+   * 작성자를 안 적으면 GitHub 가 토큰 주인의 프로필 「Name」과 대표 이메일을 넣는다. 프로필 이름이 아이디와
+   * 다르면(예: 「YUKI」) 어드민 커밋만 다른 이름으로 이력에 남는다 — 손으로 넣는 커밋은 전부 아이디(chbk1348)다.
+   * 이름만 바꿀 수는 없어서(이름 · 이메일을 같이 줘야 한다), GitHub 가 방금 넣어 준 이메일 · 시각을 그대로 받아
+   * 이름만 아이디로 바꾼 커밋을 다시 만든다. 처음 만든 커밋은 어느 가지에도 걸리지 않아 저장소에 남지 않는다.
+   * 아이디를 못 읽으면 처음 커밋을 그대로 쓴다 — 이름 때문에 커밋을 막지 않는다.
+   */
+  async function renameAuthor(commit, body) {
+    try {
+      const login = (await api('GET', 'https://api.github.com/user')).login;
+      const a = commit.author;
+      if (!login || !a || a.name === login) return commit;
+      const who = { name: login, email: a.email, date: a.date };
+      return await api('POST', '/git/commits', { ...body, author: who, committer: who });
+    } catch (e) { return commit; }
+  }
+
   async function commitOnce({ files, message, pr }) {
     const head = (await api('GET', `/git/ref/heads/${BRANCH}`)).object.sha;
     const base = (await api('GET', `/git/commits/${head}`)).tree.sha;
@@ -104,7 +123,8 @@
     const tree = await api('POST', '/git/trees', { base_tree: base, tree: entries });
     // 트리가 같으면 내용이 한 글자도 안 바뀐 것이다 — 빈 커밋을 남기지 않는다.
     if (tree.sha === base) return { unchanged: true };
-    const commit = await api('POST', '/git/commits', { message, tree: tree.sha, parents: [head] });
+    let commit = await api('POST', '/git/commits', { message, tree: tree.sha, parents: [head] });
+    commit = await renameAuthor(commit, { message, tree: tree.sha, parents: [head] });
 
     if (pr) {
       await api('POST', '/git/refs', { ref: 'refs/heads/' + pr.branch, sha: commit.sha });
