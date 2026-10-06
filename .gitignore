@@ -83,3 +83,11 @@ buildServer.json
 .agents/
 skills-lock.json
 .hallmark/
+
+# memory-bank 스킬이 쓰는 작업 메모 — 세션 맥락 · 미정 사항이 담긴다. 공개 저장소라 **커밋 금지**.
+# (이 PC 는 전역 pre-commit 훅 _memory-guard.sh 가 `git add -f` 까지 막는다.)
+MEMORY.md
+MEMORY-*.md
+GLOBAL-MEMORY.md
+CONTINUATION.md
+.memory/
