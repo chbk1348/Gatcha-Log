@@ -39,6 +39,7 @@ const cloud = {
   signOut: async () => {},
   pull: async (_doc) => null,
   push: async (_doc, _json) => { throw new Error('클라우드가 설정되지 않았습니다.'); },
+  pushMany: async (_entries) => { throw new Error('클라우드가 설정되지 않았습니다.'); },
 };
 window.cloud = cloud;
 
@@ -121,15 +122,22 @@ async function boot() {
    * `mirrors` — 같은 값을 **같이 받는 문서들**(구버전 앱이 읽는 옛 자리). 한 배치에 넣어
    * 새 문서만 바뀌고 옛 문서는 그대로인 상태를 만들지 않는다 — 그게 버전마다 다른 정보를 보는 길이다.
    */
-  cloud.push = async (doc, json, mirrors = []) => {
+  cloud.push = (doc, json, mirrors = []) => cloud.pushMany([doc, ...mirrors].map((name) => ({ doc: name, json })));
+
+  /**
+   * 문서 여러 개를 **한 배치**로 쓴다 — 문서마다 내용이 달라도 된다([{ doc, json }]).
+   *
+   * 회차를 앱에 게시할 때 쓴다: 앱이 읽는 문서 · 직전 회차의 보관본 · 회차 목록이 같이 바뀌어야 한다.
+   * 따로 쓰다 중간에 끊기면 "앱은 새 회차인데 목록은 옛 회차" 가 남는다.
+   */
+  cloud.pushMany = async (entries) => {
     if (!cloud.user) throw new Error('로그인이 필요합니다.');
     const at = Date.now();
     const by = cloud.user.email || cloud.user.uid;
     const id = versionId(at);
-    const targets = [doc, ...mirrors];
     // 라이브 문서와 이력을 한 배치로 쓴다 — 둘 중 하나만 성공하는 상태를 만들지 않는다.
     const batch = storeMod.writeBatch(db);
-    for (const name of targets) {
+    for (const { doc: name, json } of entries) {
       batch.set(ref(name), { data: json, updatedAt: at, updatedBy: by });
       batch.set(storeMod.doc(db, COLLECTION, name, HISTORY, id), { data: json, updatedAt: at, updatedBy: by, version: id });
     }
@@ -146,7 +154,7 @@ async function boot() {
        * (운영자가 아니어서 나는 permission-denied 라면 이 setDoc 도 같은 이유로 실패해 그대로 던진다.)
        */
       const live = storeMod.writeBatch(db);
-      for (const name of targets) live.set(ref(name), { data: json, updatedAt: at, updatedBy: by });
+      for (const { doc: name, json } of entries) live.set(ref(name), { data: json, updatedAt: at, updatedBy: by });
       await live.commit();
       cloud.historyDisabled = true;
       return null;

@@ -870,7 +870,9 @@ const GIFT_CODES = {
 };
 
 const RESOURCES = [HOYOLAND, ZZZ, NOTICES, GIFT_CODES, VERSION];
-const byId = (id) => RESOURCES.find((r) => r.id === id);
+// 'hoyoland@2026' 꼴은 앱에 나가지 않는 호요랜드 회차다(editionRes) — 목록(RESOURCES)에는 없다.
+const byId = (id) => RESOURCES.find((r) => r.id === id)
+  || (String(id).startsWith('hoyoland@') ? editionRes(String(id).slice(9)) : undefined);
 
 /* 리소스와 무관한 공통 화면 */
 const GLOBAL_SECTIONS = [
@@ -970,15 +972,17 @@ async function probe(api) {
  * 상태 — 리소스별로 독립. state.draft 등은 현재 리소스를 가리킨다.
  * ═════════════════════════════════════════════════════════════ */
 
-const docs = {};
-for (const r of RESOURCES) docs[r.id] = {
+const newDoc = (r) => ({
   original: null, draft: r.normalize({}), live: undefined, source: '빈 문서',
   history: undefined,      // undefined=아직 안 읽음 · 'loading' · 배열 · { error }
   historyDiff: null,       // { id, list } — 이력 한 판과 지금 편집본의 차이
   reach: undefined,        // 대시보드 「앱이 읽는 값」 — undefined=아직 안 읽음 · 'loading' · { canon, legacyLive, legacyCanon }
   // 되돌리기 — 리소스마다 따로 쌓는다. 굿즈를 고치다 배너로 갔다 와도 자기 이력이 남아 있다.
   undo: [], redo: [], snap: null,
-};
+});
+// 호요랜드의 다른 회차는 탭을 열 때 `hoyoland@{연도}` 로 한 벌씩 더해진다(selectEdition).
+const docs = {};
+for (const r of RESOURCES) docs[r.id] = newDoc(r);
 
 const state = {
   resource: 'hoyoland',
@@ -1118,13 +1122,27 @@ function hoyoBanner(d, today = kstToday()) {
   };
 }
 
-/** "기본 정보로" · "굿즈샵으로" — 받침이 없거나 ㄹ 이면 「로」. */
-function josaRo(word) {
-  const code = String(word).charCodeAt(String(word).length - 1) - 0xAC00;
-  if (code < 0 || code > 11171) return word + '로';
-  const jong = code % 28;
-  return word + (jong === 0 || jong === 8 ? '로' : '으로');
+/**
+ * 끝 글자의 받침 — 0 없음 · 8 ㄹ · 그 밖은 있음(값 자체는 한글 종성 번호). 한글이 아니면 -1.
+ * 숫자는 읽는 소리로 본다(「2028」 → 팔 → ㄹ). 회차 이름이 연도로 끝나서 필요하다.
+ */
+function lastJong(word) {
+  const ch = String(word).slice(-1);
+  if (/\d/.test(ch)) return [16, 8, 0, 16, 0, 0, 1, 8, 8, 0][Number(ch)];   // 영 일 이 삼 사 오 육 칠 팔 구
+  const code = ch.charCodeAt(0) - 0xAC00;
+  return code < 0 || code > 11171 ? -1 : code % 28;
 }
+
+/** "기본 정보로" · "굿즈샵으로" · "2028로" — 받침이 없거나 ㄹ 이면 「로」. */
+function josaRo(word) {
+  const jong = lastJong(word);
+  return word + (jong <= 0 || jong === 8 ? '로' : '으로');
+}
+
+/** 조사만 돌려준다 — 꺾쇠 뒤에 붙인다(「호요랜드 2028」로 · 「호요랜드 2027」은 · 「호요랜드 2028」을). */
+const roOf = (word) => josaRo(word).slice(String(word).length);
+const josaEun = (word) => (lastJong(word) > 0 ? '은' : '는');
+const josaEul = (word) => (lastJong(word) > 0 ? '을' : '를');
 
 /**
  * 이 판을 **구버전 문서에도 같이 쓸 것인가** — 쓸 거면 옛 자리({ file, doc }), 아니면 null.
@@ -1161,6 +1179,462 @@ const isDirty = (id) => {
   return jsonOfDoc(d, r) !== jsonOfDoc({ draft: r.normalize(d.original || {}), original: d.original }, r);
 };
 const issuesNow = () => state.res.validate(state.draft);
+
+/* ═════════════════════════════════════════════════════════════
+ * 호요랜드 회차 — 시안 「회차 탭」(안 A · 본문 위)
+ *
+ * 탭 하나가 회차 한 벌이다(26년 · 27년 · …). **앱이 읽는 것은 그중 하나**(「앱에 게시 중」)이고, 그 회차의
+ * 자리는 예전 그대로 `HOYOLAND` 다 — 문서 config/hoyolandV2 · 정본 config/hoyoland_v2.json. 그래서 앱도,
+ * 게시 중인 회차의 편집 · 반영도 바뀐 것이 없다.
+ *
+ * 나머지 회차(보관 · 게시 전)는 회차마다 따로 둔 문서에 산다. **앱은 이 문서들을 읽지 않는다.**
+ *   회차  config/hoyolandEdition{연도}   정본  config/hoyoland_editions/{연도}.json
+ *   목록  config/hoyolandEditions        정본  config/hoyoland_editions/index.json
+ *
+ * 회차가 넘어가는 길은 「이 회차를 앱에 게시」 하나다(publishEdition) — 앱이 읽는 문서를 새 회차로 갈고,
+ * 게시 중이던 회차는 제 문서로 옮겨 보관한다. 「행사 추가」는 회차를 만들기만 한다.
+ * ═════════════════════════════════════════════════════════════ */
+
+const EDITIONS = {
+  doc: 'hoyolandEditions',
+  file: 'config/hoyoland_editions/index.json',
+  docOf: (id) => 'hoyolandEdition' + id,
+  fileOf: (id) => `config/hoyoland_editions/${id}.json`,
+};
+
+/** 행사명 끝의 연도 — 「호요랜드 2028」 → "2028", 없으면 빈 문자열. 회차 ID 이자 탭 이름의 뿌리다. */
+const editionYear = (name) => (/(\d{4})$/.exec(String(name ?? '').trim()) || [])[1] || '';
+/** 탭에 적는 이름 — "2028" → 「28년」. */
+const editionTab = (id) => `${String(id).slice(2)}년`;
+
+/**
+ * 회차 목록. 원격 목록을 아직 못 읽었을 때의 값은 앱 내장값이 가리키는 두 회차다
+ * (지난 행사 맨 앞 = 보관, 지금 회차 = 게시 중).
+ *   published 앱에 게시 중인 회차 · ids 탭 순서(연도순) · archived 게시된 적이 있어 보관으로 넘어간 회차
+ */
+const editions = (() => {
+  const published = editionYear(HOYOLAND_BUNDLED.edition);
+  const past = editionYear(HOYOLAND_BUNDLED.pastHead);
+  return { published, ids: [past, published], archived: [past], from: 'default' };
+})();
+
+const EDITION_STATE = { live: '앱에 게시 중', archived: '보관', draft: '게시 전' };
+const editionState = (id) => (id === editions.published ? 'live' : editions.archived.includes(id) ? 'archived' : 'draft');
+
+/** 목록 문서의 JSON — 라이브와 정본에 같은 것을 쓴다. */
+const editionIndexJson = (x = editions) => JSON.stringify({
+  _comment: '호요랜드 회차 목록 — 어드민의 회차 탭이 읽는다. published 가 앱에 게시 중인 회차(config/hoyolandV2 · config/hoyoland_v2.json)이고, 나머지는 config/hoyoland_editions/{연도}.json 에 있다. 앱은 이 파일을 읽지 않는다.',
+  published: x.published, editions: x.ids, archived: x.archived,
+}, null, 2) + '\n';
+
+/**
+ * 읽어 온 목록을 받아들인다 — 못 믿을 값이면 false 를 돌려주고 지금 목록을 그대로 둔다.
+ *
+ * 게시 중인 회차가 **바뀌었으면** `docs.hoyoland` 를 비운다. 그 자리는 "지금 게시 중인 회차" 의 것이라,
+ * 다른 브라우저에서 회차를 넘긴 뒤에는 여기 남은 편집본이 엉뚱한 회차의 것이 된다.
+ */
+function applyEditions(raw, from) {
+  if (!raw || typeof raw !== 'object') return false;
+  const ids = [...new Set((Array.isArray(raw.editions) ? raw.editions : []).map(String).filter((x) => /^\d{4}$/.test(x)))].sort();
+  const published = String(raw.published ?? '');
+  if (!ids.includes(published)) return false;
+  const moved = editions.published !== published;
+  editions.ids = ids;
+  editions.published = published;
+  editions.archived = (Array.isArray(raw.archived) ? raw.archived : []).map(String).filter((x) => ids.includes(x) && x !== published);
+  editions.from = from;
+  if (moved) {
+    docs.hoyoland = { ...newDoc(HOYOLAND), snap: JSON.stringify(HOYOLAND.normalize({})) };
+    delete docs['hoyoland@' + published];
+    editionResCache.clear();
+    if (String(state.resource).startsWith('hoyoland@') && !ids.includes(state.resource.slice(9))) state.resource = 'hoyoland';
+    if (state.resource === 'hoyoland@' + published) state.resource = 'hoyoland';
+  } else if (String(state.resource).startsWith('hoyoland@') && !ids.includes(state.resource.slice(9))) {
+    state.resource = 'hoyoland';
+  }
+  return moved;
+}
+
+/**
+ * 한 회차의 리소스. 게시 중인 회차는 `HOYOLAND` 그 자체이고, 나머지는 문서 · 파일 자리만 다른 사본이다 —
+ * 구버전 문서(legacy)도 앱 버전(since)도 없다. 앱이 읽지 않기 때문이다.
+ * 같은 회차는 늘 같은 객체를 돌려준다(화면 곳곳이 `state.res === res` 로 견준다).
+ */
+const editionResCache = new Map();
+function editionRes(id) {
+  if (id === editions.published) return HOYOLAND;
+  if (!editionResCache.has(id)) editionResCache.set(id, {
+    ...HOYOLAND, id: 'hoyoland@' + id, editionId: id, base: HOYOLAND,
+    doc: EDITIONS.docOf(id), file: EDITIONS.fileOf(id), legacy: null, since: '',
+  });
+  return editionResCache.get(id);
+}
+
+/** 지금 보고 있는 회차 — 호요랜드가 아니면 빈 문자열. */
+const currentEdition = () => ((state.res.base || state.res) === HOYOLAND ? state.res.editionId || editions.published : '');
+
+/** 회차를 바꾼다. 보던 섹션은 그대로 둔다 — 같은 화면에서 회차만 바꿔 견줄 수 있다. */
+function selectEdition(id) {
+  const res = editionRes(id);
+  if (!docs[res.id]) docs[res.id] = { ...newDoc(res), snap: JSON.stringify(res.normalize({})) };
+  state.resource = res.id;
+  setNav(false);
+  render();
+  ensureLoaded();
+}
+
+/** 지금 **게시 중인 회차의 값** — 앱이 보는 라이브가 있으면 그것, 없으면 편집본. */
+function publishedDoc() {
+  const d = docs.hoyoland;
+  try {
+    if (d.live && String(d.live.json).trim()) return HOYOLAND.normalize(JSON.parse(d.live.json));
+  } catch (e) { /* 깨진 라이브 — 편집본으로 */ }
+  return d.draft;
+}
+
+/** 지난 행사 · 대시보드가 쓰는 게임 약칭 — 「붕괴: 스타레일」 → 「스타레일」. */
+const shortGame = (game) => ({ '붕괴: 스타레일': '스타레일', '젠레스 존 제로': '젠레스' }[game] || game || '');
+
+/**
+ * 회차 한 벌을 「지난 행사」 한 줄로 줄인다 — 기간 · 장소 · 티켓 · 참여 IP. 비어 있는 항목은 빼고,
+ * 일정 미정으로 끝난 회차는 이름만 남는다.
+ */
+function editionSummary(d) {
+  const t = (v) => String(v ?? '').trim();
+  const facts = [];
+  const add = (label, value) => { if (t(value)) facts.push({ label, value: t(value) }); };
+  if (hoyoPeriod(d)) {
+    const days = Math.round((Date.parse(d.endYmd + 'T00:00:00Z') - Date.parse(d.startYmd + 'T00:00:00Z')) / 86400000) + 1;
+    add('기간', `${hoyoPeriod(d)} (${days}일)`);
+  }
+  add('장소', [d.venueName, d.venueHall].map(t).filter(Boolean).join(' '));
+  const groups = d.entryGroups.map((g) => t(g.name)).filter(Boolean);
+  const status = TICKET_STATUS_ALIAS[d.ticket.status] || d.ticket.status;
+  add('티켓', [t(d.ticket.priceLabel), status === 'sold_out' ? '매진' : '',
+    groups.length > 1 ? `조별 입장(${groups[0]}~${groups[groups.length - 1]})` : ''].filter(Boolean).join(' · '));
+  add('참여 IP', d.lineup.map((x) => shortGame(t(x.game))).filter(Boolean).join(' · '));
+  return { title: t(d.edition), facts };
+}
+
+/**
+ * [d] 의 「지난 행사」 맨 앞에 직전 회차([prev]) 요약을 세운다. 이미 그 이름의 줄이 있으면 **내용이 있는 한 그대로 둔다**
+ * — 게시 전에 손으로 고친 것이다. 이름만 있던 줄은 지금 내용으로 채운다(만들 때는 일정 미정이었던 회차).
+ */
+function withPastHead(d, prev) {
+  const sum = editionSummary(prev);
+  if (!sum.title) return d;
+  const i = d.past.findIndex((p) => String(p.title ?? '').trim() === sum.title);
+  if (i < 0) d.past.unshift(sum);
+  else if (!d.past[i].facts.length) d.past[i] = sum;
+  return d;
+}
+
+/** 회차 목록을 원격에서 읽는다 — 라이브 → 정본 → (없으면) 내장값 그대로. */
+async function loadEditions() {
+  const c = window.cloud || {};
+  let raw = null;
+  let from = '';
+  if (c.available) {
+    try {
+      const v = await c.pull(EDITIONS.doc);
+      if (v && String(v.json).trim()) { raw = JSON.parse(v.json); from = 'live'; }
+    } catch (e) { /* 못 읽으면 정본으로 */ }
+  }
+  if (!raw) {
+    try {
+      const r = await fetch(REPO_RAW + EDITIONS.file + '?t=' + Date.now(), { cache: 'no-store' });
+      if (r.ok) { raw = await r.json(); from = 'canon'; }
+    } catch (e) { /* 정본도 없다 — 아직 회차를 넘긴 적이 없다 */ }
+  }
+  if (!raw) return;
+  const before = editionIndexJson();
+  const moved = applyEditions(raw, from);
+  if (moved) {
+    toast(`앱에 게시 중인 회차가 ${editionTab(editions.published)}으로 바뀌어 있어 다시 불러옵니다.`);
+    render();
+    ensureLoaded();
+  } else if (before !== editionIndexJson()) render();
+}
+
+/**
+ * 앱에 나가지 않는 회차를 읽는다 — 회차 문서 → 보관 정본 → (그 회차가 아직 남아 있으면) 구버전 문서.
+ *
+ * 마지막 길이 26년을 위한 것이다. 회차를 나누기 전의 2026 데이터는 구버전 문서(config/hoyoland)에 통째로 남아 있다.
+ * 27년 일정이 잡혀 반영되면 그 문서도 27년으로 덮이므로, 그 전에 한 번 「저장」해 보관본으로 옮겨야 한다.
+ */
+async function pullEdition(res, { rawOnly = false } = {}) {
+  const c = window.cloud || {};
+  if (!rawOnly && c.available) {
+    try {
+      const live = await c.pull(res.doc);
+      docs[res.id].live = live;
+      if (live && String(live.json).trim()) {
+        return { raw: JSON.parse(live.json), label: `회차 문서 · ${new Date(live.updatedAt).toLocaleString('ko-KR')}` };
+      }
+    } catch (e) { /* 못 읽으면 정본으로 */ }
+  }
+  try {
+    const r = await fetch(REPO_RAW + res.file + '?t=' + Date.now(), { cache: 'no-store' });
+    if (r.ok) return { raw: await r.json(), label: `보관 정본 main · ${new Date().toLocaleTimeString('ko-KR')}` };
+  } catch (e) { /* 아래로 */ }
+  const legacy = HOYOLAND.legacy;
+  const mine = (raw) => raw && editionYear(raw.edition) === res.editionId;
+  if (c.available) {
+    try {
+      const v = await c.pull(legacy.doc);
+      const raw = v && String(v.json).trim() ? JSON.parse(v.json) : null;
+      if (mine(raw)) return { raw, label: '구버전 문서에서 가져옴 · 저장 전' };
+    } catch (e) { /* 아래로 */ }
+  }
+  try {
+    const r = await fetch(REPO_RAW + legacy.file + '?t=' + Date.now(), { cache: 'no-store' });
+    const raw = r.ok ? await r.json() : null;
+    if (mine(raw)) return { raw, label: '구버전 정본에서 가져옴 · 저장 전' };
+  } catch (e) { /* 아래로 */ }
+  return { raw: {}, label: '빈 회차 · 저장 전' };
+}
+
+/**
+ * 구버전 문서를 **덮기 직전** — 거기 남아 있는 회차에 보관본이 아직 없으면 같이 옮길 쓰기를 돌려준다([{ doc, json, id }]).
+ *
+ * 회차를 나누기 전의 2026 데이터는 구버전 문서에만 통째로 있다. 날짜가 잡힌 판을 반영하면 그 문서가 새 회차로
+ * 덮이는데(legacyMirror), 그 전에 26년 탭에서 「저장」을 누르지 않았다면 그대로 사라진다. 누르는 것을 믿지 않고
+ * 덮는 배치에 같이 싣는다. 읽다가 실패하면 빈 목록 — 이것 때문에 반영을 막지는 않는다.
+ */
+async function rescueLegacyEdition(c) {
+  try {
+    const v = await c.pull(HOYOLAND.legacy.doc);
+    if (!v || !String(v.json).trim()) return [];
+    const id = editionYear(JSON.parse(v.json).edition);
+    if (!id || id === editions.published || !editions.ids.includes(id)) return [];
+    const has = await c.pull(EDITIONS.docOf(id));
+    return has && String(has.json).trim() ? [] : [{ doc: EDITIONS.docOf(id), json: v.json, id }];
+  } catch (e) { return []; }
+}
+
+/** 「행사 추가」 다이얼로그 — 행사명을 받아 돌려준다(취소면 null). 시안 「행사 추가」. */
+function editionDialog() {
+  return new Promise((resolve) => {
+    closePop();
+    const next = String(Math.max(...editions.ids.map(Number)) + 1);
+    const input = el('input', { class: 'gl-input', type: 'text', id: 'ed-name', value: `호요랜드 ${next}`,
+      placeholder: `호요랜드 ${next}`, autocomplete: 'off', spellcheck: 'false' });
+    const note = el('div', { class: 'note' });
+    const ok = el('button', { class: 'btn btn-primary' }, ['추가']);
+    const cancel = el('button', { class: 'btn' }, ['취소']);
+    const check = () => {
+      const id = editionYear(input.value);
+      const dup = !!id && editions.ids.includes(id);
+      note.textContent = !id ? '행사명 끝에 연도 네 자리를 적어 주세요 — 탭 이름이 거기서 옵니다.'
+        : dup ? `${editionTab(id)} 회차가 이미 있습니다.`
+        : `탭에는 「${editionTab(id)}」으로 뜹니다. 행사명 끝의 연도를 따릅니다.`;
+      note.classList.toggle('err', !id || dup);
+      ok.disabled = !id || dup;
+      return !ok.disabled;
+    };
+    const card = el('div', { class: 'gl-modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ed-title' }, [
+      el('h3', { id: 'ed-title', text: '행사 추가' }),
+      el('p', { text: '새 회차를 일정 미정으로 만듭니다. 만들기만 해서는 앱이 바뀌지 않습니다.' }),
+      el('div', { class: 'field', style: 'margin-top:16px' }, [
+        el('label', { for: 'ed-name', text: '행사명' }), el('div', { class: 'gl-field' }, [input]), note,
+      ]),
+      el('p', { class: 'gl-note', text: `내용을 채운 뒤 그 회차의 「반영 · 이력」에서 「이 회차를 앱에 게시」를 눌러야 앱에 나갑니다. 그때 지금 게시 중인 ${editionTab(editions.published)}이 지난 행사로 넘어갑니다.` }),
+      el('div', { class: 'gl-modal-act' }, [cancel, ok]),
+    ]);
+    const back = el('div', { class: 'gl-backdrop' }, [card]);
+    const done = (v) => {
+      document.removeEventListener('keydown', onKey, true);
+      back.remove();
+      resolve(v);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(null); }
+      else if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); e.stopPropagation(); if (check()) done(input.value.trim()); }
+    };
+    input.addEventListener('input', check);
+    ok.addEventListener('click', () => { if (check()) done(input.value.trim()); });
+    cancel.addEventListener('click', () => done(null));
+    back.addEventListener('mousedown', (e) => { if (e.target === back) done(null); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.append(back);
+    check();
+    input.focus();
+    input.select();
+  });
+}
+
+/**
+ * 「행사 추가」 — 새 회차를 **만들기만** 한다. 앱이 읽는 문서는 건드리지 않는다.
+ *
+ * 새 회차는 행사명만 채운 일정 미정 문서로 시작하고, 「지난 행사」는 지금 게시 중인 회차의 요약을 맨 앞에 얹어
+ * 물려받는다(게시하는 날 앱이 그대로 보여 줄 목록이다). 회차 문서와 목록을 한 배치로 쓴다 — 탭만 생기고
+ * 문서가 없는 상태를 만들지 않는다.
+ */
+async function addEdition() {
+  const c = window.cloud || {};
+  if (!c.available || !c.user) { toast('회차를 만들려면 운영자 로그인이 필요합니다 — ' + (c.reason || '로그인한 뒤 다시 눌러 주세요.')); return; }
+  const name = await editionDialog();
+  if (!name) return;
+  const id = editionYear(name);
+  const prev = publishedDoc();
+  const raw = { edition: name, past: JSON.parse(JSON.stringify(withPastHead({ past: [...prev.past] }, prev).past)) };
+  const res = editionRes(id);
+  const draft = res.normalize(raw);
+  const json = jsonOfDoc({ draft, original: raw }, res);
+  const next = { published: editions.published, ids: [...editions.ids, id].sort(), archived: editions.archived };
+  try {
+    await c.pushMany([{ doc: res.doc, json }, { doc: EDITIONS.doc, json: editionIndexJson(next) }]);
+  } catch (e) {
+    toast('회차를 만들지 못했습니다: ' + (e.code === 'permission-denied' ? '쓰기 권한이 없습니다(uid 화이트리스트 확인).' : e.message));
+    return;
+  }
+  editions.ids = next.ids;
+  editions.from = 'live';
+  const original = JSON.parse(json);
+  docs[res.id] = {
+    ...newDoc(res), original, draft: res.normalize(original), source: '회차 문서 · 방금 만듦',
+    live: { json, updatedAt: Date.now(), updatedBy: c.user.email || c.user.uid },
+  };
+  docs[res.id].snap = JSON.stringify(docs[res.id].draft);
+  state.resource = res.id;
+  state.active = 'dashboard';
+  saveDraft();
+  render();
+  toast(`「${name}」 회차를 만들었습니다. 앱에는 아직 나가지 않습니다.`);
+  const tail = await commitEditionFiles(res.id,
+    [{ path: res.file, text: json }, { path: EDITIONS.file, text: editionIndexJson() }],
+    `chore: 호요랜드 ${id} 회차 추가 — 어드민`);
+  if (tail) toast(`「${name}」 회차를 만들었습니다. ${tail}`);
+}
+
+/** 회차에 딸린 파일들을 정본에 커밋한다 — 결과 한마디를 돌려준다(GitHub 가 연결돼 있지 않으면 빈 문자열). */
+async function commitEditionFiles(key, files, message) {
+  const g = window.gh;
+  if (!g || !g.token) return '';
+  const at = new Date().toLocaleTimeString('ko-KR');
+  try {
+    const r = await g.commit({ files, message });
+    ghState.canon[key] = r.unchanged
+      ? { ok: true, text: `정본이 이미 같은 내용입니다 · ${at}` }
+      : { ok: true, text: `${files.map((f) => f.path).join(' · ')} 을 ${g.branch} 에 커밋했습니다(${r.sha.slice(0, 7)}) · ${at}`, url: r.url };
+    return r.unchanged ? '정본은 이미 같은 내용입니다.' : `정본도 ${g.branch} 에 커밋했습니다(${r.sha.slice(0, 7)}).`;
+  } catch (e) {
+    ghState.canon[key] = { ok: false, text: `${e.message} — 「정본 내보내기」에서 다시 올릴 수 있습니다 · ${at}` };
+    return `다만 정본 커밋은 실패했습니다 — ${e.message}`;
+  }
+}
+
+/**
+ * 「이 회차를 앱에 게시」 — 회차가 넘어가는 유일한 길. 한 배치로:
+ *   ① 앱이 읽는 문서(config/hoyolandV2)를 이 회차로 간다 — 날짜가 잡힌 회차면 구버전 문서도 같이(legacyMirror)
+ *   ② 게시 중이던 회차를 제 회차 문서로 옮겨 보관한다 — **지금 앱이 보는 값**을 옮긴다(반영 안 된 편집은 빠진다)
+ *   ③ 회차 목록의 게시 중 회차를 바꾼다
+ * 이 회차의 「지난 행사」 맨 앞에는 게시 중이던 회차의 요약이 선다(withPastHead).
+ * 라이브가 먼저이고 정본 커밋은 그 뒤를 따른다 — 실패해도 게시는 되돌리지 않는다(publish 와 같은 규칙).
+ */
+async function publishEdition() {
+  const res = state.res;
+  const id = res.editionId;
+  const c = window.cloud || {};
+  if (!id) return;
+  if (!c.available || !c.user) { toast('앱에 게시하려면 운영자 로그인이 필요합니다.'); return; }
+  const prevId = editions.published;
+
+  // 보관본이 될 값 — 화면에 들고 있던 것 말고 지금 원격의 것을 다시 읽는다.
+  let prevJson;
+  try {
+    const v = await c.pull(HOYOLAND.doc);
+    docs.hoyoland.live = v;
+    prevJson = v && String(v.json).trim() ? v.json : jsonOfDoc(docs.hoyoland, HOYOLAND);
+  } catch (e) { toast('지금 게시 중인 회차를 읽지 못했습니다: ' + e.message); return; }
+  let prev;
+  try { prev = HOYOLAND.normalize(JSON.parse(prevJson)); } catch (e) { toast('지금 게시 중인 회차의 JSON 이 깨져 있습니다 — 먼저 그 회차를 바로잡아 주세요.'); return; }
+
+  const draft = withPastHead(JSON.parse(JSON.stringify(state.draft)), prev);
+  const json = jsonOfDoc({ draft, original: state.original }, res);
+  const name = String(draft.edition || '').trim() || editionTab(id);
+  const prevName = String(prev.edition || '').trim() || editionTab(prevId);
+  const mirror = legacyMirror(HOYOLAND, json);
+  const errCount = HOYOLAND.validate(draft).filter((i) => i.level === 'error').length;
+  const g = window.gh;
+  if (!await glConfirm(`「${name}」${josaEul(name)} 앱에 게시합니다. ${HOYOLAND.since} 이상 앱이 다음 조회부터 이 회차를 읽습니다.`, {
+    title: '앱에 게시', ok: '게시',
+    note: [
+      `지금 게시 중인 「${prevName}」${josaEun(prevName)} 보관으로 넘어갑니다.`,
+      isDirty('hoyoland') ? `${editionTab(prevId)} 탭의 반영 안 된 편집은 보관본에 들어가지 않습니다.` : '',
+      legacyNote(HOYOLAND, mirror),
+      g && g.token ? `정본도 ${g.branch} 에 같이 커밋합니다.` : 'GitHub 가 연결돼 있지 않아 정본은 그대로 둡니다.',
+      errCount ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : '',
+    ].filter(Boolean).join(' '),
+  })) return;
+
+  const next = { published: id, ids: editions.ids, archived: [...new Set([...editions.archived.filter((x) => x !== id), prevId])].sort() };
+  try {
+    // 구버전 문서를 덮는 회차면, 거기 남은 회차(직전 회차와 다를 때)를 보관본으로 먼저 옮겨 싣는다.
+    const rescued = mirror ? (await rescueLegacyEdition(c)).filter((x) => x.id !== prevId) : [];
+    await c.pushMany([
+      { doc: HOYOLAND.doc, json },
+      ...(mirror ? [{ doc: mirror.doc, json }] : []),
+      { doc: EDITIONS.docOf(prevId), json: prevJson },
+      { doc: EDITIONS.doc, json: editionIndexJson(next) },
+      ...rescued.map((x) => ({ doc: x.doc, json: x.json })),
+    ]);
+    for (const x of rescued) delete docs['hoyoland@' + x.id];
+  } catch (e) {
+    toast('게시 실패: ' + (e.code === 'permission-denied' ? '쓰기 권한이 없습니다(uid 화이트리스트 확인).' : e.message));
+    return;
+  }
+
+  // 게시 중인 회차의 자리(docs.hoyoland)를 이 회차로 갈아 끼운다. 직전 회차는 다음에 탭을 열 때 제 문서에서 읽는다.
+  Object.assign(editions, { published: next.published, archived: next.archived, from: 'live' });
+  editionResCache.clear();
+  delete docs[res.id];
+  delete docs['hoyoland@' + prevId];
+  const original = JSON.parse(json);
+  docs.hoyoland = {
+    ...newDoc(HOYOLAND), original, draft: HOYOLAND.normalize(original), source: '라이브 · 방금 게시',
+    live: { json, updatedAt: Date.now(), updatedBy: c.user.email || c.user.uid },
+  };
+  state.resource = 'hoyoland';
+  state.active = 'dashboard';
+  saveDraft();
+  markClean('앱에 게시됨');
+  render();
+  toast(`「${name}」${josaEul(name)} 앱에 게시했습니다. 「${prevName}」${josaEun(prevName)} 보관으로 넘어갔습니다.`);
+
+  // 정본 — 새 회차는 주석만 물려받고(mergeCanon comments), 보관본은 게시 중이던 정본을 통째로 물려받는다.
+  if (!g || !g.token) return;
+  const rawText = async (path) => {
+    try { const r = await fetch(REPO_RAW + path + '?t=' + Date.now(), { cache: 'no-store' }); return r.ok ? await r.text() : ''; } catch (e) { return ''; }
+  };
+  const cur = await rawText(HOYOLAND.file);
+  const files = [
+    { path: HOYOLAND.file, text: cur ? mergeCanon(json, cur, { commentsOnly: true }) : json },
+    ...(mirror ? [{ path: mirror.file, text: json }] : []),
+    { path: EDITIONS.fileOf(prevId), text: cur ? mergeCanon(prevJson, cur) : prevJson },
+    { path: EDITIONS.file, text: editionIndexJson() },
+  ];
+  const tail = await commitEditionFiles('hoyoland', files, `chore: 호요랜드 ${id} 회차 게시 · ${prevId} 보관 — 어드민`);
+  docs.hoyoland.reach = undefined;
+  if (tail) toast(`「${name}」${josaEul(name)} 앱에 게시했습니다. ${tail}`);
+  if (state.res === HOYOLAND) render();
+}
+
+/** 본문 위의 회차 탭 줄 — GLDS 탭(트랙 3 · 칸 46 · 보조 한 줄) + Secondary S 「행사 추가」. 시안 「회차 탭 · 안 A」. */
+function renderEditionTabs() {
+  const cur = currentEdition();
+  return el('div', { class: 'editions' }, [
+    el('div', { class: 'gl-tabs', role: 'tablist', 'aria-label': '회차', style: `width:${editions.ids.length * 160}px` },
+      editions.ids.map((id) => el('button', {
+        type: 'button', role: 'tab', class: 'gl-tab' + (id === cur ? ' on' : ''), 'aria-selected': String(id === cur),
+        onclick: () => { if (id !== cur) selectEdition(id); },
+      }, [editionTab(id), el('small', { text: EDITION_STATE[editionState(id)] })]))),
+    el('button', { type: 'button', class: 'btn btn-secondary', onclick: addEdition }, [
+      el('span', { class: 'btn-ico', 'aria-hidden': 'true', html: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>' }),
+      '행사 추가',
+    ]),
+  ]);
+}
 
 /* ═════════════════════════════════════════════════════════════
  * 변경사항 비교
@@ -2351,7 +2825,8 @@ async function loadReach(res) {
     raw(res.file), res.legacy ? live(res.legacy.doc) : null, res.legacy ? raw(res.legacy.file) : null,
   ]);
   d.reach = { canon, legacyLive, legacyCanon };
-  if (state.active === 'dashboard' && state.res === res) render();
+  // 보관 회차의 대시보드도 구버전 문서 줄을 그린다 — 호요랜드의 어느 회차를 보고 있든 다시 그린다.
+  if (state.active === 'dashboard' && (state.res.base || state.res) === res) render();
 }
 
 /** 두 JSON 문서의 **값**이 같은가 — 주석 키(_…)와 키 순서는 보지 않는다. */
@@ -2433,6 +2908,8 @@ function sectionTitle(text, right) {
 function renderHoyoDashboard() {
   const res = HOYOLAND;
   const d = state.draft;
+  // 앱에 나가지 않는 회차 — 보관('archived')이면 「보관 중인 회차」가, 게시 전('draft')이면 미리보기만 선다. 게시 중이면 ''.
+  const side = state.res.editionId ? editionState(state.res.editionId) : '';
   const ph = hoyoPhase(d);
   const off = ph.key === 'tba' || ph.key === 'ended';   // 홈 배너 · D-day 가 없는 철
   const issues = issuesNow();
@@ -2513,29 +2990,70 @@ function renderHoyoDashboard() {
     ];
   }
   const look = card({ label: '앱에서 보이는 모습', desc: off
-    ? `지금 편집본을 반영하면 ${res.since} 이상 앱에 이렇게 보입니다.`
+    ? `${side ? '이 회차를 앱에 게시하면' : '지금 편집본을 반영하면'} ${res.since} 이상 앱에 이렇게 보입니다.`
     : '개막 60일 전부터 홈에 입장권 배너가 섭니다. 주인공은 오른쪽 조각의 남은 날짜입니다.' }, [
     el('div', { class: 'app-look' }, [preview, el('div', { class: 'app-facts' }, facts)]),
   ]);
 
-  // ── 앱이 읽는 값 ──
+  // ── 앱이 읽는 값 — 게시 중인 회차만. 다른 회차의 문서는 앱이 읽지 않는다 ──
   const dd = docs[res.id];
-  if (dd.reach === undefined) loadReach(res);   // 끝나면 이 화면을 다시 그린다
+  if (dd.reach === undefined) loadReach(res);   // 끝나면 이 화면을 다시 그린다(보관 회차도 구버전 문서 줄에 쓴다)
   const c = window.cloud || {};
-  const refresh = el('button', { class: 'btn btn-sm', onclick: async () => {
-    dd.reach = undefined;
-    if (c.available) { try { state.live = await c.pull(res.doc); } catch (e) { /* 줄이 사유를 적는다 */ } }
-    render();
-  } }, ['새로고침']);
-  const reach = el('div', { class: 'card rows-sec' }, [
-    sectionTitle('앱이 읽는 값', refresh),
-    el('p', { class: 'hint', text: '지금 원격에 올라가 있는 값입니다 — 편집본이 아닙니다. 앱은 라이브를 먼저 읽고, 못 읽으면 정본으로 내려갑니다.' }),
-    el('div', { class: 'rows cols-reach' }, reachRows(res).map((row) => el('div', { class: 'row' }, [
-      el('div', { class: 'row-who' }, [el('strong', { text: row.who }), el('small', { text: row.where })]),
-      el('div', { class: 'row-what' }, [el('div', { text: row.what }), row.when ? el('small', { text: row.when }) : null]),
-      el('span', { class: 'pill ' + row.tag[0], text: row.tag[1] }),
-    ]))),
-  ]);
+  const reachSec = () => {
+    const refresh = el('button', { class: 'btn btn-sm', onclick: async () => {
+      dd.reach = undefined;
+      if (c.available) { try { state.live = await c.pull(res.doc); } catch (e) { /* 줄이 사유를 적는다 */ } }
+      render();
+    } }, ['새로고침']);
+    return el('div', { class: 'card rows-sec' }, [
+      sectionTitle('앱이 읽는 값', refresh),
+      el('p', { class: 'hint', text: '지금 원격에 올라가 있는 값입니다 — 편집본이 아닙니다. 앱은 라이브를 먼저 읽고, 못 읽으면 정본으로 내려갑니다.' }),
+      el('div', { class: 'rows cols-reach' }, reachRows(res).map((row) => el('div', { class: 'row' }, [
+        el('div', { class: 'row-who' }, [el('strong', { text: row.who }), el('small', { text: row.where })]),
+        el('div', { class: 'row-what' }, [el('div', { text: row.what }), row.when ? el('small', { text: row.when }) : null]),
+        el('span', { class: 'pill ' + row.tag[0], text: row.tag[1] }),
+      ]))),
+    ]);
+  };
+
+  // ── 보관 중인 회차 — 시안 「26년 탭 — 보관 중인 회차」 ──
+  const archiveSec = () => {
+    const pub = publishedDoc();
+    const pubTab = editionTab(editions.published);
+    const row = (who, where, what, right) => el('div', { class: 'row' }, [
+      el('div', { class: 'row-who' }, [el('strong', { text: who }), el('small', { text: where })]),
+      el('div', { class: 'row-what' }, [].concat(what)), right,
+    ]);
+    // ② 게시 중인 회차의 「지난 행사」에 이 회차가 실려 있는가
+    const at = pub.past.findIndex((p) => String(p.title ?? '').trim() === edition);
+    const labels = at < 0 ? [] : pub.past[at].facts.map((f) => String(f.label ?? '').trim()).filter(Boolean);
+    // ③ 구버전 문서가 지금 어느 회차를 보여 주는가
+    const r = dd.reach && dd.reach !== 'loading' ? dd.reach : null;
+    const lv = r && r.legacyLive;
+    let legacyDoc = null;
+    try { if (lv && lv.json) legacyDoc = res.normalize(JSON.parse(lv.json)); } catch (e) { /* 아래에서 못 읽음으로 적는다 */ }
+    const mine = !!legacyDoc && String(legacyDoc.edition || '').trim() === edition;
+    return el('div', { class: 'card rows-sec' }, [
+      el('h2', { text: '보관 중인 회차' }),
+      el('p', { class: 'hint', text: '이 회차는 앱에 나가지 않습니다. 기록으로 남아 있고, 고치면 이 회차 문서에만 저장됩니다.' }),
+      el('div', { class: 'rows cols-reach' }, [
+        row('앱에 게시 중인 회차', `${res.since} 이상 앱이 읽는 문서`, el('div', { text: res.describe(pub) }),
+          el('button', { class: 'btn btn-sm btn-secondary', onclick: () => selectEdition(editions.published) }, [josaRo(pubTab)])),
+        row('이 회차가 앱에 보이는 곳', '게시 중인 회차의 「지난 행사」', at < 0
+          ? el('div', { text: '「지난 행사」에 이 회차 이름의 줄이 없습니다.' })
+          : [el('div', { text: `${at === 0 ? '맨 앞 줄' : `${at + 1}번째 줄`} 요약${labels.length ? ' — ' + labels.join(' · ') : ''}` }),
+             at === 0 ? el('small', { text: '일정 미정 안내 문구의 회차 이름도 여기서 옵니다.' }) : null],
+          el('span', { class: 'pill ' + (at < 0 ? 'warn' : 'ok'), text: at < 0 ? '요약이 없음' : '요약이 실려 있음' })),
+        row(`${res.legacy.until} 이하 앱`, `구버전용 문서 · config/${res.legacy.doc}`,
+          legacyDoc
+            ? [el('div', { text: res.describe(legacyDoc) }),
+               mine ? el('small', { text: `${pubTab} 일정이 잡혀 반영되면 구버전도 ${josaRo(pubTab)} 바뀝니다. 이 보관본은 그대로 남습니다.` }) : null]
+            : el('div', { text: '—' }),
+          el('span', { class: 'pill', text: legacyDoc ? (mine ? '지금은 이 회차를 보여 줌' : '다른 회차를 보여 줌')
+            : !r ? '확인하는 중…' : lv && lv.error ? lv.error : lv && lv.missing ? '문서 없음' : 'JSON 을 읽지 못합니다' })),
+      ]),
+    ]);
+  };
 
   // ── 채움 현황 ──
   const n = (arr) => (arr.length ? `${arr.length}건` : '');
@@ -2547,7 +3065,7 @@ function renderHoyoDashboard() {
     if (!byTime.has(t)) byTime.set(t, []);
     byTime.get(t).push(String(g.name || '').trim());
   }
-  const short = (game) => ({ '붕괴: 스타레일': '스타레일', '젠레스 존 제로': '젠레스' }[game] || game || '게임 없음');
+  const short = (game) => shortGame(game) || '게임 없음';
   const perGame = new Map();
   for (const g of d.goods) perGame.set(short(g.game), (perGame.get(short(g.game)) || 0) + 1);
   const detail = (count, text) => (count && rich && text ? `${count} — ${text}` : count);
@@ -2595,7 +3113,9 @@ function renderHoyoDashboard() {
     el('div', { class: 'rows' }, issueRows),
   ]);
 
-  return el('div', {}, [stats, look, reach, fillSec, checks]);
+  return el('div', {}, side === 'archived' ? [stats, archiveSec(), fillSec, checks]
+    : side ? [stats, look, fillSec, checks]
+    : [stats, look, reachSec(), fillSec, checks]);
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -2610,21 +3130,29 @@ function renderPublish(sec) {
   const c = window.cloud || {};
   const g = window.gh;
   const kids = [];
+  // 앱에 나가지 않는 회차 — 'archived'(보관) · 'draft'(게시 전). 이 회차들은 제 회차 문서에 **저장**만 한다:
+  // 「반영하면」이 없고(상단바의 「저장」이 그 일을 한다), 게시 전 회차에는 「앱에 게시하면」이 맨 위에 선다.
+  const side = res.editionId ? editionState(res.editionId) : '';
+  if (side === 'draft') kids.push(editionGoLive(res));
 
   // ── ① 이번에 반영되는 것 ──
   const list = state.live && String(state.live.json).trim() ? liveDiff() : null;
   const one = [];
   if (state.live === undefined) {
     one.push(el('p', { class: 'muted', text: c.available
-      ? '라이브 상태를 아직 읽지 않았습니다 — 무엇과 견줄지 먼저 받아야 합니다.'
+      ? (side ? '저장된 회차 문서를 아직 읽지 않았습니다 — 무엇과 견줄지 먼저 받아야 합니다.' : '라이브 상태를 아직 읽지 않았습니다 — 무엇과 견줄지 먼저 받아야 합니다.')
       : (c.reason || '클라우드에 연결되지 않아 라이브와 견줄 수 없습니다.') }));
-    if (c.available) one.push(el('button', { class: 'btn', onclick: refreshLive }, ['라이브 상태 읽기']));
+    if (c.available) one.push(el('button', { class: 'btn', onclick: refreshLive }, [side ? '회차 문서 읽기' : '라이브 상태 읽기']));
   } else if (state.live === null) {
-    one.push(el('p', { class: 'muted', text: `라이브 문서(config/${res.doc})가 아직 없습니다 — 첫 반영이 통째로 새 값입니다.` }));
+    one.push(el('p', { class: 'muted', text: side
+      ? `회차 문서(config/${res.doc})가 아직 없습니다 — 첫 저장이 통째로 새 값입니다.`
+      : `라이브 문서(config/${res.doc})가 아직 없습니다 — 첫 반영이 통째로 새 값입니다.` }));
   } else if (!list) {
-    one.push(el('p', { class: 'muted', text: '라이브 JSON 을 읽지 못해 견줄 수 없습니다 — 라이브 값이 깨져 있습니다(앱도 이때 정본으로 내려갑니다).' }));
+    one.push(el('p', { class: 'muted', text: side
+      ? '저장된 JSON 을 읽지 못해 견줄 수 없습니다 — 회차 문서가 깨져 있습니다.'
+      : '라이브 JSON 을 읽지 못해 견줄 수 없습니다 — 라이브 값이 깨져 있습니다(앱도 이때 정본으로 내려갑니다).' }));
   } else if (!list.length) {
-    one.push(el('p', { class: 'muted', text: '편집본이 라이브와 같습니다 — 반영할 것이 없습니다.' }));
+    one.push(el('p', { class: 'muted', text: side ? '편집본이 저장된 값과 같습니다 — 저장할 것이 없습니다.' : '편집본이 라이브와 같습니다 — 반영할 것이 없습니다.' }));
   } else {
     const trees = { before: list.beforeTree, after: list.afterTree };
     one.push(el('div', { class: 'rows' }, list.map((x) => {
@@ -2649,9 +3177,11 @@ function renderPublish(sec) {
     one.push(el('p', { class: 'note', text: '목록의 항목은 자리(순서)로 견줍니다 — 행을 끼워 넣거나 옮기면 그 아래가 전부 바뀐 것으로 보입니다(앱 스키마에 행 ID 가 없습니다).' }));
   }
   kids.push(el('div', { class: 'card rows-sec' }, [
-    el('div', { class: 'sec-title' }, [el('h2', { text: '이번에 반영되는 것' }),
+    el('div', { class: 'sec-title' }, [el('h2', { text: side ? '이번에 저장되는 것' : '이번에 반영되는 것' }),
       list && list.length ? el('span', { class: 'count warn', text: String(list.length) + (list.more ? '+' : '') }) : null]),
-    el('p', { class: 'hint', text: '지금 편집본이 라이브와 다른 값입니다. 위치는 화면에서 부르는 이름으로 적습니다.' }),
+    el('p', { class: 'hint', text: side
+      ? '지금 편집본이 저장된 회차 문서와 다른 값입니다. 상단의 「저장」을 누르면 회차 문서에 남습니다 — 앱에는 나가지 않습니다.'
+      : '지금 편집본이 라이브와 다른 값입니다. 위치는 화면에서 부르는 이름으로 적습니다.' }),
     ...one,
   ]));
 
@@ -2700,7 +3230,7 @@ function renderPublish(sec) {
       canon.url ? el('a', { href: canon.url, target: '_blank', rel: 'noopener', text: '열기 ↗' }) : null,
     ]));
   }
-  kids.push(el('div', { class: 'card' }, [
+  if (!side) kids.push(el('div', { class: 'card' }, [
     el('h2', { text: '반영하면' }),
     el('p', { class: 'hint', text: '버튼 한 번에 아래가 차례로 일어납니다. 라이브가 먼저이고, 정본 커밋이 실패해도 반영은 되돌리지 않습니다.' }),
     ...two,
@@ -2719,12 +3249,13 @@ function renderPublish(sec) {
   } else if (!h.length) {
     three.push(el('p', { class: 'muted', text: c.historyDisabled
       ? '이력 쓰기가 규칙에 막혀 있습니다 — firestore.rules 를 배포하면 다음 반영부터 남습니다(반영 자체는 그대로 됩니다).'
+      : side ? '아직 이력이 없습니다 — 다음 저장부터 한 판씩 남습니다.'
       : '아직 이력이 없습니다 — 다음 "라이브 반영" 부터 한 판씩 남습니다.' }));
   } else {
     reload = el('button', { class: 'btn btn-sm', onclick: () => { state.d.history = undefined; state.d.historyDiff = null; render(); } }, ['새로고침']);
     three.push(el('div', { class: 'rows' }, h.map((v, i) => el('div', { class: 'row' }, [
       el('div', { class: 'row-ver' }, [
-        el('strong', {}, [el('span', { text: versionLabel(v.id) }), i === 0 ? el('span', { class: 'pill ok', text: '지금 라이브' }) : null]),
+        el('strong', {}, [el('span', { text: versionLabel(v.id) }), i === 0 ? el('span', { class: 'pill ok', text: side ? '지금 저장본' : '지금 라이브' }) : null]),
         el('small', { text: `${v.updatedBy || '—'} · ${(new TextEncoder().encode(v.json).length / 1024).toFixed(1)}KB` }),
       ]),
       el('button', { class: 'btn btn-sm', onclick: () => {
@@ -2737,11 +3268,13 @@ function renderPublish(sec) {
       i === 0 ? null : el('button', { class: 'btn btn-sm btn-secondary', onclick: async () => {
         const ok = await glConfirm(`${versionLabel(v.id)} 판을 편집본으로 되돌립니다.`, {
           title: '이 판으로 되돌리기', ok: '되돌리기', danger: true,
-          note: '라이브는 아직 그대로입니다 — 되돌린 값을 위의 「이번에 반영되는 것」으로 확인한 뒤 「라이브에 반영」 해야 앱에 적용됩니다.',
+          note: side
+            ? '저장본은 아직 그대로입니다 — 되돌린 값을 위의 「이번에 저장되는 것」으로 확인한 뒤 「저장」 해야 남습니다.'
+            : '라이브는 아직 그대로입니다 — 되돌린 값을 위의 「이번에 반영되는 것」으로 확인한 뒤 「라이브에 반영」 해야 앱에 적용됩니다.',
         });
         if (!ok) return;
         setData(JSON.parse(v.json), `이력 ${versionLabel(v.id)}`);
-        toast('편집본으로 되돌렸습니다. 확인 후 라이브 반영하세요.');
+        toast(side ? '편집본으로 되돌렸습니다. 확인 후 저장하세요.' : '편집본으로 되돌렸습니다. 확인 후 라이브 반영하세요.');
         go('publish');
       } }, ['편집본으로 되돌리기']),
     ]))));
@@ -2753,14 +3286,68 @@ function renderPublish(sec) {
     }
   }
   kids.push(el('div', { class: 'card rows-sec' }, [
-    sectionTitle('발행 이력', reload),
-    el('p', { class: 'hint', text: '반영할 때마다 한 판씩 남습니다. 되돌리기는 라이브를 바로 바꾸지 않고 편집본에 얹습니다 — 확인하고 다시 반영해야 앱에 갑니다.' }),
+    sectionTitle(side ? '저장 이력' : '발행 이력', reload),
+    el('p', { class: 'hint', text: side
+      ? '저장할 때마다 한 판씩 남습니다. 되돌리기는 저장본을 바로 바꾸지 않고 편집본에 얹습니다 — 확인하고 다시 저장해야 남습니다.'
+      : '반영할 때마다 한 판씩 남습니다. 되돌리기는 라이브를 바로 바꾸지 않고 편집본에 얹습니다 — 확인하고 다시 반영해야 앱에 갑니다.' }),
     ...three,
   ]));
 
-  // ── 시안에 없는 기존 기능 — 예전 모양 그대로 ──
-  if (c.available) kids.push(operatorCard(c), liveDocCard(res));
+  // ── 시안에 없는 기존 기능 — 예전 모양 그대로(라이브 문서 카드는 앱이 읽는 문서의 것이라 게시 중인 회차에만) ──
+  if (c.available) kids.push(operatorCard(c), ...(side ? [] : [liveDocCard(res)]));
   return el('div', {}, kids);
+}
+
+/**
+ * 「앱에 게시하면」 — 게시 전 회차의 「반영 · 이력」 맨 위. 시안 「새 회차 — 앱에 게시」.
+ * 줄마다 [publishEdition] 이 실제로 하는 일 하나다. 구버전 문서 줄은 날짜가 잡혔는지에 따라 갈린다(legacyMirror).
+ */
+function editionGoLive(res) {
+  const c = window.cloud || {};
+  const g = window.gh;
+  const d = state.draft;
+  const tab = editionTab(res.editionId);
+  const name = String(d.edition || '').trim() || tab;
+  const pub = publishedDoc();
+  const pubTab = editionTab(editions.published);
+  const pubName = String(pub.edition || '').trim() || pubTab;
+  const mirror = legacyMirror(HOYOLAND, toJson());
+  const L = HOYOLAND.legacy;
+  const step = (title, desc, right) => el('div', { class: 'row top step' }, [
+    el('span', { class: 'step-ico', 'aria-hidden': 'true', html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>' }),
+    el('div', { class: 'row-step' }, [el('strong', { text: title }), el('small', { text: desc })]),
+    right || null,
+  ]);
+  if (g && g.token && ghState.status === 'idle') checkGithub();
+  const steps = [
+    step(`앱이 읽는 문서가 「${name}」${roOf(name)} 바뀝니다`,
+      `라이브 config/${HOYOLAND.doc} — ${HOYOLAND.since} 이상 앱이 다음 조회부터 이 회차를 읽습니다. ${tab} 탭이 「${EDITION_STATE.live}」이 됩니다.`),
+    step(`지금 게시 중인 「${pubName}」${josaEun(pubName)} 보관으로 넘어갑니다`,
+      `${pubTab} 회차 문서는 그대로 남습니다. 이 회차의 「지난 행사」 맨 앞에 ${pubTab} 요약(기간 · 장소 · 티켓 · 참여 IP)이 들어갑니다 — 게시 전에 「지난 행사」에서 고칠 수 있습니다.`,
+      el('button', { class: 'btn btn-sm', onclick: () => go('past') }, ['지난 행사로'])),
+    mirror
+      ? step(`구버전 문서 config/${L.doc} 에도 같은 값을 씁니다`, `날짜가 잡힌 회차라 ${L.until} 이하도 같은 정보를 봅니다.`)
+      : step(`구버전 문서 config/${L.doc} 는 그대로 둡니다`, `일정 미정인 회차라 ${L.until} 이하는 직전에 보던 회차를 계속 봅니다. 날짜를 넣어 반영하는 날 같이 바뀝니다.`),
+    g && g.token
+      ? step(`정본을 ${g.branch} 에 같이 커밋합니다`, `${HOYOLAND.file} — GitHub 연결됨${ghState.login ? ' · @' + ghState.login : ''}. 회차 문서들도 정본 파일로 같이 남깁니다.`)
+      : step('정본은 그대로 둡니다', 'GitHub 가 연결돼 있지 않습니다 — 「정본 내보내기」에서 한 번 연결하면 게시할 때 같이 올라갑니다.'),
+  ];
+  const canon = ghState.canon[res.id];
+  return el('div', { class: 'card' }, [
+    el('h2', { text: '앱에 게시하면' }),
+    el('p', { class: 'hint', text: '이 회차는 아직 앱에 나가지 않았습니다. 지금까지의 편집은 이 회차 문서에만 저장돼 있습니다. 버튼 한 번에 아래가 차례로 일어납니다.' }),
+    el('div', { class: 'rows inset' }, steps),
+    el('div', { class: 'publish-act' }, [
+      el('button', { class: 'btn btn-l btn-primary', disabled: !c.user, onclick: publishEdition }, [c.user ? '이 회차를 앱에 게시' : '로그인이 필요합니다']),
+      el('button', { class: 'btn btn-l btn-text', onclick: () => go('export') }, ['JSON 보기']),
+      el('span', { class: 'note', text: '게시하기 전에는 앱에 아무 변화가 없습니다.' }),
+    ]),
+    canon ? el('p', { class: 'note' }, [
+      el('span', { class: 'pill ' + (canon.ok ? 'ok' : 'err'), style: 'margin-right:6px', text: canon.ok ? '정본 맞춤' : '정본 실패' }),
+      el('span', { text: canon.text + ' ' }),
+      canon.url ? el('a', { href: canon.url, target: '_blank', rel: 'noopener', text: '열기 ↗' }) : null,
+    ]) : null,
+  ]);
 }
 
 /** 「기본 정보 · 예매」 — 두 폼을 한 화면에 섹션 둘로 세운다(시안). 칸 구성은 각 섹션 정의 그대로다. */
@@ -3058,6 +3645,7 @@ function renderDenied(gate, c) {
  * 굿즈 55건을 커밋하고도 화면이 0건이던 게 이 경우다(2026-09-10).
  */
 async function pullResource(res, { rawOnly = false } = {}) {
+  if (res.editionId) return pullEdition(res, { rawOnly });
   const c = window.cloud || {};
   if (!rawOnly && res.live && c.available) {
     try {
@@ -3094,6 +3682,7 @@ async function pullResource(res, { rawOnly = false } = {}) {
  * ═════════════════════════════════════════════════════════════ */
 
 let liveSynced = false;
+let editionsAsked = false;   // 클라우드가 붙은 뒤 회차 목록을 라이브에서 읽어 봤는가
 
 /**
  * 라이브 **상태만** 먼저 채운다 — 초안과 무관하고 로그인도 필요 없다.
@@ -3185,22 +3774,31 @@ async function publish() {
   const res = state.res;
   if (!res.live) { toast('이 리소스는 라이브 반영을 쓰지 않습니다.'); return; }
   const json = toJson();
+  // 앱에 나가지 않는 회차(보관 · 게시 전)는 같은 길로 **제 회차 문서에 저장**만 한다 — 말만 다르다.
+  const side = res.editionId ? editionTab(res.editionId) : '';
   const errCount = issuesNow().filter((i) => i.level === 'error').length;
   const changes = liveDiff();
   const what = changes === null ? ''
     : changes.length ? `바뀌는 값 ${changes.length}건${changes.more ? '+' : ''} — ${diffSummary(changes)}.`
-    : '라이브와 같은 값이라 바뀌는 것이 없습니다.';
+    : side ? '저장된 값과 같아 바뀌는 것이 없습니다.' : '라이브와 같은 값이라 바뀌는 것이 없습니다.';
   const mirror = legacyMirror(res, json);
   const where = mirror ? `config/${res.doc} · config/${mirror.doc}` : `config/${res.doc}`;
   const canonLine = canonFollowsLive(res)
     ? `정본(${canonFiles(res, json).map((f) => f.path).join(' · ')})도 ${window.gh.branch} 에 같이 커밋합니다.`
     : 'GitHub 가 연결돼 있지 않아 정본은 그대로 둡니다.';
-  if (!await glConfirm(`${res.label} 을 라이브(${where})에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.`, {
-    title: '라이브 반영', ok: '반영',
-    note: [what, legacyNote(res, mirror), canonLine, errCount ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : ''].filter(Boolean).join(' '),
+  if (!await glConfirm(side
+    ? `${side} 회차를 회차 문서(${where})에 저장합니다. 앱에는 나가지 않습니다.`
+    : `${res.label} 을 라이브(${where})에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.`, {
+    title: side ? '저장' : '라이브 반영', ok: side ? '저장' : '반영',
+    note: [what, legacyNote(res, mirror), canonLine, errCount && !side ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : ''].filter(Boolean).join(' '),
   })) return;
+  let rescued = [];
   try {
-    await c.push(res.doc, json, mirror ? [mirror.doc] : []);
+    // 구버전 문서를 덮는 판이면, 거기 남은 회차를 보관본으로 먼저 옮겨 싣는다(rescueLegacyEdition).
+    if (mirror && res === HOYOLAND) rescued = await rescueLegacyEdition(c);
+    await c.pushMany([res.doc, ...(mirror ? [mirror.doc] : [])].map((doc) => ({ doc, json }))
+      .concat(rescued.map((x) => ({ doc: x.doc, json: x.json }))));
+    for (const x of rescued) delete docs['hoyoland@' + x.id];   // 다음에 그 탭을 열 때 새 보관본을 읽는다
     state.live = { json, updatedAt: Date.now(), updatedBy: c.user.email || c.user.uid };
     // 반영한 값이 곧 **새 기준**이다. 안 바꾸면 [isDirty] 가 아직 옛 원본과 비교해,
     // 방금 저장한 직후에도 "저장 안 됨" 으로 되돌아간다(배지는 다음 render 에서 다시 계산된다).
@@ -3210,18 +3808,20 @@ async function publish() {
     state.d.reach = undefined;        // 구버전 문서 · 정본도 바뀌었을 수 있다 — 대시보드가 다시 읽는다
     state.d.historyDiff = null;
     saveDraft();
-    markClean('라이브 반영됨');
+    markClean(side ? '저장됨' : '라이브 반영됨');
     render();
-    toast(c.historyDisabled
-      ? '라이브에 반영했습니다. 다만 발행 이력이 남지 않았습니다 — firestore.rules 를 배포하세요.'
-      : '라이브에 반영했습니다. 앱은 다음 조회부터 이 값을 읽습니다.');
+    toast(side ? `${side} 회차를 저장했습니다. 앱에는 나가지 않는 회차입니다.`
+      : c.historyDisabled
+        ? '라이브에 반영했습니다. 다만 발행 이력이 남지 않았습니다 — firestore.rules 를 배포하세요.'
+        : '라이브에 반영했습니다. 앱은 다음 조회부터 이 값을 읽습니다.'
+          + rescued.map((x) => ` 구버전 문서에 남아 있던 ${editionTab(x.id)} 회차는 보관본으로 옮겼습니다.`).join(''));
   } catch (e) {
-    toast('반영 실패: ' + (e.code === 'permission-denied' ? '쓰기 권한이 없습니다(uid 화이트리스트 확인).' : e.message));
+    toast((side ? '저장 실패: ' : '반영 실패: ') + (e.code === 'permission-denied' ? '쓰기 권한이 없습니다(uid 화이트리스트 확인).' : e.message));
     return;
   }
   // 라이브가 먼저다 — 앱에는 이미 나갔다. 정본은 그 뒤를 따라가고, 실패해도 반영을 되돌리지 않는다.
   const tail = await syncCanon(res, json);
-  if (tail) toast('라이브에 반영했습니다. ' + tail);
+  if (tail) toast((side ? `${side} 회차를 저장했습니다. ` : '라이브에 반영했습니다. ') + tail);
   if ((state.active === 'live' || state.active === 'publish') && state.res === res) render();
 }
 
@@ -3250,17 +3850,21 @@ function canonFiles(res, json) {
  *
  * 규칙: 정본에 있고 새 판에 **없는** 키는 정본 값을 남긴다. 새 판에 있는 키는 값이 비어 있어도 새 판이 이긴다 —
  * 비운 것은 편집이다(그래서 빈 목록으로 덮인 「지난 행사」까지 되살리지는 않는다). 객체는 한 겹 아래까지 같은 규칙.
+ * 회차를 넘길 때는 [commentsOnly] 로 주석만 물려받는다(publishEdition).
  */
-function mergeCanon(nextJson, curJson) {
+function mergeCanon(nextJson, curJson, { commentsOnly = false } = {}) {
   const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
   let next;
   let cur;
   try { next = JSON.parse(nextJson); cur = JSON.parse(curJson); } catch (e) { return nextJson; }
   if (!isObj(next) || !isObj(cur)) return nextJson;
+  // commentsOnly — **다른 회차**를 얹을 때다. 주석(_…)은 물려받되, 직전 회차의 값(배치도 map 같은 것)은 따라오면 안 된다.
+  const keep = (k) => !commentsOnly || k.startsWith('_');
+  const under = (c) => (commentsOnly ? Object.fromEntries(Object.entries(c).filter(([k]) => k.startsWith('_'))) : c);
   const out = {};
   for (const k of Object.keys(cur)) {   // 키 순서는 정본을 따른다 — 주석이 제 칸 위에 그대로 붙어 있게
-    if (!(k in next)) out[k] = cur[k];
-    else out[k] = isObj(next[k]) && isObj(cur[k]) ? { ...cur[k], ...next[k] } : next[k];
+    if (!(k in next)) { if (keep(k)) out[k] = cur[k]; }
+    else out[k] = isObj(next[k]) && isObj(cur[k]) ? { ...under(cur[k]), ...next[k] } : next[k];
   }
   for (const k of Object.keys(next)) if (!(k in out)) out[k] = next[k];
   return JSON.stringify(out, null, 2) + '\n';
@@ -3285,7 +3889,9 @@ async function syncCanon(res, json) {
   const g = window.gh;
   const at = new Date().toLocaleTimeString('ko-KR');
   try {
-    const r = await g.commit({ files: await canonFilesMerged(res, json), message: `chore: ${res.label} 정본 갱신 — 어드민 라이브 반영` });
+    const r = await g.commit({ files: await canonFilesMerged(res, json), message: res.editionId
+      ? `chore: 호요랜드 ${res.editionId} 회차 보관본 갱신 — 어드민 저장`
+      : `chore: ${res.label} 정본 갱신 — 어드민 라이브 반영` });
     docs[res.id].reach = undefined;
     ghState.canon[res.id] = r.unchanged
       ? { ok: true, text: `정본이 이미 같은 내용입니다 · ${at}` }
@@ -3637,6 +4243,7 @@ function kstStamp() {
 const commitsViaPr = (res) => !res.live;
 
 function defaultCommitMessage(res) {
+  if (res.editionId) return `chore: 호요랜드 ${res.editionId} 회차 보관본 갱신 — 어드민`;
   return res === VERSION
     ? `chore: version.json ${state.draft.versionName || '?'} (${state.draft.versionCode || 0}) — 어드민`
     : `chore: ${res.label} 정본 갱신 — 어드민`;
@@ -3791,7 +4398,11 @@ function render() {
   if (sec.parent) sec = findSection(sec.parent);   // 메뉴에서 합친 섹션은 합친 화면으로
   state.active = sec.id;
   // 「반영 · 이력」 화면에는 큰 「라이브에 반영」 버튼이 따로 있다 — 상단바의 것은 감춘다(시안).
-  document.getElementById('btn-publish').hidden = sec.type === 'publish';
+  // 앱에 나가지 않는 회차는 그 버튼이 「저장」이고, 큰 버튼이 따로 없으니 어느 화면에서나 남긴다.
+  const side = !!state.res.editionId;
+  const pubBtn = document.getElementById('btn-publish');
+  pubBtn.hidden = sec.type === 'publish' && !side;
+  pubBtn.textContent = side ? '저장' : '라이브 반영';
   document.getElementById('page-title').textContent = sec.label;
   document.getElementById('page-desc').textContent = sec.desc || '';
   document.getElementById('source-label').textContent = `${state.res.file} · ${state.d.source}`;
@@ -3799,6 +4410,8 @@ function render() {
   syncUndoButtons();
   const main = document.getElementById('main');
   main.replaceChildren();
+  // 호요랜드는 본문 위에 회차 탭이 선다(시안 안 A). 리소스 공통 화면(외부 API)에는 세우지 않는다.
+  if ((state.res.base || state.res) === HOYOLAND && !sec.global) main.append(renderEditionTabs());
   main.append(RENDERERS[sec.type](sec));
   window.scrollTo(0, 0);
 }
@@ -3807,6 +4420,7 @@ function renderNav() {
   const nav = document.getElementById('nav');
   nav.replaceChildren();
   const res = state.res;
+  const picked = res.base || res;   // 다른 회차를 보고 있어도 리소스는 호요랜드다
 
   // 리소스 선택기 — 한 칸으로 줄였다(시안). 예전엔 리소스 다섯이 목록으로 사이드바 절반을 차지했다.
   const picker = el('button', { type: 'button', class: 'res-picker', 'aria-haspopup': 'listbox', 'aria-expanded': 'false',
@@ -3815,18 +4429,18 @@ function renderNav() {
       el('strong', { text: res.label }),
       el('small', { text: `${res.hint} · ${RESOURCES.length}개 리소스 중` }),
     ]),
-    RESOURCES.some((r) => r.id !== res.id && isDirty(r.id)) ? el('span', { class: 'dot', title: '다른 리소스에 편집 중인 내용이 있습니다' }) : null,
+    RESOURCES.some((r) => r.id !== picked.id && isDirty(r.id)) ? el('span', { class: 'dot', title: '다른 리소스에 편집 중인 내용이 있습니다' }) : null,
     el('span', { class: 'gl-caret', 'aria-hidden': 'true' }),
   ]);
   picker.addEventListener('click', () => {
     if (isOpen(picker)) { closePop(); return; }
     const list = el('div', { class: 'gl-opts', role: 'listbox' }, RESOURCES.map((r) => el('div', {
-      class: 'gl-opt' + (r.id === res.id ? ' on' : ''), role: 'option', 'aria-selected': String(r.id === res.id),
+      class: 'gl-opt' + (r.id === picked.id ? ' on' : ''), role: 'option', 'aria-selected': String(r.id === picked.id),
       onclick: () => { closePop(); state.resource = r.id; state.active = 'dashboard'; setNav(false); render(); ensureLoaded(); },
     }, [
       el('span', { class: 'gl-opt-t' }, [el('span', { text: r.label }), el('small', { text: r.hint })]),
       isDirty(r.id) ? el('span', { class: 'pill warn', text: '편집 중' }) : null,
-      r.id === res.id ? el('span', { class: 'gl-check', text: '✓' }) : null,
+      r.id === picked.id ? el('span', { class: 'gl-check', text: '✓' }) : null,
     ])));
     openPop(picker, el('div', { class: 'gl-menu' }, [list]));
   });
@@ -3877,9 +4491,11 @@ function syncDirtyBadge() {
   const b = document.getElementById('dirty');
   const n = pendingCount();
   // 라이브를 알면 그것과 견주고, 모르면(라이브 없는 리소스 · 아직 못 읽음) 불러온 원본과 견준다.
-  const dirty = n === null ? state.dirty : n > 0;
+  // 앱에 나가지 않는 회차 — 회차 문서가 아직 없으면(구버전 문서에서 막 가져온 26년) 그것부터가 저장할 것이다.
+  const side = !!state.res.editionId;
+  const dirty = side && state.live === null ? true : n === null ? state.dirty : n > 0;
   b.className = 'badge ' + (dirty ? 'badge-dirty' : 'badge-clean');
-  b.textContent = !dirty ? '변경 없음' : n ? `반영 안 된 변경 ${n}건` : '저장 안 됨';
+  b.textContent = !dirty ? '변경 없음' : n ? `${side ? '저장' : '반영'} 안 된 변경 ${n}건` : '저장 안 됨';
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -3983,8 +4599,11 @@ function markClean(label) {
 function saveDraft() {
   try {
     const dump = {};
-    for (const r of RESOURCES) dump[r.id] = { draft: docs[r.id].draft, original: docs[r.id].original, source: docs[r.id].source };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ docs: dump, at: Date.now() }));
+    for (const id of Object.keys(docs)) dump[id] = { draft: docs[id].draft, original: docs[id].original, source: docs[id].source };
+    // 회차 목록도 같이 둔다 — `hoyoland` 자리의 초안이 **어느 회차의 것인지**가 여기에 달려 있다(applyEditions).
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      docs: dump, at: Date.now(), editions: { published: editions.published, editions: editions.ids, archived: editions.archived },
+    }));
   } catch (e) { /* 용량 초과 등 — 초안 보관은 편의 기능이라 실패해도 편집을 막지 않는다 */ }
 }
 
@@ -4003,9 +4622,13 @@ async function loadRemote() {
   try {
     const { raw, label } = await pullResource(res);
     setData(raw, label);
-    toast(label.startsWith('라이브')
-      ? '라이브 값을 불러왔습니다 — 앱이 지금 보는 값입니다.'
-      : `${res.file} 정본을 불러왔습니다.`);
+    toast(res.editionId
+      ? (label.startsWith('빈 회차') ? `${editionTab(res.editionId)} 회차 문서가 아직 없어 빈 회차로 엽니다.`
+        : label.includes('저장 전') ? `${editionTab(res.editionId)} 회차를 구버전 문서에서 가져왔습니다 — 「저장」을 누르면 이 회차의 보관본이 만들어집니다.`
+        : `${editionTab(res.editionId)} 회차를 불러왔습니다 — 앱에 나가지 않는 회차입니다.`)
+      : label.startsWith('라이브')
+        ? '라이브 값을 불러왔습니다 — 앱이 지금 보는 값입니다.'
+        : `${res.file} 정본을 불러왔습니다.`);
   } catch (e) { toast('불러오지 못했습니다: ' + e.message); }
 }
 
@@ -4474,6 +5097,78 @@ function selftest() {
     assert(Object.keys(out).join() === '_comment,edition,_t,ticket,map,past,notice', '키 순서가 정본을 따르지 않는다');
     assert(mergeCanon('{깨진', cur) === '{깨진', '깨진 JSON 을 건드렸다');
   });
+  // ── 호요랜드 회차 ──
+  check('행사명 끝의 연도가 회차 ID · 탭 이름이 된다', () => {
+    assert(editionYear('호요랜드 2028') === '2028' && editionYear(' HOYOLAND 2029 ') === '2029', '끝의 연도를 못 읽는다');
+    assert(editionYear('호요랜드') === '' && editionYear('호요랜드 2024 (첫 개최)') === '' && editionYear('2028 호요랜드') === '', '끝이 연도가 아닌데 읽었다');
+    assert(editionTab('2028') === '28년', '탭 이름이 다르다');
+  });
+  check('숫자로 끝나는 말에도 조사가 맞는다', () => {
+    assert(josaRo('2028') === '2028로' && josaRo('2026') === '2026으로' && josaRo('2030') === '2030으로' && josaRo('27년') === '27년으로', '로/으로');
+    assert(josaRo('기본 정보') === '기본 정보로' && josaRo('굿즈샵') === '굿즈샵으로' && josaRo('무대 시간표') === '무대 시간표로', '한글 로/으로가 바뀌었다');
+    assert(josaEun('호요랜드 2027') === '은' && josaEun('호요랜드 2029') === '는' && josaEul('호요랜드 2028') === '을' && josaEul('호요랜드 2025') === '를', '은/는 · 을/를');
+    assert(roOf('호요랜드 2028') === '로' && roOf('호요랜드 2026') === '으로', '조사만 떼지 못한다');
+  });
+  check('게시 중인 회차만 앱이 읽는 자리를 쓴다', () => {
+    const keep = { published: editions.published, editions: [...editions.ids], archived: [...editions.archived] };
+    try {
+      applyEditions({ published: '2027', editions: ['2027', '2026', '2028'], archived: ['2026', '2027', '1999'] }, 'test');
+      assert(editions.ids.join() === '2026,2027,2028', '탭이 연도순이 아니다');
+      assert(editions.archived.join() === '2026', '게시 중인 회차 · 없는 회차가 보관에 섞였다');
+      assert(editionRes('2027') === HOYOLAND && byId('hoyoland') === HOYOLAND, '게시 중인 회차가 HOYOLAND 가 아니다');
+      const side = editionRes('2026');
+      assert(side.doc === 'hoyolandEdition2026' && side.file === 'config/hoyoland_editions/2026.json', '보관 회차의 자리가 다르다');
+      assert(side.doc !== HOYOLAND.doc && side.doc !== HOYOLAND.legacy.doc, '보관 회차가 앱이 읽는 문서에 쓴다');
+      assert(side.legacy === null && legacyMirror(side, JSON.stringify({ startYmd: '2026-10-02', endYmd: '2026-10-05' })) === null, '보관 회차가 구버전 문서를 건드린다');
+      assert(canonFiles(side, JSON.stringify({ startYmd: '2026-10-02', endYmd: '2026-10-05' })).map((f) => f.path).join() === 'config/hoyoland_editions/2026.json', '보관 회차의 정본이 앱이 읽는 파일에 닿는다');
+      assert(byId('hoyoland@2026') === side && editionRes('2026') === side, '같은 회차가 다른 객체로 나온다');
+      assert(editionState('2027') === 'live' && editionState('2026') === 'archived' && editionState('2028') === 'draft', '회차 상태가 다르다');
+      assert(side.validate && side.normalize({}).ticket.status === 'undecided', '회차 리소스가 스키마를 물려받지 못했다');
+    } finally { applyEditions(keep, 'test'); }
+  });
+  check('못 믿을 회차 목록은 받아들이지 않는다', () => {
+    const before = editionIndexJson();
+    for (const bad of [null, {}, { published: '2030', editions: ['2026', '2027'] }, { published: '2027', editions: 'x' }, { published: '27', editions: ['27'] }]) {
+      applyEditions(bad, 'test');
+      assert(editionIndexJson() === before, '망가진 목록을 받아들였다: ' + JSON.stringify(bad));
+    }
+    const idx = JSON.parse(before);
+    assert(idx.published === editions.published && Array.isArray(idx.editions) && Array.isArray(idx.archived), '목록 JSON 의 꼴이 다르다');
+  });
+  check('회차 요약 — 지난 행사 한 줄', () => {
+    const d = HOYOLAND.normalize({
+      edition: '호요랜드 2026', startYmd: '2026-10-02', endYmd: '2026-10-05', venueName: '일산 킨텍스 제2전시장', venueHall: '7·8홀',
+      ticket: { status: 'sold_out', priceLabel: '30,000원' }, entryGroups: [{ name: 'A' }, { name: 'B' }, { name: 'F' }],
+      lineup: [{ game: '원신' }, { game: '붕괴: 스타레일' }, { game: '젠레스 존 제로' }],
+    });
+    const sum = editionSummary(d);
+    assert(sum.title === '호요랜드 2026', '이름이 다르다');
+    assert(JSON.stringify(sum.facts) === JSON.stringify([
+      { label: '기간', value: '2026.10.2 ~ 10.5 (4일)' }, { label: '장소', value: '일산 킨텍스 제2전시장 7·8홀' },
+      { label: '티켓', value: '30,000원 · 매진 · 조별 입장(A~F)' }, { label: '참여 IP', value: '원신 · 스타레일 · 젠레스' },
+    ]), '요약이 다르다: ' + JSON.stringify(sum.facts));
+    // 일정 미정으로 끝난 회차는 이름만 남는다 — 빈 항목을 만들지 않는다.
+    assert(editionSummary(HOYOLAND.normalize({ edition: '호요랜드 2027' })).facts.length === 0, '빈 회차에 항목이 생겼다');
+  });
+  check('지난 행사 맨 앞에 직전 회차를 세우되 손본 줄은 지킨다', () => {
+    const prev = HOYOLAND.normalize({ edition: '호요랜드 2027', startYmd: '2027-10-01', endYmd: '2027-10-03', venueName: '코엑스' });
+    const fresh = withPastHead({ past: [{ title: '호요랜드 2026', facts: [] }] }, prev);
+    assert(fresh.past.map((p) => p.title).join() === '호요랜드 2027,호요랜드 2026' && fresh.past[0].facts.length === 2, '맨 앞에 서지 않았다');
+    const named = withPastHead({ past: [{ title: '호요랜드 2026', facts: [] }, { title: '호요랜드 2027', facts: [] }] }, prev);
+    assert(named.past.length === 2 && named.past[1].facts.length === 2, '이름만 있던 줄을 채우지 않았거나 한 줄 더 만들었다');
+    const edited = withPastHead({ past: [{ title: '호요랜드 2027', facts: [{ label: '기간', value: '손으로 고침' }] }] }, prev);
+    assert(edited.past.length === 1 && edited.past[0].facts[0].value === '손으로 고침', '손으로 고친 줄을 덮었다');
+    assert(withPastHead({ past: [] }, HOYOLAND.normalize({})).past.length === 0, '이름 없는 회차를 세웠다');
+  });
+  check('회차를 넘길 때 정본은 주석만 물려받는다', () => {
+    const cur = JSON.stringify({ _comment: '설명', edition: '호요랜드 2027', _t: '예매 설명', ticket: { _note: '주석', status: 'sold_out', appPackage: 'kr.x' }, map: { zones: [1] }, past: [] });
+    const next = JSON.stringify({ edition: '호요랜드 2028', ticket: { status: 'undecided' }, past: [{ title: '호요랜드 2027' }] });
+    const out = JSON.parse(mergeCanon(next, cur, { commentsOnly: true }));
+    assert(out._comment === '설명' && out._t === '예매 설명' && out.ticket._note === '주석', '주석을 지웠다');
+    assert(!('map' in out) && !('appPackage' in out.ticket), '직전 회차의 값이 새 회차로 넘어왔다');
+    assert(out.edition === '호요랜드 2028' && out.past.length === 1, '새 회차의 값이 얹히지 않았다');
+    assert(Object.keys(out).join() === '_comment,edition,_t,ticket,past', '키 순서가 정본을 따르지 않는다');
+  });
   check('GitHub 브릿지가 앱이 읽는 가지에 쓴다', () => {
     assert(window.gh && typeof window.gh.commit === 'function', 'github.js 가 로드되지 않았다');
     assert(REPO_RAW.endsWith(`/${window.gh.owner}/${window.gh.repo}/${window.gh.branch}/`), 'REPO_RAW 와 다른 저장소 · 가지에 쓴다');
@@ -4757,7 +5452,7 @@ function init() {
     e.target.value = '';
   };
   window.addEventListener('beforeunload', (e) => {
-    if (RESOURCES.some((r) => isDirty(r.id))) e.preventDefault();
+    if (Object.keys(docs).some((id) => isDirty(id))) e.preventDefault();
   });
 
   // 모바일에서는 상단바에 자리가 없어 "불러오기" 가 드로어 아래로 내려간다(.nav-only).
@@ -4797,16 +5492,21 @@ function init() {
     // 라이브 상태는 로그인·초안과 무관하게 늘 먼저 채운다(공개 읽기). 덮어쓰기인 syncAll 과
     // 갈라 둔 이유는 syncLiveStatus 주석 참고 — 예전엔 초안이 있으면 상태까지 같이 빠졌다.
     syncLiveStatus();
+    // 회차 목록 — 처음엔 정본(또는 내장값)으로 떴다. 클라우드가 붙으면 라이브 목록으로 한 번 맞춘다.
+    if (c.available && editions.from !== 'live' && !editionsAsked) { editionsAsked = true; loadEditions(); }
     if (isOperator(c.user)) syncAll();
     else liveSynced = false;   // 로그아웃하면 다음 로그인에 다시 맞춘다
   };
 
   const saved = loadDraft();
   if (saved) {
-    for (const r of RESOURCES) {
-      const s = saved.docs[r.id];
-      if (!s) continue;
-      docs[r.id] = restoredDoc(docs[r.id], s, r);
+    // 회차 목록부터 — 초안의 `hoyoland` 자리가 어느 회차였는지 알아야 다른 회차의 초안을 제자리에 얹는다.
+    if (saved.editions) applyEditions(saved.editions, 'draft');
+    for (const id of Object.keys(saved.docs)) {
+      const r = byId(id);
+      const s = saved.docs[id];
+      if (!r || !s || r.id !== id) continue;   // 그사이 게시 중이 된 회차의 옛 자리(hoyoland@…)는 버린다
+      docs[id] = restoredDoc(docs[id] || newDoc(r), s, r);
     }
     render();
     toast(`로컬 초안을 복원했습니다 · ${new Date(saved.at).toLocaleString('ko-KR')}`);
@@ -4814,6 +5514,7 @@ function init() {
     render();
     loadRemote();
   }
+  loadEditions();
 }
 
 /**
