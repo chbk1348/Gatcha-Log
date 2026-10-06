@@ -2589,7 +2589,8 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                             )
                         }
                     } else {
-                        Text(block.text, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 19.sp)
+                        // 안내 문단도 여러 줄 글이다 — 줄바꿈 · 목록 줄을 다른 화면과 같이 그린다(10/6).
+                        HoyolandListText(block.text, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 19.sp)
                     }
                     // 메뉴는 **헤어라인으로 나눈 목록**이다(10/1) — 회색 메뉴판 면을 걷었다. 첫 줄 위에도 헤어라인을
                     // 그어 소제목·안내 문장과 "어디서부터 파는 것인가" 의 경계를 남긴다.
@@ -2635,7 +2636,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                                     }
                                     if (row.sub.isNotBlank()) {
                                         Spacer(Modifier.height(3.dp))
-                                        Text(row.sub, fontSize = 12.5.sp, color = TextThird, lineHeight = 17.sp)
+                                        HoyolandListText(row.sub, fontSize = 12.5.sp, color = TextThird, lineHeight = 17.sp)
                                     }
                                 }
                             }
@@ -2673,16 +2674,22 @@ private fun parseFoodBlocks(desc: String): List<FoodBlock> {
             buffer.clear()
         }
     }
-    desc.split("\n").forEach { raw ->
-        val indented = raw.isNotBlank() && (raw.startsWith("  ") || raw.startsWith("\t"))
+    val lines = desc.split("\n")
+    fun isIndented(raw: String) = raw.isNotBlank() && (raw.startsWith("  ") || raw.startsWith("\t"))
+    // 빈 줄을 지났는가 — 이어 적은 문장(줄바꿈)과 따로 적은 문단을 가른다.
+    var gap = false
+    lines.forEachIndexed { i, raw ->
+        val indented = isIndented(raw)
         val line = raw.trim()
         when {
-            line.isEmpty() -> Unit
+            line.isEmpty() -> gap = true
             // 들여쓴 줄은 **바로 위 메뉴의 부연**이다(리딤코드처럼 `·` 가 붙어 있어도 마찬가지).
+            // 부연이 여러 줄이면 **줄바꿈 그대로** 잇는다(10/6) — 어드민의 「음식 설명」 칸에서 나눈 줄이다.
+            // 띄어쓰기로 이어 붙이던 때는 두 줄로 적은 설명이 한 줄로 뭉쳤다.
             indented && buffer.isNotEmpty() -> {
                 val last = buffer.removeAt(buffer.lastIndex)
-                val sub = line.removePrefix("· ")
-                buffer.add(last.copy(sub = if (last.sub.isBlank()) sub else "${last.sub} $sub"))
+                // 목록 머리(「· 」)는 지우지 않는다 — 설명 안에 적은 목록이 목록으로 선다([HoyolandListText]).
+                buffer.add(last.copy(sub = if (last.sub.isBlank()) line else "${last.sub}\n$line"))
             }
             line.startsWith("· ") -> {
                 val item = line.removePrefix("· ")
@@ -2697,9 +2704,17 @@ private fun parseFoodBlocks(desc: String): List<FoodBlock> {
             }
             else -> {
                 flush()
-                blocks.add(FoodBlock.Para(line))
+                // 빈 줄 없이 이어 적은 문장은 **한 문단**이다(10/6) — 줄마다 문단으로 끊으면 두 줄짜리 안내가
+                // 문단 간격만큼 벌어진다. 다만 바로 아래가 메뉴인 줄은 가게 이름이라 따로 선다(어드민
+                // `foodRowsFromPrograms` 와 같은 규칙).
+                val next = lines.drop(i + 1).firstOrNull { it.isNotBlank() }
+                val isShop = next != null && !isIndented(next) && next.trim().startsWith("· ")
+                val prev = blocks.lastOrNull()
+                if (prev is FoodBlock.Para && !gap && !isShop) blocks[blocks.lastIndex] = FoodBlock.Para("${prev.text}\n$line")
+                else blocks.add(FoodBlock.Para(line))
             }
         }
+        if (line.isNotEmpty()) gap = false
     }
     flush()
     return blocks

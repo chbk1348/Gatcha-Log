@@ -43,15 +43,23 @@ func hoyolandFoodBlocks(_ desc: String) -> [HoyolandFoodBlock] {
             buffer.removeAll()
         }
     }
-    for raw in desc.components(separatedBy: "\n") {
-        let indented = !raw.trimmingCharacters(in: .whitespaces).isEmpty
-            && (raw.hasPrefix("  ") || raw.hasPrefix("\t"))
+    let lines = desc.components(separatedBy: "\n")
+    func isIndented(_ raw: String) -> Bool {
+        !raw.trimmingCharacters(in: .whitespaces).isEmpty && (raw.hasPrefix("  ") || raw.hasPrefix("\t"))
+    }
+    // 빈 줄을 지났는가 — 이어 적은 문장(줄바꿈)과 따로 적은 문단을 가른다.
+    var gap = false
+    for (i, raw) in lines.enumerated() {
+        let indented = isIndented(raw)
         let line = raw.trimmingCharacters(in: .whitespaces)
-        if line.isEmpty { continue }
+        if line.isEmpty { gap = true; continue }
+        defer { gap = false }
         if indented, !buffer.isEmpty {
+            // 부연이 여러 줄이면 **줄바꿈 그대로** 잇는다(10/6) — 어드민의 「음식 설명」 칸에서 나눈 줄이다.
+            // 띄어쓰기로 이어 붙이던 때는 두 줄로 적은 설명이 한 줄로 뭉쳤다. (Android `parseFoodBlocks` 와 같다)
             var last = buffer.removeLast()
-            let sub = line.hasPrefix("· ") ? String(line.dropFirst(2)) : line
-            last.sub = last.sub.isEmpty ? sub : "\(last.sub) \(sub)"
+            // 목록 머리(「· 」)는 지우지 않는다 — 설명 안에 적은 목록이 목록으로 선다(`HoyolandListText`).
+            last.sub = last.sub.isEmpty ? line : "\(last.sub)\n\(line)"
             buffer.append(last)
         } else if line.hasPrefix("· ") {
             let item = String(line.dropFirst(2))
@@ -64,7 +72,15 @@ func hoyolandFoodBlocks(_ desc: String) -> [HoyolandFoodBlock] {
             }
         } else {
             flush()
-            blocks.append(.para(line))
+            // 빈 줄 없이 이어 적은 문장은 **한 문단**이다(10/6) — 줄마다 문단으로 끊으면 두 줄짜리 안내가 문단 간격만큼
+            // 벌어진다. 다만 바로 아래가 메뉴인 줄은 가게 이름이라 따로 선다(어드민 `foodRowsFromPrograms` 와 같은 규칙).
+            let next = lines[(i + 1)...].first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let isShop = next.map { !isIndented($0) && $0.trimmingCharacters(in: .whitespaces).hasPrefix("· ") } ?? false
+            if !gap, !isShop, case .para(let prev)? = blocks.last {
+                blocks[blocks.count - 1] = .para("\(prev)\n\(line)")
+            } else {
+                blocks.append(.para(line))
+            }
         }
     }
     flush()
@@ -224,10 +240,9 @@ struct HoyolandFoodView: View {
                                 Spacer(minLength: 0)
                             }
                         } else {
-                            Text(text).font(.pretendard(size: 12.5))
+                            // 안내 문단도 여러 줄 글이다 — 줄바꿈 · 목록 줄을 다른 화면과 같이 그린다(10/6).
+                            HoyolandListText(text: text, size: 12.5, lineSpacing: 4)
                                 .foregroundStyle(GLGColor.textSecondary)
-                                .lineSpacing(4)
-                                .fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     case .menu(let rows):
@@ -266,10 +281,8 @@ struct HoyolandFoodView: View {
                                             }
                                         }
                                         if !row.sub.isEmpty {
-                                            Text(row.sub).font(.pretendard(size: 12.5))
+                                            HoyolandListText(text: row.sub, size: 12.5, lineSpacing: 3)
                                                 .foregroundStyle(GLGFoodTextThird)
-                                                .lineSpacing(3)
-                                                .fixedSize(horizontal: false, vertical: true)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
