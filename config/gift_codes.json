@@ -1,0 +1,5 @@
+{
+  "_note": "리딤코드 보정 — 자동 수집(hoyo-codes)에 덧댄다. codes = 직접 넣는 코드(game = genshin | hsr | zzz, rewards 는 적은 그대로 노출, end = KST yyyy-MM-dd HH:mm 이 지나면 자동으로 빠짐 · 빈 칸은 내릴 때까지). hidden = 전 사용자 목록에서 뺄 코드.",
+  "codes": [],
+  "hidden": []
+}

@@ -15,6 +15,8 @@ struct HomeView: View {
     /// 호요랜드 상세 — **홈에서 바로 연다.** 예전엔 게임정보 탭으로 옮긴 뒤 그 탭의 앵커가
     /// 상세를 열어, 한 번 탭에 화면이 두 번 바뀌었다(탭 전환이 눈에 보였다).
     @State private var showHoyoland = false
+    /// 운영 공지 — 어드민이 올린 것. 첫 프레임은 받아 둔 값으로 서고, 돌아올 때마다 다시 묻는다(`AppNoticeAutoLoad`).
+    @State private var notices: [AppNotice] = AppNoticeApi.shared.current
 
     @Environment(\.horizontalSizeClass) private var hSizeClass
 
@@ -128,6 +130,11 @@ struct HomeView: View {
                 TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
                     .padding(.bottom, 8)
             }
+            // 운영 공지 — 기간이 지나면 스스로 빠진다(AppNoticeApi). 아래 8 은 다음 배너 · 묶음 머리와의 간격(Android 와 같다).
+            ForEach(Array(notices.enumerated()), id: \.offset) { _, notice in
+                AppNoticeBanner(notice: notice)
+                    .padding(.bottom, 8)
+            }
             // ── 지출 ──
             groupHeader("지출", "\(Calendar.current.component(.month, from: Date()))월", top: 4)
             homeSection {
@@ -153,6 +160,7 @@ struct HomeView: View {
         }
         .padding(.top, topInset)
         .glgReadableWidth(640)
+        .modifier(AppNoticeAutoLoad(notices: $notices))
     }
 
     /// 묶음 머리 — 이름 22 Black + 보조 12 회색. 위 `top`(첫 묶음 4 · 띠 다음 26) · 좌우 20.

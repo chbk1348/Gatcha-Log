@@ -1,0 +1,4 @@
+{
+  "_note": "앱 공지 — 홈 맨 위 배너. level = info | warn | urgent, platform = all | android | ios(빈 칸은 all). start/end = KST(Asia/Seoul) yyyy-MM-dd HH:mm, 빈 칸은 각각 지금부터 · 내릴 때까지. url 이 있으면 버튼이 붙고 글자는 cta(빈 칸은 자세히). notices 를 빈 배열로 두면 공지가 뜨지 않습니다.",
+  "notices": []
+}
