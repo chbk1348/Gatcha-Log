@@ -246,7 +246,8 @@ a.badge { text-decoration: none; cursor: pointer; }
 
 /* ── 본문 ─────────────────────────────────────────── */
 #main {
-  grid-area: main; overflow-x: hidden; min-width: 0;
+  /* clip — hidden 은 #main 을 스크롤 상자로 만들어 안쪽 sticky(「앱에서 보이는 모습」)가 창 스크롤을 못 따라갔다(10/7). */
+  grid-area: main; overflow-x: clip; min-width: 0;
   padding: 0 0 calc(40px + env(safe-area-inset-bottom, 0px));
 }
 .muted { color: var(--muted); }
