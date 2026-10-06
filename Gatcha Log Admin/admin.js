@@ -681,8 +681,9 @@ const HOYOLAND = {
   // 시안의 건수는 날짜 수가 아니라 슬롯 수다(34).
   by.days.count = (d) => d.days.reduce((a, x) => a + x.slots.length, 0);
   const groups = [
-    ['행사', [by.meta, by.ticket, by.entryGroups, by.lineup]],
-    ['현장', [by.days, by.goods, by.food, by.booths, by.diy, by.programs]],
+    // 입장 특전은 예매 바로 아래 — 앱 섹션 순서와 같다(10/6).
+    ['행사', [by.meta, by.ticket, by.perks, by.entryGroups, by.lineup]],
+    ['현장', [by.days, by.goods, by.food, by.booths, by.diy]],
     ['기록', [by.past]],
   ];
   HOYOLAND.sections = groups.flatMap(([g, list]) => list.map((x) => Object.assign(x, { group: g })));
@@ -5224,9 +5225,11 @@ function selftest() {
     assert(say('booths[0].price') === '부스 체험/사격/참가비(원)', '부스 경로가 틀렸다: ' + say('booths[0].price'));
   });
 
-  check('호요랜드 메뉴에 기본 정보 · 예매 · 굿즈샵 · 푸드존 · DIY 가 따로 선다', () => {
+  check('호요랜드 메뉴에 기본 정보 · 예매 · 입장 특전 · 굿즈샵 · 푸드존 · DIY 가 따로 선다', () => {
     const menu = HOYOLAND.sections.filter((x) => !x.hidden).map((x) => x.label).join(' / ');
-    assert(menu === '기본 정보 / 예매 / 입장 조 / 참여 게임 / 무대 시간표 / 굿즈샵 / 푸드존 / 부스 체험 / DIY / 프로그램 / 지난 행사', '메뉴가 다르다: ' + menu);
+    // 메뉴 묶음이 없는 탭을 가리키면 어드민이 통째로 빈 화면이 된다(10/6, 「프로그램」 탭을 걷고 겪었다).
+    assert(HOYOLAND.sections.every(Boolean), '메뉴 묶음에 없는 탭이 있다');
+    assert(menu === '기본 정보 / 예매 / 입장 특전 / 입장 조 / 참여 게임 / 무대 시간표 / 굿즈샵 / 푸드존 / 부스 체험 / DIY / 지난 행사', '메뉴가 다르다: ' + menu);
   });
 
   check('통째로 들고 나는 행은 열 이름을 붙여 읽힌다', () => {
