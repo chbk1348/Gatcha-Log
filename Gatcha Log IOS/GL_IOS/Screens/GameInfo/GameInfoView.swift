@@ -12,6 +12,8 @@ struct GameInfoView: View {
     @State private var showHoyolab = false
     @State private var showGift = false
     @State private var showDashboard = false
+    /// 상세 대시보드를 연 게임 — 리포트에서 누른 게임 블록의 키.
+    @State private var dashboardGame: String? = nil
     // 페이지로 분류된 섹션(계산기·리포트·프로필) — 진입 카드 탭 시 푸시.
     @State private var showReport = false
     @State private var showSchedule = false
@@ -66,11 +68,11 @@ struct GameInfoView: View {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
         .navigationDestination(isPresented: $showReport) {
-            sectionPage("가챠 효율 리포트", flat: true) { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) }
+            sectionPage("가챠 효율 리포트", flat: true) { GachaReportSection(store: store, onOpenDashboard: { dashboardGame = $0; showDashboard = true }) }
                 // 상세 대시보드는 **리포트의 하위 페이지**다 — 리포트 위에 쌓는다.
                 // 예전엔 리포트와 나란히 이 화면 뿌리에 걸려 있어, 리포트를 띄운 채 열면 리포트가 대시보드로
                 // 갈아 끼워졌다: 밀려 들어오는 애니메이션이 없고 뒤로가면 게임 정보 첫 화면까지 빠졌다(10/6). (Android 와 같다)
-                .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
+                .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store, initialGame: dashboardGame) }
         }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store) }

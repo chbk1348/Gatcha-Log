@@ -6,7 +6,9 @@ struct GachaDashboardView: View {
     var store: SpendingStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
-    @State private var selected: String? = nil
+    /// 보여 줄 게임 — 리포트에서 누른 게임 블록. 없거나 기록에 없는 게임이면 첫 게임.
+    /// 게임은 리포트에서 고르고 들어온다 — 여기서 바꾸는 칩은 걷었다(10/6). 어느 게임인지는 제목이 말한다. (Android 와 같다)
+    var initialGame: String? = nil
 
     private let gold = Color(hex: 0xFFF5B301)
     private let purple = Color(hex: 0xFF9C6ADE)
@@ -17,7 +19,10 @@ struct GachaDashboardView: View {
         let order = GachaReport.shared.gameOrder
         return d.byGame.keys.sorted { (order.firstIndex(of: $0) ?? 99) < (order.firstIndex(of: $1) ?? 99) }
     }
-    private var sel: String? { selected ?? games.first }
+    private var sel: String? {
+        if let s = initialGame, games.contains(s) { return s }
+        return games.first
+    }
 
     var body: some View {
         Group {
@@ -32,7 +37,7 @@ struct GachaDashboardView: View {
         }
         // 카드 없이 흰 바탕(10/1) — 섹션이 스스로 좌우 20, 섹션 사이는 GiBand. (Android 와 같다)
         .background(Color.white)
-        .glgPageTitle("가챠 통계")
+        .glgPageTitle(sel.map { "\(gachaGameInfo($0).short) 가챠 통계" } ?? "가챠 통계")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -42,17 +47,8 @@ struct GachaDashboardView: View {
         let cost = (spend > 0 && d.five > 0) ? spend / Int64(d.five) : 0
         return ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // 게임 선택 칩 + 요약 — 페이지 맨 위 첫 섹션(위 띠 없음)
+                // 요약 — 페이지 맨 위 첫 섹션(위 띠 없음)
                 dashCard(0) {
-                    // 공통 칩 단일 규격 — 게임 선택, 선택색은 게임별 대표색.
-                    HStack(spacing: 8) {
-                        ForEach(games, id: \.self) { g in
-                            let gColor = GameData.shared.byNameOrNull(name: g).map { Color(argb64: $0.color) } ?? accent.primary
-                            GldsChip(label: gachaGameInfo(g).short, selected: g == sel, color: gColor) { selected = g }
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.bottom, 18)
                     // 지표는 타일 면 없이 값 15 굵게 · 라벨 12(10/1) — 지출 인사이트와 같은 규격.
                     HStack(spacing: 8) {
                         tile(num(Int(d.total)), "총 뽑기")

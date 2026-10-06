@@ -45,7 +45,8 @@ fun GachaReportSection(
     spendByGameKey: Map<String, Long>,
     onImport: (List<Uri>) -> Unit,
     onClear: () -> Unit,
-    onOpenDashboard: () -> Unit = {},
+    /** 상세 대시보드 열기 — 누른 줄의 게임 키를 넘긴다(대시보드가 그 게임으로 열린다). */
+    onOpenDashboard: (String) -> Unit = {},
 ) {
     val accent = LocalAccent.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -58,7 +59,7 @@ fun GachaReportSection(
     // 틀(SectionPage flat)이 좌우 0 을 주므로 좌우 20 은 섹션이 스스로 둔다. 첫 섹션 위엔 띠가 없다.
     val games = stats?.byGame?.keys?.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }.orEmpty()
     Column(Modifier.fillMaxWidth()) {
-        // 기록이 있으면 마지막이 대시보드 진입 줄(위아래 12)이라 아래 8 — 띠까지 눈에 20(10/1). 빈 상태는 맨 아래라 20.
+        // 게임 블록은 마지막이 대시보드 진입 줄(위아래 12)이라 아래 8 — 띠까지 눈에 20(10/1). 빈 상태는 맨 아래라 20.
         ReportSection(bottom = if (stats != null) 8.dp else 20.dp) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
@@ -73,15 +74,15 @@ fun GachaReportSection(
             if (stats == null) {
                 EmptyState(onImport = openPicker)
             } else {
-                // 첫 게임은 제목과 같은 섹션 — 대시보드 진입은 여기에만(기존과 같다).
-                games.firstOrNull()?.let { gk -> stats.byGame[gk]?.let { GameCard(gk, it, spendByGameKey[gk] ?: 0L, showDash = true, onOpenDashboard) } }
+                // 첫 게임은 제목과 같은 섹션.
+                games.firstOrNull()?.let { gk -> stats.byGame[gk]?.let { GameCard(gk, it, spendByGameKey[gk] ?: 0L) { onOpenDashboard(gk) } } }
             }
         }
         if (stats != null) {
             games.drop(1).forEach { gk ->
                 val g = stats.byGame[gk] ?: return@forEach
                 GiBand()
-                ReportSection { GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = false, onOpenDashboard) }
+                ReportSection(bottom = 8.dp) { GameCard(gk, g, spendByGameKey[gk] ?: 0L) { onOpenDashboard(gk) } }
             }
             GiBand()
             ReportSection { GldsButton("기록 추가 가져오기", onClick = openPicker, modifier = Modifier.fillMaxWidth()) }
@@ -125,11 +126,12 @@ private fun EmptyState(onImport: () -> Unit) {
     }
 }
 
-// design_gachareport_mockup.html(B) — 게임 블록: 배지+4통계+운분포 바+최근5성, 첫 블록에 대시보드 진입.
+// design_gachareport_mockup.html(B) — 게임 블록: 배지+4통계+운분포 바+최근5성, 맨 아래에 그 게임의 대시보드 진입.
+// 예전엔 첫 블록에만 진입 줄이 있어 둘째 게임부터는 대시보드로 가는 길이 화면 맨 위에만 있었다(10/6).
 // 카드 면은 걷었다(10/1) — 섹션(ReportSection) 안에 그대로 그린다.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolean, onOpenDashboard: () -> Unit) {
+private fun GameCard(gk: String, g: GachaGameStat, spend: Long, onOpenDashboard: () -> Unit) {
     val accent = LocalAccent.current
     val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
     val cost = if (spend > 0 && g.five > 0) spend / g.five else 0L
@@ -179,17 +181,15 @@ private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolea
                     g.recentFive.forEach { f -> ReportChip(f.name, f.pity) }
                 }
             }
-            // 대시보드 진입 (첫 블록) — 구분선은 헤어라인 #EEF0F2(10/1)
-            if (showDash) {
-                Spacer(Modifier.height(13.dp)); HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEF0F2))
-                Row(
-                    Modifier.fillMaxWidth().clickable { onOpenDashboard() }.padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("상세 대시보드 (월별·풀별 추이)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
-                    Spacer(Modifier.weight(1f))
-                    Icon(Icons.Default.ChevronRight, null, tint = accent, modifier = Modifier.size(16.dp))
-                }
+            // 대시보드 진입 (게임마다) — 구분선은 헤어라인 #EEF0F2(10/1)
+            Spacer(Modifier.height(13.dp)); HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEF0F2))
+            Row(
+                Modifier.fillMaxWidth().clickable { onOpenDashboard() }.padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("상세 대시보드 (월별·풀별 추이)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Default.ChevronRight, null, tint = accent, modifier = Modifier.size(16.dp))
             }
         }
     }

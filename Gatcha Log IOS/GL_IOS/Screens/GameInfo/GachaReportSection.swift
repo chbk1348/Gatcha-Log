@@ -5,7 +5,8 @@ import Shared
 // 가챠 효율 리포트 — UIGF/SRGF JSON 가져오기 + 게임별 단가·출현율·풀별·최근5성. (Compose GachaReportSection 대응)
 struct GachaReportSection: View {
     var store: SpendingStore
-    let onOpenDashboard: () -> Void
+    /// 상세 대시보드 열기 — 누른 줄의 게임 키를 넘긴다(대시보드가 그 게임으로 열린다).
+    let onOpenDashboard: (String) -> Void
     @Environment(\.glgAccent) private var accent
     @State private var importing = false
 
@@ -17,7 +18,7 @@ struct GachaReportSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             let games = sortedGames
-            // 기록이 있으면 마지막이 대시보드 진입 줄(위아래 12)이라 아래 8 — 띠까지 눈에 20(10/1). 빈 상태는 맨 아래라 20.
+            // 게임 블록은 마지막이 대시보드 진입 줄(위아래 12)이라 아래 8 — 띠까지 눈에 20(10/1). 빈 상태는 맨 아래라 20.
             reportSection(bottom: stats != nil ? 8 : 20) {
                 HStack {
                     Text("가챠 효율 리포트").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
@@ -30,8 +31,8 @@ struct GachaReportSection: View {
                 }
                 .padding(.bottom, 18)
                 if let s = stats {
-                    // 첫 게임은 제목과 같은 섹션 — 대시보드 진입은 여기에만(기존과 같다).
-                    if let gk = games.first, let g = s.byGame[gk] { gameCard(gk, g, showDash: true) }
+                    // 첫 게임은 제목과 같은 섹션.
+                    if let gk = games.first, let g = s.byGame[gk] { gameCard(gk, g) }
                 } else {
                     emptyState
                 }
@@ -40,7 +41,7 @@ struct GachaReportSection: View {
                 ForEach(Array(games.dropFirst()), id: \.self) { gk in
                     if let g = s.byGame[gk] {
                         GiBand()
-                        reportSection { gameCard(gk, g, showDash: false) }
+                        reportSection(bottom: 8) { gameCard(gk, g) }
                     }
                 }
                 GiBand()
@@ -88,7 +89,8 @@ struct GachaReportSection: View {
     }
 
     // 카드 면은 걷었다(10/1) — 섹션(reportSection) 안에 그대로 그린다.
-    private func gameCard(_ gk: String, _ g: GachaGameStat, showDash: Bool) -> some View {
+    // 맨 아래에 그 게임의 대시보드 진입 줄 — 예전엔 첫 블록에만 있었다(10/6). (Android 와 같다)
+    private func gameCard(_ gk: String, _ g: GachaGameStat) -> some View {
         let info = gachaGameInfo(gk)
         let sp = spend[gk] ?? 0
         let cost = (sp > 0 && g.five > 0) ? sp / Int64(g.five) : 0
@@ -147,18 +149,17 @@ struct GachaReportSection: View {
                         .background(Color(hex: 0xFFF3F4F8), in: Capsule())
                     }
                 }
-                // 대시보드 진입 (첫 블록) — 구분선은 헤어라인 #EEF0F2(10/1)
-                if showDash {
-                    Rectangle().fill(Color(hex: 0xFFEEF0F2)).frame(height: 1).padding(.top, 13)
-                    Button { onOpenDashboard() } label: {
-                        HStack {
-                            Text("상세 대시보드 (월별·풀별 추이)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
-                        }
-                        .padding(.vertical, 12)
-                    }.buttonStyle(.plain)
-                }
+                // 대시보드 진입 (게임마다) — 구분선은 헤어라인 #EEF0F2(10/1)
+                Rectangle().fill(Color(hex: 0xFFEEF0F2)).frame(height: 1).padding(.top, 13)
+                Button { onOpenDashboard(gk) } label: {
+                    HStack {
+                        Text("상세 대시보드 (월별·풀별 추이)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
+                    }
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }.buttonStyle(.plain)
             }
         }
     }

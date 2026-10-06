@@ -157,6 +157,8 @@ fun GameInfoScreen(
     // 공지 상세 — 대상 글과, 뒤로 갈 위치(섹션=Main, 전체목록=News)
     var newsItem by remember { mutableStateOf<NewsItem?>(null) }
     var newsReturn by remember { mutableStateOf(GiSub.Main) }
+    /** 상세 대시보드를 연 게임 — 리포트에서 누른 게임 블록의 키. */
+    var dashboardGame by remember { mutableStateOf<String?>(null) }
     // 호요랜드 상세 — 뒤로 갈 위치(섹션=Main, 일정 페이지=Schedule).
     // 늘 Main 으로 돌아가던 시절엔 일정 페이지에서 들어간 사람이 한 번의 뒤로가기로
     // 두 페이지를 건너뛰었다(일정 → 게임정보 메인).
@@ -291,6 +293,7 @@ fun GameInfoScreen(
                 dashboard = gachaDashboard,
                 spendByGameKey = gachaSpendByGame,
                 onBack = { subPage = GiSub.Report },
+                initialGame = dashboardGame,
             )
             GiSub.CharStats -> {
                 val c = statChar
@@ -333,7 +336,7 @@ fun GameInfoScreen(
                     spendByGameKey = gachaSpendByGame,
                     onImport = { uris -> scope.launch { viewModel.importGachaFromContents(SafIO.readTexts(context, uris)) } },
                     onClear = { viewModel.clearGachaRecords() },
-                    onOpenDashboard = { subPage = GiSub.Dashboard },
+                    onOpenDashboard = { gk -> dashboardGame = gk; subPage = GiSub.Dashboard },
                 )
             }
             GiSub.Gift -> GiftCodePage(
