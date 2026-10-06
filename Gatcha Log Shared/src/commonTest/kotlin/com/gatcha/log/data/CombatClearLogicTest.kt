@@ -117,4 +117,40 @@ class CombatClearLogicTest {
         )
         assertEquals(ClearSummary(4, 10, 2), CombatClearLogic.summary(moc))
     }
+
+    // ── 편성이 없는 모드(자리표) ──
+
+    private fun lineup(mode: String, current: Boolean) = CombatClear(
+        "젠레스 존 제로", mode, current = current,
+        rooms = listOf(CombatRoom(name = "4층", firstHalf = listOf(avatar(1)))),
+    )
+    private fun noRecord(mode: String, current: Boolean, note: String) =
+        CombatClear("젠레스 존 제로", mode, current = current, note = note)
+
+    @Test
+    fun `편성이 한 건도 없는 모드는 사라지지 않고 이번 기간 안내 한 줄로 남는다`() {
+        val clears = listOf(
+            noRecord("시유 방어전", current = false, note = "3층 통과"),
+            noRecord("시유 방어전", current = true, note = "4층 통과"),
+        )
+        val mode = CombatClearLogic.byMode(CombatClearLogic.grouped(clears)).single()
+        assertEquals("4층 통과", mode.emptyNote)
+        assertEquals(null, mode.previous)   // 빈 시즌 둘을 오가는 탭은 만들지 않는다
+        assertEquals(listOf("젠레스 존 제로"), CombatClearLogic.games(listOf(mode)))
+    }
+
+    @Test
+    fun `편성이 한 시즌이라도 있으면 빈 시즌 자리표는 버린다`() {
+        val clears = listOf(noRecord("시유 방어전", current = true, note = "이번 기간에는 도전하지 않았어요"), lineup("시유 방어전", current = false))
+        val mode = CombatClearLogic.byMode(clears).single()
+        assertEquals("", mode.emptyNote)
+        assertEquals(null, mode.current)        // 이번 시즌 미도전 → 화면은 지난 시즌을 바로 보인다
+        assertEquals(true, mode.hasPrevious)
+    }
+
+    @Test
+    fun `사유도 편성도 없는 기록은 버린다`() {
+        assertEquals(emptyList(), CombatClearLogic.byMode(listOf(CombatClear("젠레스 존 제로", "시유 방어전"))))
+        assertEquals(emptyList(), CombatClearLogic.grouped(listOf(CombatClear("젠레스 존 제로", "시유 방어전"))))
+    }
 }

@@ -122,7 +122,7 @@ private struct ModeCard: View {
         _expanded = State(initialValue: initiallyExpanded)
     }
 
-    private var hasCurrent: Bool { mode.current?.rooms.isEmpty == false }
+    private var hasCurrent: Bool { mode.current?.hasLineup == true }
     /// 이번 시즌 미도전이면 지난 시즌만 있다 — 그때는 토글 없이 지난 시즌을 보인다.
     private var usingPrevious: Bool { (showPrevious || !hasCurrent) && mode.hasPrevious }
     private var clear: CombatClear? { usingPrevious ? mode.previous : mode.current }
@@ -130,7 +130,17 @@ private struct ModeCard: View {
     // 카드 면을 걷었다(10/1) — 섹션 규격(좌우 20 · 위 22 · 아래 20). 접힘/펼침 · 누르는 자리는 그대로.
     var body: some View {
         Group {
-            if expanded, let clear {
+            if !mode.emptyNote.isEmpty {
+                // 편성이 한 건도 없는 모드 — 펼칠 것이 없으니 접기 없이 제목 + 안내 한 줄(10/6).
+                // 섹션 규격 그대로: 좌우 20 · 위 22 · 아래 20 · 제목 17 → 14 → 본문 14. (Android 와 같다)
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 8) { gameTag; modeTitle }
+                    Text(mode.emptyNote)
+                        .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+            } else if expanded, let clear {
                 VStack(alignment: .leading, spacing: 14) {
                     header
                     SeasonBody(

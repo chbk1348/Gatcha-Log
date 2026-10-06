@@ -186,6 +186,20 @@ private fun GameFilter(games: List<String>, selected: String?, onSelect: (String
 
 @Composable
 private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean, isLast: Boolean) {
+    // 편성이 한 건도 없는 모드 — 펼칠 것이 없으니 접기 없이 제목 + 안내 한 줄(10/6).
+    // 섹션 규격 그대로: 좌우 20 · 위 22 · 아래 20 · 제목 17 → 14 → 본문 14.
+    if (m.emptyNote.isNotEmpty()) {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GameTag(m)
+                Spacer(Modifier.width(8.dp))
+                ModeTitle(m.mode, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(m.emptyNote, fontSize = 14.sp, color = TextSecondary)
+        }
+        return
+    }
     var expanded by rememberSaveable(m.game, m.mode) { mutableStateOf(initiallyExpanded) }
     // 지역 변수로 받아야 스마트 캐스트가 된다(모듈이 달라 프로퍼티 직접 참조로는 안 된다).
     val current = m.current
