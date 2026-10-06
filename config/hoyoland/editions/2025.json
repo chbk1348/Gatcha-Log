@@ -1,0 +1,98 @@
+{
+  "edition": "호요랜드 2025",
+  "editionEn": "HOYOLAND 2025",
+  "startYmd": "2025-10-09",
+  "endYmd": "2025-10-12",
+  "venueName": "일산 킨텍스 제2전시장",
+  "venueHall": "9·10홀(실내) · 후면광장(야외)",
+  "venueAddress": "경기도 고양시 일산서구 킨텍스로 217-60",
+  "mapUrl": "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
+  "mapFallbackUrl": "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
+  "officialUrl": "",
+  "announceYmd": "",
+  "ticket": {
+    "status": "sold_out",
+    "vendor": "티켓링크",
+    "openLabel": "9월 22일(월) 19:00",
+    "openYmd": "2025-09-22",
+    "openHour": 19,
+    "priceLabel": "29,000원 (예매수수료 별도)",
+    "url": "",
+    "note": "",
+    "appPackage": "",
+    "appScheme": ""
+  },
+  "entryGroups": [],
+  "map": {},
+  "lineup": [
+    {
+      "game": "원신",
+      "theme": "나타가 부른다, 준비됐나?"
+    },
+    {
+      "game": "붕괴: 스타레일",
+      "theme": "이름 없는 기억의 축가"
+    },
+    {
+      "game": "젠레스 존 제로",
+      "theme": "뉴에리두 특별수행"
+    },
+    {
+      "game": "붕괴3rd",
+      "theme": "이상한 나라의 다과회",
+      "abbr": "HI3",
+      "colorArgb": "0xFF30C6E8"
+    },
+    {
+      "game": "미해결사건부",
+      "theme": "달콤달콤 메모리",
+      "abbr": "ToT",
+      "colorArgb": "0xFFE0557B"
+    }
+  ],
+  "programs": [
+    {
+      "title": "원신",
+      "desc": "· 파도수련 · 명중수련 체험"
+    },
+    {
+      "title": "붕괴: 스타레일",
+      "desc": "· 레이저 미션\n· OST 퀴즈"
+    },
+    {
+      "title": "젠레스 존 제로",
+      "desc": "· 미니게임 「달려라 BANGBOO!」"
+    },
+    {
+      "title": "붕괴3rd",
+      "desc": "· 동화 속 다과회 콘셉트의 야외 부스(후면광장)\n· 입장권은 윗치폼에서 따로 팔았어요",
+      "deadline": "별도 입장권 9.23(화) 19:00 판매 시작"
+    },
+    {
+      "title": "미해결사건부",
+      "desc": "· 3m 크기 풍선 인형(후면광장)"
+    },
+    {
+      "title": "메인 무대",
+      "desc": "· 원신 라이브 인 티바트 무지갯빛 투어 호요랜드 편\n· 선율이 흐르는 음악회\n· Star Symphony at 호요랜드\n   붕괴: 스타레일 OST 참여 가수 Chevy · NIDA\n· 코스프레 런웨이\n   진행 도티 · 샘웨 · 레나\n· 일러스트 퀴즈쇼"
+    },
+    {
+      "title": "웰컴 키트",
+      "desc": "예매할 때 고른 게임의 것을 받았어요.\n· 고른 게임의 한정 굿즈 1종\n   원신 2026 달력 · 붕괴: 스타레일 티셔츠 · 젠레스 존 제로 누들스토퍼\n· 그 게임의 리딤코드\n· 홀로그램 티켓\n· 행사 리플릿\n· 갤럭시 스토어 쿠폰\n· 부직포백"
+    },
+    {
+      "title": "부대 시설",
+      "desc": "· 굿즈존\n· 푸드존\n· 창작전시존 & DIY존"
+    },
+    {
+      "title": "파트너사 부스",
+      "desc": "· 갤럭시 스토어\n   갤럭시 AI존을 따로 운영\n· 플레이스테이션\n· 맘스피자\n   야외 · 붕괴: 스타레일 콜라보 메뉴"
+    }
+  ],
+  "notice": "",
+  "days": [],
+  "goods": [],
+  "goodsGuide": "",
+  "booths": [],
+  "past": []
+}
