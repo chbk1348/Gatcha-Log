@@ -182,6 +182,19 @@ class HoyolandPhaseTest {
     }
 
     @Test
+    fun 상단_한_줄은_공지_문구가_자동_문구를_대신한다() {
+        val tba = HoyolandDefaults.event
+        // 공지가 비면 일정 미정의 자동 문구.
+        assertEquals(tba.nextEditionNotice, tba.topNotice(at("2026-10-06")))
+        // 공지를 적으면 그것만 — 비슷한 말이 두 번 나오지 않는다.
+        assertEquals("다음 호요랜드를 기대해주세요!", tba.copy(notice = "  다음 호요랜드를 기대해주세요!  ").topNotice(at("2026-10-06")))
+        // 날짜가 잡힌 회차는 자동 문구가 없다 — 공지를 적었을 때만 선다.
+        assertEquals("", e.topNotice(at("2026-09-16")))
+        assertEquals("", e.topNotice(at("2026-10-06")), "종료에도 자동 문구는 없다")
+        assertEquals("우천 시 야외 무대는 실내로 옮깁니다", e.copy(notice = "우천 시 야외 무대는 실내로 옮깁니다").topNotice(at("2026-10-03")))
+    }
+
+    @Test
     fun 지난_마감은_회색으로_내린다() {
         val deadline = "모집 9.13(일) 23:59 마감 · 결과 9.15(화) 발표"
         // 가장 늦은 날(9.15)까지는 아직 살아 있는 안내다.
