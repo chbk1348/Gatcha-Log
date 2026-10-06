@@ -33,23 +33,29 @@ struct HomeView: View {
     private var isWide: Bool { hSizeClass == .regular }
 
     var body: some View {
-      // 홈 body 가 몇 번 평가되는지 세는 계측점. 홈은 관측 필드 ~25개를 읽어 재평가가 잦고,
-      // body 안에서 alerts·todayTasks 를 계산하므로 "몇 번 도는가"가 곧 비용이다.
-      // Instruments → Points of Interest 에서 확인한다(GLGPerf).
-      let _ = GLGPerf.event("homeBody")
-      GeometryReader { geo in
+        // 홈 body 가 몇 번 평가되는지 세는 계측점. 홈은 관측 필드 ~25개를 읽어 재평가가 잦고,
+        // body 안에서 alerts·todayTasks 를 계산하므로 "몇 번 도는가"가 곧 비용이다.
+        // Instruments → Points of Interest 에서 확인한다(GLGPerf).
+        let _ = GLGPerf.event("homeBody")
         ScrollView {
-            // 홈 3.0(10/1) — iPhone · iPad 같은 구성. 좁은 화면만 스크롤이 상단바 뒤까지 확장돼 있어
-            // (HomeTopBarStyle) 상태바 + 내비바만큼 내린다.
-            homeContent(topInset: isWide ? 0 : geo.safeAreaInsets.top)
+            // 홈 3.0(10/1) — iPhone · iPad 같은 구성.
+            homeContent
         }
         .scrollIndicators(.hidden)
-        // 좁은 화면: 스크롤을 상단바 뒤까지 확장해 '투명해진 내비바' 뒤로 실제 그라데이션을 노출.
-        // 넓은 화면: 그라데이션을 아예 끄므로(흰 히어로) 기본 내비바와 자연스럽게 어울린다.
+        // 좁은 화면만 내비바 바탕을 숨긴다(HomeTopBarStyle) — 본문은 시스템이 바 아래에서 시작시킨다.
         .modifier(HomeTopBarStyle(isWide: isWide))
         // 흰 바탕(10/1) — 히어로 뒤 강조색 그라데이션을 걷었다.
         .background(Color.white)
-        .refreshable { store.refreshGameInfo(force: true) }
+        // 당겨서 새로고침 — Android 홈(GlgPullToRefreshBox)과 같은 갱신.
+        .refreshable {
+            store.refreshGameInfo(force: true)
+            // 갱신이 끝날 때까지 스피너를 붙잡는다 — 바로 돌아오면 당기자마자 스피너가 걷혀 아무 일도 없어 보였다.
+            // isRefreshing 은 코루틴 안에서 켜지므로 한 박자 쉬고 본다. 최대 10초. (SpendingView 와 같다)
+            for _ in 0..<100 {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                if !store.isRefreshing { break }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 프로필 사진(좌) — 탭하면 마이페이지.
@@ -119,12 +125,11 @@ struct HomeView: View {
         .onChange(of: store.hoyolabConfig.isLinked) { _, linked in
             if linked { store.refreshGameInfo(force: true) }
         }
-      }
     }
 
     /// 홈 3.0 — 「지출」 묶음 → 10 띠 → 「게임」 묶음. 묶음 안 섹션 사이는 좌우 20 헤어라인(Android HomeContent 와 같다).
     @ViewBuilder
-    private func homeContent(topInset: CGFloat) -> some View {
+    private var homeContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             if store.hoyoTokenExpired {
                 TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
@@ -158,7 +163,6 @@ struct HomeView: View {
             // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를
             // 말하는 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다.
         }
-        .padding(.top, topInset)
         .glgReadableWidth(640)
         .modifier(AppNoticeAutoLoad(notices: $notices))
     }
