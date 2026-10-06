@@ -1,31 +1,51 @@
-/* Gatcha Log Admin — 빌드 없이 도는 정적 어드민. 폰트·아이콘 등 외부 의존 없음. */
+/* Gatcha Log Admin — 빌드 없이 도는 정적 어드민. 폰트·아이콘 등 외부 의존 없음.
+ *
+ * 생김새는 앱과 같은 GLDS 2.0 을 따른다(저장소 루트 CLAUDE.md · 「GLDS 가이드」).
+ *   · 카드로 감싸지 않는다 — 바탕은 흰색 하나, 섹션 사이는 10 띠, 줄 사이는 1 헤어라인.
+ *     (2026-10-06 에 잠깐 구분선을 걷었다가, 시안 「호요랜드 어드민 개편 시안」 을 따르기로 하며 되돌렸다.)
+ * 화면 구성과 수치의 정본은 그 시안이다 — 사이드바 · 상단바 · 대시보드 · 반영 화면은 시안의 값을 그대로 옮겼다.
+ *   · 면은 뜻이 있을 때만 — 입력필드 · 버튼 · 떠 있는 것(팝오버 · 모달) · 섹션 속 작은 판(도구 줄 · 코드).
+ *   · 글자 하한 — 섹션 제목 17 Bold · 본문 14 · 값 15 Bold · 보조 12.
+ * 가이드에 없는 것(체크박스 · 숫자 스테퍼 · 색 고르기 · 토스트 · 코드 블록)은 어드민에만 있는 부품이라
+ * 모양을 새로 정하지 않고 GLDS 토큰(색 · 반경 · 글자 크기)만 입혔다.
+ */
 
 :root {
-  /* 라이트 팔레트. --bg 는 바탕, --panel 은 그 위에 뜨는 면(카드 · 사이드바 · 상단바),
-     --panel-2 는 면 안에서 한 겹 들어간 자리(입력창 · 배지 · 표 머리)다. 강조색 넷은
-     흰 바탕에 **글자로 얹히므로** 다크 시절보다 진하다 — 옅은 형광색은 여기서 읽히지 않는다. */
-  --bg: #f5f6f9;
-  --panel: #ffffff;
-  --panel-2: #eef0f5;
-  --line: #dfe2ea;
-  --text: #1b1f2a;
-  --muted: #616878;
-  --accent: #4559d9;
-  /* accent 를 배경으로 깔 때 쓰는 옅은 짝. 그 위 글자는 흰색이 아니라 --accent 다. */
-  --accent-2: #e9edfc;
-  --ok: #0d7a4d;
-  --warn: #965d00;
-  --err: #d0343a;
-  /* 면을 띄우는 그림자 한 겹. 라이트에서는 테두리만으로 카드가 바탕에 눌어붙어 보인다. */
-  --shadow: 0 1px 2px rgba(20, 24, 36, .05);
-  --radius: 10px;
+  /* GLDS 색 토큰. 이름은 예전 그대로 둔다 — admin.js 가 var(--warn) · var(--err) 를 직접 쓴다. */
+  --bg: #FFFFFF;            /* 바탕 — 화면 전체가 이 하나다 */
+  --panel: #FFFFFF;         /* 떠 있는 면(팝오버 · 모달 · 토스트)과 포커스된 입력필드 */
+  --panel-2: #F5F8F8;       /* 입력필드 면 · 섹션 속 작은 판 */
+  --band: #F2F4F6;          /* 섹션 사이 띠 · 꼬리표 · 건수 알약의 옅은 회색 면 */
+  --line: #EEF0F2;          /* 헤어라인 */
+  --chip-line: #E3E5EA;     /* 칩 · 체크박스의 쉬는 테두리 */
+  --text: #1A1C1E;
+  --muted: #6C727A;
+  --ph: #A7B1AE;            /* placeholder */
+  --accent: #1B8E99;        /* 앱 기본 강조색(틸) */
+  --accent-deep: #177881;   /* 옅은 강조색 면 위의 글자 */
+  --accent-2: color-mix(in srgb, var(--accent) 12%, transparent);   /* Secondary 면 */
+  --accent-sel: color-mix(in srgb, var(--accent) 10%, transparent); /* 선택 면 */
+  --neutral: #ECEFF4;       /* Neutral 버튼 면 */
+  --disabled: #D8D8DE;
+  --ok: #15803D;
+  --ok-bg: #E6F2EA;
+  --warn: #8A5A00;          /* 시안 값 — 앱 토큰 #B37400 은 12 Bold 꼬리표에서 대비가 모자라 한 단 어둡다 */
+  --warn-bg: #FFF4E5;
+  --err: #D0021B;
+  --err-bg: #FFE5E5;
   /* 본문·상단바가 함께 지킬 최대 폭. 초광폭 모니터에서 한 줄이 화면 끝까지 늘어나면 눈이
      줄 끝에서 다음 줄 머리로 못 돌아온다. 표는 이 안에서 가로 스크롤된다 —
      값을 더 키우면 굿즈 100줄짜리 표가 읽히는 대신 설명 문단이 읽히지 않는다. */
   --content-max: 1440px;
+  /* 섹션 좌우 여백 — GLDS 20. 화면이 --content-max 보다 넓으면 남는 폭을 여백으로 돌린다.
+     폭을 max-width 로 묶지 않고 여백으로 준다 — 섹션마다 같은 값을 쓰고, 띠도 이 여백 안쪽에만 긋는다. */
+  --inset: max(20px, calc((100% - var(--content-max)) / 2));
 }
 
 * { box-sizing: border-box; }
+/* hidden 속성은 늘 이긴다 — .btn · .badge 처럼 display 를 정한 클래스가 붙으면 브라우저 기본 규칙이 져서,
+   감춘 계정 꼬리표가 "—" 로 떠 있었다. */
+[hidden] { display: none !important; }
 
 /* 브라우저가 그리는 것들(스크롤바 · 기본 위젯 · 오버스크롤 영역)도 라이트로 맞춘다.
    html 배경까지 칠해야 스크롤 바운스에서 다른 색이 비치지 않는다. */
@@ -40,13 +60,14 @@ body {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.55 "Pretendard", "Malgun Gothic", -apple-system, system-ui, sans-serif;
+  font: 14px/1.5 "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ── 사이드바 ─────────────────────────────────────── */
 .sidebar {
   grid-area: side;
-  background: var(--panel);
+  background: var(--bg);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -58,56 +79,58 @@ body {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: calc(16px + env(safe-area-inset-top, 0px)) 18px 16px;
-  border-bottom: 1px solid var(--line);
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 14px;
 }
 .brand-mark {
   width: 32px; height: 32px;
   display: grid; place-items: center;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), #9b5cf0);
+  border-radius: 9px;
+  background: var(--accent);
   font-weight: 700; font-size: 13px; color: #fff;
 }
-.brand strong { display: block; font-size: 14px; }
-.brand small { color: var(--muted); font-size: 11px; }
+.brand strong { display: block; font-size: 15px; font-weight: 700; }
+.brand small { color: var(--muted); font-size: 12px; }
 
-#nav { flex: 1; overflow-y: auto; padding: 10px 8px; }
+#nav { flex: 1; overflow-y: auto; padding: 0 8px 20px; }
 /* 스크롤 영역은 크롬이 키보드 포커스를 준다 — 기본 파란 링 대신 테마 색을 안쪽에 그린다. */
-#nav:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+#nav:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 10px; }
 
-/* 리소스 스위처 — 어드민이 다루는 운영 파일을 고른다 */
-.switcher { display: flex; flex-direction: column; gap: 4px; padding: 4px 2px 10px; border-bottom: 1px solid var(--line); }
-.switcher .res {
-  display: flex; flex-direction: column; align-items: flex-start; position: relative;
-  padding: 8px 10px; border: 1px solid transparent; border-radius: 8px;
-  background: none; color: var(--muted); font: inherit; text-align: left; cursor: pointer;
-}
-.switcher .res:hover { background: var(--panel-2); color: var(--text); }
-.switcher .res.active { background: var(--panel-2); border-color: var(--accent); color: var(--text); }
-.switcher .res strong { font-size: 13px; }
-.switcher .res small { font-size: 11px; color: var(--muted); }
-.switcher .res .dot { position: absolute; right: 10px; top: 12px; margin: 0; }
-.nav-group { margin: 14px 10px 6px; font-size: 11px; color: var(--muted); letter-spacing: .04em; }
-.nav-item {
-  display: flex; align-items: center; gap: 9px;
-  width: 100%; padding: 8px 10px; margin-bottom: 2px;
-  border: 0; border-radius: 8px;
-  background: none; color: var(--muted);
+/* 리소스 선택기 — 한 칸(시안). 누르면 리소스 목록이 팝오버로 뜬다. 입력필드와 같은 면(#F5F8F8). */
+.res-picker {
+  display: flex; align-items: center; gap: 8px;
+  width: calc(100% - 8px); margin: 0 4px 6px; padding: 8px 12px;
+  border: 0; border-radius: 12px; background: var(--panel-2); color: var(--text);
   font: inherit; text-align: left; cursor: pointer;
 }
-.nav-item:hover { background: var(--panel-2); color: var(--text); }
-.nav-item.active { background: var(--accent-2); color: var(--accent); font-weight: 600; }
-.nav-item .count {
-  margin-left: auto;
-  font-size: 11px; color: var(--muted);
-  background: var(--panel-2); border-radius: 999px; padding: 1px 7px;
+.res-picker-t { flex: 1; min-width: 0; }
+.res-picker strong { display: block; font-size: 14px; font-weight: 700; }
+.res-picker small { display: block; font-size: 12px; color: var(--muted); }
+.res-picker .dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.res-picker[aria-expanded=true] .gl-caret { transform: translateY(1px) rotate(-135deg); }
+/* 묶음 머리 — 13 Bold 회색. */
+.nav-group { margin: 14px 12px 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 9px 12px; margin-bottom: 2px;
+  border: 0; border-radius: 10px;
+  background: none; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
 }
-.nav-item.active .count { background: rgba(69,89,217,.14); color: var(--accent); }
+.nav-item:hover { background: var(--panel-2); }
+.nav-item.active { background: var(--accent-sel); color: var(--accent-deep); font-weight: 700; }
+/* 건수 알약 — 12 Bold. 메뉴 · 섹션 제목 옆에서 같이 쓴다. */
+.count {
+  flex: none; font-size: 12px; font-weight: 700; color: var(--muted);
+  background: var(--band); border-radius: 999px; padding: 1px 8px;
+}
+.count.warn { background: var(--warn-bg); color: var(--warn); }
+.nav-item .count { margin-left: auto; }
+.nav-item.active .count:not(.warn) { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-deep); }
 .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: auto; }
 
 .sidebar-foot {
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-  border-top: 1px solid var(--line); font-size: 11px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line); font-size: 12px;
 }
 
 /* ── 상단바 ───────────────────────────────────────── */
@@ -115,14 +138,14 @@ body {
   grid-area: top;
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px;
-  padding: env(safe-area-inset-top, 0px) max(24px, env(safe-area-inset-right, 0px)) 0 max(24px, env(safe-area-inset-left, 0px));
-  background: var(--panel);
+  padding: env(safe-area-inset-top, 0px) max(20px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px));
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 5;
 }
-/* 상단바 안쪽도 본문과 **같은 폭**으로 묶는다. 바 자체는 화면을 가로지르되(줄이 끊기면 바가
-   아니라 카드로 보인다) 그 안의 제목·버튼은 본문 가장자리에 맞춰 선다. 안 맞추면 초광폭에서
-   버튼만 저 멀리 오른쪽 끝에 떨어져, 지금 보고 있는 카드와 상관없는 것처럼 읽힌다. */
+/* 상단바 안쪽도 본문과 **같은 폭**으로 묶는다. 바 자체는 화면을 가로지르되 그 안의 제목·버튼은
+   본문 가장자리에 맞춰 선다. 안 맞추면 초광폭에서 버튼만 저 멀리 오른쪽 끝에 떨어져,
+   지금 보고 있는 섹션과 상관없는 것처럼 읽힌다. */
 .topbar-inner {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; width: 100%; min-width: 0;
@@ -130,8 +153,13 @@ body {
 }
 /* 제목은 **줄지 않고 줄임표로 끊는다.** 자리가 모자라면 여기서 양보해야 오른쪽 버튼이 온전히 선다. */
 .topbar-title { min-width: 0; flex: 1 1 auto; }
-.topbar h1 { margin: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* 설명은 상단바에 싣지 않는다 — 바로 아래 카드 머리에 같은 문장이 있다(`card()`). 예전엔
+/* 섹션 제목 — 17 Bold. 붙박이 상단바가 섹션 머리 노릇을 한다(`card()` 주석). */
+.topbar h1 { margin: 0; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 상태 꼬리표는 누르면 반영 화면으로 간다(시안의 「반영 안 된 변경 3건」). */
+a.badge { text-decoration: none; cursor: pointer; }
+/* 되돌리기 · 다시 하기 — 넓은 화면은 글자, 좁은 화면은 부호. */
+.t-short { display: none; }
+/* 설명은 상단바에 싣지 않는다 — 바로 아래 섹션 머리에 같은 문장이 있다(`card()`). 예전엔
    좁은 화면에서만 숨겼는데, 넓은 화면에서도 한 화면에 같은 말이 두 번 보였다. */
 .topbar p { display: none; }
 /*
@@ -144,208 +172,367 @@ body {
 .topbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .topbar-actions .btn, .topbar-actions .badge { white-space: nowrap; }
 
+/* ── GLDS 버튼 ────────────────────────────────────────
+ * .btn            Neutral · S (높이 36 · 반경 12 · 13 Bold · 좌우 14)
+ * .btn-primary    Primary — 주 액션
+ * .btn-secondary  Secondary — 보조 액션
+ * .btn-danger     Danger — 삭제 · 초기화
+ * .btn-sm         XS (높이 28 · 반경 9 · 12 Bold · 좌우 12) — 행 안 작은 액션
+ * .btn-m          M (높이 44 · 반경 16 · 15 Bold · 좌우 18) — 다이얼로그
+ * 누르면 0.97배 · 면이 한 단 진해진다. hover 는 가이드에 없어(앱은 터치다) 누름보다 옅게만 준다.
+ */
 .btn {
-  padding: 7px 13px; border-radius: 8px;
-  border: 1px solid var(--line); background: var(--panel-2);
-  color: var(--text); font: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 14px; border: 0; border-radius: 12px;
+  background: var(--neutral); color: var(--text);
+  font-family: inherit; font-size: 13px; font-weight: 700; line-height: 1;
+  white-space: nowrap; cursor: pointer; text-decoration: none;
+  transition: transform .12s, background .12s;
 }
-.btn:hover { border-color: var(--accent); }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.btn-sm { padding: 4px 9px; font-size: 12px; }
-/* 되돌리기 두 칸 — 글자가 아니라 부호라 폭을 좁혀 붙여 둔다. */
-.btn-step { padding: 7px 9px; font-size: 13px; line-height: 1; }
-.btn-step[disabled] { opacity: .4; cursor: default; }
-.btn-step[disabled]:hover { border-color: var(--line); }
-.btn-danger:hover { border-color: var(--err); color: var(--err); }
+.btn:hover { background: #E3E6EB; }
+.btn:active { transform: scale(.97); background: #D9DCE0; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 96%, #000); }
+.btn-primary:active { background: color-mix(in srgb, var(--accent) 92%, #000); }
+.btn-secondary { background: var(--accent-2); color: var(--accent-deep); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.btn-danger, .btn-danger-solid { background: var(--err-bg); color: var(--err); }
+.btn-danger:hover, .btn-danger-solid:hover { background: #F5DCDC; }
+.btn-danger:active, .btn-danger-solid:active { background: #EBD3D3; }
+.btn-sm { height: 28px; padding: 0 12px; border-radius: 9px; font-size: 12px; gap: 4px; }
+.btn-m { height: 44px; padding: 0 18px; border-radius: 16px; font-size: 15px; gap: 7px; }
+.btn-l { height: 50px; padding: 0 28px; border-radius: 16px; font-size: 15px; gap: 8px; }
+.btn-text { background: transparent; color: var(--accent); }
+.btn-text:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.btn-text:active { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.btn-l.btn-text { padding: 0 20px; }
+.btn[disabled], .btn[disabled]:hover, .btn[disabled]:active {
+  background: var(--disabled); color: var(--muted); cursor: default; transform: none;
+}
 
-.badge { font-size: 11px; padding: 4px 9px; border-radius: 999px; }
-.badge-clean { background: var(--panel-2); color: var(--muted); }
-.badge-dirty { background: rgba(150,93,0,.12); color: var(--warn); }
+/* 상태 꼬리표 — 12 Bold · 반경 6 · 색 14% 면(홈 게임 태그와 같은 모양). */
+.badge, .pill, .issues .lv {
+  display: inline-block; flex: none;
+  font-size: 12px; font-weight: 700; line-height: 1.5;
+  padding: 1px 7px; border-radius: 6px;
+  background: var(--band); color: var(--muted); white-space: nowrap;
+}
+.badge-clean { background: var(--band); color: var(--muted); }
+.badge-dirty { background: var(--warn-bg); color: var(--warn); }
 
 /* ── 본문 ─────────────────────────────────────────── */
 #main {
-  grid-area: main; overflow-x: hidden;
-  padding: 22px max(24px, env(safe-area-inset-right, 0px)) calc(60px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  grid-area: main; overflow-x: hidden; min-width: 0;
+  padding: 0 0 calc(40px + env(safe-area-inset-bottom, 0px));
 }
-/* admin.js 가 #main 안에 루트 <div> 하나를 갈아 끼운다 — 그 한 겹만 묶으면 카드가 전부 따라온다.
-   래퍼를 새로 만들지 않는 이유: 렌더 코드가 그 구조를 알고 있어야 하는데, 폭은 표시 규격이라
-   CSS 가 알고 있으면 된다. */
-#main > * { max-width: var(--content-max); margin-inline: auto; }
 .muted { color: var(--muted); }
 
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 18px;
-  margin-bottom: 16px;
-  box-shadow: var(--shadow);
+/*
+ * 섹션 — 카드가 아니라 **화면 폭 섹션**이다(GLDS: 좌우 20 · 위 22 · 아래 20).
+ *
+ * admin.js 는 #main 에 루트 하나를 갈아 끼운다. 그 루트가 섹션 하나(.card)이거나, 섹션 여럿을
+ * 든 <div> 다. 어느 쪽이든 섹션마다 여백을 주고, 섹션 사이에 10 띠를 놓는다. 첫 섹션 위에는
+ * 띠가 없다(상단바 바로 아래).
+ */
+#main > .card,
+#main > :not(.card) > * { padding: 22px var(--inset) 20px; margin: 0; }
+/* 띠는 **콘텐츠 너비만큼만** 긋는다(2026-10-06 결정 — 앱은 화면 폭이지만 어드민은 본문 좌우 여백 안쪽까지).
+   섹션 위에 10 띠를 배경으로 그리고 그만큼 위 여백을 늘린다 — 테두리로 그으면 화면 끝까지 닿는다. */
+#main > :not(.card) > * + * {
+  padding-top: 32px;
+  background: linear-gradient(var(--band), var(--band)) center top / calc(100% - 2 * var(--inset)) 10px no-repeat;
 }
-/* h2 는 로그인·권한 안내 카드에만 남았다 — 섹션 제목은 붙박이 상단바가 든다(`card()` 주석). */
-.card > h2 { margin: 0 0 4px; font-size: 15px; }
-.card > .hint { margin: 0 0 14px; font-size: 12px; color: var(--muted); }
+/* 줄 목록으로 끝나는 섹션 — 마지막 줄의 아래 여백 12 를 빼 띠까지 보이는 간격을 20 으로 맞춘다. */
+#main > :not(.card) > .rows-sec { padding-bottom: 8px; }
+#main > :not(.card) > .rows-sec.last { padding-bottom: 20px; }
 
-.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.card { background: none; border: 0; border-radius: 0; box-shadow: none; min-width: 0; }
+/* h2 는 로그인·권한 안내와 이력 비교에만 남았다 — 섹션 제목은 붙박이 상단바가 든다(`card()` 주석). */
+.card > h2 { margin: 0 0 14px; font-size: 17px; font-weight: 700; }
+/* 제목 바로 밑 부제는 제목에 붙인다(14 → 4). */
+.card > h2 + .hint { margin-top: -10px; }
+/* 섹션 부제 — 13 회색. */
+.card > .hint { margin: 0 0 14px; font-size: 13px; color: var(--muted); max-width: 86ch; }
+.rows-sec > .hint { margin-bottom: 6px; }
+/* 제목 + 오른쪽 작은 버튼 / 건수(시안의 「앱이 읽는 값 · 새로고침」 「이번에 반영되는 것 3」). */
+.sec-title { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sec-title h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.sec-title > .btn { margin-left: auto; }
 
-.field { display: flex; flex-direction: column; gap: 5px; }
-.field > label { font-size: 12px; color: var(--muted); }
+/* ── 줄 목록 — 헤어라인으로 나눈 한 줄들(시안) ─────── */
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 12px 0; }
+.rows > .row + .row { border-top: 1px solid var(--line); }
+/*
+ * 열이 있는 줄 목록 — **줄들이 한 격자의 열을 같이 쓴다**(subgrid).
+ * 줄마다 따로 flex 로 놓으면 오른쪽 꼬리표의 길이에 따라 가운데 열의 시작 자리가 줄마다 달라진다
+ * (「앱이 읽는 값」에서 "호요랜드 2027 · 일정 미정" 과 "호요랜드 2026 · 종료" 가 서로 어긋나 섰다).
+ */
+.rows.cols-reach { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(260px, 2fr) max-content; column-gap: 16px; }
+.rows.cols-fill { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr) minmax(0, 3fr) max-content; column-gap: 16px; }
+.rows.cols-reach > .row, .rows.cols-fill > .row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+.rows.cols-reach > .row > .pill { justify-self: end; }
+.rows.cols-fill > .row > .btn { grid-column: 4; }
+.rows.cols-fill .row-now.wide { grid-column: 2 / 4; }
+.row.top { align-items: flex-start; gap: 10px; }
+.rows-sec.last .rows > .row:last-child { padding-bottom: 0; }
+.row strong, .row small { display: block; }
+.row small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.row-who { flex: 1 1 200px; }
+.row-who strong, .row-step strong, .row-ver strong, .row-now strong { font-size: 15px; font-weight: 700; }
+.row-what { flex: 2 1 260px; font-size: 14px; }
+.row-name { flex: 1 1 150px; font-size: 14px; font-weight: 700; }
+.row-now { flex: 1 1 180px; }
+.row-now.wide { flex: 4 1 420px; }
+.row-note { flex: 3 1 320px; font-size: 13px; color: var(--muted); }
+.row-msg { flex: 1 1 300px; font-size: 14px; }
+.row.top:has(.row-where) { gap: 6px 14px; }
+.row-where { flex: 1 1 240px; }
+.row-where strong { font-size: 14px; font-weight: 700; }
+.row-diff { flex: 2 1 380px; font-size: 13px; overflow-wrap: anywhere; }
+.row-diff .was { color: var(--muted); }
+.row-diff .was.struck { text-decoration: line-through; }
+.row-diff .was + div { margin-top: 2px; }
+.row.step { gap: 12px; }
+.step-ico { flex: none; margin-top: 2px; color: var(--accent); line-height: 0; }
+.row-step { flex: 1; min-width: 0; }
+/* 아이콘 뒤에서 시작하는 헤어라인(목록은 아이콘 뒤부터 긋는다). */
+.rows.inset > .row + .row { border-top: 0; position: relative; }
+.rows.inset > .row + .row::before { content: ''; position: absolute; left: 30px; right: 0; top: 0; height: 1px; background: var(--line); }
+.row-ver { flex: 1 1 260px; }
+.row-ver strong { display: flex; align-items: center; gap: 8px; }
+.publish-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.publish-act .note { font-size: 12px; }
+
+/* ── 지표 — 값 15 Bold / 「라벨 · 보조」 12 한 줄(시안) ── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px 12px; }
+.stat { min-width: 0; }
+.stat .v { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.stat .v.ok { color: var(--ok); }
+.stat .v.warn { color: var(--warn); }
+.stat .v.err { color: var(--err); }
+
+/* ── 앱에서 보이는 모습 — 왼쪽은 앱 화면의 한 조각, 오른쪽은 그 설명 ── */
+.app-look { display: flex; flex-wrap: wrap; gap: 24px 32px; align-items: flex-start; }
+.app-facts { flex: 1 1 320px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 24px; }
+/* 게임 정보 탭의 비시즌 한 줄 — 객체 하나를 담는 타일(안쪽 1 #E3E6EA · 반경 14). */
+.app-line { flex: 0 1 360px; border-radius: 14px; box-shadow: inset 0 0 0 1px #E3E6EA; padding: 18px 20px; }
+.app-line-head { display: flex; align-items: center; margin-bottom: 12px; }
+.app-line-head span { flex: 1; font-size: 17px; font-weight: 700; }
+.app-line-head small { font-size: 13px; font-weight: 600; color: var(--muted); }
+.app-line-body { display: flex; gap: 12px; }
+.app-line-ico { flex: none; margin-top: 1px; color: var(--muted); line-height: 0; }
+.app-line-t { font-size: 14px; font-weight: 600; }
+.app-line-s { margin-top: 4px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+/* 홈 입장권 배너 — 색이 뜻을 가지는 면이라 남긴다. 글자는 앱과 같은 규칙으로 만든다(hoyoBanner). */
+.app-ticket { flex: 0 1 360px; display: flex; height: 104px; border-radius: 14px; overflow: hidden; }
+.app-ticket-body {
+  flex: 1; min-width: 0; padding: 14px 16px;
+  background: color-mix(in srgb, var(--accent-deep) 8%, #FFFFFF);
+  display: flex; flex-direction: column; justify-content: center; gap: 5px;
+}
+.app-ticket-k { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; color: var(--accent-deep); }
+.app-ticket-t { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-ticket-s { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-ticket-stub {
+  flex: none; width: 96px; background: var(--accent-deep); color: #FFFFFF;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-left: 2px dashed #FFFFFF;
+}
+.app-ticket-stub small { font-size: 12px; font-weight: 600; }
+.app-ticket-stub strong { font-size: 26px; font-weight: 700; line-height: 1.2; }
+.note { font-size: 13px; color: var(--muted); }
+p.note { margin-bottom: 0; }
+
+.grid { display: grid; gap: 16px 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
+/* 입력필드 한 칸 — 라벨 13 SemiBold 회색 · 아래 6 · 도움말 12. */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > label { font-size: 13px; font-weight: 600; color: var(--muted); }
 .field > label .req { color: var(--err); }
-.field .note { font-size: 11px; color: var(--muted); }
+.field .note { font-size: 12px; color: var(--muted); }
 .field.wide { grid-column: 1 / -1; }
 
-/* 기본 위젯(select · number · date · datetime-local · checkbox)은 쓰지 않는다 — ui.js 의
-   커스텀 컴포넌트가 대신한다. 여기 남은 건 텍스트 계열과 그 껍데기(.gl-field)뿐이다. */
-input[type=text], textarea {
-  width: 100%; padding: 8px 10px;
-  background: var(--panel); color: var(--text);
-  border: 1px solid var(--line); border-radius: 8px;
-  font: inherit;
+/* ── GLDS 입력필드 ────────────────────────────────────
+ * 채운 면 하나(#F5F8F8 · 테두리 없음). 포커스는 흰 면 + 안쪽 1.5 강조색.
+ *   M  높이 48 · 반경 14 · 좌우 14 · 16   — 폼
+ *   S  높이 38 · 반경 12 · 좌우 12 · 14   — 표 · 도구 줄 · 팝오버(아래 "S 자리")
+ * 기본 위젯(select · number · date · datetime-local · checkbox)은 쓰지 않는다 — ui.js 의
+ * 커스텀 컴포넌트가 대신한다. 여기 남은 건 텍스트 계열과 그 껍데기(.gl-field)뿐이다.
+ */
+input[type=text], input[type=password], textarea {
+  width: 100%; height: 48px; padding: 0 14px;
+  background: var(--panel-2); color: var(--text);
+  border: 0; border-radius: 14px;
+  box-shadow: inset 0 0 0 1.5px transparent;
+  font-family: inherit; font-size: 16px; line-height: 1.193;
+  caret-color: var(--accent);
+  transition: background .15s, box-shadow .15s;
 }
-input:focus, textarea:focus { outline: 0; border-color: var(--accent); }
-textarea { resize: vertical; min-height: 68px; }
-input::placeholder, textarea::placeholder { color: #888f9e; }
+input[type=text]:focus, input[type=password]:focus, textarea:focus {
+  outline: 0; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+textarea { height: auto; min-height: 96px; padding: 12px 14px; line-height: 1.5; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--ph); }
 
-/* ── 통계 타일 ────────────────────────────────────── */
-.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 16px; }
-.tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
-.tile .k { font-size: 11px; color: var(--muted); }
-.tile .v { font-size: 22px; font-weight: 700; margin-top: 3px; }
-.tile .s { font-size: 11px; color: var(--muted); }
-/* 값이 이메일 · uid · 시각처럼 긴 문자열인 타일. 22px 로 그리면 박스를 뚫는다. */
-.tile.sm .v { font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; margin-top: 5px; }
+/* S 자리 — 표 칸 · 날짜 묶음 머리 · 검색 · 채우기 줄 · 사진 칸. */
+td input[type=text], .day-head input[type=text], .list-search-wrap input[type=text],
+.list-fill input[type=text], .img-cell input[type=text] {
+  height: 38px; padding: 0 12px; border-radius: 12px; font-size: 14px;
+}
+
+/* ── 지표 — 타일 면 없이 「값 / 라벨」 ───────────────────
+ * DOM 은 라벨(.k) → 값(.v) → 보조(.s) 순이지만 GLDS 는 값이 위다. order 로 뒤집는다. */
+.tiles { display: grid; gap: 16px 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.tile { display: flex; flex-direction: column; min-width: 0; }
+.tile .v { order: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+.tile .k { order: 1; font-size: 12px; color: var(--muted); }
+.tile .s { order: 2; font-size: 12px; color: var(--muted); }
+.tile .s:empty { display: none; }
+/* 값이 이메일 · uid · 시각처럼 긴 문자열인 지표 — 줄이 꺾여도 읽히게 끊는다. */
+.tile.sm .v { font-size: 14px; overflow-wrap: anywhere; }
 .tile.ok .v { color: var(--ok); }
 .tile.warn .v { color: var(--warn); }
 .tile.err .v { color: var(--err); }
 
-/* ── 테이블 ───────────────────────────────────────── */
+/* ── 테이블 — 줄 사이 헤어라인. 머리줄 아래에는 긋지 않는다(시안의 표). ── */
 .table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th {
-  text-align: left; font-size: 11px; color: var(--muted); font-weight: 600;
-  padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  text-align: left; font-size: 12px; color: var(--muted); font-weight: 600;
+  padding: 0 8px 6px; white-space: nowrap;
 }
-td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-tr:last-child td { border-bottom: 0; }
-td input[type=text] { padding: 6px 8px; }
+td { padding: 7px 8px; vertical-align: middle; }
+tbody tr + tr td { border-top: 1px solid var(--line); }
+/* 줄은 섹션의 글자 시작선에 맞춘다 — 첫 칸 · 끝 칸의 바깥 여백을 지운다. */
+th:first-child, td:first-child { padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
 td.actions { white-space: nowrap; text-align: right; }
-.row-empty { padding: 22px; text-align: center; color: var(--muted); }
+/* 줄 끝 ↑ ↓ ✕ — XS 버튼을 정사각으로 좁혀 세 개가 한 칸에 선다. 글자 버튼은 내용 폭대로 늘어난다. */
+td.actions .btn-sm { min-width: 28px; padding: 0 8px; }
+td.actions .btn + .btn { margin-left: 4px; }
+.row-empty { padding: 22px 0; text-align: center; font-size: 13px; color: var(--muted); }
 
-.bar { height: 4px; border-radius: 2px; background: var(--panel-2); margin: 5px 0 3px; overflow: hidden; }
-.bar > span { display: block; height: 100%; border-radius: 2px; }
+/* 막대 — 높이 6 · 트랙 #EDEFF3. */
+.bar { height: 6px; border-radius: 3px; background: #EDEFF3; margin: 5px 0 3px; overflow: hidden; }
+.bar > span { display: block; height: 100%; border-radius: 3px; }
 
-/* ── 검증 메시지 ──────────────────────────────────── */
+/* ── 검증 메시지 — 헤어라인 목록 ──────────────────── */
 .issues { list-style: none; margin: 0; padding: 0; }
 .issues li {
-  display: flex; gap: 9px; align-items: flex-start;
-  padding: 8px 10px; border-radius: 8px; margin-bottom: 6px;
-  background: var(--panel-2); font-size: 13px;
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 12px 0; border-top: 1px solid var(--line);
+  font-size: 14px;
 }
-.issues .lv { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; flex: none; }
-.issues .lv.error { background: rgba(208,52,58,.12); color: var(--err); }
-.issues .lv.warn  { background: rgba(150,93,0,.12); color: var(--warn); }
-.issues .lv.info  { background: rgba(69,89,217,.12); color: var(--accent); }
+.issues li:first-child { border-top: 0; padding-top: 0; }
+.issues li:last-child { padding-bottom: 0; }
+.issues .lv { margin-top: 1px; }
+.issues .lv.error, .pill.err { background: var(--err-bg); color: var(--err); }
+.issues .lv.warn, .pill.warn { background: var(--warn-bg); color: var(--warn); }
+.issues .lv.info, .pill.info { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-deep); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
 .issues .go { margin-left: auto; flex: none; }
 
-/* ── 코드 미리보기 ────────────────────────────────── */
+/* ── 코드 미리보기 — 섹션 속 작은 판 ──────────────── */
 pre.json {
   margin: 0; padding: 14px; max-height: 460px; overflow: auto;
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
-  font: 12px/1.6 "Cascadia Mono", Consolas, monospace; color: #2f3546;
+  background: var(--panel-2); border: 0; border-radius: 14px;
+  font: 12px/1.6 "JetBrains Mono", "Cascadia Mono", ui-monospace, Menlo, Consolas, monospace; color: var(--text);
   white-space: pre;
 }
 
-.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .section-head .tools { display: flex; gap: 6px; }
 
-.day-block { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
-.day-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; background: var(--panel-2);
-}
-.day-head strong { font-size: 13px; }
+/* 날짜 · 행사 묶음 — 상자로 두르지 않는다. 묶음 사이는 헤어라인, 머리는 굵은 한 줄. */
+.day-block { margin: 0; }
+.day-block + .day-block { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+.day-head { display: flex; align-items: center; gap: 10px; padding: 0 0 12px; }
+.day-head strong { font-size: 15px; font-weight: 700; }
 .day-head .tools { margin-left: auto; display: flex; gap: 6px; }
-.day-body { padding: 6px 12px 12px; }
+.day-body { padding: 0; }
 
-.pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
-.pill.ok { background: rgba(13,122,77,.12); color: var(--ok); }
-.pill.warn { background: rgba(150,93,0,.12); color: var(--warn); }
-.pill.err { background: rgba(208,52,58,.12); color: var(--err); }
-
-/* 굿즈 비고가 앱에서 배지로 갈린 결과 */
-.note-preview { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-.note-preview > .k { margin-bottom: 6px; font-size: 11px; color: var(--muted); }
-.np-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12px; }
+/* 굿즈 비고가 앱에서 배지로 갈린 결과 — 헤어라인으로 나눈 목록. */
+.note-preview { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+.note-preview > .k { margin-bottom: 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.np-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .note-preview > .k + .np-row { border-top: 0; }
+.np-row:last-child { padding-bottom: 0; }
 
-/* 굿즈존 안내 미리보기 — 앱 시트(묶음 카드 · [이름 | 값] 줄 · 부연)의 축소판.
-   치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게. */
-/* 여러 행 고르기 — 고른 것이 있을 때만 머리줄 아래에 띠로 뜬다. */
+/* 여러 행 고르기 — 고른 것이 있을 때만 머리줄 아래에 뜬다. 선택 면(강조색 10%). */
 .list-bulk {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin-bottom: 10px; padding: 8px 12px;
-  border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-2);
+  margin-bottom: 10px; padding: 8px 8px 8px 14px;
+  border: 0; border-radius: 12px; background: var(--accent-sel);
 }
 .list-bulk[hidden] { display: none; }
-.list-bulk .list-bulk-n { color: var(--accent); font-weight: 600; }
+.list-bulk .list-bulk-n { color: var(--accent-deep); font-weight: 700; }
 td.sel, th.sel { text-align: center; }
 
-/* 붙여넣기 — 넣기 전에 무엇이 어느 열로 가는지 먼저 말한다. */
+/* 붙여넣기 — 넣기 전에 무엇이 어느 열로 가는지 먼저 말한다. 섹션 속 작은 판. */
 .list-paste {
   display: flex; flex-direction: column; gap: 8px;
-  margin: -4px 0 10px; padding: 10px 12px;
-  border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+  margin: 0 0 10px; padding: 12px;
+  border: 0; border-radius: 14px; background: var(--panel-2);
 }
 .list-paste[hidden] { display: none; }
-.list-paste .gl-input { min-height: 96px; font: 12px/1.6 "Cascadia Mono", Consolas, monospace; }
+/* 판 위의 입력칸은 흰 면 — 같은 색 면 위에서는 칸이 보이지 않는다. */
+.list-paste .gl-input { min-height: 96px; background: var(--panel); font: 12px/1.6 "JetBrains Mono", "Cascadia Mono", ui-monospace, Menlo, Consolas, monospace; }
 .list-paste .tools { justify-content: flex-end; }
 
 /* 값 채우기 줄 — 고르기 띠 바로 아래에서 펼쳐진다. */
 .list-fill {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
-  margin: -4px 0 10px; padding: 10px 12px;
-  border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+  margin: 0 0 10px; padding: 12px;
+  border: 0; border-radius: 14px; background: var(--panel-2);
 }
 .list-fill[hidden] { display: none; }
 .list-fill .list-fill-v { flex: 1 1 200px; min-width: 160px; }
 .list-fill .tools { margin-left: auto; }
+.list-fill input[type=text], .list-fill .gl-field { background: var(--panel); }
 
 /* 표 검색 — 머리줄 가운데에서 늘어난다. 건수와 도구 사이 자리다. */
 .list-search-wrap { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; max-width: 360px; }
 .list-search { flex: 1; min-width: 0; }
 
 /* 변경사항 — 위치 칸은 사람 말이 먼저고 경로는 밑에 작게. */
-.diff-where { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
-.diff-path { display: block; margin-top: 2px; font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+.diff-where { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.diff-path { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 
 /* 안내 글 도구 줄 — 입력 칸 바로 위에 붙는다. */
 .guide-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 2px; }
 
-.gp-group { padding: 11px 13px; border-radius: 12px; background: var(--panel-2); }
-.note-preview > .k + .gp-group { margin-top: 0; }
+/* 굿즈존 안내 미리보기 — 앱 시트(묶음 · [이름 | 값] 줄 · 부연)의 축소판이라 앱의 면을 그대로 둔다.
+   치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게. */
+.gp-group { padding: 12px 14px; border-radius: 14px; background: var(--panel-2); }
+.note-preview > .k + .gp-group { margin-top: 6px; }
 .gp-group + .gp-group { margin-top: 8px; }
-.gp-title { margin-bottom: 7px; font-size: 12px; font-weight: 800; color: var(--accent); }
+.gp-title { margin-bottom: 7px; font-size: 13px; font-weight: 800; color: var(--accent); }
 .gp-row { display: flex; gap: 10px; }
 .gp-row + .gp-row { margin-top: 8px; }
-.gp-label { flex: none; width: 78px; font-size: 12.5px; font-weight: 700; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.gp-label { flex: none; width: 78px; font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
 .gp-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.gp-value { font-size: 13px; color: var(--text); line-height: 1.5; }
-.gp-sub { margin-top: 2px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.gp-value { font-size: 14px; color: var(--text); line-height: 1.5; }
+.gp-sub { margin-top: 2px; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
-a { color: var(--accent); }
+a { color: var(--accent-deep); }
 
+/* 토스트 — 가이드에 없는 어드민 부품. 떠 있는 면이라 흰 면 + 그림자만 둔다. */
 .toast {
   position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-  background: var(--panel); border: 1px solid var(--line);
-  padding: 10px 18px; border-radius: 999px; font-size: 13px; z-index: 50;
-  box-shadow: 0 8px 24px rgba(20,24,36,.12);
+  max-width: min(720px, calc(100vw - 32px));
+  background: var(--panel); border: 1px solid #F0F0F0;
+  padding: 11px 18px; border-radius: 16px; font-size: 14px; z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
 }
 
 /* 햄버거 — 데스크톱에서는 사이드바가 늘 보이므로 숨는다. */
 .icon-btn {
   display: none; flex: none;
-  width: 34px; height: 34px; padding: 0;
-  border: 1px solid var(--line); border-radius: 9px;
-  background: var(--panel-2); color: var(--text); cursor: pointer;
+  width: 36px; height: 36px; padding: 0;
+  border: 0; border-radius: 12px;
+  background: var(--neutral); color: var(--text); cursor: pointer;
 }
 .icon-btn > span, .icon-btn > span::before, .icon-btn > span::after {
   display: block; width: 15px; height: 1.5px; border-radius: 1px; background: currentColor;
@@ -357,7 +544,7 @@ a { color: var(--accent); }
 
 .nav-backdrop {
   position: fixed; inset: 0; z-index: 65;
-  background: rgba(23,27,38,.38);
+  background: rgba(0,0,0,.4);
 }
 
 /* 드로어 전용 동작 — 데스크톱에서는 상단바에 같은 버튼이 있다. */
@@ -387,63 +574,57 @@ a { color: var(--accent); }
     width: min(276px, 84vw); height: 100dvh;
     transform: translateX(-100%);
     transition: transform .22s cubic-bezier(.2,.7,.3,1);
-    box-shadow: 18px 0 48px rgba(20,24,36,.16);
   }
-  body.nav-open .sidebar { transform: none; }
+  /* 그림자는 열렸을 때만 — 닫힌 드로어는 화면 밖에 있어도 그림자가 왼쪽 가장자리로 번져 들어온다. */
+  body.nav-open .sidebar { transform: none; box-shadow: 18px 0 48px rgba(0,0,0,.14); }
   body.nav-open { overflow: hidden; }
 
   .topbar-inner { gap: 10px; }
-  .topbar {
-    gap: 10px; min-width: 0;
-    padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
-  }
-  .topbar h1 { font-size: 15px; }
+  .topbar { gap: 10px; min-width: 0; }
   .topbar-actions { gap: 6px; }
-  .topbar-actions .btn { padding: 7px 10px; font-size: 12px; }
-
-  #main {
-    padding: 14px max(12px, env(safe-area-inset-right, 0px)) calc(44px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
-  }
-  .card { padding: 14px; }
-  .tiles { gap: 8px; }
 
   /* iOS 사파리는 16px 미만 입력에 자동으로 확대를 건다 — 키보드가 뜨며 화면이 튄다.
-     .gl-menu-head .gl-search 는 ui.css 에서 font: inherit 이 걸려 있어 구체성을 맞춰야 이긴다. */
-  input[type=text], textarea, .gl-input, .gl-menu-head .gl-search { font-size: 16px; }
+     표 칸 같은 S 자리(14)도 여기서는 16 으로 올린다.
+     .gl-menu-head .gl-search 는 ui.css 에서 글자 크기가 걸려 있어 구체성을 맞춰야 이긴다. */
+  input[type=text], input[type=password], textarea, .gl-input, .gl-menu-head .gl-search,
+  td input[type=text], .day-head input[type=text], .list-search-wrap input[type=text],
+  .list-fill input[type=text], .img-cell input[type=text] { font-size: 16px; }
 
   /* 긴 영문 · URL · 호스트명은 끊을 자리가 없어 박스를 뚫고 나간다. 좁은 화면에서만 강제로 끊는다. */
   .card, .tile, .issues li, .note, .hint, .muted, td, th, code, .gate-card { overflow-wrap: anywhere; }
-  .card { min-width: 0; }
 }
 
 @media (max-width: 720px) {
-  /* 좁은 화면에서 가로 스크롤 테이블은 못 쓴다 — 행을 카드로 쌓고 셀마다 열 이름을 붙인다. */
+  /* 좁은 화면에서 가로 스크롤 테이블은 못 쓴다 — 행을 세로로 쌓고 셀마다 열 이름을 붙인다.
+     행은 카드로 두르지 않는다. 헤어라인으로만 나눈다(GLDS 목록 줄 · 위아래 12). */
   .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; width: auto; }
+  .table-wrap table { min-width: 0 !important; }   /* 넓은 표의 최소 폭(admin.js minWidth)은 세로로 쌓을 때 뜻이 없다 */
   .table-wrap thead { display: none; }
-  .table-wrap tr {
-    padding: 12px 13px; margin-bottom: 10px;
-    border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2);
-  }
+  .table-wrap tr { padding: 12px 0; }
+  .table-wrap tr + tr { border-top: 1px solid var(--line); }
+  .table-wrap tr:first-child { padding-top: 0; }
+  .table-wrap tr:last-child { padding-bottom: 0; }
+  .table-wrap tbody tr + tr td { border-top: 0; }
+  .rows.cols-reach, .rows.cols-fill { display: block; }
+  .rows.cols-reach > .row, .rows.cols-fill > .row { display: flex; }
+  .t-long { display: none; }
+  .t-short { display: inline; }
   .table-wrap td { padding: 5px 0; border: 0; }
   .table-wrap td::before {
     content: attr(data-label);
-    display: block; margin-bottom: 4px;
-    font-size: 11px; color: var(--muted);
+    display: block; margin-bottom: 6px;
+    font-size: 13px; font-weight: 600; color: var(--muted);
   }
-  .table-wrap td.actions {
-    display: flex; justify-content: flex-end; gap: 6px;
-    margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line);
-  }
+  .table-wrap td.actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+  .table-wrap td.actions .btn + .btn { margin-left: 0; }
   .table-wrap td.actions::before, .table-wrap td.row-empty::before { display: none; }
-  .table-wrap td.row-empty { padding: 18px; }
-  td .gl-field, td .gl-num { padding: 8px 10px; }
-  td input[type=text] { padding: 8px 10px; }
+  .table-wrap td.row-empty { padding: 18px 0; }
 
   /* 상단바에는 "라이브 반영" 하나만 남긴다. 나머지는 드로어 · 섹션에서 간다. */
   label[for=file-input], #btn-export, #dirty, #btn-load-remote { display: none; }
-  .nav-only { display: block; width: 100%; margin-top: 10px; }
+  .nav-only { display: flex; width: 100%; margin-top: 10px; }
 
-  /* 이메일 · uid · 시각 타일은 좁은 칸에 두 줄로 접히느니 한 줄을 다 쓰는 게 낫다. */
+  /* 이메일 · uid · 시각 지표는 좁은 칸에 두 줄로 접히느니 한 줄을 다 쓰는 게 낫다. */
   .tile.sm { grid-column: 1 / -1; }
 
   .day-head { flex-wrap: wrap; }
@@ -451,11 +632,20 @@ a { color: var(--accent); }
   .section-head { flex-wrap: wrap; }
 }
 
-/* 굿즈 사진 칸 — 경로 입력 옆 40px 미리보기. 파일을 못 읽으면 빨간 테두리. */
-.img-cell{display:flex;gap:8px;align-items:center}
-.img-cell > :last-child{flex:1;min-width:0}
-.img-cell-thumb{width:40px;height:40px;flex:none;object-fit:contain;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:8px}
-.img-cell-thumb.broken{border-color:#D8574A;background:#FDECEA}
-.menu-img-list{display:flex;flex-direction:column;gap:6px}
-.menu-img-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.menu-img-name{font-size:11.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 굿즈 사진 칸 — 경로 입력 옆 40px 미리보기 + 올리기. 파일을 못 읽으면 빨간 테두리.
+   미리보기는 객체 하나를 담는 타일이라 면을 둔다. */
+.img-cell { display: flex; gap: 8px; align-items: center; }
+.img-cell > .gl-input, .img-cell > .menu-img-body { flex: 1; min-width: 0; }
+.img-up-wrap { flex: none; }
+.img-cell-thumb { width: 40px; height: 40px; flex: none; object-fit: contain; background: var(--panel-2); border: 0; border-radius: 11px; }
+.img-cell-thumb.broken { background: var(--err-bg); box-shadow: inset 0 0 0 1.5px var(--err); }
+.menu-img-list { display: flex; flex-direction: column; gap: 8px; }
+.menu-img-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.menu-img-name { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 정본 커밋(GitHub) — 입력 한 줄 + 버튼. 좁은 화면에서는 버튼이 아래로 내려간다. */
+.git-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.git-row > .gl-input { flex: 1; min-width: 220px; }
+/* 옆에 M 입력필드(48)가 서므로 버튼도 M(44 · 반경 16 · 15 Bold) 으로 올린다. */
+.git-row > .btn { height: 44px; padding: 0 18px; border-radius: 16px; font-size: 15px; }
+.git-status { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
