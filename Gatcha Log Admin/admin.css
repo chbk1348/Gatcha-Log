@@ -104,17 +104,35 @@ body {
 .res-picker small { display: block; font-size: 12px; color: var(--muted); }
 .res-picker .dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
 .res-picker[aria-expanded=true] .gl-caret { transform: translateY(1px) rotate(-135deg); }
-/* 묶음 머리 — 13 Bold 회색. */
-.nav-group { margin: 14px 12px 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
+/* 사이드바 개편(10/6, 시안 「사이드바 개편 · A」) — 묶음 머리는 누르면 접히는 단추(13 Bold 회색 · 꺾쇠),
+   줄은 36 높이 · 아이콘 18(선 1.8) · 꼬리는 오류 알약 > 경고 점 > 회색 건수. 빈 「0」 은 달지 않는다. */
+.nav-group {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; margin: 14px 0 2px; padding: 6px 12px;
+  border: 0; border-radius: 8px; background: none; color: var(--muted);
+  font: inherit; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer;
+}
+.nav-group:hover { background: var(--panel-2); }
+.nav-group .nav-caret { margin: 0 2px 0 1px; }
+.nav-group[aria-expanded=false] .nav-caret { transform: translateY(0) rotate(-45deg); }
+.nav-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-item {
-  display: flex; align-items: center; gap: 9px;
-  width: 100%; padding: 9px 12px; margin-bottom: 2px;
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; height: 36px; padding: 0 12px; margin-bottom: 2px;
   border: 0; border-radius: 10px;
   background: none; color: var(--text);
-  font: inherit; text-align: left; cursor: pointer;
+  font: inherit; font-weight: 500; text-align: left; cursor: pointer;
 }
 .nav-item:hover { background: var(--panel-2); }
 .nav-item.active { background: var(--accent-sel); color: var(--accent-deep); font-weight: 700; }
+.nav-ic { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav-item.active .nav-ic { stroke: var(--accent-deep); }
+.nav-n { flex: none; font-size: 12px; font-weight: 600; color: var(--muted); }
+.nav-item.active .nav-n { color: var(--accent-deep); }
+.nav-err { flex: none; font-size: 12px; font-weight: 700; color: var(--err); background: var(--err-bg); border-radius: 999px; padding: 0 7px; }
+.nav-warn { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--warn); }
+.nav-warn i { width: 8px; height: 8px; border-radius: 50%; background: #E8A317; }
+#nav-pinned { margin: -4px -12px 8px; font-size: 14px; }
 /* 건수 알약 — 12 Bold. 메뉴 · 섹션 제목 옆에서 같이 쓴다. */
 .count {
   flex: none; font-size: 12px; font-weight: 700; color: var(--muted);
@@ -127,6 +145,7 @@ body {
 
 .sidebar-foot {
   padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+  flex: none;
   border-top: 1px solid var(--line); font-size: 12px;
 }
 
