@@ -82,7 +82,8 @@ private fun subDepth(s: GiSub): Int = when (s) {
     GiSub.Main -> 0
     // 호요랜드는 **일정 페이지에서도** 들어온다(Schedule=1). 같은 깊이로 두면 돌아올 때도
     // push 로 밀려, 뒤로가기인데 화면이 앞으로 나가는 것처럼 보였다.
-    GiSub.CharStats, GiSub.NewsDetail, GiSub.CombatClear, GiSub.Hoyoland -> 2
+    // 상세 대시보드는 **가챠 효율 리포트(1)의 하위**다 — 같은 깊이로 두면 리포트로 돌아올 때 push 로 밀린다.
+    GiSub.CharStats, GiSub.NewsDetail, GiSub.CombatClear, GiSub.Hoyoland, GiSub.Dashboard -> 2
     else -> 1
 }
 
@@ -285,10 +286,11 @@ fun GameInfoScreen(
                 },
                 onBack = { subPage = GiSub.Main },
             )
+            // 리포트에서만 들어온다 — 뒤로가기는 들어온 곳(리포트)으로. 예전엔 게임 정보 첫 화면까지 한 번에 빠졌다(10/6).
             GiSub.Dashboard -> GachaDashboardScreen(
                 dashboard = gachaDashboard,
                 spendByGameKey = gachaSpendByGame,
-                onBack = { subPage = GiSub.Main },
+                onBack = { subPage = GiSub.Report },
             )
             GiSub.CharStats -> {
                 val c = statChar

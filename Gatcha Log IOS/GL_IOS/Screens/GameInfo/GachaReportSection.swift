@@ -20,12 +20,7 @@ struct GachaReportSection: View {
             // 기록이 있으면 마지막이 대시보드 진입 줄(위아래 12)이라 아래 8 — 띠까지 눈에 20(10/1). 빈 상태는 맨 아래라 20.
             reportSection(bottom: stats != nil ? 8 : 20) {
                 HStack {
-                    HStack(spacing: 6) {
-                        Text("가챠 효율 리포트").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Text("Beta").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
-                            .padding(.horizontal, 6).padding(.vertical, 1)
-                            .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    }
+                    Text("가챠 효율 리포트").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     Spacer()
                     if stats != nil {
                         Button { store.clearGachaRecords() } label: {

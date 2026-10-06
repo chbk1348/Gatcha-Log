@@ -65,13 +65,7 @@ fun GachaReportSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("가챠 효율 리포트", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.width(6.dp))
-                    Surface(color = accent.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-                        Text("Beta", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
-                    }
-                }
+                Text("가챠 효율 리포트", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 if (stats != null) {
                     Text("초기화", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onClear() }.padding(4.dp))
                 }

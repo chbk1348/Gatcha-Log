@@ -65,9 +65,14 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
-        .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트", flat: true) { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
+        .navigationDestination(isPresented: $showReport) {
+            sectionPage("가챠 효율 리포트", flat: true) { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) }
+                // 상세 대시보드는 **리포트의 하위 페이지**다 — 리포트 위에 쌓는다.
+                // 예전엔 리포트와 나란히 이 화면 뿌리에 걸려 있어, 리포트를 띄운 채 열면 리포트가 대시보드로
+                // 갈아 끼워졌다: 밀려 들어오는 애니메이션이 없고 뒤로가면 게임 정보 첫 화면까지 빠졌다(10/6). (Android 와 같다)
+                .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
+        }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
-        .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store) }
         .navigationDestination(isPresented: $showNews) { NewsPage(store: store) }
         .navigationDestination(isPresented: $showNewsDetail) {
