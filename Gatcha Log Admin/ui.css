@@ -170,8 +170,12 @@ td .gl-num-b { width: 22px; }
 .gl-time-c { color: var(--muted); }
 
 /* 시각만 고르는 팝오버 — 위에 달력이 없으니 구분선도 없다. */
-.gl-time-pop { min-width: 200px; }
+.gl-time-pop { min-width: 248px; }
 .gl-time-pop .gl-time { justify-content: center; margin-top: 0; padding-top: 0; border-top: 0; }
+/* 시 · 분 칸은 줄지 않는 폭 — 팝오버가 좁으면 숫자 칸이 눌려 「10」 이 잘려 보였다(10/7). 16 · 숫자 두 자리 + −/+ 두 칸. */
+.gl-time .gl-num { flex: none; width: 104px; }
+.gl-time .gl-num-in { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gl-time-pop .gl-time > .gl-time-c:last-child { width: 104px; text-align: center; font-size: 16px; font-weight: 700; color: var(--text); }
 /* 미리 정해 둔 값(종일 · 수시 · 미정) — GLDS 칩(높이 32 · 캡슐 · 13 Bold). 선택은 면을 채우지 않고 테두리와 글자색으로만. */
 .gl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .gl-chips .gl-mini, .gl-chips .gl-mini:hover {
