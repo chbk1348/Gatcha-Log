@@ -262,10 +262,11 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("${e.edition} · ${e.statusLabel()}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                // 일정 미정이면 직전 회차가 마무리됐다는 안내를 붙인다 — 상세 히어로와 같은 문장.
-                if (phase == HoyolandPhase.TBA && e.nextEditionNotice.isNotEmpty()) {
+                // 상단 한 줄 — 어드민 공지 문구, 없으면 일정 미정의 자동 문구. 상세 히어로와 같은 문장([HoyolandEvent.topNotice]).
+                val notice = e.topNotice()
+                if (notice.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
-                    Text(e.nextEditionNotice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
+                    Text(notice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
                 }
             }
         }
@@ -993,7 +994,7 @@ fun HoyolandDetailContent(
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
-    // 늘 마지막 섹션이라 공지 한 줄도 여기 끝에 붙는다(10/1).
+    // 공지 한 줄은 여기 끝에 붙이지 않는다 — 상단(히어로)에만 선다(10/6, [HoyolandEvent.topNotice]).
     val pastSection: @Composable () -> Unit = {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -1026,12 +1027,6 @@ fun HoyolandDetailContent(
                 HoyolandPastEventCard(p.title, p.facts)
             }
         }
-    }
-
-    // 공지가 비면 **자리째 뺀다** — 빈 글자에 위 여백만 남으면 페이지 끝이 이유 없이 떴다(2026-09-28).
-    if (e.notice.isNotBlank()) {
-        Spacer(Modifier.height(14.dp))
-        Text(e.notice, fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp)   // 11 → 12(10/1)
     }
     }
     sections += pastSection

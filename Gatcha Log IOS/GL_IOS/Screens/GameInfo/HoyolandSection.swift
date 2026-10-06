@@ -128,9 +128,10 @@ struct HoyolandSection: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(e.edition) · \(e.statusLabel(nowMillis: now))").font(.pretendard(size: 14, weight: .semibold))
                             .foregroundStyle(GLGColor.textPrimary)
-                        // 일정 미정이면 직전 회차가 마무리됐다는 안내를 붙인다 — 상세 히어로와 같은 문장.
-                        if phase == .tba && !e.nextEditionNotice.isEmpty {
-                            Text(e.nextEditionNotice)
+                        // 상단 한 줄 — 어드민 공지 문구, 없으면 일정 미정의 자동 문구. 상세 히어로와 같은 문장(`topNotice`).
+                        let notice = e.topNotice(nowMillis: now)
+                        if !notice.isEmpty {
+                            Text(notice)
                                 .font(.pretendard(size: 13)).lineSpacing(3)
                                 .foregroundStyle(GLGColor.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -619,13 +620,6 @@ struct HoyolandDetailView: View {
                 Text(phase == .tba ? e.statusLabel(nowMillis: now) : "EVENT ENDED")
                     .font(.pretendard(size: 24, weight: .black)).kerning(1)
                     .foregroundStyle(GLGColor.textSecondary)
-                if phase == .tba && !e.nextEditionNotice.isEmpty {
-                    Text(e.nextEditionNotice)
-                        .font(.pretendard(size: 13)).lineSpacing(3)
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 8)
-                }
             } else {
                 // **밑선으로 맞춘다.** `.bottom` 은 글자 상자의 아래를 맞추는 거라, 64 과 13
                 // 처럼 크기가 크게 벌어지면 큰 쪽 상자 아래 여백만큼 작은 글자가 내려앉아
@@ -642,6 +636,16 @@ struct HoyolandDetailView: View {
                     Text(live ? "일차" : "일 남음")
                         .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                 }
+            }
+            // 상단 한 줄 — 어드민 공지 문구, 없으면 일정 미정의 자동 문구(`topNotice`). 단계와 무관하게
+            // 남은 날짜(또는 EVENT ENDED) 바로 아래 같은 자리 · 같은 모양이다. (Android HeroCountdown 과 같다)
+            let topNotice = e.topNotice(nowMillis: now)
+            if !topNotice.isEmpty {
+                Text(topNotice)
+                    .font(.pretendard(size: 13)).lineSpacing(3)
+                    .foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
             }
 
             if e.isBeforeEvent(nowMillis: now) {
@@ -1443,7 +1447,7 @@ struct HoyolandDetailView: View {
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
-    // 늘 마지막 섹션이라 공지 한 줄도 여기 끝에 붙는다(10/1). 섹션 여백 · 띠는 호출부가 건다.
+    // 공지 한 줄은 여기 끝에 붙이지 않는다 — 상단(히어로)에만 선다(10/6, `topNotice`). 섹션 여백 · 띠는 호출부가 건다.
     @ViewBuilder private func pastSection(_ e: HoyolandEvent) -> some View {
         VStack(alignment: .leading, spacing: 0) {
         Button {
@@ -1473,14 +1477,6 @@ struct HoyolandDetailView: View {
                 }
             }
             .padding(.top, 2)
-        }
-
-        // 공지가 비면 **자리째 뺀다** — 빈 글자에 위 여백만 남으면 페이지 끝이 이유 없이 떴다(2026-09-28).
-        if !e.notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            Text(e.notice)
-                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)   // 11 → 12(10/1)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 14)
         }
         }
     }

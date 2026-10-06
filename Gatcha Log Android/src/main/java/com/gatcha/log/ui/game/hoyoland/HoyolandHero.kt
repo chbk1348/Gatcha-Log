@@ -334,12 +334,14 @@ private fun HeroLiveStage(e: HoyolandEvent, live: StageSlot) {
 @Composable
 private fun HeroCountdown(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean) {
     val deep = LocalAccentDeep.current
+    // 상단 한 줄 — 어드민 공지 문구, 없으면 일정 미정의 자동 문구([HoyolandEvent.topNotice]). 단계와 무관하게 같은 자리 · 같은 모양이다.
+    val notice = e.topNotice()
     if (ended) {
         // 일정 미정(TBA)도 이 자리 — 셀 날짜가 없으니 숫자 대신 한 마디.
         Text(if (phase == HoyolandPhase.TBA) e.statusLabel() else "EVENT ENDED", fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextSecondary, letterSpacing = 1.sp)
-        if (phase == HoyolandPhase.TBA && e.nextEditionNotice.isNotEmpty()) {
+        if (notice.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
-            Text(e.nextEditionNotice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
+            Text(notice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
         }
         return
     }
@@ -366,6 +368,10 @@ private fun HeroCountdown(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean
             fontSize = 13.sp, color = TextSecondary,
             modifier = Modifier.alignByBaseline(),
         )
+    }
+    if (notice.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(notice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
     }
 }
 

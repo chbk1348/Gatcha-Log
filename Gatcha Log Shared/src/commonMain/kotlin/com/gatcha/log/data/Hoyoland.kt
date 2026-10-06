@@ -944,6 +944,17 @@ data class HoyolandEvent(
     val nextEditionNotice: String
         get() = past.firstOrNull()?.let { "${it.title} 행사가 마무리되었어요.\n다음 행사를 기대해 주세요." }.orEmpty()
 
+    /**
+     * 화면 **상단**에 서는 한 줄 — 어드민의 공지 문구([notice])가 있으면 그것, 없으면 일정 미정일 때만
+     * [nextEditionNotice]. 둘 다 없으면 빈 문자열(화면이 줄째 뺀다).
+     *
+     * 예전엔 공지 문구가 페이지 맨 아래(지난 행사 끝)에 붙고 상단에는 자동 문구가 따로 섰다. 일정 미정에
+     * 공지를 적으면 비슷한 말이 위아래로 두 번 나왔다(2026-10-06 지적). 공지는 상단 한 곳에만 세우고,
+     * 적어 둔 공지가 자동 문구를 대신한다. 상세 히어로와 게임정보 탭 한 줄이 같은 값을 쓴다.
+     */
+    fun topNotice(nowMillis: Long = currentTimeMillis()): String =
+        notice.trim().ifEmpty { if (phase(nowMillis) == HoyolandPhase.TBA) nextEditionNotice else "" }
+
     /** 저장된 장바구니를 이 회차로 읽는다 — 다른 회차 것이면 비운다(작년 굿즈 이름이 남지 않게). */
     fun cartForEdition(cart: HoyolandCart, savedEdition: String): HoyolandCart =
         if (savedEdition == editionKey) cart else HoyolandCart()
