@@ -42,6 +42,13 @@ const LIMIT_COUNT_RE = /^1인\s+(\d+)/;
 /** 앱이 표준 값과 똑같이 읽는 예매 상태 별칭(HoyolandApi.ticketStatusOf). */
 const TICKET_STATUS_ALIAS = { onsale: 'on_sale', soldout: 'sold_out' };
 
+/**
+ * 푸드존 줄 · DIY존 줄 — 앱과 **같아야 한다**(Hoyoland.kt `foodPrograms` · `HoyolandBooth.isDiy`).
+ * 어드민의 푸드존 · DIY 탭이 이 기준으로 programs · booths 배열에서 제 줄을 고른다.
+ */
+const isFoodProgram = (p) => String(p?.title ?? '').startsWith('푸드');
+const isDiyBooth = (b) => !String(b?.game ?? '').trim() && String(b?.location ?? '').includes('DIY');
+
 /** 비고를 앱과 같은 규칙으로 가른다. */
 function goodsNote(note) {
   const parts = String(note ?? '').split(NOTE_SEP).map((p) => p.trim()).filter(Boolean);
@@ -128,7 +135,7 @@ const SLOT_COLS = [
   { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '비우면 합동' },
   { key: 'cast', label: '출연', type: 'text', width: '160px' },
   { key: 'minutes', label: '길이(분)', type: 'number', width: '110px', min: 0 },
-  { key: 'desc', label: '설명', type: 'text' },
+  { key: 'desc', label: '설명', type: 'text', lines: true },
 ];
 
 const FACT_COLS = [
@@ -353,7 +360,7 @@ const HOYOLAND = {
 
     for (const b of d.booths) {
       if (b.price !== '' && b.price != null && !Number.isFinite(Number(b.price)))
-        add('error', 'booths', `"${b.title}" 의 참가비가 숫자가 아닙니다 — 앱이 0(무료)으로 읽습니다.`);
+        add('error', isDiyBooth(b) ? 'diy' : 'booths', `"${b.title}" 의 참가비가 숫자가 아닙니다 — 앱이 0(무료)으로 읽습니다.`);
     }
     return out;
   },
@@ -412,13 +419,27 @@ const HOYOLAND = {
       desc: 'abbr · colorArgb 는 앱 GameData 에 없는 게임(붕괴3rd · 미해결사건부 등)만 채웁니다. 공지 주소를 넣으면 앱에서 그 게임 칩을 눌러 열 수 있습니다.',
       warnEmpty: '비우면 앱이 번들 기본 라인업으로 폴백합니다(빈 목록으로 내릴 수 없음).',
       columns: LINEUP_COLS },
+    // 푸드존은 같은 programs 배열에 있지만 탭을 따로 쓴다(10/6) — 여기에는 푸드가 아닌 줄만 선다([only]).
     { id: 'programs', group: '행사', label: '프로그램', type: 'list', path: 'programs', countable: true,
-      desc: '전시존 · 공모 등 상시 프로그램. 마감이 있으면 deadline 에 적습니다.',
+      only: (p) => !isFoodProgram(p),
+      desc: '전시존 · 공모 등 상시 프로그램. 마감이 있으면 deadline 에 적습니다. 제목이 「푸드」로 시작하는 줄은 푸드존 탭에 섭니다.',
       columns: [
         { key: 'title', label: '제목', type: 'text', required: true },
-        { key: 'desc', label: '설명', type: 'text' },
+        { key: 'desc', label: '설명', type: 'text', lines: true },
         { key: 'deadline', label: '마감 표기', type: 'text' },
-        // 푸드 프로그램(제목이 '푸드'로 시작)만 쓴다 — 설명글의 메뉴 줄마다 사진 경로를 건다.
+      ] },
+    /*
+     * 푸드존 — 프로그램과 **같은 배열(programs)** 을 쓰는 다른 탭이다(10/6). 앱이 제목이 「푸드」로 시작하는 줄을
+     * 푸드존 페이지로 빼내므로(Hoyoland.kt foodPrograms) 어드민도 같은 기준으로 가른다. 문서 꼴은 그대로라
+     * 깔려 있는 앱이 그대로 읽는다. 새 줄은 「푸드존 — 」 으로 시작한다([seed]) — 그 머리를 지우면 프로그램 탭으로 간다.
+     */
+    { id: 'food', group: '행사', label: '푸드존', type: 'list', path: 'programs', countable: true,
+      only: (p) => isFoodProgram(p), seed: { title: '푸드존 — ' },
+      desc: '게임별 푸드존 · 푸드트럭 메뉴. 제목은 「푸드」로 시작해야 앱이 푸드존으로 읽습니다(“푸드존 — 원신”). 설명글의 “· 이름 — 가격” 줄이 메뉴 한 줄이고, 그 줄마다 사진을 겁니다.',
+      columns: [
+        { key: 'title', label: '제목', type: 'text', required: true, placeholder: '푸드존 — 원신' },
+        { key: 'desc', label: '메뉴', type: 'text', lines: true },
+        // 설명글의 메뉴 줄마다 사진 경로를 건다.
         { key: 'menuImages', label: '메뉴 사진', type: 'menuImages', width: '350px' },
       ] },
     { id: 'days', group: '행사', label: '무대 시간표', type: 'days', path: 'days', countable: true,
@@ -435,8 +456,10 @@ const HOYOLAND = {
         // assetDir — 「올리기」가 쓰는 폴더(여기에 회차가 붙는다)이자, 번호를 이어 딸 때 훑는 목록(draft.goods)의 이름이다.
         { key: 'image', label: '사진', type: 'image', width: '290px', placeholder: 'goods/2026/hsr-036.webp', assetDir: 'goods', assetDigits: 3 },
       ] },
+    // DIY존은 같은 booths 배열에 있지만 탭을 따로 쓴다(10/6) — 여기에는 DIY 가 아닌 줄만 선다([only]).
     { id: 'booths', group: '행사', label: '부스 체험', type: 'list', path: 'booths', countable: true,
-      desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다. 참가비는 숫자로 넣고, 무료면 0 입니다.',
+      only: (b) => !isDiyBooth(b),
+      desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다. 참가비는 숫자로 넣고, 무료면 0 입니다. 게임 없이 구분이 「DIY존」인 줄은 DIY 탭에 섭니다.',
       columns: [
         { key: 'title', label: '부스명', type: 'text', required: true },
         { key: 'game', label: '게임', type: 'game', width: '150px' },
@@ -445,7 +468,21 @@ const HOYOLAND = {
         // 무료/유료 배지를 가른다(HoyolandBooth.isPaid) — 0 이 곧 '무료' 다.
         { key: 'price', label: '참가비(원)', type: 'number', width: '110px', min: 0 },
         { key: 'reward', label: '보상', type: 'text', width: '140px' },
-        { key: 'desc', label: '설명', type: 'text' },
+        { key: 'desc', label: '설명', type: 'text', lines: true },
+      ] },
+    /*
+     * DIY — 부스 체험과 **같은 배열(booths)** 을 쓰는 다른 탭이다(10/6). 앱 부스 페이지의 DIY 탭과 같은 기준
+     * (Hoyoland.kt HoyolandBooth.isDiy — 게임이 비고 구분에 「DIY」)으로 가른다. 게임 · 구분은 칸으로 두지 않고
+     * 새 줄에 넣어 준다([seed]) — 손으로 고칠 값이 아니고, 바꾸면 이 탭에서 사라진다.
+     */
+    { id: 'diy', group: '행사', label: 'DIY', type: 'list', path: 'booths', countable: true,
+      only: (b) => isDiyBooth(b), seed: { game: '', location: 'DIY존' },
+      desc: 'DIY존. 참가비가 0 인 줄은 앱이 맨 위 「이용 안내」로 읽고(한 줄만), 참가비가 있는 줄이 만들기 목록입니다.',
+      columns: [
+        { key: 'title', label: '이름', type: 'text', required: true, placeholder: '에코백 만들기' },
+        { key: 'price', label: '참가비(원)', type: 'number', width: '110px', min: 0 },
+        { key: 'reward', label: '받는 것', type: 'text', width: '220px' },
+        { key: 'desc', label: '설명', type: 'text', lines: true },
       ] },
     { id: 'past', group: '연계', label: '지난 행사', type: 'past', path: 'past', countable: true,
       desc: '이력 카드. 비우면 앱이 번들 기본값으로 폴백합니다.' },
@@ -453,25 +490,23 @@ const HOYOLAND = {
 };
 
 /*
- * 호요랜드 메뉴 — 시안의 묶음과 순서: 행사(기본 정보 · 예매 / 입장 조 / 참여 게임) ·
- * 현장(무대 시간표 / 굿즈샵 / 부스 체험 / 프로그램) · 기록(지난 행사).
+ * 호요랜드 메뉴 — 묶음과 순서: 행사(기본 정보 / 예매 / 입장 조 / 참여 게임) ·
+ * 현장(무대 시간표 / 굿즈샵 / 푸드존 / 부스 체험 / DIY / 프로그램) · 기록(지난 행사).
+ * 푸드존 · DIY 는 시안에 없던 탭이다(10/6 지시) — 프로그램 · 부스 체험에 섞여 있던 줄을 따로 뺐다.
  *
- * 「기본 정보」와 「예매」는 메뉴에서 한 줄(info)로 합쳤다. 두 섹션 정의는 그대로 남긴다 —
- * 검증 메시지 · 변경사항이 섹션 id(meta · ticket)로 자리를 가리키고, 칸 이름도 거기서 읽는다.
- * 메뉴에서만 숨기고(hidden) 들어가려 하면 합친 화면으로 보낸다(parent).
+ * 「기본 정보」와 「예매」는 시안대로 한 화면(info)에 합쳤다가 **다시 탭을 나눴다**(10/6 지시).
+ * 합친 화면을 그리던 길(type 'info' · parts · parent · hidden)은 남겨 둔다 — 지금은 쓰는 리소스가 없다.
  */
 (() => {
   const by = Object.fromEntries(HOYOLAND.sections.map((x) => [x.id, x]));
-  const info = { id: 'info', label: '기본 정보 · 예매', type: 'info', parts: ['meta', 'ticket'], desc: '' };
-  for (const id of info.parts) Object.assign(by[id], { hidden: true, parent: 'info' });
   // 시안의 건수는 날짜 수가 아니라 슬롯 수다(34).
   by.days.count = (d) => d.days.reduce((a, x) => a + x.slots.length, 0);
   const groups = [
-    ['행사', [info, by.entryGroups, by.lineup]],
-    ['현장', [by.days, by.goods, by.booths, by.programs]],
+    ['행사', [by.meta, by.ticket, by.entryGroups, by.lineup]],
+    ['현장', [by.days, by.goods, by.food, by.booths, by.diy, by.programs]],
     ['기록', [by.past]],
   ];
-  HOYOLAND.sections = [by.meta, by.ticket, ...groups.flatMap(([g, list]) => list.map((x) => Object.assign(x, { group: g })))];
+  HOYOLAND.sections = groups.flatMap(([g, list]) => list.map((x) => Object.assign(x, { group: g })));
 })();
 
 /* ═════════════════════════════════════════════════════════════
@@ -1223,7 +1258,8 @@ const issuesNow = () => state.res.validate(state.draft);
  * 자리는 예전 그대로 `HOYOLAND` 다 — 문서 config/hoyolandV2 · 정본 config/hoyoland_v2.json. 그래서 앱도,
  * 게시 중인 회차의 편집 · 반영도 바뀐 것이 없다.
  *
- * 나머지 회차(보관 · 게시 전)는 회차마다 따로 둔 문서에 산다. **앱은 이 문서들을 읽지 않는다.**
+ * 나머지 회차(보관 · 게시 전)는 회차마다 따로 둔 문서에 산다. 앱은 그중 **보관된 회차만** 읽는다 —
+ * 「지난 행사 ▸ 상세 보기」가 그 회차 문서를 연다(HoyolandApi.loadArchive). 게시 전 회차는 앱에 나가지 않는다.
  *   회차  config/hoyolandEdition{연도}   정본  config/hoyoland/editions/{연도}.json
  *   목록  config/hoyolandEditions        정본  config/hoyoland/editions.json
  *
@@ -1263,7 +1299,7 @@ const editionState = (id) => (id === editions.published ? 'live' : editions.arch
 
 /** 목록 문서의 JSON — 라이브와 정본에 같은 것을 쓴다. */
 const editionIndexJson = (x = editions) => JSON.stringify({
-  _comment: '호요랜드 회차 목록 — 어드민의 회차 탭이 읽는다. published 가 앱에 게시 중인 회차(config/hoyolandV2 · config/hoyoland_v2.json)이고, 나머지는 config/hoyoland/editions/{연도}.json 에 있다. 앱은 이 파일을 읽지 않는다.',
+  _comment: '호요랜드 회차 목록 — 어드민의 회차 탭이 읽는다. published 가 앱에 게시 중인 회차(config/hoyolandV2 · config/hoyoland_v2.json)이고, 나머지는 config/hoyoland/editions/{연도}.json 에 있다. 앱은 archived(보관된 회차)만 읽는다 — 「지난 행사 ▸ 상세 보기」가 그 회차 문서를 연다.',
   published: x.published, editions: x.ids, archived: x.archived,
 }, null, 2) + '\n';
 
@@ -1395,7 +1431,24 @@ function withPastHead(d, prev) {
   return d;
 }
 
-/** 회차 목록을 원격에서 읽는다 — 라이브 → 정본 → (없으면) 내장값 그대로. */
+/**
+ * 라이브 목록에 **정본에만 있는 회차**를 합친다 — 게시 중인 회차는 라이브 것 그대로다.
+ *
+ * 회차 파일을 저장소에 직접 올린 경우(어드민 이전의 2024 · 2025)를 위한 것이다. 라이브 목록은 어드민에서
+ * 회차를 만들거나 넘길 때만 바뀌므로, 합치지 않으면 저장소에 파일이 있어도 탭이 서지 않는다.
+ * 합친 목록은 다음에 목록을 쓸 때(회차 추가 · 게시) 라이브에도 실린다.
+ */
+function mergeEditionIndex(live, canon) {
+  if (!canon || typeof canon !== 'object') return live;
+  const list = (x) => (Array.isArray(x) ? x.map(String) : []);
+  return {
+    ...live,
+    editions: [...new Set([...list(live.editions), ...list(canon.editions)])],
+    archived: [...new Set([...list(live.archived), ...list(canon.archived)])],
+  };
+}
+
+/** 회차 목록을 원격에서 읽는다 — 라이브(+ 정본에만 있는 회차) → 정본 → (없으면) 내장값 그대로. */
 async function loadEditions() {
   const c = window.cloud || {};
   let raw = null;
@@ -1406,12 +1459,13 @@ async function loadEditions() {
       if (v && String(v.json).trim()) { raw = JSON.parse(v.json); from = 'live'; }
     } catch (e) { /* 못 읽으면 정본으로 */ }
   }
-  if (!raw) {
-    try {
-      const r = await fetch(REPO_RAW + EDITIONS.file + '?t=' + Date.now(), { cache: 'no-store' });
-      if (r.ok) { raw = await r.json(); from = 'canon'; }
-    } catch (e) { /* 정본도 없다 — 아직 회차를 넘긴 적이 없다 */ }
-  }
+  let canon = null;
+  try {
+    const r = await fetch(REPO_RAW + EDITIONS.file + '?t=' + Date.now(), { cache: 'no-store' });
+    if (r.ok) canon = await r.json();
+  } catch (e) { /* 정본도 없다 — 아직 회차를 넘긴 적이 없다 */ }
+  if (raw) raw = mergeEditionIndex(raw, canon);
+  else if (canon) { raw = canon; from = 'canon'; }
   if (!raw) return;
   const before = editionIndexJson();
   const moved = applyEditions(raw, from);
@@ -1860,7 +1914,11 @@ function explainPath(path, tree) {
 
   const secs = sectionsOf(state.res);
   const head = toks[0].key;
-  const sec = secs.find((x) => x.path && x.path === head)
+  // 한 배열을 두 탭이 나눠 쓰면(프로그램 · 푸드존, 부스 체험 · DIY) **그 행이 선 탭**의 이름으로 부른다.
+  const shared = secs.filter((x) => x.path && x.path === head);
+  const headRow = toks[1]?.idx !== undefined ? tree?.[head]?.[toks[1].idx] : undefined;
+  const sec = (headRow && shared.find((x) => x.only && x.only(headRow)))
+    || shared[0]
     || secs.find((x) => x.path === '' && (x.fields || []).some((f) => f.key === head));
   const labelOf = (cols, key) => (cols || []).find((c) => c.key === key)?.label || key;
 
@@ -2152,14 +2210,14 @@ function inputFor(cfg, value, onChange, row) {
       return glColor({ value, palette: GAME_PALETTE, onInput: onChange, onChange: commit });
 
     case 'textarea':
-      return glTextarea({ value, placeholder: cfg.placeholder, onInput: onChange, onChange: commit });
+      return glArea({ value, placeholder: cfg.placeholder, multiline: true, tall: true, onInput: onChange, onChange: commit });
 
     case 'image': {
       // 사진 경로 + 미리보기. 경로 오타는 앱에서 조용히 자리표시로만 보이므로 여기서 바로 드러낸다.
       // 저장소 raw 를 읽으므로 **커밋 · 푸시 전 파일은 깨진 표시**가 정상이다.
       const { img, paint } = assetThumb();
       paint(value);
-      const input = glText({
+      const input = glArea({
         value, placeholder: cfg.placeholder,
         onInput: (v) => { onChange(v); paint(v); },
         onChange: (v) => { commit(v); paint(v); },
@@ -2169,7 +2227,7 @@ function inputFor(cfg, value, onChange, row) {
           dir: assetDir(cfg.assetDir), digits: cfg.assetDigits || 3, abbr: assetAbbr(row && row.game), current: input.value,
           used: (get(state.draft, cfg.assetDir) || []).map((r) => r && r[cfg.key]),
         }),
-        (path) => { input.value = path; commit(path); paint(path); },
+        (path) => { input.value = path; input.fit(); commit(path); paint(path); },
       ) : null;
       return el('div', { class: 'img-cell' }, [img, input, up]);
     }
@@ -2196,7 +2254,7 @@ function inputFor(cfg, value, onChange, row) {
         ...names.map((name) => {
           const { img, paint } = assetThumb();
           paint(map[name]);
-          const text = glText({
+          const text = glArea({
             value: map[name] ?? '', placeholder: 'food/2026/hsr-06.webp',
             onInput: (v) => { map[name] = v; paint(v); save(false); },
             onChange: (v) => { map[name] = v; paint(v); save(true); },
@@ -2207,7 +2265,7 @@ function inputFor(cfg, value, onChange, row) {
               dir: assetDir('food'), digits: 2, abbr: assetAbbr(row.title), current: map[name],
               used: (state.draft.programs || []).flatMap((p) => Object.values((p && p.menuImages) || {})).concat(Object.values(map)),
             }),
-            (path) => { map[name] = path; text.value = path; paint(path); save(true); },
+            (path) => { map[name] = path; text.value = path; text.fit(); paint(path); save(true); },
           );
           return el('div', { class: 'img-cell' }, [
             img,
@@ -2222,9 +2280,12 @@ function inputFor(cfg, value, onChange, row) {
     }
 
     default:
-      return glText({
+      // 글 칸은 줄이 넘어가면 자란다(glArea). 줄바꿈을 **값으로** 받는 것은 그렇게 정한 칸(lines)과, 이미 줄바꿈이
+      // 든 값뿐이다 — 한 줄 입력칸에 넣으면 그 줄바꿈이 화면에서도, 고친 뒤의 값에서도 사라진다.
+      return glArea({
         value, placeholder: cfg.placeholder,
         inputmode: cfg.type === 'url' ? 'url' : null,
+        multiline: !!cfg.lines || String(value ?? '').includes('\n'),
         onInput: onChange, onChange: commit,
       });
   }
@@ -2442,27 +2503,43 @@ function renderList(sec, opts = {}) {
   const path = opts.path || sec.path;
   const columns = opts.columns || sec.columns;
   const rows = get(state.draft, path);
-  const blank = () => Object.fromEntries(columns.map((c) =>
-    [c.key, c.type === 'bool' ? false : c.type === 'number' ? 0 : c.type === 'select' ? c.options[0].value : '']));
+  /*
+   * 한 배열을 두 탭이 나눠 쓸 때(프로그램 · 푸드존, 부스 체험 · DIY) 이 탭의 줄만 고른다(sec.only).
+   * `rows` 는 **배열 전체** 그대로 둔다 — 편집 · 삭제 · 이동이 원래 자리(i)로 이뤄져 다른 탭의 줄을 건드리지 않는다.
+   * 새 줄에는 이 탭에 서게 하는 값(sec.seed)을 넣어 준다.
+   */
+  const only = opts.path ? null : sec.only;
+  const own = (r) => !only || only(r);
+  const total = () => (only ? rows.filter(own).length : rows.length);
+  const blank = () => ({ ...Object.fromEntries(columns.map((c) =>
+    [c.key, c.type === 'bool' ? false : c.type === 'number' ? 0 : c.type === 'select' ? c.options[0].value : ''])),
+    ...(only ? sec.seed : null) });
+  /** 이 탭의 마지막 줄 바로 뒤에 넣는다 — 나눠 쓰지 않는 표에서는 맨 끝과 같다. */
+  const addRows = (list) => {
+    let at = rows.length;
+    if (only) for (let k = rows.length - 1; k >= 0; k--) if (own(rows[k])) { at = k + 1; break; }
+    rows.splice(at, 0, ...list);
+  };
 
   // 검색어는 state 에 둔다 — 행을 지우거나 더하면 render() 가 표를 통째로 다시 그리는데,
   // 그때 검색어가 날아가면 105줄짜리 표에서 방금 보던 자리를 다시 찾아야 한다.
-  const searchable = opts.searchable ?? (rows.length >= LIST_SEARCH_MIN);
-  const selectable = opts.selectable ?? (rows.length >= LIST_SEARCH_MIN);
+  const searchable = opts.searchable ?? (total() >= LIST_SEARCH_MIN);
+  const selectable = opts.selectable ?? (total() >= LIST_SEARCH_MIN);
+  const stateKey = only ? `${path}#${sec.id}` : path;   // 검색어 · 선택은 탭마다 따로다
   state.q ||= {};
-  const q = () => (searchable ? (state.q[path] || '') : '');
+  const q = () => (searchable ? (state.q[stateKey] || '') : '');
 
   // 고른 행은 **자리가 아니라 행 자체**로 기억한다. 자리로 들고 있으면 위아래로 옮기거나
   // 중간을 지운 순간 엉뚱한 행이 선택된 것으로 남는다.
   state.sel ||= {};
-  const sel = selectable ? (state.sel[path] ||= new Set()) : new Set();
+  const sel = selectable ? (state.sel[stateKey] ||= new Set()) : new Set();
 
   // 열이 많은 표는 최소 폭을 준다 — 없으면 폭이 정해진 열이 자리를 다 가져가 글 칸이 한두 글자로 눌린다.
   const table = el('table', sec.minWidth ? { style: `min-width:${sec.minWidth}` } : {});
   const head = el('tr');
   if (selectable) head.append(el('th', { style: 'width:34px' }));
   for (const c of columns) head.append(el('th', { style: c.width ? `width:${c.width}` : '', text: c.label }));
-  head.append(el('th', { style: 'width:96px' }));
+  head.append(el('th', { style: 'width:68px' }));
   table.append(el('thead', {}, [head]));
 
   const body = el('tbody');
@@ -2484,18 +2561,19 @@ function renderList(sec, opts = {}) {
   };
 
   const paint = () => {
-    const hits = rows.map((row, i) => ({ row, i })).filter(({ row }) => rowHits(row, columns, q()));
+    const n = total();
+    const hits = rows.map((row, i) => ({ row, i })).filter(({ row }) => own(row) && rowHits(row, columns, q()));
     visible = hits.map((h) => h.row);
-    count.textContent = hits.length === rows.length ? `${rows.length}건` : `${rows.length}건 중 ${hits.length}건`;
+    count.textContent = hits.length === n ? `${n}건` : `${n}건 중 ${hits.length}건`;
     body.replaceChildren();
     const span = columns.length + 1 + (selectable ? 1 : 0);
-    if (!rows.length) {
+    if (!n) {
       body.append(el('tr', {}, [el('td', { colspan: span, class: 'row-empty', text: '항목이 없습니다. “행 추가”로 시작하세요.' })]));
     } else if (!hits.length) {
       body.append(el('tr', {}, [el('td', { colspan: span, class: 'row-empty', text: `“${q()}” 에 걸리는 행이 없습니다.` })]));
     }
-    const filtered = hits.length !== rows.length;
-    for (const { row, i } of hits) {
+    const filtered = hits.length !== n;
+    hits.forEach(({ row, i }, k) => {
       const tr = el('tr');
       if (selectable) {
         tr.append(el('td', { class: 'sel', 'data-label': '선택' }, [glCheck({
@@ -2505,20 +2583,19 @@ function renderList(sec, opts = {}) {
       }
       for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; }, row)]));
       tr.append(el('td', { class: 'actions' }, [
-        // 걸러낸 상태에서는 순서를 못 바꾼다 — 화면의 이웃과 배열의 이웃이 달라, 누른 사람이
-        // 보고 있는 줄이 아니라 숨은 줄을 넘어간다.
-        el('button', {
-          class: 'btn btn-sm', title: filtered ? '검색을 지워야 순서를 바꿀 수 있습니다' : '위로',
-          disabled: filtered || i === 0, onclick: () => move(rows, i, -1),
-        }, ['↑']), ' ',
-        el('button', {
-          class: 'btn btn-sm', title: filtered ? '검색을 지워야 순서를 바꿀 수 있습니다' : '아래로',
-          disabled: filtered || i === rows.length - 1, onclick: () => move(rows, i, 1),
-        }, ['↓']), ' ',
+        // 손잡이를 잡고 끌어 순서를 바꾼다(ui.js glDragHandle).
+        // 걸러낸 상태에서는 못 바꾼다 — 화면의 이웃과 배열의 이웃이 달라, 끄는 사람이 보고 있는 줄이 아니라
+        // 숨은 줄 사이로 들어간다.
+        // 자리는 **화면에 보이는 줄끼리** 바꾼다(hits) — 나눠 쓰는 배열에서 다른 탭의 줄은 제자리에 남는다(reorderAt).
+        glDragHandle({
+          group: stateKey, index: k, items: () => [...body.children],
+          disabled: filtered || hits.length < 2, title: filtered ? '검색을 지워야 순서를 바꿀 수 있습니다' : '',
+          onMove: (from, to) => { reorderAt(rows, hits.map((h) => h.i), from, to); markDirty(); render(); },
+        }), ' ',
         el('button', { class: 'btn btn-sm btn-danger', title: '삭제', onclick: () => { rows.splice(i, 1); markDirty(); render(); } }, ['✕']),
       ]));
       body.append(tr);
-    }
+    });
   };
   /*
    * 고른 행에 같은 값을 넣는다 — 굿즈 스무 줄의 게임을 하나씩 고르는 일이 흔하다.
@@ -2606,16 +2683,20 @@ function renderList(sec, opts = {}) {
       el('button', { class: 'btn btn-sm btn-primary paste-go', disabled: true, onclick: async () => {
         const n = parsed.rows.length;
         if (!await glConfirm(`${n}행을 표 끝에 더합니다.`, { title: '붙여넣기', ok: `${n}행 추가` })) return;
-        rows.push(...parsed.rows.map(fillBlanks));
+        addRows(parsed.rows.map(fillBlanks));
         markDirty();
         render();
       } }, ['끝에 추가']),
       el('button', { class: 'btn btn-sm btn-danger paste-go', disabled: true, onclick: async () => {
         const n = parsed.rows.length;
-        if (!await glConfirm(`지금 ${rows.length}행을 모두 버리고 붙여넣은 ${n}행으로 바꿉니다.`, {
+        if (!await glConfirm(`지금 ${total()}행을 모두 버리고 붙여넣은 ${n}행으로 바꿉니다.`, {
           title: '표 전체 교체', ok: `${n}행으로 교체`, danger: true,
         })) return;
-        rows.splice(0, rows.length, ...parsed.rows.map(fillBlanks));
+        // 이 탭의 줄만 갈아 끼운다 — 같은 배열을 쓰는 다른 탭의 줄은 남는다.
+        const first = rows.findIndex(own);
+        const rest = rows.filter((r) => !own(r));
+        rest.splice(first < 0 ? rest.length : first, 0, ...parsed.rows.map(fillBlanks));
+        rows.splice(0, rows.length, ...rest);
         sel.clear();
         markDirty();
         render();
@@ -2632,7 +2713,7 @@ function renderList(sec, opts = {}) {
       paint();
       syncSel();
     } }, ['보이는 행 선택']) : null,
-    el('button', { class: 'btn btn-sm', onclick: () => { rows.push(blank()); markDirty(); render(); } }, ['+ 행 추가']),
+    el('button', { class: 'btn btn-sm', onclick: () => { addRows([blank()]); markDirty(); render(); } }, ['+ 행 추가']),
   ]);
   if (opts.extraTools) tools.append(...opts.extraTools);
 
@@ -2640,10 +2721,10 @@ function renderList(sec, opts = {}) {
   if (searchable) {
     const input = glText({
       value: q(), placeholder: '검색 — 여러 낱말은 모두 걸립니다',
-      onInput: (v) => { state.q[path] = v; paint(); },
+      onInput: (v) => { state.q[stateKey] = v; paint(); },
     });
     input.classList.add('list-search');
-    const clear = el('button', { class: 'btn btn-sm', title: '검색 지우기', onclick: () => { state.q[path] = ''; input.value = ''; paint(); } }, ['✕']);
+    const clear = el('button', { class: 'btn btn-sm', title: '검색 지우기', onclick: () => { state.q[stateKey] = ''; input.value = ''; paint(); } }, ['✕']);
     headRow.push(el('div', { class: 'list-search-wrap' }, [input, clear]));
   }
   headRow.push(tools);
@@ -2655,7 +2736,7 @@ function renderList(sec, opts = {}) {
     paste,
     el('div', { class: 'table-wrap' }, [table]),
   ];
-  if (sec.warnEmpty && !rows.length) kids.push(el('div', { class: 'note', style: 'margin-top:10px', text: '⚠ ' + sec.warnEmpty }));
+  if (sec.warnEmpty && !total()) kids.push(el('div', { class: 'note', style: 'margin-top:10px', text: '⚠ ' + sec.warnEmpty }));
   if (opts.summary) kids.push(opts.summary);
   return opts.bare ? el('div', {}, kids) : card(sec, kids);
 }
@@ -2670,22 +2751,38 @@ function renderStrList(sec) {
     ]),
   ])];
   if (!rows.length) kids.push(el('div', { class: 'row-empty', text: '비어 있습니다.' }));
+  const lines = [];
   rows.forEach((v, i) => {
-    kids.push(el('div', { style: 'display:flex;gap:8px;align-items:center;margin-bottom:6px' }, [
-      el('span', { class: 'muted', style: 'width:20px;text-align:right', text: String(i + 1) }),
+    lines.push(el('div', { style: 'display:flex;gap:8px;align-items:flex-start;margin-bottom:6px' }, [
+      el('span', { class: 'muted', style: 'width:20px;text-align:right;line-height:48px', text: String(i + 1) }),
       inputFor({ type: 'text', placeholder: sec.placeholder || '무엇이 바뀌었는지 한 줄로' }, v, (nv) => { rows[i] = nv; }),
-      el('button', { class: 'btn btn-sm', disabled: i === 0, onclick: () => move(rows, i, -1) }, ['↑']),
-      el('button', { class: 'btn btn-sm', disabled: i === rows.length - 1, onclick: () => move(rows, i, 1) }, ['↓']),
-      el('button', { class: 'btn btn-sm btn-danger', onclick: () => { rows.splice(i, 1); markDirty(); render(); } }, ['✕']),
+      el('div', { style: 'display:flex;gap:4px;padding-top:10px;flex:none' }, [
+        glDragHandle({ group: sec.path, index: i, items: () => lines, disabled: rows.length < 2, onMove: (from, to) => moveTo(rows, from, to) }),
+        el('button', { class: 'btn btn-sm btn-danger', onclick: () => { rows.splice(i, 1); markDirty(); render(); } }, ['✕']),
+      ]),
     ]));
   });
+  kids.push(...lines);
   return card(sec, kids);
 }
 
-function move(arr, i, delta) {
-  const j = i + delta;
-  if (j < 0 || j >= arr.length) return;
-  [arr[i], arr[j]] = [arr[j], arr[i]];
+/** 섹션이 제 것으로 치는 줄 — 한 배열을 두 탭이 나눠 쓸 때(sec.only)만 걸러진다. */
+const ownRows = (sec, rows) => (sec.only ? rows.filter(sec.only) : rows);
+
+/**
+ * 배열의 [idx] 자리들에 놓인 줄끼리만 순서를 바꾼다 — 그중 [from] 번째를 [to] 번째로 옮긴다.
+ * 그 밖의 자리는 그대로다: 한 배열을 두 탭이 나눠 쓸 때(프로그램 · 푸드존) 다른 탭의 줄이 제자리에 남는다.
+ */
+function reorderAt(arr, idx, from, to) {
+  const picked = idx.map((i) => arr[i]);
+  picked.splice(to, 0, picked.splice(from, 1)[0]);
+  idx.forEach((i, n) => { arr[i] = picked[n]; });
+}
+
+/** [from] 번째 줄을 [to] 번째가 되게 옮기고 다시 그린다 — 끌어 놓기(glDragHandle)가 부른다. */
+function moveTo(arr, from, to) {
+  if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return;
+  arr.splice(to, 0, arr.splice(from, 1)[0]);
   markDirty();
   render();
 }
@@ -2753,8 +2850,10 @@ function renderDays(sec) {
         inputFor({ type: 'date' }, day.ymd, (v) => { day.ymd = v; }),
         el('span', { class: 'pill' + (day.slots.length ? ' ok' : ''), text: `${day.slots.length}슬롯` }),
         el('div', { class: 'tools' }, [
-          el('button', { class: 'btn btn-sm', disabled: i === 0, onclick: () => move(days, i, -1) }, ['↑']),
-          el('button', { class: 'btn btn-sm', disabled: i === days.length - 1, onclick: () => move(days, i, 1) }, ['↓']),
+          glDragHandle({
+            group: 'days', index: i, items: () => kids.filter((n) => n.classList.contains('day-block')),
+            disabled: days.length < 2, onMove: (from, to) => moveTo(days, from, to),
+          }),
           el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
             const ok = await glConfirm(`${day.ymd || 'Day ' + (i + 1)} 을 삭제합니다.`, {
               title: '날짜 삭제', ok: '삭제', danger: true,
@@ -2804,8 +2903,10 @@ function renderPast(sec) {
         inputFor({ type: 'text', placeholder: '호요랜드 2025' }, ev.title, (v) => { ev.title = v; }),
         el('span', { class: 'pill', text: `${ev.facts.length}항목` }),
         el('div', { class: 'tools' }, [
-          el('button', { class: 'btn btn-sm', disabled: i === 0, onclick: () => move(list, i, -1) }, ['↑']),
-          el('button', { class: 'btn btn-sm', disabled: i === list.length - 1, onclick: () => move(list, i, 1) }, ['↓']),
+          glDragHandle({
+            group: sec.path, index: i, items: () => kids.filter((n) => n.classList.contains('day-block')),
+            disabled: list.length < 2, onMove: (from, to) => moveTo(list, from, to),
+          }),
           el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
             const ok = await glConfirm(`“${ev.title || '무제'}” 를 삭제합니다.`, { title: '지난 행사 삭제', ok: '삭제', danger: true });
             if (ok) { list.splice(i, 1); markDirty(); render(); }
@@ -3142,10 +3243,12 @@ function renderHoyoDashboard() {
     ['ticket', d.ticket.status === 'undecided' ? '' : [ticketShort, d.ticket.vendor, d.ticket.priceLabel].map((v) => String(v || '').trim()).filter(Boolean).join(' · '), '예매 칸이 「미정」으로 보입니다'],
     ['entryGroups', detail(n(d.entryGroups), [...byTime].map(([t, names]) => `${names.join(' · ')} ${t}`.trim()).join(' / ')), '「내 입장권」 섹션이 뜨지 않습니다'],
     ['lineup', detail(n(d.lineup), d.lineup.map((x) => x.game).filter(Boolean).join(' · ')), '앱 내장 라인업으로 메웁니다(빈 목록으로는 못 내립니다)'],
-    ['programs', n(d.programs), ''],
+    ['programs', n(d.programs.filter((p) => !isFoodProgram(p))), ''],
     ['days', slots ? `${d.days.length}일 · ${slots}슬롯` : '', '날짜 탭만 서고 시간표는 비어 보입니다'],
     ['goods', detail(n(d.goods), [...perGame].sort((a, b) => b[1] - a[1]).map(([g, k]) => `${g} ${k}`).join(' · ')), ''],
-    ['booths', n(d.booths), ''],
+    ['food', n(d.programs.filter(isFoodProgram)), ''],
+    ['booths', n(d.booths.filter((b) => !isDiyBooth(b))), ''],
+    ['diy', n(d.booths.filter(isDiyBooth)), ''],
     ['past', detail(n(d.past), d.past.map((x) => x.title).filter(Boolean).join(' · ')), `앱 내장 지난 행사(${HOYOLAND_BUNDLED.pastHead} 부터)로 메웁니다 — 어드민에서 못 고칩니다`],
   ];
   const sections = Object.fromEntries(res.sections.map((x) => [x.id, x]));
@@ -4529,7 +4632,7 @@ function renderNav() {
       class: 'nav-item' + (sec.id === state.active ? ' active' : ''), onclick: () => go(sec.id),
     }, [el('span', { text: sec.label })]);
     const ids = sec.parts || [sec.id];   // 합친 화면은 딸린 섹션의 오류도 자기 것으로 센다
-    if (sec.countable) btn.append(el('span', { class: 'count', text: String(sec.count ? sec.count(state.draft) : (get(state.draft, sec.path) || []).length) }));
+    if (sec.countable) btn.append(el('span', { class: 'count', text: String(sec.count ? sec.count(state.draft) : ownRows(sec, get(state.draft, sec.path) || []).length) }));
     else if (sec.type === 'publish' && pending) btn.append(el('span', { class: 'count warn', text: String(pending) }));
     else if (!sec.global && issues.some((i) => ids.includes(i.section) && i.level === 'error'))
       btn.append(el('span', { class: 'dot', style: 'background:var(--err)' }));
@@ -4904,6 +5007,39 @@ function selftest() {
     assert(say('notice') === '기본 정보/공지 문구', '최상위 필드 경로가 틀렸다: ' + say('notice'));
   });
 
+  // 푸드존 · DIY — 프로그램 · 부스 체험과 **같은 배열**을 나눠 쓴다(10/6). 가르는 기준이 앱
+  // (Hoyoland.kt foodPrograms · HoyolandBooth.isDiy)과 어긋나면 줄이 엉뚱한 탭에 서거나 어느 탭에도 안 선다.
+  check('푸드존 · DIY 탭이 앱과 같은 기준으로 줄을 가른다', () => {
+    const sec = (id) => HOYOLAND.sections.find((x) => x.id === id);
+    const programs = [{ title: '2차 창작물 전시존' }, { title: '푸드존 — 원신' }, { title: '웰컴 키트 — 원신' }, { title: '푸드트럭 — 붕괴: 스타레일' }];
+    const booths = [{ title: '사격', game: '원신', location: '무료 체험존' }, { title: 'DIY존 이용 안내', game: '', location: 'DIY존' },
+      { title: '갤럭시 스토어', game: '', location: '파트너사 · 제2전시장 8홀' }, { title: '원신 DIY', game: '원신', location: 'DIY존' }];
+    const names = (id, rows) => ownRows(sec(id), rows).map((r) => r.title).join();
+    assert(names('food', programs) === '푸드존 — 원신,푸드트럭 — 붕괴: 스타레일', '푸드존 탭의 줄이 틀렸다: ' + names('food', programs));
+    assert(names('programs', programs) === '2차 창작물 전시존,웰컴 키트 — 원신', '프로그램 탭에 푸드가 남았다: ' + names('programs', programs));
+    assert(names('diy', booths) === 'DIY존 이용 안내', 'DIY 탭의 줄이 틀렸다: ' + names('diy', booths));
+    assert(names('booths', booths) === '사격,갤럭시 스토어,원신 DIY', '부스 체험 탭의 줄이 틀렸다: ' + names('booths', booths));
+    // 두 탭이 한 배열을 빠짐없이 · 겹침 없이 나눈다.
+    for (const [x, y, rows] of [['programs', 'food', programs], ['booths', 'diy', booths]]) {
+      assert(rows.every((r) => sec(x).only(r) !== sec(y).only(r)), `${x} · ${y} 가 같은 줄을 둘 다 가졌거나 둘 다 놓쳤다`);
+    }
+    // 새 줄은 만든 탭에 선다.
+    assert(sec('food').only(sec('food').seed) && sec('diy').only(sec('diy').seed), '새 줄이 제 탭에 서지 않는다');
+    assert(sec('programs').only({ title: '' }) && sec('booths').only({ title: '', game: '', location: '' }), '빈 줄이 프로그램 · 부스 체험 탭에 서지 않는다');
+    // 변경사항도 그 줄이 선 탭의 이름으로 부른다.
+    const tree = { programs, booths };
+    const say = (p) => { const e = explainPath(p, tree); return [e.section, ...e.crumbs, e.field].filter(Boolean).join('/'); };
+    assert(say('programs[1].desc') === '푸드존/푸드존 — 원신/메뉴', '푸드존 경로가 틀렸다: ' + say('programs[1].desc'));
+    assert(say('programs[0].desc') === '프로그램/2차 창작물 전시존/설명', '프로그램 경로가 틀렸다: ' + say('programs[0].desc'));
+    assert(say('booths[1].price') === 'DIY/DIY존 이용 안내/참가비(원)', 'DIY 경로가 틀렸다: ' + say('booths[1].price'));
+    assert(say('booths[0].price') === '부스 체험/사격/참가비(원)', '부스 경로가 틀렸다: ' + say('booths[0].price'));
+  });
+
+  check('호요랜드 메뉴에 기본 정보 · 예매 · 굿즈샵 · 푸드존 · DIY 가 따로 선다', () => {
+    const menu = HOYOLAND.sections.filter((x) => !x.hidden).map((x) => x.label).join(' / ');
+    assert(menu === '기본 정보 / 예매 / 입장 조 / 참여 게임 / 무대 시간표 / 굿즈샵 / 푸드존 / 부스 체험 / DIY / 프로그램 / 지난 행사', '메뉴가 다르다: ' + menu);
+  });
+
   check('통째로 들고 나는 행은 열 이름을 붙여 읽힌다', () => {
     const cols = [{ key: 'name', label: '조' }, { key: 'time', label: '입장 시각' }];
     assert(rowSummary({ name: 'C', time: '11:00' }, cols) === '조 C · 입장 시각 11:00',
@@ -5161,6 +5297,64 @@ function selftest() {
     assert(lines('27.51.0 이상 앱이 config/hoyoland_v2.json 을 읽습니다. 9.20(토) 14:00 에 엽니다.').join('|') === '27.51.0 이상 앱이 config/hoyoland_v2.json 을 읽습니다.|9.20(토) 14:00 에 엽니다.', '문장 끝이 아닌 점에서 갈랐다');
     assert(lines('첫 줄\n둘째 줄').length === 2 && lines('  ').length === 0 && lines('되돌릴 수 없습니다.').length === 1, '줄바꿈 · 빈 글을 잘못 다뤘다');
   });
+  check('글 칸은 자라는 칸이고, 줄바꿈은 정한 칸에서만 값이 된다', () => {
+    const type = (ta, text) => { ta.value = text; ta.setSelectionRange(text.length, text.length); ta.dispatchEvent(new Event('input')); return ta.value; };
+    // 한 문단 칸 — 화면에서 접힐 뿐, 붙여넣은 줄바꿈은 띄어쓰기가 된다(제목에 줄바꿈이 들어가면 앱 화면이 깨진다).
+    const one = inputFor({ type: 'text' }, '에코백 만들기', () => {});
+    assert(one.tagName === 'TEXTAREA' && one.classList.contains('gl-auto'), '글 칸이 한 줄 입력칸이다');
+    assert(type(one, '첫 줄 \n 둘째 줄\n') === '첫 줄 둘째 줄', '한 문단 칸에 줄바꿈이 들어갔다: ' + JSON.stringify(one.value));
+    // 줄바꿈을 받는 칸 — 설명 · 메뉴. 값 그대로다.
+    const many = inputFor({ type: 'text', lines: true }, '', () => {});
+    assert(type(many, '· 커피 — 6,000원\n· 빵 — 4,000원') === '· 커피 — 6,000원\n· 빵 — 4,000원', '설명 칸이 줄바꿈을 지웠다');
+    // 정하지 않은 칸이라도 **이미 줄바꿈이 든 값**은 지키고 받는다 — 화면에 올리는 것만으로 값이 바뀌면 안 된다.
+    const kept = inputFor({ type: 'text' }, '첫 줄\n둘째 줄', () => {});
+    assert(kept.value === '첫 줄\n둘째 줄' && type(kept, '첫 줄\n둘째 줄\n셋째') === '첫 줄\n둘째 줄\n셋째', '이미 든 줄바꿈을 지웠다');
+    const all = [...HOYOLAND.sections.flatMap((x) => x.columns || []), ...SLOT_COLS];
+    assert(all.filter((c) => c.key === 'desc').every((c) => c.lines), '줄바꿈을 받지 않는 설명 칸이 있다');
+    assert(inputFor({ type: 'textarea' }, '', () => {}).classList.contains('gl-tall'), '긴 글 칸이 넉넉하게 시작하지 않는다');
+  });
+  check('설명 칸 · 줄 머리의 "- " · "* " · "+ " 는 가운뎃점 목록이 된다', () => {
+    const ta = inputFor({ type: 'text', lines: true }, '', () => {});
+    const type = (text, at = text.length) => { ta.value = text; ta.setSelectionRange(at, at); ta.dispatchEvent(new Event('input')); return ta.value; };
+    const enter = (text, at = text.length) => {
+      ta.value = text; ta.setSelectionRange(at, at);
+      const e = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+      ta.dispatchEvent(e);
+      return [ta.value, e.defaultPrevented];
+    };
+    assert(type('- ') === '· ' && type('구성품입니다.\n- ') === '구성품입니다.\n· ', '줄 머리의 "- " 를 바꾸지 않았다');
+    assert(type('* ') === '· ' && type('· 하나\n+ ') === '· 하나\n· ', '줄 머리의 "* " · "+ " 를 바꾸지 않았다');
+    assert(ta.selectionStart === ta.value.length, '바꾼 뒤 커서가 제자리가 아니다');
+    // 줄 가운데의 "- " 와 이미 있던 줄은 그대로다 — 「10:00 - 11:00」 같은 값을 건드리면 안 된다.
+    assert(type('10:00 - ') === '10:00 - ' && type('- 예전 줄\n둘째') === '- 예전 줄\n둘째', '줄 머리가 아닌 "- " 를 바꿨다');
+    // 목록 줄에서 Enter — 다음 줄도 목록. 빈 항목에서 Enter — 목록 끝.
+    assert(enter('· 소형 스티커')[0] === '· 소형 스티커\n· ', '목록을 잇지 않았다');
+    assert(enter('· 소형 스티커\n· ')[0] === '· 소형 스티커\n', '빈 항목에서 목록을 끝내지 않았다');
+    const plain = enter('그냥 줄');
+    assert(plain[0] === '그냥 줄' && !plain[1], '목록이 아닌 줄의 Enter 를 가로챘다');
+    // 한 문단 칸은 목록을 받지 않는다(줄바꿈이 없다).
+    const one = inputFor({ type: 'text' }, '', () => {});
+    one.value = '- '; one.setSelectionRange(2, 2); one.dispatchEvent(new Event('input'));
+    assert(one.value === '- ', '한 문단 칸의 "- " 를 바꿨다');
+  });
+  check('끌어 놓기 · 놓일 자리와 옮긴 뒤의 순서', () => {
+    const rects = [0, 40, 80, 120].map((top) => ({ top, height: 40 }));   // 네 줄
+    assert(glDropSlot(rects, 10) === 0 && glDropSlot(rects, 30) === 1 && glDropSlot(rects, 95) === 2 && glDropSlot(rects, 500) === 4, '끼워 넣을 자리를 잘못 쟀다');
+    // 제자리(자기 위 · 바로 아래 틈)에 놓으면 옮기지 않는다.
+    assert(glDropIndex(1, 1) === -1 && glDropIndex(1, 2) === -1, '제자리를 옮긴 것으로 쳤다');
+    assert(glDropIndex(1, 0) === 0 && glDropIndex(1, 4) === 3 && glDropIndex(3, 1) === 1 && glDropIndex(0, 3) === 2, '옮긴 뒤의 자리가 다르다');
+    // 나눠 쓰는 배열 — 이 탭의 줄(A B C)끼리만 바뀌고 다른 탭의 줄(x y)은 제자리다.
+    const arr = ['A', 'x', 'B', 'y', 'C'];
+    reorderAt(arr, [0, 2, 4], 2, 0);
+    assert(arr.join('') === 'CxAyB', '다른 탭의 줄이 움직였다: ' + arr.join(''));
+    const h = glDragHandle({ group: 't', index: 1, items: () => [1, 2, 3], onMove: () => {} });
+    assert(h.classList.contains('gl-grip') && h.getAttribute('data-drag') === 't:1' && !h.disabled, '손잡이가 다르다');
+    assert(glDragHandle({ index: 0, items: () => [1], onMove: () => {}, disabled: true }).disabled, '못 옮기는 줄의 손잡이가 켜져 있다');
+    let moved = '';
+    const k = glDragHandle({ index: 1, items: () => [1, 2, 3], onMove: (a, b2) => { moved = `${a}>${b2}`; } });
+    k.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    assert(moved === '1>0', '↑ 키로 옮기지 못한다');
+  });
   check('version.json 만 PR 로 올린다', () => {
     // main 에 바로 쓰면 raw 로 즉시 나가 라이브 반영과 다를 것이 없다 — 라이브에서 뺀 이유가 사라진다.
     assert(commitsViaPr(VERSION), 'version.json 을 main 에 바로 쓴다');
@@ -5230,6 +5424,14 @@ function selftest() {
     }
     const idx = JSON.parse(before);
     assert(idx.published === editions.published && Array.isArray(idx.editions) && Array.isArray(idx.archived), '목록 JSON 의 꼴이 다르다');
+  });
+  check('라이브 목록에 정본에만 있는 회차를 합친다', () => {
+    const live = { published: '2027', editions: ['2026', '2027'], archived: ['2026'] };
+    const m = mergeEditionIndex(live, { published: '2026', editions: ['2024', '2025', '2026'], archived: ['2024', '2025'] });
+    assert(m.published === '2027', '게시 중인 회차가 정본 값으로 바뀌었다');
+    assert(m.editions.slice().sort().join() === '2024,2025,2026,2027', '정본의 회차가 빠졌다: ' + m.editions);
+    assert(m.archived.slice().sort().join() === '2024,2025,2026', '정본의 보관 회차가 빠졌다: ' + m.archived);
+    assert(mergeEditionIndex(live, null) === live, '정본이 없으면 라이브 그대로여야 한다');
   });
   check('회차 요약 — 지난 행사 한 줄', () => {
     const d = HOYOLAND.normalize({

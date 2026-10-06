@@ -280,6 +280,81 @@ function glText(cfg) {
   return n;
 }
 
+/**
+ * 자라는 글 칸 — **줄이 넘어가면 칸이 따라 늘어난다.** 폼 · 표의 글 입력은 전부 이것이다.
+ *
+ * 한 줄짜리 <input> 은 긴 글의 뒤가 잘려 통째로 읽을 수 없었고, 줄바꿈이 든 값(부스 설명 · 푸드 메뉴)은 화면에서
+ * 줄바꿈이 사라져 보였다 — 그 칸을 고치는 순간 저장되는 값에서도 사라진다. 그래서 글 칸은 모두 접혀 보이게 한다.
+ *
+ *   multiline  줄바꿈을 **값으로** 받는다(설명 · 메뉴 · 공지). 아니면 한 문단이다 — Enter 를 받지 않고,
+ *              붙여넣은 글의 줄바꿈은 띄어쓰기로 바꾼다. 화면에서 접힐 뿐 값에는 줄바꿈이 들어가지 않는다.
+ *   tall       넉넉하게 시작한다(공지 · 안내 같은 긴 글 칸).
+ *
+ * 줄바꿈을 받는 칸은 **목록**을 쉽게 친다 — 앱이 「· 항목」 줄을 목록으로 그린다(HoyolandRichText).
+ *   · 줄 머리에 `- ` · `* ` · `+ ` 를 치면 가운뎃점 `· ` 으로 바뀐다 — 마크다운 에디터의 글머리 기호와 같은 손버릇이다
+ *     (가운뎃점은 자판에 없다).
+ *   · 목록 줄에서 Enter 를 치면 다음 줄도 `· ` 으로 시작한다. 빈 항목에서 Enter 를 치면 목록이 끝난다.
+ *
+ * 높이는 내용에 맞춘다(fit). 화면에 붙기 전에는 잴 수 없어, 폭이 정해지거나 바뀔 때 다시 잰다(ResizeObserver).
+ */
+/** 목록 줄의 머리 — 가운뎃점 + 띄어쓰기. 앱의 글 규칙(「· 항목 — 값」)과 같은 글자다(U+00B7). */
+const GL_BULLET = '· ';
+
+function glArea(cfg) {
+  const n = el('textarea', {
+    class: 'gl-input gl-auto' + (cfg.tall ? ' gl-tall' : ''), rows: '1',
+    placeholder: cfg.placeholder || '', inputmode: cfg.inputmode || null,
+    style: cfg.width ? `width:${cfg.width}` : '',
+  }, [cfg.value ?? '']);
+  const fit = () => { n.style.height = 'auto'; n.style.height = n.scrollHeight + 'px'; };
+  // [a, b) 를 text 로 바꾼다. 브라우저의 되돌리기(⌘Z)에 남도록 편집 명령으로 먼저 해 보고, 안 되면 값을 직접 바꾼다.
+  const put = (text, a, b) => {
+    n.setSelectionRange(a, b);
+    const done = document.activeElement === n && document.execCommand
+      && document.execCommand(text ? 'insertText' : 'delete', false, text);
+    if (!done) { n.setRangeText(text, a, b, 'end'); n.dispatchEvent(new Event('input', { bubbles: true })); }
+  };
+  const lineStart = (at) => n.value.lastIndexOf('\n', at - 1) + 1;
+  n.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    if (!cfg.multiline) { e.preventDefault(); return; }
+    if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+    // 목록 줄에서 Enter — 다음 줄도 목록으로 잇는다. 빈 항목이면 그 가운뎃점을 지워 목록을 끝낸다.
+    const at = n.selectionStart;
+    const end = n.selectionEnd;
+    const start = lineStart(at);
+    const head = n.value.slice(start, at);
+    if (!head.startsWith(GL_BULLET)) return;
+    e.preventDefault();
+    const rest = n.value.slice(end).split('\n')[0];
+    if (head === GL_BULLET && !rest.trim()) put('', start, end);
+    else put('\n' + GL_BULLET, at, end);
+  });
+  n.addEventListener('input', () => {
+    if (!cfg.multiline && n.value.includes('\n')) {
+      const at = n.selectionStart;
+      const head = n.value.slice(0, at).replace(/\n+$/, '').replace(/[ \t]*\n+[ \t]*/g, ' ');
+      n.value = head + n.value.slice(at).replace(/\n+$/, '').replace(/[ \t]*\n+[ \t]*/g, ' ');
+      n.setSelectionRange(head.length, head.length);
+    }
+    if (cfg.multiline) {
+      // 줄 머리에 방금 친 "- " · "* " · "+ " → "· ". 줄 가운데의 것이나 이미 있던 줄은 건드리지 않는다.
+      const at = n.selectionStart;
+      const start = lineStart(at);
+      if (at === n.selectionEnd && at - start === 2 && /^[-*+] $/.test(n.value.slice(start, at))) { put(GL_BULLET, start, at); return; }
+    }
+    fit();
+    if (cfg.onInput) cfg.onInput(n.value);
+  });
+  n.addEventListener('change', () => cfg.onChange && cfg.onChange(n.value));
+  if (typeof ResizeObserver === 'function') {
+    let w = -1;
+    new ResizeObserver(() => { if (n.clientWidth !== w) { w = n.clientWidth; fit(); } }).observe(n);
+  }
+  n.fit = fit;   // 값을 코드로 바꾼 쪽이 부른다(입력 이벤트 없이 value 를 갈아 끼울 때)
+  return n;
+}
+
 function glTextarea(cfg) {
   const n = el('textarea', { class: 'gl-input', placeholder: cfg.placeholder || '' }, [cfg.value ?? '']);
   n.addEventListener('input', () => cfg.onInput && cfg.onInput(n.value));
@@ -581,6 +656,119 @@ function glColor(cfg) {
   });
 
   return el('div', { class: 'gl-field gl-color' }, [sw, input]);
+}
+
+/* ═════════════════════════════════════════════════════════════
+ * 끌어서 순서 바꾸기 — ↑ ↓ 버튼 대체
+ *
+ * 한 칸씩 누르는 버튼으로는 105줄짜리 표에서 줄 하나를 위로 올리는 데 수십 번을 눌러야 했다.
+ * 손잡이를 잡고 끌어 놓을 자리에 놓는다.
+ *
+ * HTML 드래그 앤 드롭(draggable)을 쓰지 않는다 — 터치에서 동작하지 않고, 끄는 동안 입력칸의 글자가
+ * 같이 선택된다. 포인터 이벤트로 직접 한다: 마우스 · 터치 · 펜이 한 길이다.
+ *
+ *   items()        같은 묶음의 줄 요소들(화면 순서). 끄는 동안 자리를 재는 데 쓴다.
+ *   index          이 손잡이가 달린 줄이 그중 몇 번째인가.
+ *   onMove(from, to)  from 번째 줄을 to 번째가 되게 옮긴다(옮긴 뒤의 자리). 다시 그리는 것은 부른 쪽 몫이다.
+ *   group          다시 그린 뒤 손잡이를 찾을 이름 — 키보드로 옮기면 그 줄의 손잡이에 초점을 돌려준다.
+ *   disabled · title  못 옮기는 때(걸러낸 표)와 그 사유.
+ *
+ * 끄는 줄은 제자리에서 흐려지고, **놓일 자리에 강조색 줄**이 선다(.drop-before · .drop-after).
+ * 화면 위아래 끝에 가까이 가면 페이지가 따라 흐른다. Esc 는 취소. 손잡이에 초점을 두고 ↑ ↓ 를 누르면 한 칸씩 옮긴다.
+ * ═════════════════════════════════════════════════════════════ */
+
+const GRIP_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+  + '<circle cx="8" cy="5" r="2"/><circle cx="16" cy="5" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/>'
+  + '<circle cx="8" cy="19" r="2"/><circle cx="16" cy="19" r="2"/></svg>';
+
+/** 포인터 높이 [y] 가 가리키는 끼워 넣을 자리(0 … 줄 수) — 줄의 가운데를 넘으면 그 줄 아래다. */
+function glDropSlot(rects, y) {
+  let slot = 0;
+  for (const r of rects) if (y > r.top + r.height / 2) slot += 1;
+  return slot;
+}
+
+/** [from] 번째 줄을 끼워 넣을 자리 [slot] 에 놓았을 때의 새 자리 — 제자리면 -1. */
+function glDropIndex(from, slot) {
+  if (slot === from || slot === from + 1) return -1;
+  return slot > from ? slot - 1 : slot;
+}
+
+function glDragHandle(cfg) {
+  const b = el('button', {
+    type: 'button', class: 'btn btn-sm gl-grip', disabled: !!cfg.disabled, html: GRIP_SVG,
+    title: cfg.title || '끌어서 순서 바꾸기 — 초점을 두고 ↑ ↓ 키로도 옮깁니다', 'aria-label': '순서 바꾸기',
+    'data-drag': cfg.group ? `${cfg.group}:${cfg.index}` : null,
+  });
+  if (cfg.disabled) return b;
+
+  // 옮기면 부른 쪽이 화면을 다시 그려 이 손잡이는 사라진다 — 같은 줄의 새 손잡이를 찾아 초점을 돌려준다(이어서 누를 수 있게).
+  const refocus = (to) => {
+    const n = cfg.group ? document.querySelector(`[data-drag="${cfg.group}:${to}"]`) : null;
+    if (n) n.focus({ preventScroll: true });
+  };
+  b.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const to = cfg.index + (e.key === 'ArrowUp' ? -1 : 1);
+    if (to < 0 || to >= cfg.items().length) return;
+    cfg.onMove(cfg.index, to);
+    refocus(to);
+  });
+
+  b.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button > 0) return;   // 왼쪽 단추 · 터치 · 펜만
+    e.preventDefault();
+    closePop();
+    const items = cfg.items();
+    const src = items[cfg.index];
+    if (!src) return;
+    let y = e.clientY;
+    let slot = cfg.index;
+    let raf = 0;
+    const clear = () => { for (const n of items) n.classList.remove('drop-before', 'drop-after'); };
+    const mark = () => {
+      slot = glDropSlot(items.map((n) => n.getBoundingClientRect()), y);
+      clear();
+      if (glDropIndex(cfg.index, slot) < 0) return;
+      if (slot < items.length) items[slot].classList.add('drop-before');
+      else items[items.length - 1].classList.add('drop-after');
+    };
+    // 화면 끝에 가까우면 페이지를 흘린다 — 긴 표에서 한 화면 밖으로 옮길 수 있어야 한다. 붙박이 상단바(64) 아래부터 센다.
+    const tick = () => {
+      const edge = 72;
+      const top = 64 + edge;
+      const dy = y < top ? -Math.ceil((top - y) / 6) : y > innerHeight - edge ? Math.ceil((y - (innerHeight - edge)) / 6) : 0;
+      if (dy) { scrollBy(0, dy); mark(); }
+      raf = requestAnimationFrame(tick);
+    };
+    const end = (drop) => {
+      cancelAnimationFrame(raf);
+      b.removeEventListener('pointermove', onMove);
+      b.removeEventListener('pointerup', onUp);
+      b.removeEventListener('pointercancel', onCancel);
+      document.removeEventListener('keydown', onKey, true);
+      try { b.releasePointerCapture(e.pointerId); } catch (err) { /* 이미 풀렸다 */ }
+      src.classList.remove('drag-src');
+      document.body.classList.remove('gl-dragging');
+      clear();
+      const to = drop ? glDropIndex(cfg.index, slot) : -1;
+      if (to >= 0) cfg.onMove(cfg.index, to);
+    };
+    const onMove = (ev) => { y = ev.clientY; mark(); };
+    const onUp = () => end(true);
+    const onCancel = () => end(false);
+    const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(false); } };
+    try { b.setPointerCapture(e.pointerId); } catch (err) { /* 잡지 못해도 손잡이 위에서는 따라온다 */ }
+    b.addEventListener('pointermove', onMove);
+    b.addEventListener('pointerup', onUp);
+    b.addEventListener('pointercancel', onCancel);
+    document.addEventListener('keydown', onKey, true);
+    src.classList.add('drag-src');
+    document.body.classList.add('gl-dragging');
+    raf = requestAnimationFrame(tick);
+  });
+  return b;
 }
 
 /* ═════════════════════════════════════════════════════════════
