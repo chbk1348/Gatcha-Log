@@ -318,7 +318,11 @@ struct HoyolandRichText: View {
                     // 문단 첫 줄에는 위 여백을 주지 않는다(빈 줄이 이미 벌려 놨다).
                     let firstOfPara = i == 0
                         || lines[i - 1].trimmingCharacters(in: .whitespaces).isEmpty
-                    line(body, indented: indented)
+                    // 들여쓴 목록 줄은 깊이에 맞는 점으로 보인다(◦ · ▪) — 가운뎃점은 저장되는 글자일 뿐이다(10/6).
+                    let shown = indented && body.hasPrefix("· ")
+                        ? "\(HoyolandText.shared.dot(level: HoyolandText.shared.depth(line: raw))) \(body.dropFirst(2))"
+                        : body
+                    line(shown, indented: indented)
                         .padding(.top, firstOfPara ? 0 : (indented ? 2 : 6))
                 }
             }
@@ -337,7 +341,8 @@ struct HoyolandRichText: View {
             let item = String(body.dropFirst(2))
             let r = item.range(of: " — ", options: .backwards)
             HStack(spacing: 7) {
-                Text("·").font(.pretendard(size: 13)).foregroundStyle(GLGFoodTextThird)
+                // 목록 점은 굵은 점 — `HoyolandListText` 와 같은 도형이다(10/6). 사이 7 은 예전 그대로다.
+                HoyolandListDot(level: 0, size: 13, width: nil).foregroundStyle(GLGFoodTextThird)
                 Text(r.map { String(item[..<$0.lowerBound]) } ?? item)
                     .font(.pretendard(size: 13, weight: .medium))
                     .foregroundStyle(GLGColor.textPrimary)
@@ -368,6 +373,106 @@ struct HoyolandRichText: View {
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+
+/**
+ 어드민에서 적은 **여러 줄 글** — 「· 항목」 · 「1. 항목」 줄을 목록으로 그린다(10/6). Android `HoyolandListText` 와 같은 규칙 · 같은 값.
+
+ 설명 · 공지 · 받는 것처럼 `Text` 하나에 통째로 넣던 자리가 쓴다. 통째로 넣으면 목록 줄이 길어 다음 줄로 넘어갈 때
+ **점 아래로 글자가 들어가** 어디서 항목이 바뀌는지 안 보인다. 점은 노션처럼 깊이마다 다르다 — 굵은 점 → 빈 동그라미 → 네모(`HoyolandListDot`). 줄 규칙은 공유 모듈 `HoyolandText.lines` 가 정한다.
+
+ 글자 크기 · 굵기 · 줄간은 **부르는 자리의 것 그대로**고, 색은 부르는 쪽이 `foregroundStyle` 로 준다 — 목록이 생겼다고
+ 그 자리의 글 모양이 바뀌지 않는다. 목록 줄이 하나도 없으면 예전처럼 `Text` 하나로 그린다.
+
+ 값을 오른쪽에 붙여 강조하는 줄(예매 안내의 「· 이름 — 값」)은 이것이 아니라 `HoyolandRichText` 가 그린다.
+ */
+/**
+ 목록 점 — 첫 줄 높이의 가운데에 선다. Android `HoyolandListDot` 와 같은 값.
+
+ **글자가 아니라 도형으로 그린다**(10/6). 글꼴의 「•」는 13pt 에서 지름이 2pt 가 안 돼 가운뎃점과 구별이 안 됐다.
+ 노션처럼 굵게 보이도록 지름을 글자 크기의 0.38 로 잡는다 — 13pt 면 약 5pt.
+ 깊이마다 모양이 다르다: 채운 원 → 빈 원 → 채운 네모, 그 아래는 다시 처음부터. 색은 부르는 쪽의 `foregroundStyle` 을 따른다.
+ */
+struct HoyolandListDot: View {
+    let level: Int32
+    let size: CGFloat
+    var weight: Font.Weight = .regular
+    /// 머리 칸의 폭. nil 이면 점 폭만 차지한다(부르는 쪽이 사이를 따로 준다).
+    let width: CGFloat?
+
+    var body: some View {
+        let d = size * 0.38
+        // 보이지 않는 글자 하나가 **첫 줄의 높이와 기준선**을 잡는다 — 점은 그 줄의 가운데에 얹는다.
+        Text(" ").font(.pretendard(size: size, weight: weight))
+            .frame(width: width ?? d, alignment: .leading)
+            .overlay(alignment: .leading) {
+                switch max(level, 0) % 3 {
+                case 0: Circle().frame(width: d, height: d)
+                case 1: Circle().strokeBorder(lineWidth: d * 0.24).frame(width: d, height: d)
+                // 네모는 같은 지름의 원보다 커 보인다 — 한 단 작게 그려 무게를 맞춘다.
+                default: Rectangle().frame(width: d * 0.86, height: d * 0.86)
+                }
+            }
+    }
+}
+
+struct HoyolandListText: View {
+    let text: String
+    let size: CGFloat
+    var weight: Font.Weight = .regular
+    let lineSpacing: CGFloat
+
+    /// 목록 줄의 머리 칸 — 굵은 점이 서는 폭이자, 하위 항목 · 부연이 한 단 들어가는 폭(Android `HoyolandListIndent`).
+    private static let indent: CGFloat = 12
+
+    private var font: Font { .pretendard(size: size, weight: weight) }
+
+    var body: some View {
+        if !HoyolandText.shared.hasList(text: text) {
+            Text(text).font(font).lineSpacing(lineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            let lines = HoyolandText.shared.lines(text: text)
+            // 줄 사이는 줄간과 같다 — `Text` 하나에 넣었을 때와 같은 간격이다.
+            VStack(alignment: .leading, spacing: lineSpacing) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, l in
+                    row(l)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder private func row(_ l: HoyolandTextLine) -> some View {
+        switch l.kind {
+        case .para:
+            Text(l.text).font(font).lineSpacing(lineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+        case .blank:
+            // 빈 줄은 한 줄 높이.
+            Text(" ").font(font)
+        case .item:
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                HoyolandListDot(level: l.level, size: size, weight: weight, width: Self.indent)
+                Text(l.text).font(font).lineSpacing(lineSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.leading, Self.indent * CGFloat(l.level))
+        case .num:
+            // 번호 줄 — 번호는 적은 그대로("1."), 글은 번호 뒤에서 줄을 맞춘다.
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text("\(l.mark) ").font(font)
+                Text(l.text).font(font).lineSpacing(lineSpacing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.leading, Self.indent * CGFloat(l.level))
+        case .sub:
+            Text(l.text).font(font).lineSpacing(lineSpacing)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, Self.indent * CGFloat(l.level))
         }
     }
 }

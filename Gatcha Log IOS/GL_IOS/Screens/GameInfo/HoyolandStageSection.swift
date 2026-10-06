@@ -23,15 +23,21 @@ struct HoyolandStageView: View {
     /// 내 입장권 — 그날 조와 입장 시각을 알면 **내가 못 보는 편**을 흐리게 칠한다.
     /// 안 넘기면(빈 값) 시간표는 예전 그대로 선다.
     private let entry: Shared.HoyolandEntry
+    /// 지난 회차(보관본) — **넘겨받은 회차를 그대로 그린다.** 진입 갱신 · 당겨서 새로고침을 하지 않는다.
+    /// 둘 다 「지금 회차」를 다시 읽는 일이라, 켜 두면 열자마자 지난 회차가 지금 회차(편성 없음)로 덮였다(10/6).
+    private let readOnly: Bool
 
-    init(event: HoyolandEvent, entry: Shared.HoyolandEntry = Shared.HoyolandEntry(groups: [:])) {
+    init(event: HoyolandEvent, entry: Shared.HoyolandEntry = Shared.HoyolandEntry(groups: [:]), readOnly: Bool = false) {
         _event = State(initialValue: event)
+        // 날짜 칸의 처음 값도 **그리는 회차**에서 잡는다 — 지금 회차 기준이면 지난 회차에서 어긋난다.
+        _selectedDay = State(initialValue: Int(event.defaultDayIndex(nowMillis: nowMs())))
         self.entry = entry
+        self.readOnly = readOnly
     }
 
     @Environment(\.glgAccent) private var accent
     /// 선택된 날짜 칸. 행사 중이면 오늘부터 — 현장에서 첫날이 선택돼 있으면 매번 한 번 더 눌러야 한다.
-    @State private var selectedDay: Int = Int(HoyolandApi.shared.current.defaultDayIndex(nowMillis: nowMs()))
+    @State private var selectedDay: Int
     /// 무대 게임 필터 — 라이브 카드는 걸지 않는다(목록만 거른다). 날짜를 바꾸면 푼다.
     @State private var stageFilter: String? = nil
     /// NOW LIVE 점 깜빡임 — onAppear 에서 켠다(그래야 repeatForever 가 붙는다).
@@ -57,10 +63,11 @@ struct HoyolandStageView: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // 카드 없는 섹션(10/1) — 좌우 20 · 아래 20. 날짜 탭이 아래 10 을 이미 두므로 위는 12.
+                    // 카드 없는 섹션(10/1) — 좌우 20 · 아래 20. 날짜 탭이 아래 10 을 이미 둔다 — 위 여백을 더 얹지 않는다
+                    // (10/6, 12 → 0). 날짜 탭과 게임 탭 사이가 10 + 12 로 쌓여 두 탭이 따로 노는 것처럼 벌어져 있었다.
                     // VStack 으로 한 번 감싼다 — 여러 뷰를 내는 함수에 바로 걸면 여백이 줄마다 붙는다.
                     VStack(alignment: .leading, spacing: 0) { timetableSection(event) }
-                        .hoyolandSection(top: ymds.count > 1 ? 12 : 22)
+                        .hoyolandSection(top: ymds.count > 1 ? 0 : 22)
                     // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
                 }
                 .glgReadableWidth(640)
@@ -73,11 +80,11 @@ struct HoyolandStageView: View {
         .navigationBarTitleDisplayMode(.inline)
         // 당겨서 새로고침 — 무대 편성은 **행사 당일 현장에서 바뀐다.** 운영 어드민에서 고친
         // 값을 기다리지 않고 지금 확인하는 통로다(`force` 라 라이브부터 다시 훑는다).
-        .refreshable {
+        .hoyolandRefreshable(!readOnly) {
             if let fresh = try? await HoyolandApi.shared.load(force: true) { event = fresh }
         }
         // 진입할 때도 한 번 — 상세에서 받은 값이 캐시 나이에 걸려 오래됐을 수 있다.
-        .loadHoyoland(into: $event)
+        .loadHoyoland(into: $event, enabled: !readOnly)
     }
 
     // ── 일자별 시간표 — 현장에서 손에 들고 보는 자리.
@@ -271,21 +278,27 @@ struct HoyolandStageView: View {
     @ViewBuilder private func stageRow(_ e: HoyolandEvent, _ item: StageSlot, isLive: Bool,
                                        beforeEntry: Bool = false) -> some View {
         let c = stageColor(e, item.slot.game)
-        // 길이를 **설명 앞**에 둔다. 뒤에 붙이면 설명이 여러 줄일 때 "60분" 이 마지막 줄 꼬리에
-        // 달라붙는데, 그 줄이 하필 "※ 주의…" 여서 주의 문구가 길이 표기에 먹혔다.
-        let sub = [item.slot.minutes > 0 ? "\(item.slot.minutes)분" : nil,
-                   item.slot.desc.isEmpty ? nil : item.slot.desc]
-                    .compactMap { $0 }.joined(separator: " · ")
+        // 길이(「60분」)는 왼쪽 열 시각 아래로 갔다(10/6) — 여기는 설명만 선다.
+        let sub = item.slot.desc
         HStack(alignment: .center, spacing: 0) {
             // 좌측 열은 **자기 칸 정중앙**에 놓는다 — 시각·배지 폭이 게임마다 달라 왼쪽 정렬로
             // 두면 줄마다 들쭉날쭉해 보인다. 게임은 배지로 — 시각과 같은 무게의 맨글자로 두면
             // 둘이 한 덩이로 뭉쳐 "14:00 스타레일"이 한 줄처럼 읽힌다.
             VStack(spacing: 4) {
-                // 진행 중인 줄의 시각은 **먹색**으로 진하게 — 게임색으로 칠하면 바로 아래 배지와
-                // 같은 색이 되어 둘이 한 덩이로 뭉치고, 색이 곧 게임이라는 규칙도 흐려진다.
-                Text(item.slot.time)
-                    .font(.pretendard(size: 12, weight: isLive ? .black : .bold)).monospacedDigit()
-                    .foregroundStyle(isLive ? GLGColor.textPrimary : GLGColor.textSecondary)
+                VStack(spacing: 2) {
+                    // 진행 중인 줄의 시각은 **먹색**으로 진하게 — 게임색으로 칠하면 바로 아래 배지와
+                    // 같은 색이 되어 둘이 한 덩이로 뭉치고, 색이 곧 게임이라는 규칙도 흐려진다.
+                    Text(item.slot.time)
+                        .font(.pretendard(size: 12, weight: isLive ? .black : .bold)).monospacedDigit()
+                        .foregroundStyle(isLive ? GLGColor.textPrimary : GLGColor.textSecondary)
+                    // 길이는 **시각 바로 아래**에 둔다(10/6) — 언제 · 얼마나가 한 열에서 읽힌다. 설명 앞에 「60분 · 」으로
+                    // 붙여 두던 것은, 설명이 목록으로 시작하면 길이 뒤의 가운뎃점과 목록 점이 겹쳐 보였다.
+                    if item.slot.minutes > 0 {
+                        Text("\(item.slot.minutes)분")
+                            .font(.pretendard(size: 12)).monospacedDigit()
+                            .foregroundStyle(GLGColor.textSecondary)
+                    }
+                }
                 Text(e.stageLabel(game: item.slot.game))
                     .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c).lineLimit(1)
                     .padding(.horizontal, 5).padding(.vertical, 2.5)
@@ -303,10 +316,8 @@ struct HoyolandStageView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if !sub.isEmpty {
                     // 설명에 줄바꿈이 들어 있다(조별 입장 시각 · ※ 주의) — 줄간을 준다.
-                    Text(sub).font(.pretendard(size: 12.5))   // 11.5 → 12.5(10/1)
+                    HoyolandListText(text: sub, size: 12.5, lineSpacing: 4)   // 11.5 → 12.5(10/1)
                         .foregroundStyle(GLGColor.textSecondary)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
                 }
                 // 출연자 — 무대를 고르는 기준이 공연명보다 출연자일 때가 많다(성우 무대가 특히).

@@ -342,7 +342,7 @@ private fun HeroCountdown(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean
         Text(if (phase == HoyolandPhase.TBA) e.statusLabel() else "EVENT ENDED", fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextSecondary, letterSpacing = 1.sp)
         if (notice.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
-            Text(notice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
+            HoyolandListText(notice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
         }
         return
     }
@@ -372,7 +372,7 @@ private fun HeroCountdown(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean
     }
     if (notice.isNotEmpty()) {
         Spacer(Modifier.height(8.dp))
-        Text(notice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
+        HoyolandListText(notice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
     }
 }
 

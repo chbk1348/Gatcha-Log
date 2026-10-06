@@ -11,6 +11,7 @@ import com.gatcha.log.data.HoyolandLineup
 import com.gatcha.log.data.HoyolandDay
 import com.gatcha.log.data.HoyolandEntryGroup
 import com.gatcha.log.data.HoyolandMap
+import com.gatcha.log.data.HoyolandText
 import com.gatcha.log.data.HoyolandMapZone
 import com.gatcha.log.data.HoyolandPastEvent
 import com.gatcha.log.data.HoyolandProgram
@@ -19,6 +20,7 @@ import com.gatcha.log.data.HoyolandTicket
 import com.gatcha.log.data.HoyolandTicketStatus
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
+import com.gatcha.log.data.HoyolandArchives
 
 /**
  * 호요랜드 정보 원격 갱신.
@@ -213,8 +215,95 @@ object HoyolandApi {
         return parsed ?: current
     }
 
-    private fun parseOrNull(body: String): HoyolandEvent? =
+    internal fun parseOrNull(body: String): HoyolandEvent? =
         runCatching { parse(JSONObject(body)) }.getOrNull()
+
+    // ----------------------------------------------------------------- 지난 회차 보관본
+    //
+    // 어드민이 회차를 넘길 때(「이 회차를 앱에 게시」) 게시 중이던 회차는 제 문서로 옮겨 **보관**된다.
+    //   목록  config/hoyolandEditions      정본  config/hoyoland/editions.json   (archived = 보관된 회차)
+    //   회차  config/hoyolandEdition{연도}  정본  config/hoyoland/editions/{연도}.json
+    // 앱은 「지난 행사」에서 보관된 회차의 상세를 이 문서로 연다 — 지금 회차와 **같은 모양**이라 같은 파서 ·
+    // 같은 화면을 그대로 쓴다. 보관(archived)이 아닌 회차(게시 전 초안)는 열지 않는다.
+
+    private const val EDITIONS_DOC = "hoyolandEditions"
+    private const val EDITIONS_URL =
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland/editions.json"
+    private fun editionDoc(key: String) = "hoyolandEdition$key"
+    private fun editionUrl(key: String) =
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland/editions/$key.json"
+
+    /** 보관본이 있는 회차 — 목록을 받기 전에는 이 빌드가 아는 값([HoyolandDefaults.archivedEditions]). */
+    private var archivedKeys: List<String> = HoyolandDefaults.archivedEditions
+    private var archivedAtMillis = 0L
+    private val archives = HashMap<String, Pair<HoyolandEvent, Long>>()
+
+    /** 한 번 받은 회차 목록을 다시 쓰는 시간 — 회차가 보관되는 일은 한 해에 한 번이다. */
+    private const val ARCHIVE_FRESH_MS = 10 * 60_000L
+
+    /**
+     * 한 번 받은 보관본을 다시 쓰는 시간 — 지금 회차([FRESH_MS])와 같다(10/6, 10분 → 15초).
+     * 지난 회차도 어드민에서 고친다(줄 순서 · 문구). 10분을 붙들면 고친 것이 앱에 안 나온 것처럼 보인다.
+     */
+    private const val ARCHIVE_DOC_FRESH_MS = FRESH_MS
+
+    /**
+     * 상세를 열 수 있는 지난 행사면 그 회차 키("2026"), 아니면 빈 문자열.
+     * 어드민이 보관한 회차(원격)이거나 앱에 내장한 회차([HoyolandArchives] — 2025 · 2024)다.
+     */
+    fun archiveKeyOf(past: HoyolandPastEvent): String =
+        past.editionYear.takeIf { it in archivedKeys || it in HoyolandArchives.bundled }.orEmpty()
+
+    /** 보관된 회차 목록을 다시 읽어 돌려준다(실패하면 직전 값). 화면은 이걸 부른 뒤 [archiveKeyOf] 를 다시 본다. */
+    suspend fun loadArchiveIndex(): List<String> {
+        if (archivedAtMillis != 0L && currentTimeMillis() - archivedAtMillis < ARCHIVE_FRESH_MS) return archivedKeys
+        val body = LiveConfig.get(EDITIONS_DOC)?.takeIf { parseArchiveIndex(it) != null }
+            ?: Net.get("$EDITIONS_URL?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
+        body?.let(::parseArchiveIndex)?.let {
+            archivedKeys = it
+            archivedAtMillis = currentTimeMillis()
+        }
+        return archivedKeys
+    }
+
+    /** 목록 문서 → 보관된 회차 키. 연도 꼴이 아닌 값은 버린다(경로에 그대로 들어간다). 못 읽으면 null. */
+    internal fun parseArchiveIndex(body: String): List<String>? = runCatching {
+        val arr = JSONObject(body).optJSONArray("archived") ?: return null
+        (0 until arr.length()).map { arr.optString(it).trim() }.filter { ARCHIVE_KEY.matches(it) }.distinct()
+    }.getOrNull()
+
+    private val ARCHIVE_KEY = Regex("20\\d{2}")
+
+    /**
+     * 지난 회차 보관본 — 라이브 → 정본 → (2025 · 2024 만) 앱 내장값 순. 그래도 없으면 null
+     * (화면이 「불러오지 못했어요 · 다시 시도」를 그린다). 2026 은 굿즈 · 부스까지 수십 KB 라 앱에 싣지 않는다.
+     */
+    suspend fun loadArchive(key: String): HoyolandEvent? {
+        if (!ARCHIVE_KEY.matches(key)) return null
+        archives[key]?.let { (event, at) -> if (currentTimeMillis() - at < ARCHIVE_DOC_FRESH_MS) return event }
+        val body = LiveConfig.get(editionDoc(key))?.takeIf { parseOrNull(it) != null }
+            ?: Net.get("${editionUrl(key)}?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
+        // 원격을 못 받았으면 직전에 받은 값 → 앱에 내장한 회차(2025 · 2024) 순으로 내려온다.
+        // 내장 회차도 저장소에 같은 문서가 있어(10/6) 어드민에서 고치면 원격 값이 앞선다 — 내장값은 오프라인용이다.
+        val parsed = body?.let(::parseOrNull)?.let(::asArchive)
+            ?: return archives[key]?.first ?: HoyolandArchives.bundled[key]?.let(::asArchive)
+        archives[key] = parsed to currentTimeMillis()
+        return parsed
+    }
+
+    /**
+     * 지난 회차 화면의 공통 손질(10/6) — 내장 회차(2025 · 2024)와 어드민 보관본(2026~)에 **똑같이** 건다.
+     *  - 프로그램 섹션 제목을 「행사 구성」으로. 지난 회차에서는 응모할 것이 없고 그 회차의 기록이다.
+     *  - 게임 배지를 끈다. 줄 제목에 게임 이름이 이미 있다.
+     *  - **줄 순서는 문서 그대로다**(10/6). 게임에 딸린 줄을 앞으로 당기던 정렬을 뺐다 — 어드민에서 옮긴
+     *    순서가 앱에서 뒤바뀌어 보였다. 게임을 먼저 세우려면 문서에서 그렇게 둔다(2025 · 2024 가 그렇다).
+     *  - [HoyolandEvent.archived] 를 세운다 — 장바구니를 전제로 한 문구(굿즈 칸의 「아직 안 담았어요」)가 빠진다.
+     */
+    internal fun asArchive(e: HoyolandEvent): HoyolandEvent = e.copy(
+        archived = true,
+        programsTitle = e.programsTitle.ifBlank { "행사 구성" },
+        programGameTags = false,
+    )
 
     private suspend fun fetchLive(): String? = LiveConfig.get(CONFIG_DOC)
 
@@ -250,7 +339,7 @@ object HoyolandApi {
             ticket = o.optJSONObject("ticket")?.let { parseTicket(it) } ?: d.ticket,
             lineup = o.optJSONArray("lineup")?.let { parseLineup(it) }?.takeIf { it.isNotEmpty() } ?: d.lineup,
             programs = o.optJSONArray("programs")?.let { parsePrograms(it) } ?: d.programs,
-            notice = o.optString("notice", d.notice),
+            notice = HoyolandText.normalize(o.optString("notice", d.notice)),
             // days 는 **빈 배열도 유효한 값**이라 takeIf 로 걸러내지 않는다 —
             // 시간표를 내렸다가 다시 올리는 상황에서 번들 기본값이 되살아나면 안 된다.
             days = o.optJSONArray("days")?.let { parseDays(it) } ?: d.days,
@@ -258,7 +347,7 @@ object HoyolandApi {
             // goods·booths 도 days 와 같다 — **빈 배열이 유효한 값**이라 걸러내지 않는다.
             goods = o.optJSONArray("goods")?.let { parseGoods(it) } ?: d.goods,
             booths = o.optJSONArray("booths")?.let { parseBooths(it) } ?: d.booths,
-            goodsGuide = o.optString("goodsGuide", d.goodsGuide).trim(),
+            goodsGuide = HoyolandText.normalize(o.optString("goodsGuide", d.goodsGuide)).trim(),
             // 조 편성은 `lineup` 과 같다 — **빈 배열이면 번들로 폴백**한다.
             //
             // days·goods 처럼 "내렸다" 가 뜻을 갖는 값이 아니기 때문이다. 조 없이 입장하는
@@ -324,7 +413,7 @@ object HoyolandApi {
         appPackage = o.optString("appPackage").trim(),
         appScheme = o.optString("appScheme").trim(),
         url = o.optString("url"),
-        note = o.optString("note"),
+        note = HoyolandText.normalize(o.optString("note")),
     )
 
     /** 모르는 값은 미정으로 본다 — 오타 하나로 "판매 중"이 뜨면 안 되는 자리다. */
@@ -363,7 +452,7 @@ object HoyolandApi {
             val title = o.optString("title").trim()
             if (title.isBlank()) return@mapNotNull null
             HoyolandProgram(
-                title, o.optString("desc"), o.optString("deadline"),
+                title, HoyolandText.normalize(o.optString("desc")), o.optString("deadline"),
                 // 푸드 메뉴 사진 — { "메뉴 줄 이름": "food/hsr-06.webp" }. 빈 값은 버린다.
                 menuImages = o.optJSONObject("menuImages")?.let { m ->
                     buildMap {
@@ -395,7 +484,7 @@ object HoyolandApi {
                 HoyolandSlot(
                     time = o.optString("time"),
                     title = title,
-                    desc = o.optString("desc"),
+                    desc = HoyolandText.normalize(o.optString("desc")),
                     // 무대 편성이라 칸의 주인은 거의 게임이다. 비면 전 IP 공통(합동 무대).
                     game = o.optString("game").trim(),
                     // 공연 길이(분). 없으면 0 — 화면이 '다음 편 전까지'로 본다.
@@ -435,11 +524,11 @@ object HoyolandApi {
             HoyolandBooth(
                 game = o.optString("game").trim(),
                 title = title,
-                desc = o.optString("desc").trim(),
+                desc = HoyolandText.normalize(o.optString("desc")).trim(),
                 location = o.optString("location").trim(),
                 // 참가비도 굿즈 가격과 같이 숫자로 받는다 — 0 이면 무료.
                 price = o.optInt("price", 0),
-                reward = o.optString("reward").trim(),
+                reward = HoyolandText.normalize(o.optString("reward")).trim(),
                 logo = o.optString("logo").trim(),
             )
         }
