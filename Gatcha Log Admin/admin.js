@@ -682,9 +682,9 @@ const HOYOLAND = {
   by.days.count = (d) => d.days.reduce((a, x) => a + x.slots.length, 0);
   const groups = [
     // 입장 특전은 예매 바로 아래 — 앱 섹션 순서와 같다(10/6).
-    ['행사', [by.meta, by.ticket, by.perks, by.entryGroups, by.lineup]],
+    // 사이드바 개편(10/6, 시안 「사이드바 개편 · A」) — 한 줄뿐이던 「기록」 묶음을 「행사 정보」 끝으로 합쳤다.
+    ['행사 정보', [by.meta, by.ticket, by.perks, by.entryGroups, by.lineup, by.past]],
     ['현장', [by.days, by.goods, by.food, by.booths, by.diy]],
-    ['기록', [by.past]],
   ];
   HOYOLAND.sections = groups.flatMap(([g, list]) => list.map((x) => Object.assign(x, { group: g })));
 })();
@@ -4808,22 +4808,118 @@ function renderNav() {
   });
   nav.append(picker);
 
+  // ── 메뉴(시안 「사이드바 개편 · A」, 10/6) — 셋으로 나눈다.
+  //   위(머리 없음)  대시보드 · 반영(반영 · 이력 / 변경사항 · 라이브 반영 · 발행 이력) — 가장 자주 여는 것
+  //   가운데         리소스의 탭 묶음 — 머리를 누르면 접힌다(접힌 묶음은 이 브라우저에 기억한다). 이 칸만 스크롤된다.
+  //   아래 고정      정본 내보내기 · 외부 연동 — sidebar-foot 위에 늘 보인다(예전엔 목록 끝에서 잘렸다).
   const issues = issuesNow();
   const pending = pendingCount();
-  let group = null;
-  for (const sec of sectionsOf(res)) {
-    if (sec.hidden) continue;
-    if (sec.group !== group) { group = sec.group; nav.append(el('div', { class: 'nav-group', text: group })); }
-    const btn = el('button', {
-      class: 'nav-item' + (sec.id === state.active ? ' active' : ''), onclick: () => go(sec.id),
-    }, [el('span', { text: sec.label })]);
-    const ids = sec.parts || [sec.id];   // 합친 화면은 딸린 섹션의 오류도 자기 것으로 센다
-    if (sec.countable) btn.append(el('span', { class: 'count', text: String(sec.count ? sec.count(state.draft) : ownRows(sec, get(state.draft, sec.path) || []).length) }));
-    else if (sec.type === 'publish' && pending) btn.append(el('span', { class: 'count warn', text: String(pending) }));
-    else if (!sec.global && issues.some((i) => ids.includes(i.section) && i.level === 'error'))
-      btn.append(el('span', { class: 'dot', style: 'background:var(--err)' }));
-    nav.append(btn);
+  const all = sectionsOf(res).filter((s) => !s.hidden);
+  const pinned = all.filter((s) => s.id === 'export' || s.global);
+  const top = all.filter((s) => !pinned.includes(s) && (s.type === 'dashboard' || s.group === '반영'));
+  const body = all.filter((s) => !pinned.includes(s) && !top.includes(s));
+
+  // 줄 꼬리 — 오류(빨간 알약 · 건수) > 경고(노란 점 · 건수) > 채운 건수(회색 숫자). 빈 「0」 은 달지 않는다.
+  // 일정 미정 회차의 빈 칸은 검증이 'info' 로 내려 표시가 없다(빈 것이 정상이다).
+  const stateOf = (sec) => {
+    if (sec.global) return null;
+    if (sec.type === 'publish') return pending ? { kind: 'warn', n: pending } : null;
+    const ids = sec.parts || [sec.id];   // 합친 화면은 딸린 섹션의 것도 자기 것으로 센다
+    const mine = issues.filter((i) => ids.includes(i.section));
+    const err = mine.filter((i) => i.level === 'error').length;
+    if (err) return { kind: 'err', n: err };
+    const warn = mine.filter((i) => i.level === 'warn').length;
+    if (warn) return { kind: 'warn', n: warn };
+    if (!sec.countable) return null;
+    const n = sec.count ? sec.count(state.draft) : ownRows(sec, get(state.draft, sec.path) || []).length;
+    return n ? { kind: 'count', n } : null;
+  };
+  const tail = (st) => !st ? null
+    : st.kind === 'err' ? el('span', { class: 'nav-err', text: String(st.n), title: `오류 ${st.n}건` })
+      : st.kind === 'warn' ? el('span', { class: 'nav-warn', title: `경고 ${st.n}건` }, [el('i'), String(st.n)])
+        : el('span', { class: 'nav-n', text: String(st.n) });
+  const item = (sec) => el('button', {
+    class: 'nav-item' + (sec.id === state.active ? ' active' : ''), onclick: () => go(sec.id),
+  }, [navIcon(sec.id), el('span', { class: 'nav-label', text: sec.label }), tail(stateOf(sec))]);
+
+  for (const sec of top) nav.append(item(sec));
+  const closed = navClosed();
+  let i = 0;
+  while (i < body.length) {
+    const group = body[i].group;
+    const kids = [];
+    while (i < body.length && body[i].group === group) kids.push(body[i++]);
+    const key = `${picked.id}:${group}`;
+    const shut = closed.has(key);
+    // 접힌 묶음만 머리에 요약을 단다 — 펼친 묶음은 줄마다 보이므로 같은 말을 두 번 하지 않는다.
+    let sum = null;
+    if (shut) {
+      const sts = kids.map(stateOf);
+      const err = sts.reduce((a, s) => a + (s && s.kind === 'err' ? s.n : 0), 0);
+      sum = err ? tail({ kind: 'err', n: err })
+        : sts.some((s) => s && s.kind === 'warn') ? el('span', { class: 'nav-warn', title: '경고 있음' }, [el('i')])
+          : el('span', { class: 'nav-n', text: String(kids.length) });
+    }
+    nav.append(el('button', {
+      type: 'button', class: 'nav-group', 'aria-expanded': String(!shut),
+      onclick: () => { setNavClosed(key, !shut); renderNav(); },
+    }, [el('span', { class: 'gl-caret nav-caret', 'aria-hidden': 'true' }), el('span', { class: 'nav-label', text: group }), sum]));
+    if (!shut) for (const sec of kids) nav.append(item(sec));
   }
+
+  const foot = document.getElementById('nav-pinned');
+  foot.replaceChildren(...pinned.map(item));
+}
+
+/* 접은 메뉴 묶음 — 이 브라우저에만 남긴다(리소스:묶음 이름). 저장소가 막혀 있으면 이번 창 동안만 접힌다. */
+const NAV_CLOSED_KEY = 'gl-admin-nav-closed';
+let navClosedMem = null;
+function navClosed() {
+  if (navClosedMem) return navClosedMem;
+  try { navClosedMem = new Set(JSON.parse(localStorage.getItem(NAV_CLOSED_KEY) || '[]')); } catch (e) { navClosedMem = new Set(); }
+  return navClosedMem;
+}
+function setNavClosed(key, shut) {
+  const s = navClosed();
+  if (shut) s.add(key); else s.delete(key);
+  try { localStorage.setItem(NAV_CLOSED_KEY, JSON.stringify([...s])); } catch (e) { /* 이번 창 동안만 */ }
+}
+
+/* 메뉴 아이콘 — 24 격자 선 아이콘(선 1.8). 시안 「사이드바 개편 · A」의 그림과 같다. 없는 id 는 문서 아이콘. */
+const NAV_ICONS = {
+  dashboard: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  publish: 'M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4',
+  live: 'M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4',
+  changes: 'M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4',
+  history: 'M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3.5V8h4.5M12 7.5V12l3 2',
+  meta: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 11v5M12 7.5v.5',
+  ticket: 'M3 9V6h18v3a3 3 0 0 0 0 6v3H3v-3a3 3 0 0 0 0-6zM14 6v12',
+  perks: 'M3 8h18v4H3zM5 12v9h14v-9M12 8v13M12 8c-1.5-3.5-6-4-6-1.5S9 8 12 8zM12 8c1.5-3.5 6-4 6-1.5S15 8 12 8z',
+  entryGroups: 'M9 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2a6 6 0 0 1 3.5 5.8',
+  lineup: 'M7 7h10a5 5 0 0 1 0 10H7A5 5 0 0 1 7 7zM8 10.5v3M6.5 12h3M15.5 11h.01M17.5 13h.01',
+  past: 'M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3.5V8h4.5M12 7.5V12l3 2',
+  days: 'M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM4 10h16M8 3v4M16 3v4',
+  goods: 'M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9zM9 8V6.5a3 3 0 0 1 6 0V8',
+  food: 'M7 3v18M4.5 3v5a2.5 2.5 0 0 0 5 0V3M17 21V3c-2.2 1.6-3 4.5-3 8h3',
+  booths: 'M3 9l2-5h14l2 5zM5 9v11h14V9M10 20v-5h4v5',
+  diy: 'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.2 8.2 20 20M8.2 15.8 20 4',
+  banners: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9h.01',
+  manifest: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9',
+  notes: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5',
+  notices: 'M4 10v4h3l7 5V5L7 10zM18 9a4 4 0 0 1 0 6',
+  codes: 'M15 3a6 6 0 1 1-5.2 9H7v3H4v3H2v-4l7.8-7.8A6 6 0 0 1 15 3zM16.5 7.5h.01',
+  hidden: 'M3 3l18 18M10.6 6.1A10 10 0 0 1 22 12a14 14 0 0 1-2.4 3.2M6.3 6.6A14 14 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.3-1M9.9 9.9a3 3 0 0 0 4.2 4.2',
+  export: 'M12 4v11M7 10l5 5 5-5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4',
+  apis: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+};
+function navIcon(id) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  for (const [k, v] of Object.entries({ class: 'nav-ic', viewBox: '0 0 24 24', 'aria-hidden': 'true' })) svg.setAttribute(k, v);
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', NAV_ICONS[id] || NAV_ICONS.notes);
+  svg.append(path);
+  return svg;
 }
 
 function go(id) {
@@ -5229,7 +5325,7 @@ function selftest() {
     const menu = HOYOLAND.sections.filter((x) => !x.hidden).map((x) => x.label).join(' / ');
     // 메뉴 묶음이 없는 탭을 가리키면 어드민이 통째로 빈 화면이 된다(10/6, 「프로그램」 탭을 걷고 겪었다).
     assert(HOYOLAND.sections.every(Boolean), '메뉴 묶음에 없는 탭이 있다');
-    assert(menu === '기본 정보 / 예매 / 입장 특전 / 입장 조 / 참여 게임 / 무대 시간표 / 굿즈샵 / 푸드존 / 부스 체험 / DIY / 지난 행사', '메뉴가 다르다: ' + menu);
+    assert(menu === '기본 정보 / 예매 / 입장 특전 / 입장 조 / 참여 게임 / 지난 행사 / 무대 시간표 / 굿즈샵 / 푸드존 / 부스 체험 / DIY', '메뉴가 다르다: ' + menu);
   });
 
   check('통째로 들고 나는 행은 열 이름을 붙여 읽힌다', () => {
