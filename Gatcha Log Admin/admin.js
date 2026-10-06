@@ -7,8 +7,9 @@
  *   ZZZ 배너   config/zzz_banners.json ← config/zzzBanners  (ZzzBannerApi)
  *   앱 배포    version.json            ← 라이브 없음         (UpdateChecker)
  *
- * 옛 호요랜드 자리(config/hoyoland.json ← config/hoyoland)는 27.50.x 이하가 읽는다. 2026 폐막
- * 상태로 얼려 두었고 여기서 편집하지 않는다 — 이유는 HoyolandApi 머리말.
+ * 옛 호요랜드 자리(config/hoyoland.json ← config/hoyoland)는 27.50.x 이하가 읽는다. 따로 편집하지
+ * 않는다 — 날짜가 잡힌 판을 반영하면 같은 값이 옛 자리에도 같이 쓰이고, 일정 미정인 동안은
+ * 직전 회차 그대로 남는다(legacyMirror). 이유는 HoyolandApi 머리말.
  *
  * 앱은 라이브(Firestore) → 정본(raw json) → 번들 순으로 내려온다. 검증 규칙의 정본은
  * 각 API 의 파서다 — 파서를 고치면 여기 SECTIONS 와 validate 도 같이 고친다.
@@ -138,6 +139,8 @@ const HOYOLAND = {
   hint: '행사 정보',
   file: 'config/hoyoland_v2.json',
   doc: 'hoyolandV2',
+  // 27.50.x 이하가 읽는 옛 자리 — 날짜가 잡힌 판만 같은 값을 같이 쓴다([legacyMirror]).
+  legacy: { file: 'config/hoyoland.json', doc: 'hoyoland' },
   live: true,
 
   blank: () => ({
@@ -757,6 +760,32 @@ function serialize(d, original, res) {
 
 const jsonOfDoc = (d, r) => JSON.stringify(serialize(d.draft, d.original, r), null, 2) + '\n';
 const toJson = () => jsonOfDoc(state.d, state.res);
+
+/** 달력에 실제로 있는 날짜인가 — 앱의 `LocalDate.parse` 가 읽는 값만 통과한다(2027-02-30 은 아니다). */
+function isRealYmd(s) {
+  if (!YMD.test(String(s ?? ''))) return false;
+  const t = new Date(s + 'T00:00:00Z');
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === s;
+}
+
+/**
+ * 이 판을 **구버전 문서에도 같이 쓸 것인가** — 쓸 거면 옛 자리({ file, doc }), 아니면 null.
+ *
+ * 27.50.x 이하는 빈 날짜를 「일정 미정」이 아니라 '개막 전' 으로 읽어 홈 · 일정 탭에 D-0 배너를
+ * 세운다(2026-10-06). 깔린 앱은 못 고치므로 규칙을 여기에 둔다:
+ *
+ *   · 시작일 · 종료일이 둘 다 진짜 날짜 → 옛 문서에도 **같은 값**을 쓴다. 모든 버전이 같은 정보를 본다.
+ *   · 하나라도 비었거나 못 읽는 날짜   → 옛 문서는 **건드리지 않는다.** 구버전은 직전 회차(종료)를
+ *     계속 보고, 다음 회차 날짜가 잡혀 반영하는 순간 따라온다.
+ *
+ * 그래서 회차가 넘어가도 문서를 새로 가를 일이 없다 — 편집은 한 곳, 반영도 한 번이다.
+ */
+function legacyMirror(res, json) {
+  if (!res.legacy) return null;
+  let d;
+  try { d = JSON.parse(json); } catch (e) { return null; }
+  return isRealYmd(d.startYmd) && isRealYmd(d.endYmd) ? res.legacy : null;
+}
 
 /**
  * 이 리소스에 **저장할 것이 남아 있는가** — 불러온 원본과 지금 초안을 직렬화해 맞대 본다.
@@ -1870,6 +1899,7 @@ function renderLive(sec) {
   if (errs.length) pub.push(el('p', { class: 'muted', text: `검증 오류 ${errs.length}건이 있습니다. 앱이 해당 값을 버리게 되지만, 의도한 것이라면 그대로 반영해도 됩니다.` }));
   pub.push(el('button', { class: 'btn btn-primary', disabled: !c.user, onclick: publish },
     [c.user ? '라이브에 반영' : '로그인이 필요합니다']));
+  if (res.legacy) pub.push(el('p', { class: 'note', style: 'margin-top:10px', text: legacyNote(res, legacyMirror(res, toJson())) }));
   pub.push(el('p', { class: 'note', style: 'margin-top:10px',
     text: `반영 후에도 정본(git)은 그대로입니다. 대응이 끝나면 “정본 내보내기”로 ${res.file} 도 갱신해 커밋하세요.` }));
   kids.push(card({ label: '반영', desc: '' }, pub));
@@ -2174,6 +2204,14 @@ async function refreshLive() {
   } catch (e) { toast('라이브 상태를 읽지 못했습니다: ' + e.message); }
 }
 
+/** 구버전 문서를 이번에 어떻게 다루는지 한 줄 — 반영 확인 창과 반영 카드가 같은 말을 쓴다. */
+function legacyNote(res, mirror) {
+  if (!res.legacy) return '';
+  return mirror
+    ? `구버전 앱용 문서(config/${mirror.doc})에도 같은 값을 같이 씁니다.`
+    : `날짜가 비어 있어 구버전 앱용 문서(config/${res.legacy.doc})는 그대로 둡니다 — 구버전은 직전 회차를 계속 봅니다.`;
+}
+
 async function publish() {
   const c = window.cloud || {};
   const res = state.res;
@@ -2184,12 +2222,14 @@ async function publish() {
   const what = changes === null ? ''
     : changes.length ? `바뀌는 값 ${changes.length}건${changes.more ? '+' : ''} — ${diffSummary(changes)}.`
     : '라이브와 같은 값이라 바뀌는 것이 없습니다.';
-  if (!await glConfirm(`${res.label} 을 라이브(config/${res.doc})에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.`, {
+  const mirror = legacyMirror(res, json);
+  const where = mirror ? `config/${res.doc} · config/${mirror.doc}` : `config/${res.doc}`;
+  if (!await glConfirm(`${res.label} 을 라이브(${where})에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.`, {
     title: '라이브 반영', ok: '반영',
-    note: [what, errCount ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : ''].filter(Boolean).join(' '),
+    note: [what, legacyNote(res, mirror), errCount ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : ''].filter(Boolean).join(' '),
   })) return;
   try {
-    await c.push(res.doc, json);
+    await c.push(res.doc, json, mirror ? [mirror.doc] : []);
     state.live = { json, updatedAt: Date.now(), updatedBy: c.user.email || c.user.uid };
     // 반영한 값이 곧 **새 기준**이다. 안 바꾸면 [isDirty] 가 아직 옛 원본과 비교해,
     // 방금 저장한 직후에도 "저장 안 됨" 으로 되돌아간다(배지는 다음 render 에서 다시 계산된다).
@@ -2524,7 +2564,10 @@ function download() {
   const a = el('a', { href: URL.createObjectURL(blob), download: res.file.split('/').pop() });
   a.click();
   URL.revokeObjectURL(a.href);
-  toast(`${res.file.split('/').pop()} 을 내려받았습니다. 저장소의 ${res.file} 에 덮어쓰고 커밋하세요.`);
+  // 구버전용 정본도 같은 규칙을 따른다 — 날짜가 잡힌 판이면 옛 파일에도 같은 내용을 덮어쓴다.
+  const mirror = legacyMirror(res, toJson());
+  toast(`${res.file.split('/').pop()} 을 내려받았습니다. 저장소의 ${res.file} 에 덮어쓰고 커밋하세요.`
+    + (mirror ? ` 같은 내용을 ${mirror.file} 에도 덮어쓰세요(구버전 앱용).` : ''));
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -3066,8 +3109,19 @@ function selftest() {
   check('라이브 문서 이름이 앱과 맞다', () => {
     assert(HOYOLAND.doc === 'hoyolandV2', 'HoyolandApi.CONFIG_DOC 와 다르다');
     assert(HOYOLAND.file === 'config/hoyoland_v2.json', 'HoyolandApi.URL 의 정본 파일과 다르다');
+    assert(HOYOLAND.legacy.doc === 'hoyoland' && HOYOLAND.legacy.file === 'config/hoyoland.json', '27.50.x 이하가 읽는 옛 자리와 다르다');
     assert(ZZZ.doc === 'zzzBanners', 'ZzzBannerApi.CONFIG_DOC 와 다르다');
     assert(VERSION.live === false, 'version.json 은 라이브를 쓰지 않아야 한다');
+  });
+  check('구버전 문서에는 날짜가 잡힌 판만 같이 쓴다', () => {
+    const J = (o) => JSON.stringify(o);
+    assert(legacyMirror(HOYOLAND, J({ startYmd: '2027-10-01', endYmd: '2027-10-04' })) === HOYOLAND.legacy, '날짜가 있는데 옛 문서를 빼먹었다');
+    // 빈 날짜를 옛 문서에 쓰면 구버전이 '개막 전' 으로 읽어 D-0 배너를 세운다(2026-10-06).
+    assert(legacyMirror(HOYOLAND, J({ startYmd: '', endYmd: '' })) === null, '일정 미정인데 옛 문서에 쓰려 한다');
+    assert(legacyMirror(HOYOLAND, J({ startYmd: '2027-10-01', endYmd: '' })) === null, '한쪽만 빈 날짜를 통과시켰다');
+    assert(legacyMirror(HOYOLAND, J({ startYmd: '2027-02-30', endYmd: '2027-03-02' })) === null, '달력에 없는 날짜를 통과시켰다');
+    assert(legacyMirror(HOYOLAND, '{깨진 JSON') === null, '깨진 JSON 을 통과시켰다');
+    assert(legacyMirror(ZZZ, J({ startYmd: '2027-10-01', endYmd: '2027-10-04' })) === null, '옛 자리가 없는 리소스인데 쓰려 한다');
   });
 
   /* ── 게임 카탈로그 · 커스텀 컴포넌트 ─────────────────── */
