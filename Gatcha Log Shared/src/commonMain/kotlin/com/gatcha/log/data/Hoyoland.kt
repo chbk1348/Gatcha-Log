@@ -936,6 +936,13 @@ data class HoyolandEvent(
      */
     val editionKey: String get() = startYmd.ifBlank { edition }
 
+    /**
+     * 일정 미정 히어로의 안내 — 직전 회차가 끝났으니 다음을 기다려 달라는 말.
+     * 직전 회차는 지난 행사 맨 앞에서 읽는다. 지난 행사가 없으면 빈 문자열(화면이 줄째 뺀다).
+     */
+    val nextEditionNotice: String
+        get() = past.firstOrNull()?.let { "${it.title} 행사는 종료되었어요.\n다음 호요랜드 소식을 기다려 주세요." }.orEmpty()
+
     /** 저장된 장바구니를 이 회차로 읽는다 — 다른 회차 것이면 비운다(작년 굿즈 이름이 남지 않게). */
     fun cartForEdition(cart: HoyolandCart, savedEdition: String): HoyolandCart =
         if (savedEdition == editionKey) cart else HoyolandCart()

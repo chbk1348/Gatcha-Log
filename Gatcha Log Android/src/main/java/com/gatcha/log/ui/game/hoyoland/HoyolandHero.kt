@@ -337,6 +337,10 @@ private fun HeroCountdown(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean
     if (ended) {
         // 일정 미정(TBA)도 이 자리 — 셀 날짜가 없으니 숫자 대신 한 마디.
         Text(if (phase == HoyolandPhase.TBA) e.statusLabel() else "EVENT ENDED", fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextSecondary, letterSpacing = 1.sp)
+        if (phase == HoyolandPhase.TBA && e.nextEditionNotice.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(e.nextEditionNotice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
+        }
         return
     }
     val number = if (phase.isEventLive) "${e.dayOrdinal()}" else "${e.daysUntilStart()}"
