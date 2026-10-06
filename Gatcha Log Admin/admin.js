@@ -3,9 +3,12 @@
  * 이 저장소가 발행하는 운영 JSON 을 편집·검증·반영한다. 리소스마다 스키마와 검증 규칙만
  * 다르고, 폼/테이블 렌더 · 직렬화 · 라이브 반영 · 내보내기는 전부 공용이다.
  *
- *   호요랜드   config/hoyoland.json    ← config/hoyoland    (HoyolandApi)
+ *   호요랜드   config/hoyoland_v2.json ← config/hoyolandV2  (HoyolandApi)
  *   ZZZ 배너   config/zzz_banners.json ← config/zzzBanners  (ZzzBannerApi)
  *   앱 배포    version.json            ← 라이브 없음         (UpdateChecker)
+ *
+ * 옛 호요랜드 자리(config/hoyoland.json ← config/hoyoland)는 27.50.x 이하가 읽는다. 2026 폐막
+ * 상태로 얼려 두었고 여기서 편집하지 않는다 — 이유는 HoyolandApi 머리말.
  *
  * 앱은 라이브(Firestore) → 정본(raw json) → 번들 순으로 내려온다. 검증 규칙의 정본은
  * 각 API 의 파서다 — 파서를 고치면 여기 SECTIONS 와 validate 도 같이 고친다.
@@ -133,8 +136,8 @@ const HOYOLAND = {
   id: 'hoyoland',
   label: '호요랜드',
   hint: '행사 정보',
-  file: 'config/hoyoland.json',
-  doc: 'hoyoland',
+  file: 'config/hoyoland_v2.json',
+  doc: 'hoyolandV2',
   live: true,
 
   blank: () => ({
@@ -606,9 +609,9 @@ const GLOBAL_SECTIONS = [
  * ═════════════════════════════════════════════════════════════ */
 
 const EXTERNAL_APIS = [
-  { name: 'Hoyoland 정본', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/config/hoyoland.json',
+  { name: 'Hoyoland 정본', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/config/hoyoland_v2.json',
     use: '호요랜드 행사 정보', auth: '없음', onFail: '번들 HoyolandDefaults 로 조용히 폴백', owned: true,
-    probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland.json' },
+    probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland_v2.json' },
   { name: '버전 매니페스트', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/version.json',
     use: '인앱 업데이트 · 강제 업데이트', auth: '없음', onFail: '업데이트 안내 생략', owned: true,
     probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/version.json' },
@@ -2516,8 +2519,8 @@ function renderExport(sec) {
 function download() {
   const res = state.res;
   const blob = new Blob([toJson()], { type: 'application/json' });
-  // 정본은 저장소 안 경로(config/hoyoland.json)로 적혀 있지만, download 속성에는 **파일명만**
-  // 넣는다 — 브라우저가 경로 구분자를 허용하지 않아 이름이 `config_hoyoland.json` 으로 바뀐다.
+  // 정본은 저장소 안 경로(config/hoyoland_v2.json)로 적혀 있지만, download 속성에는 **파일명만**
+  // 넣는다 — 브라우저가 경로 구분자를 허용하지 않아 이름이 `config_hoyoland_v2.json` 으로 바뀐다.
   const a = el('a', { href: URL.createObjectURL(blob), download: res.file.split('/').pop() });
   a.click();
   URL.revokeObjectURL(a.href);
@@ -3051,7 +3054,8 @@ function selftest() {
     assert(!missing.length, missing.map((a) => a.name).join(', ') + ' 에 probe 가 없다');
   });
   check('라이브 문서 이름이 앱과 맞다', () => {
-    assert(HOYOLAND.doc === 'hoyoland', 'HoyolandApi.CONFIG_DOC 와 다르다');
+    assert(HOYOLAND.doc === 'hoyolandV2', 'HoyolandApi.CONFIG_DOC 와 다르다');
+    assert(HOYOLAND.file === 'config/hoyoland_v2.json', 'HoyolandApi.URL 의 정본 파일과 다르다');
     assert(ZZZ.doc === 'zzzBanners', 'ZzzBannerApi.CONFIG_DOC 와 다르다');
     assert(VERSION.live === false, 'version.json 은 라이브를 쓰지 않아야 한다');
   });

@@ -125,8 +125,17 @@ struct HoyolandSection: View {
                 HStack(spacing: 12) {
                     Image(systemName: "party.popper").font(.system(size: 17, weight: .regular))
                         .foregroundStyle(GLGColor.textSecondary)
-                    Text("\(e.edition) · \(e.statusLabel(nowMillis: now))").font(.pretendard(size: 14, weight: .semibold))
-                        .foregroundStyle(GLGColor.textPrimary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(e.edition) · \(e.statusLabel(nowMillis: now))").font(.pretendard(size: 14, weight: .semibold))
+                            .foregroundStyle(GLGColor.textPrimary)
+                        // 일정 미정이면 직전 회차가 마무리됐다는 안내를 붙인다 — 상세 히어로와 같은 문장.
+                        if phase == .tba && !e.nextEditionNotice.isEmpty {
+                            Text(e.nextEditionNotice)
+                                .font(.pretendard(size: 13)).lineSpacing(3)
+                                .foregroundStyle(GLGColor.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 20)

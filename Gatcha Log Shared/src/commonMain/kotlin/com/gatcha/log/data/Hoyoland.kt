@@ -19,7 +19,7 @@ import kotlin.time.Instant
  * 두 벌을 손으로 맞추면 한쪽만 고쳐 갈라진다 — [NotificationCatalog] 와 같은 이유로 여기에 모은다.
  *
  * 갱신 경로는 두 갈래다:
- *  - **원격**: `config/hoyoland.json` ([com.gatcha.log.data.api.HoyolandApi]) — 앱 업데이트 없이 바뀐다.
+ *  - **원격**: `config/hoyoland_v2.json` ([com.gatcha.log.data.api.HoyolandApi]) — 앱 업데이트 없이 바뀐다.
  *  - **번들**: [HoyolandDefaults] — 네트워크가 없거나 JSON 이 깨져도 화면이 비지 않게 하는 폴백.
  *
  * 표시 문자열(기간 라벨·D-day)은 전부 이 파일의 파생값으로 만든다. 플랫폼이 각자 조립하면
@@ -197,7 +197,7 @@ data class HoyolandProgram(
 /**
  * 호요랜드 사진 파일 경로 → 전체 주소.
  *
- * 사진은 `config/hoyoland.json` 옆(`config/goods/` · `config/food/`)에 두고 **정본과 같은 raw 주소**로
+ * 사진은 `config/hoyoland_v2.json` 옆(`config/goods/` · `config/food/`)에 두고 **정본과 같은 raw 주소**로
  * 읽는다. JSON 에는 짧은 상대 경로만 적는다 — 저장소 주소가 바뀌면 여기 한 곳만 고친다.
  * `http` 로 시작하면 외부 주소로 보고 그대로 쓴다. 비면 빈 문자열(= 사진 없음).
  */
@@ -937,11 +937,12 @@ data class HoyolandEvent(
     val editionKey: String get() = startYmd.ifBlank { edition }
 
     /**
-     * 일정 미정 히어로의 안내 — 직전 회차가 끝났으니 다음을 기다려 달라는 말.
+     * 일정 미정 안내 — 직전 회차가 마무리됐으니 다음 행사를 기대해 달라는 말.
+     * 상세 히어로와 게임정보 탭 한 줄 카드가 같은 문장을 쓴다.
      * 직전 회차는 지난 행사 맨 앞에서 읽는다. 지난 행사가 없으면 빈 문자열(화면이 줄째 뺀다).
      */
     val nextEditionNotice: String
-        get() = past.firstOrNull()?.let { "${it.title} 행사는 종료되었어요.\n다음 호요랜드 소식을 기다려 주세요." }.orEmpty()
+        get() = past.firstOrNull()?.let { "${it.title} 행사가 마무리되었어요.\n다음 행사를 기대해 주세요." }.orEmpty()
 
     /** 저장된 장바구니를 이 회차로 읽는다 — 다른 회차 것이면 비운다(작년 굿즈 이름이 남지 않게). */
     fun cartForEdition(cart: HoyolandCart, savedEdition: String): HoyolandCart =

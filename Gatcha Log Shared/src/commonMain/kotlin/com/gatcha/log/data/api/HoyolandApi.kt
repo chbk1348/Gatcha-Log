@@ -24,15 +24,21 @@ import com.gatcha.log.json.JSONObject
  * 호요랜드 정보 원격 갱신.
  *
  * 행사 정보는 개최 전까지 **순차로 공개된다** — 지금은 예매만 미정이지만, 공개되는 순간
- * 앱을 업데이트하지 않고도 바뀌어야 한다. 같은 저장소의 `config/hoyoland.json` 을 raw 로 읽는다.
+ * 앱을 업데이트하지 않고도 바뀌어야 한다. 같은 저장소의 `config/hoyoland_v2.json` 을 raw 로 읽는다.
  * ([UpdateChecker] 의 `version.json` 은 **루트에 남겨 둔다** — 이미 설치된 앱이 새 버전을 찾는
  * 유일한 통로라 경로를 옮기면 구버전이 업데이트를 영영 못 본다.)
  *
  * **출처는 두 곳이고 순서가 있다.**
- *  1. Firestore `config/hoyoland` — 운영 어드민(`Gatcha Log Admin/`)이 쓰는 자리. 커밋 없이 즉시 반영된다.
+ *  1. Firestore `config/hoyolandV2` — 운영 어드민(`Gatcha Log Admin/`)이 쓰는 자리. 커밋 없이 즉시 반영된다.
  *     행사 당일 현장에서 시간표가 바뀌는 상황을 위한 것이다.
- *  2. raw `config/hoyoland.json` — git 에 남는 정본. Firestore 가 비었거나 못 읽으면 여기로 내려온다.
+ *  2. raw `config/hoyoland_v2.json` — git 에 남는 정본. Firestore 가 비었거나 못 읽으면 여기로 내려온다.
  *  3. 번들 [HoyolandDefaults] — 둘 다 실패했을 때.
+ *
+ * **이름에 V2 가 붙은 이유 — 옛 자리(`config/hoyoland` · `hoyoland.json`)는 구버전 몫으로 얼렸다.**
+ * 27.50.x 이하는 빈 날짜를 [HoyolandPhase.TBA] 가 아니라 '개막 전' 으로 읽는다. 폐막 다음 날
+ * 옛 문서를 「2027 · 일정 미정」으로 바꿨더니 구버전 홈 · 일정 탭에 D-0 배너가 다시 섰다
+ * (2026-10-06 실측). 깔린 앱은 못 고치므로 옛 문서는 2026 폐막 상태로 두고, 빈 날짜의 뜻을
+ * 아는 버전만 이 문서를 읽는다. **값의 뜻이 또 바뀌면 옛 문서를 고치지 말고 이름을 올린다.**
  *
  * 어드민은 1번에 쓰면서 2번용 JSON 도 함께 뽑아 준다. 즉 **Firestore 는 캐시가 아니라 앞선 정본**이고,
  * git 은 이력과 최종 폴백을 맡는다. 둘이 어긋나면 앱은 Firestore 를 믿는다.
@@ -45,10 +51,10 @@ import com.gatcha.log.json.JSONObject
 object HoyolandApi {
 
     private const val URL =
-        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland.json"
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland_v2.json"
 
     /** 운영 어드민이 쓰는 라이브 문서 이름 — [LiveConfig] 참고. */
-    private const val CONFIG_DOC = "hoyoland"
+    private const val CONFIG_DOC = "hoyolandV2"
 
     /**
      * 받아온 값을 짧게 재사용한다 — 게임정보 탭·홈·일정 탭이 각자 부르는데, 한 번 화면을
