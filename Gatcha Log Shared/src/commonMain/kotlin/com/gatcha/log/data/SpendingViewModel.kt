@@ -2209,6 +2209,11 @@ class SpendingViewModel : ViewModel() {
     private var gameInfoJob: Job? = null
     /** 새로고침 회차. 끊긴 회차의 finally 가 새 회차의 스피너·게이트를 건드리지 않게 가른다. */
     private var gameInfoGen = 0
+    /**
+     * 지금 도는 회차가 스피너([_isRefreshing])를 켰는가. 조용히(silent) 시작한 회차라도
+     * 도는 중에 사용자가 새로고침을 부르면 true 로 올린다([refreshGameInfo] 머리).
+     */
+    private var gameInfoSpinning = false
 
     /** 지출 탭 당겨서 새로고침 진행 여부 — 연타로 pull/push 가 겹치지 않게. */
     private var _spendingRefreshing = false
@@ -2479,9 +2484,22 @@ class SpendingViewModel : ViewModel() {
      * ennead 가 하나라도 실패한 회차는 신선도를 [gameInfoRetryMs] 로 짧게 잡아 곧 다시 받는다.
      */
     fun refreshGameInfo(force: Boolean = false, silent: Boolean = false) {
-        if (_gameInfoRefreshing) return // 동시 새로고침 차단
+        if (_gameInfoRefreshing) {
+            // 동시 새로고침 차단 — 같은 요청 세트를 겹쳐 쏘지 않는다.
+            //
+            // 다만 도는 것이 **조용한 자동 갱신**(앱 복귀)이고 지금 부른 쪽이 사용자(당겨서 새로고침 · 버튼)라면
+            // 그 회차를 '보이는' 새로고침으로 올린다. 예전엔 여기서 그냥 버려서, 앱에 돌아오자마자 당기면
+            // 스피너가 바로 걷히고 아무 일도 없다가 몇 초 뒤에야 값이 바뀌었다(10/6 「즉시 새로고침되지 않을 때가 있다」).
+            // 방금 나간 요청이라 새로 쏘는 것과 받는 값은 같다.
+            if (!silent && !gameInfoSpinning) {
+                gameInfoSpinning = true
+                _isRefreshing.value = true
+            }
+            return
+        }
         if (!force && _gameInfoReady.value && currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
         val gen = ++gameInfoGen
+        gameInfoSpinning = !silent
         gameInfoJob = viewModelScope.launch {
             // silent(백그라운드 복귀 자동 갱신)는 인디케이터를 켜지 않는다.
             // `_isRefreshing` 은 홈·지출·게임정보 세 탭의 당겨서-새로고침 표시와 새로고침 버튼
@@ -2693,7 +2711,9 @@ class SpendingViewModel : ViewModel() {
             } finally {
                 // 계정 전환으로 끊긴 회차면 뒤를 새 회차에 맡긴다(아래를 돌면 새 회차의 스피너를 끈다).
                 if (gen == gameInfoGen) {
-                    if (!silent) _isRefreshing.value = false
+                    // 조용히 시작했어도 도중에 사용자가 이어받았으면 스피너가 켜져 있다 — 그것도 끈다.
+                    if (gameInfoSpinning) _isRefreshing.value = false
+                    gameInfoSpinning = false
                     // 예외·오프라인으로 중간에 빠져나가도 스켈레톤이 영구 고착되지 않게 게이트를 모두 연다.
                     _gameInfoReady.value = true
                     _scheduleReady.value = true

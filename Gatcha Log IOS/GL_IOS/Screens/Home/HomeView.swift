@@ -47,15 +47,8 @@ struct HomeView: View {
         // 흰 바탕(10/1) — 히어로 뒤 강조색 그라데이션을 걷었다.
         .background(Color.white)
         // 당겨서 새로고침 — Android 홈(GlgPullToRefreshBox)과 같은 갱신.
-        .refreshable {
-            store.refreshGameInfo(force: true)
-            // 갱신이 끝날 때까지 스피너를 붙잡는다 — 바로 돌아오면 당기자마자 스피너가 걷혀 아무 일도 없어 보였다.
-            // isRefreshing 은 코루틴 안에서 켜지므로 한 박자 쉬고 본다. 최대 10초. (SpendingView 와 같다)
-            for _ in 0..<100 {
-                try? await Task.sleep(nanoseconds: 100_000_000)
-                if !store.isRefreshing { break }
-            }
-        }
+        // 갱신이 끝날 때까지 스피너를 붙잡는다 — 바로 돌아오면 당기자마자 스피너가 걷혀 아무 일도 없어 보였다.
+        .refreshable { await store.refreshGameInfoAndWait() }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 프로필 사진(좌) — 탭하면 마이페이지.
