@@ -121,10 +121,12 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val nCombat by viewModel.notifyCombat.collectAsStateWithLifecycle()
     val nNews by viewModel.notifyNews.collectAsStateWithLifecycle()
     val nHoyoland by viewModel.notifyHoyoland.collectAsStateWithLifecycle()
+    val nAppUpdate by viewModel.notifyAppUpdate.collectAsStateWithLifecycle()
     val notifyOnCount = NotificationCatalog.items.count {
         when (it.key) {
             NotifyKey.BUDGET -> nBudget; NotifyKey.RESIN -> nResin; NotifyKey.ATTENDANCE -> nAttend; NotifyKey.PICKUP -> nPickup
             NotifyKey.COMBAT -> nCombat; NotifyKey.NEWS -> nNews; NotifyKey.HOYOLAND -> nHoyoland
+            NotifyKey.APP_UPDATE -> nAppUpdate
         }
     }
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
@@ -533,6 +535,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val notifyHoyoland by viewModel.notifyHoyoland.collectAsStateWithLifecycle()
     val notifyNews by viewModel.notifyNews.collectAsStateWithLifecycle()
     val notifyCombat by viewModel.notifyCombat.collectAsStateWithLifecycle()
+    val notifyAppUpdate by viewModel.notifyAppUpdate.collectAsStateWithLifecycle()
     val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsStateWithLifecycle()
     val notifyDndStartHour by viewModel.notifyDndStartHour.collectAsStateWithLifecycle()
     val notifyDndEndHour by viewModel.notifyDndEndHour.collectAsStateWithLifecycle()
@@ -596,6 +599,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
             NotifyKey.COMBAT to notifyCombat,
             NotifyKey.NEWS to notifyNews,
             NotifyKey.HOYOLAND to notifyHoyoland,
+            NotifyKey.APP_UPDATE to notifyAppUpdate,
         )
         val setNotify: (NotifyKey, Boolean) -> Unit = { key, on ->
             if (on) ensureNotifPerm()
@@ -607,6 +611,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                 NotifyKey.COMBAT -> viewModel.setNotifyCombat(on)
                 NotifyKey.NEWS -> viewModel.setNotifyNews(on)
                 NotifyKey.HOYOLAND -> viewModel.setNotifyHoyoland(on)
+                NotifyKey.APP_UPDATE -> viewModel.setNotifyAppUpdate(on)
             }
         }
 
@@ -976,6 +981,7 @@ private fun notifyTint(key: NotifyKey): Pair<Color, Color> = when (key) {
     NotifyKey.COMBAT -> Color(0xFFB45309) to Color(0xFFFEF3C7)
     NotifyKey.NEWS -> Color(0xFF475569) to Color(0xFFEEF1F5)
     NotifyKey.HOYOLAND -> Color(0xFFDB2777) to Color(0xFFFCE7F3)
+    NotifyKey.APP_UPDATE -> Tint.navy
 }
 
 /** 미리보기 알림 카드 — 켜면 어떤 알림이 오는지 먼저 보여 주고, 오른쪽 위에 켜진 개수. */
@@ -1074,6 +1080,7 @@ private fun notifyIcon(key: NotifyKey): ImageVector = when (key) {
     NotifyKey.COMBAT -> Icons.Default.MilitaryTech
     NotifyKey.NEWS -> Icons.Default.Campaign
     NotifyKey.HOYOLAND -> Icons.Default.Celebration
+    NotifyKey.APP_UPDATE -> Icons.Default.SystemUpdate
 }
 
 /**

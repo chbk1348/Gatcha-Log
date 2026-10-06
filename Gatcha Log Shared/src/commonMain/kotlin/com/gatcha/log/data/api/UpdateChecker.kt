@@ -68,4 +68,11 @@ expect object UpdateChecker {
 
     /** 새 버전이 있으면 [UpdateInfo], 없거나 실패 시 null. */
     suspend fun check(): UpdateInfo?
+
+    /**
+     * 새 버전을 **알림으로** 알릴 플랫폼인가 — 앱에서 바로 받아 설치하는 Android 만 true.
+     * iOS 는 사이드로딩이라 알림을 눌러도 할 수 있는 일이 없고, 선택 업데이트를 띄우는 화면도 없다
+     * (강제 업데이트만 막는다). 알림 항목 노출([com.gatcha.log.data.NotificationCatalog])과 점검이 이 값을 본다.
+     */
+    val notifiesNewVersion: Boolean
 }

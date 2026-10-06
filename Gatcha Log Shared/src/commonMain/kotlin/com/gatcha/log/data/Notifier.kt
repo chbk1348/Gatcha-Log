@@ -12,6 +12,7 @@ expect object Notifier {
     val ID_BUDGET: Int
     val ID_ATTEND: Int
     val ID_AUTO_CHECKIN: Int
+    val ID_APP_UPDATE: Int        // 새 앱 버전. 버전이 바뀌어도 한 건으로 갱신된다
     val ID_RESIN_BASE: Int        // + game.ordinal
     val ID_BUDGET_GAME_BASE: Int  // 게임별 예산 초과/임박. + game.ordinal
     val ID_PICKUP_BASE: Int       // 픽업 마감 임박. + game.ordinal
@@ -19,7 +20,7 @@ expect object Notifier {
     val ID_COMBAT_BASE: Int       // 전투 콘텐츠 시즌 마감 임박. + game.ordinal
 
     /**
-     * [link] = 알림 탭 시 이동할 딥링크(`"news:<공지 id>"` 형식). 빈 문자열이면 앱만 연다.
+     * [link] = 알림 탭 시 이동할 딥링크(`"news:<공지 id>"` · `"update"`). 빈 문자열이면 앱만 연다.
      * 처리는 [SpendingViewModel.handleNotificationLink].
      *
      * **suspend 인 이유**: iOS 는 권한 조회·등록이 전부 콜백형이라 예전엔 요청만 걸고 즉시 반환했다.

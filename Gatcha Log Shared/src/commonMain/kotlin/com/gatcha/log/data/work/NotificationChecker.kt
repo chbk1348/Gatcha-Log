@@ -8,14 +8,17 @@ import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.Josa
 import com.gatcha.log.data.LiveNote
+import com.gatcha.log.data.NotificationCatalog
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.TaskCompletion
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.NewsApi
+import com.gatcha.log.data.api.UpdateChecker
+import com.gatcha.log.data.api.UpdateInfo
 import com.gatcha.log.util.currentTimeMillis
 
 /**
- * 로컬 알림 점검 — 예산(전체+게임별)/출석 리마인더/재화 가득참/픽업 마감/정기결제 갱신.
+ * 로컬 알림 점검 — 예산(전체+게임별)/출석 리마인더/재화 가득참/픽업 마감/전투 시즌/새 공지/새 앱 버전(Android).
  *
  * 기존 :GL_Android 의 GatchaWorker.checkNotifications 로직을 commonMain 으로 끌어올린 것.
  * → Android(WorkManager)·iOS(BGTaskScheduler) 양쪽에서 동일하게 호출(패리티).
@@ -254,6 +257,40 @@ object NotificationChecker {
                 }
             }
         }
+
+        // ⑧ 새 앱 버전(Android) — **버전당 1회.** 앱을 열어야만 알 수 있던 것을 백그라운드 점검에 얹었다.
+        if (settings.notifyAppUpdate && NotificationCatalog.appUpdateAlertsActive) {
+            // 실패 · 최신이면 null — 조용히 건너뛴다.
+            val info = UpdateChecker.check()
+            if (info != null && settings.lastNotified(APP_UPDATE_TAG) != info.versionCode.toString()) {
+                // 앱을 보고 있으면 쏘지 않고 **표시도 남기지 않는다** — 홈이 뜰 때 업데이트 창이 이미 떴다.
+                // 거기서 「나중에」를 고른 사람에게는 다음 백그라운드 점검이 한 번 알린다(새 공지와 같은 규칙).
+                if (!AppVisibility.isForeground) {
+                    settings.setLastNotified(APP_UPDATE_TAG, info.versionCode.toString())
+                    val (title, text) = appUpdateAlert(info, UpdateChecker.currentVersionCode())
+                    Notifier.notify(Notifier.ID_APP_UPDATE, title, text, link = "update")
+                }
+            }
+        }
+    }
+
+    /** 새 버전 알림의 중복 방지 키 — 값은 알린 versionCode. */
+    private const val APP_UPDATE_TAG = "app_update"
+
+    /**
+     * 새 버전 알림 문구(제목, 본문). 지금 버전([current])이 최소 지원 버전 아래면 필수 업데이트로 알린다.
+     * 본문은 변경 사항 첫 줄 — 없으면 눌렀을 때 일어나는 일을 적는다.
+     */
+    internal fun appUpdateAlert(info: UpdateInfo, current: Long): Pair<String, String> {
+        val ver = if (info.versionName.isNotBlank()) " (v${info.versionName})" else ""
+        val title = if (current < info.minVersionCode) "필수 업데이트가 있어요$ver" else "새 버전이 나왔어요$ver"
+        val first = info.notes.firstOrNull { it.isNotBlank() }
+        val text = when {
+            first == null -> "눌러서 바로 받아 설치할 수 있어요"
+            info.notes.size > 1 -> "$first 외 ${info.notes.size - 1}건"
+            else -> first
+        }
+        return title to text
     }
 
     /**

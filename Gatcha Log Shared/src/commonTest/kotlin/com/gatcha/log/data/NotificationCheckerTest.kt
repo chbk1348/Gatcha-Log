@@ -1,5 +1,6 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.UpdateInfo
 import com.gatcha.log.data.work.NotificationChecker
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -53,5 +54,40 @@ class NotificationCheckerTest {
         )
         assertEquals(2, merged.size)
         assertEquals(9_000L, merged.first { it.game == "zzz" }.resinFullAtMillis)
+    }
+
+    // ── 새 앱 버전 알림 문구 ──
+
+    private fun update(notes: List<String> = emptyList(), name: String = "27.51.0", min: Long = 0) =
+        UpdateInfo(versionCode = 275100, versionName = name, url = "", apkUrl = "", notes = notes, minVersionCode = min)
+
+    @Test
+    fun appUpdateAlertShowsVersionAndFirstNote() {
+        val (title, text) = NotificationChecker.appUpdateAlert(update(listOf("가", "나", "다")), current = 275060)
+        assertEquals("새 버전이 나왔어요 (v27.51.0)", title)
+        assertEquals("가 외 2건", text)
+    }
+
+    @Test
+    fun appUpdateAlertWithSingleNoteHasNoCount() {
+        val (_, text) = NotificationChecker.appUpdateAlert(update(listOf("가")), current = 275060)
+        assertEquals("가", text)
+    }
+
+    /** 변경 사항이 비면 본문이 빈 알림이 된다 — 눌렀을 때 일어나는 일을 대신 적는다. */
+    @Test
+    fun appUpdateAlertWithoutNotesSaysWhatTapDoes() {
+        val (title, text) = NotificationChecker.appUpdateAlert(update(name = ""), current = 275060)
+        assertEquals("새 버전이 나왔어요", title)
+        assertEquals("눌러서 바로 받아 설치할 수 있어요", text)
+    }
+
+    /** 지금 버전이 최소 지원 버전 아래면 앱을 열자마자 막힌다 — 알림도 그렇게 말한다. */
+    @Test
+    fun appUpdateAlertBelowMinVersionIsMandatory() {
+        val (title, _) = NotificationChecker.appUpdateAlert(update(min = 275000), current = 274900)
+        assertEquals("필수 업데이트가 있어요 (v27.51.0)", title)
+        val (optional, _) = NotificationChecker.appUpdateAlert(update(min = 275000), current = 275000)
+        assertEquals("새 버전이 나왔어요 (v27.51.0)", optional)
     }
 }

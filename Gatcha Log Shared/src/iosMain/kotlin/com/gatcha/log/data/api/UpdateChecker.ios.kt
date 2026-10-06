@@ -16,4 +16,6 @@ actual object UpdateChecker {
         (NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String) ?: ""
 
     actual suspend fun check(): UpdateInfo? = fetchUpdateInfo(currentVersionCode())
+
+    actual val notifiesNewVersion: Boolean = false
 }

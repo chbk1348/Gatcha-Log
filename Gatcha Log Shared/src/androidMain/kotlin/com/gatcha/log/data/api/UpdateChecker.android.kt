@@ -21,4 +21,6 @@ actual object UpdateChecker {
     }.getOrDefault("")
 
     actual suspend fun check(): UpdateInfo? = fetchUpdateInfo(currentVersionCode())
+
+    actual val notifiesNewVersion: Boolean = true
 }
