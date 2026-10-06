@@ -79,6 +79,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -1831,10 +1832,14 @@ private fun HoyolandGuideContent(text: String) {
                 g.rows.forEachIndexed { i, r ->
                     if (i > 0) Spacer(Modifier.height(9.dp))
                     Row(Modifier.fillMaxWidth()) {
-                        Text(
-                            r.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
-                            lineHeight = 19.sp, modifier = Modifier.width(78.dp),
-                        )
+                        // 이름은 **한 줄**(10/6) — 78 을 넘는 이름(「가을축제 스페셜 굿즈」)은 접지 않고 칸이 늘어 값을 민다.
+                        // 짧은 이름은 예전처럼 78 칸이고, 긴 이름만 값과 10 을 띄운다. iOS · 어드민 미리보기와 같다.
+                        Box(Modifier.widthIn(min = 78.dp)) {
+                            Text(
+                                r.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                                lineHeight = 19.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(end = 10.dp),
+                            )
+                        }
                         Column(Modifier.weight(1f)) {
                             if (r.value.isNotBlank()) {
                                 Text(r.value, fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = TextPrimary, lineHeight = 19.sp)
