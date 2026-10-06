@@ -260,7 +260,14 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Celebration, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(12.dp))
-            Text("${e.edition} · ${e.statusLabel()}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text("${e.edition} · ${e.statusLabel()}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                // 일정 미정이면 직전 회차가 마무리됐다는 안내를 붙인다 — 상세 히어로와 같은 문장.
+                if (phase == HoyolandPhase.TBA && e.nextEditionNotice.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(e.nextEditionNotice, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
+                }
+            }
         }
         return
     }

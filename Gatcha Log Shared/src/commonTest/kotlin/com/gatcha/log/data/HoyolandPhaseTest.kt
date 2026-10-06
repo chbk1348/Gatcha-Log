@@ -174,6 +174,14 @@ class HoyolandPhaseTest {
     }
 
     @Test
+    fun 일정_미정_안내는_직전_회차가_마무리됐다고_말한다() {
+        val d = HoyolandDefaults.event
+        assertEquals("호요랜드 2026 행사가 마무리되었어요.\n다음 행사를 기대해 주세요.", d.nextEditionNotice)
+        // 지난 행사가 없으면 할 말이 없다 — 화면이 줄째 뺀다.
+        assertEquals("", d.copy(past = emptyList()).nextEditionNotice)
+    }
+
+    @Test
     fun 지난_마감은_회색으로_내린다() {
         val deadline = "모집 9.13(일) 23:59 마감 · 결과 9.15(화) 발표"
         // 가장 늦은 날(9.15)까지는 아직 살아 있는 안내다.

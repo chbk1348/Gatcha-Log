@@ -8,11 +8,16 @@
 
 | 리소스 | 정본 파일 | 라이브 문서 | 앱 |
 |---|---|---|---|
-| 호요랜드 | `config/hoyoland.json` | `config/hoyoland` | `HoyolandApi` |
+| 호요랜드 | `config/hoyoland_v2.json` | `config/hoyolandV2` | `HoyolandApi` (27.51.0 이상) |
 | ZZZ 배너 | `config/zzz_banners.json` | `config/zzzBanners` | `ZzzBannerApi` |
 | 앱 배포 | `version.json` (루트) | **없음** (아래 참고) | `UpdateChecker` |
 
 좌측 상단 스위처로 전환한다. 리소스마다 초안 · 검증 · 라이브 상태가 따로 붙는다.
+
+> **옛 호요랜드 자리는 얼려 두었다.** `config/hoyoland.json` · 라이브 `config/hoyoland` 는
+> 27.50.x 이하가 읽는다. 그 버전들은 빈 날짜(일정 미정)를 '개막 전' 으로 읽어 D-0 배너를
+> 세우므로(2026-10-06), 2026 폐막 상태 그대로 두고 어드민에서도 편집하지 않는다.
+> 새 회차는 전부 `hoyoland_v2` 쪽에 쓴다.
 
 ## 데이터 흐름
 
