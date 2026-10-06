@@ -213,17 +213,20 @@
     {
       "game": "원신",
       "theme": "달빛에 전하는 세레나데",
-      "url": "https://cafe.naver.com/genshin/6723746"
+      "url": "https://cafe.naver.com/genshin/6723746",
+      "colorArgb": "0xFF4F8EF7"
     },
     {
       "game": "붕괴: 스타레일",
       "theme": "환락, 상상 그 이상으로",
-      "url": "https://cafe.naver.com/honkaistarrail/802882"
+      "url": "https://cafe.naver.com/honkaistarrail/802882",
+      "colorArgb": "0xFFB06BFF"
     },
     {
       "game": "젠레스 존 제로",
       "theme": "구름 너머로 내려앉은 시",
-      "url": "https://game.naver.com/lounge/ZZZ/board/detail/8182885"
+      "url": "https://game.naver.com/lounge/ZZZ/board/detail/8182885",
+      "colorArgb": "0xFFF5A623"
     },
     {
       "game": "붕괴3rd",
