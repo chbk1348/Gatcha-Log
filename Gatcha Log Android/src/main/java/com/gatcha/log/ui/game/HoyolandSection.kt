@@ -993,32 +993,37 @@ fun HoyolandDetailContent(
     if (e.otherPrograms.isNotEmpty()) sections += programSection
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
-    // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
+    // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 이번 회차 정보다.
+    // **종료 · 일정 미정이면 접지 않는다**(10/6) — 본론이 비어 이 목록이 페이지에서 읽을 전부라,
+    // 접기 · 펼치기는 한 번 더 누르게 할 뿐이다. 머리줄은 누를 수 없는 제목이 된다.
     // 공지 한 줄은 여기 끝에 붙이지 않는다 — 상단(히어로)에만 선다(10/6, [HoyolandEvent.topNotice]).
+    val pastAlwaysOpen = phase.isOffSeason
     val pastSection: @Composable () -> Unit = {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable { pastExpanded = !pastExpanded }
+            .then(if (pastAlwaysOpen) Modifier else Modifier.clickable { pastExpanded = !pastExpanded })
             .padding(vertical = 2.dp),
     ) {
         Text("지난 행사", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Spacer(Modifier.weight(1f))
-        Text(
-            if (pastExpanded) "접기" else "펼치기",
-            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent,
-        )
-        Spacer(Modifier.width(4.dp))
-        Icon(
-            Icons.Default.ExpandMore,
-            contentDescription = null,
-            tint = accent,
-            modifier = Modifier.size(16.dp).rotate(pastArrow),
-        )
+        if (!pastAlwaysOpen) {
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (pastExpanded) "접기" else "펼치기",
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent,
+            )
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(16.dp).rotate(pastArrow),
+            )
+        }
     }
-    AnimatedVisibility(visible = pastExpanded) {
+    AnimatedVisibility(visible = pastAlwaysOpen || pastExpanded) {
         // 행사마다 카드였던 것을 헤어라인 목록으로(10/1).
         Column {
             Spacer(Modifier.height(2.dp))
