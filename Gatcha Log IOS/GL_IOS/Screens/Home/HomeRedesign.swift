@@ -160,7 +160,10 @@ struct HomeSectionHeader: View {
 
 /// 홈 상단바(내비게이션 바) 처리.
 ///
-/// - iPhone: 히어로 그라데이션이 상태바까지 이어지도록, 내비바 배경을 숨기고 스크롤을 바 뒤까지 확장한다.
+/// - iPhone: 내비바 배경을 숨긴다 — 흰 바탕이 상태바까지 이어진다.
+///   예전엔 히어로 그라데이션을 바 뒤로 깔려고 스크롤뷰를 안전 영역 밖(`ignoresSafeArea(.top)`)까지 늘렸는데,
+///   그러면 당겨서 새로고침 스피너가 화면 맨 위(상태바 · 다이내믹 아일랜드 뒤)에 서서 보이지 않았다.
+///   그라데이션은 10/1 에 걷었으므로 늘릴 이유가 없다 — 스크롤뷰는 시스템 기본대로 둔다(스피너가 바 아래에 선다).
 /// - 넓은 화면: 홈이 NavigationSplitView 의 detail 컬럼 안이라 바 뒤 확장이 먹지 않아 흰 바가 남았다.
 ///         → 히어로 그라데이션 자체를 끄고(흰 히어로), 기본 내비바와 자연스럽게 어울리게 둔다(특별 처리 없음).
 struct HomeTopBarStyle: ViewModifier {
@@ -171,7 +174,6 @@ struct HomeTopBarStyle: ViewModifier {
             content
         } else {
             content
-                .ignoresSafeArea(.container, edges: .top)
                 .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
