@@ -290,22 +290,87 @@ function glText(cfg) {
  *              붙여넣은 글의 줄바꿈은 띄어쓰기로 바꾼다. 화면에서 접힐 뿐 값에는 줄바꿈이 들어가지 않는다.
  *   tall       넉넉하게 시작한다(공지 · 안내 같은 긴 글 칸).
  *
- * 줄바꿈을 받는 칸은 **목록**을 쉽게 친다 — 앱이 「· 항목」 줄을 목록으로 그린다(HoyolandRichText).
- *   · 줄 머리에 `- ` · `* ` · `+ ` 를 치면 가운뎃점 `· ` 으로 바뀐다 — 마크다운 에디터의 글머리 기호와 같은 손버릇이다
- *     (가운뎃점은 자판에 없다).
- *   · 목록 줄에서 Enter 를 치면 다음 줄도 `· ` 으로 시작한다. 빈 항목에서 Enter 를 치면 목록이 끝난다.
+ * 줄바꿈을 받는 칸은 **마크다운 에디터처럼** 친다. 다만 받는 것은 **앱이 그릴 줄 아는 꼴**까지다 — 앱의 글 규칙
+ * (HoyolandRichText)은 목록 줄 · 번호 줄 · 들여쓴 부연 줄 · 「이름 — 값」 · 빈 줄(문단)을 알고, 굵게 · 제목 · 링크는 모른다.
+ * 모르는 표기(`**굵게**` · `# 제목`)를 받아 두면 앱에 기호가 그대로 찍힌다.
+ *   · 목록    줄 머리에 `- ` · `* ` · `+ ` → 목록 점. 붙여넣은 글의 목록 줄도 같이 바뀐다.
+ *             점은 깊이마다 다르다 — `•` → `∘` → `▪`(GL_BULLETS). Tab 으로 들이면 점도 따라 바뀐다.
+ *   · 번호    `1. ` 로 시작한 줄에서 Enter → 다음 줄이 `2. `.
+ *   · 잇기    목록 · 번호 · 들여쓴 줄에서 Enter → 다음 줄도 같은 꼴. 빈 항목에서 Enter → 목록 끝.
+ *   · 지우기  표식 바로 뒤에서 Backspace → 표식을 통째로, 표식이 없으면 들여쓰기 한 단.
+ *   · 부연    목록 안에서 Tab → 한 단 들이기(위 항목의 부연 줄), Shift+Tab → 내기. 목록 밖의 Tab 은 다음 칸으로 간다.
+ *   · 줄표    ` -- ` → ` — `. 앱이 줄표 뒤를 값(가격 · 시각)으로 읽는다.
+ *   · 값으로는 가운뎃점 `· ` 이 나간다([GL_BULLET]) — 칸에 보이는 글자와 저장되는 글자가 다르다.
  *
  * 높이는 내용에 맞춘다(fit). 화면에 붙기 전에는 잴 수 없어, 폭이 정해지거나 바뀔 때 다시 잰다(ResizeObserver).
  */
-/** 목록 줄의 머리 — 가운뎃점 + 띄어쓰기. 앱의 글 규칙(「· 항목 — 값」)과 같은 글자다(U+00B7). */
+/**
+ * 목록 줄의 머리. **저장되는 글자**는 가운뎃점(U+00B7)이다 — 앱의 글 규칙(「· 항목 — 값」)이 그 글자로 목록 · 메뉴 줄을
+ * 알아보고, 깔린 앱은 다른 글자를 목록으로 읽지 못한다. **칸에 보이는 글자**는 굵은 점(U+2022)이다 — 가운뎃점은 작아서
+ * 목록으로 잘 안 보인다(노션의 글머리와 같은 점). 글 칸이 보일 때 굵은 점으로, 값으로 내보낼 때 가운뎃점으로 바꾼다.
+ * 줄 머리의 것만 바꾼다 — 줄 가운데의 가운뎃점(「A · B」)은 구분 기호라 그대로다.
+ */
 const GL_BULLET = '· ';
+/**
+ * 칸에 보이는 목록 점 — **들여쓴 깊이마다 다르다**(노션과 같다): 굵은 점 → 작은 고리 → 네모, 그 아래는 다시 처음부터.
+ * 어느 것이든 값으로는 가운뎃점이 나간다. 깊이는 들여쓰기가 말한다(앱은 들여쓴 줄을 위 항목의 부연으로 읽는다).
+ */
+const GL_BULLETS = ['•', '∘', '▪'];
+// 가운데 것은 고리 연산자(U+2218)다. 빈 동그라미 글머리(◦ U+25E6)는 한글 글꼴에서 전각으로 그려져 「ㅇ」만큼 커 보였다.
+// 예전 글자로 들어온 줄도 목록 점으로 알아본다(GL_BULLET_ANY).
+const GL_BULLET_ANY = '•∘◦▪';
+/** 들여쓰기([indent])의 깊이 — 탭 하나, 또는 띄어쓰기 셋까지가 한 단이다. 띄어쓰기 하나는 들여쓰기가 아니다(앱과 같다). */
+function glDepth(indent) {
+  const tabs = (indent.match(/\t/g) || []).length;
+  const spaces = indent.length - tabs;
+  return tabs + (spaces >= 2 ? Math.ceil(spaces / 3) : 0);
+}
+const GL_RE_SHOWN = new RegExp(`^([ \\t]*)[·${GL_BULLET_ANY}] `, 'gm');    // 저장된 가운뎃점 · 보이는 점 → 깊이에 맞는 점
+const GL_RE_STORED = new RegExp(`^([ \\t]*)[${GL_BULLET_ANY}] `, 'gm');    // 보이는 점 → 가운뎃점
+const GL_RE_HEAD = new RegExp(`^([ \\t]*)(([${GL_BULLET_ANY}]) |(\\d+)\\. )?`);
+/** 그 깊이의 목록 표식 — 점 + 띄어쓰기. */
+const glBullet = (indent) => GL_BULLETS[glDepth(indent) % GL_BULLETS.length] + ' ';
+/** 들여쓰기 한 단 — 앱은 띄어쓰기 둘 이상(또는 탭)으로 시작하는 줄을 위 항목의 부연으로 읽는다. 도구 버튼과 같은 셋이다. */
+const GL_INDENT = '   ';
+/**
+ * 붙여넣은 마크다운 목록을 글 칸의 꼴로 옮긴다 — 머리(`- ` · `* ` · `+ `)는 깊이에 맞는 점으로, 들여쓰기는 **한 단에 셋**으로.
+ *
+ * 마크다운은 한 단을 띄어쓰기 둘로도 넷으로도 적는다. 들여쓴 폭을 그대로 두면 넷으로 적은 글은 한 단이 두 단으로
+ * 읽혀(glDepth — 셋까지가 한 단) 둘째 줄의 점이 ∘ 가 아니라 ▪ 로 선다. 그래서 폭이 아니라 **포함 관계**로 깊이를 센다:
+ * 위 항목보다 더 들여쓴 항목은 그 아래 한 단이다(마크다운 에디터가 읽는 방식). 탭은 띄어쓰기 넷으로 친다.
+ * 번호 줄도 같은 사다리에 선다. 머리 없는 들여쓴 줄은 위 항목의 부연이라 그 항목보다 한 단 더 들인다.
+ */
+function glPasteList(text) {
+  const stack = [];          // 열려 있는 항목들의 들여쓴 폭 — 길이가 곧 깊이 + 1
+  return text.replace(/\r\n?/g, '\n').split('\n').map((line) => {
+    const m = /^([ \t]*)(?:([-*+•∘◦▪·]) |(\d+\. ))?(.*)$/.exec(line);
+    const width = m[1].replace(/\t/g, '    ').length;
+    const body = m[4];
+    if (!m[2] && !m[3]) {
+      if (!body.trim()) return '';                                   // 빈 줄 — 목록은 이어질 수 있다
+      if (!width || !stack.length) { stack.length = 0; return line; }  // 목록 밖의 줄은 그대로
+      return GL_INDENT.repeat(stack.length) + body;                  // 위 항목의 부연
+    }
+    while (stack.length && width < stack[stack.length - 1]) stack.pop();
+    if (!stack.length || width > stack[stack.length - 1]) stack.push(width);
+    const indent = GL_INDENT.repeat(stack.length - 1);
+    return indent + (m[3] || glBullet(indent)) + body;
+  }).join('\n');
+}
+/** 줄바꿈을 받는 칸에 붙는 안내(마우스를 올리면 보인다). */
+const GL_MD_HINT = '줄 머리에 "- " · "* " · "+ " → 목록 점 · "1. " → 번호 목록(Enter 로 이어 쓰기) · Tab / Shift+Tab → 부연 줄 들이기 · 내기 · " -- " → 줄표(이름 — 값)';
 
 function glArea(cfg) {
   const n = el('textarea', {
     class: 'gl-input gl-auto' + (cfg.tall ? ' gl-tall' : ''), rows: '1',
     placeholder: cfg.placeholder || '', inputmode: cfg.inputmode || null,
     style: cfg.width ? `width:${cfg.width}` : '',
-  }, [cfg.value ?? '']);
+    title: cfg.multiline ? GL_MD_HINT : null,
+  }, []);
+  // 보이는 글 ↔ 저장되는 글 — 줄 머리(들여쓴 줄 포함)의 목록 점만 바꾼다(GL_BULLET 주석). 한 문단 칸은 그대로다.
+  const toShown = (v) => (cfg.multiline ? String(v ?? '').replace(GL_RE_SHOWN, (m, indent) => indent + glBullet(indent)) : String(v ?? ''));
+  const toStored = (v) => (cfg.multiline ? v.replace(GL_RE_STORED, '$1' + GL_BULLET) : v);
+  n.value = toShown(cfg.value);
   const fit = () => { n.style.height = 'auto'; n.style.height = n.scrollHeight + 'px'; };
   // [a, b) 를 text 로 바꾼다. 브라우저의 되돌리기(⌘Z)에 남도록 편집 명령으로 먼저 해 보고, 안 되면 값을 직접 바꾼다.
   const put = (text, a, b) => {
@@ -315,21 +380,75 @@ function glArea(cfg) {
     if (!done) { n.setRangeText(text, a, b, 'end'); n.dispatchEvent(new Event('input', { bubbles: true })); }
   };
   const lineStart = (at) => n.value.lastIndexOf('\n', at - 1) + 1;
+  const lineEnd = (at) => { const k = n.value.indexOf('\n', at); return k < 0 ? n.value.length : k; };
+  /** 줄 머리의 들여쓰기와 표식 — "   ◦ " → { indent: '   ', mark: '◦ ', bullet: true }, "2. " → { mark: '2. ', num: 2 }. */
+  const headOf = (line) => {
+    const m = GL_RE_HEAD.exec(line);
+    return { indent: m[1], mark: m[2] || '', bullet: !!m[3], num: m[4] ? Number(m[4]) : 0 };
+  };
+
   n.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter' || e.isComposing) return;
-    if (!cfg.multiline) { e.preventDefault(); return; }
-    if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
-    // 목록 줄에서 Enter — 다음 줄도 목록으로 잇는다. 빈 항목이면 그 가운뎃점을 지워 목록을 끝낸다.
+    if (e.isComposing) return;
+    if (!cfg.multiline) { if (e.key === 'Enter') e.preventDefault(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     const at = n.selectionStart;
     const end = n.selectionEnd;
     const start = lineStart(at);
-    const head = n.value.slice(start, at);
-    if (!head.startsWith(GL_BULLET)) return;
-    e.preventDefault();
-    const rest = n.value.slice(end).split('\n')[0];
-    if (head === GL_BULLET && !rest.trim()) put('', start, end);
-    else put('\n' + GL_BULLET, at, end);
+    const head = n.value.slice(start, at);              // 줄 머리에서 커서까지
+    const line = n.value.slice(start, lineEnd(at));     // 커서가 놓인 줄 전체
+    const h = headOf(line);
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // 목록 · 번호 · 들여쓴 줄에서 Enter — 다음 줄도 같은 꼴로 잇는다(번호는 하나 올린다).
+      // 내용이 없는 항목에서 Enter 면 표식과 들여쓰기를 지워 목록을 끝낸다.
+      if (!h.mark && !h.indent) return;
+      if (head.length < h.indent.length + h.mark.length) return;   // 커서가 표식 안쪽이다 — 평범한 줄바꿈
+      e.preventDefault();
+      const rest = n.value.slice(end, lineEnd(end));
+      if (head === h.indent + h.mark && !rest.trim()) put('', start, lineEnd(end));
+      else put('\n' + h.indent + (h.num ? `${h.num + 1}. ` : h.mark), at, end);
+      return;
+    }
+    if (e.key === 'Backspace' && at === end && (h.mark || h.indent) && head === h.indent + h.mark) {
+      // 표식 바로 뒤에서 지우기 — 표식을 통째로 지운다. 표식이 없으면 들여쓰기를 한 단 무른다.
+      e.preventDefault();
+      if (h.mark) put('', at - h.mark.length, at);
+      else put('', Math.max(start, at - GL_INDENT.length), at);
+      return;
+    }
+    if (e.key === 'Tab') {
+      // 목록 안에서만 Tab 을 들여쓰기로 쓴다 — 그 밖에서는 평소처럼 다음 칸으로 넘어간다(표를 Tab 으로 건너다니는 길을 막지 않는다).
+      const prev = start > 0 ? headOf(n.value.slice(lineStart(start - 1), start - 1)) : { indent: '', mark: '' };
+      // 줄 머리(들여쓰기 + 목록 점)를 **한 번에** 갈아 끼운다 — 깊이가 바뀌면 점 모양도 바뀌고, 되돌리기 한 번에 같이 돌아온다.
+      const swap = (indent) => {
+        const was = h.indent.length + (h.bullet ? h.mark.length : 0);
+        const now = indent + (h.bullet ? glBullet(indent) : '');
+        put(now, start, start + was);
+        const d = now.length - was;
+        n.setSelectionRange(Math.max(start, at + d), Math.max(start, end + d));
+      };
+      if (e.shiftKey) {
+        if (!h.indent) return;
+        e.preventDefault();
+        const k = h.indent.startsWith('\t') ? 1 : Math.min(GL_INDENT.length, h.indent.length);
+        swap(h.indent.slice(k));
+      } else {
+        if (!h.mark && !h.indent && !prev.mark && !prev.indent) return;
+        e.preventDefault();
+        swap(GL_INDENT + h.indent);
+      }
+    }
   });
+
+  // 붙여넣는 글의 마크다운 목록 줄(- * +)도 목록으로 받는다 — 한 줄씩 다시 칠 일이 없다.
+  n.addEventListener('paste', (e) => {
+    if (!cfg.multiline) return;
+    const text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+    if (!/^[ \t]*[-*+] /m.test(text)) return;
+    e.preventDefault();
+    put(glPasteList(text), n.selectionStart, n.selectionEnd);
+  });
+
   n.addEventListener('input', () => {
     if (!cfg.multiline && n.value.includes('\n')) {
       const at = n.selectionStart;
@@ -338,20 +457,34 @@ function glArea(cfg) {
       n.setSelectionRange(head.length, head.length);
     }
     if (cfg.multiline) {
-      // 줄 머리에 방금 친 "- " · "* " · "+ " → "· ". 줄 가운데의 것이나 이미 있던 줄은 건드리지 않는다.
       const at = n.selectionStart;
       const start = lineStart(at);
-      if (at === n.selectionEnd && at - start === 2 && /^[-*+] $/.test(n.value.slice(start, at))) { put(GL_BULLET, start, at); return; }
+      const head = n.value.slice(start, at);
+      if (at === n.selectionEnd) {
+        // 줄 머리(들여쓴 줄 포함)에 방금 친 "- " · "* " · "+ " → 목록 점. 줄 가운데의 것이나 이미 있던 줄은 건드리지 않는다.
+        if (/^[ \t]*[-*+] $/.test(head)) { put(glBullet(head.slice(0, -2)), at - 2, at); return; }
+        // " -- " → " — ". 줄표는 자판에 없고, 앱이 「이름 — 값」의 줄표 뒤를 값(가격 · 시각)으로 읽는다.
+        if (head.endsWith(' -- ')) { put(' — ', at - 4, at); return; }
+      }
+      // 붙여넣거나 도구 버튼이 넣은 가운뎃점 줄, 손으로 들여쓰기를 고쳐 깊이가 달라진 줄 — 보이는 점을 깊이에 맞춘다
+      // (길이가 같아 커서는 제자리다).
+      const shown = toShown(n.value);
+      if (shown !== n.value) {
+        const b = n.selectionEnd;
+        n.value = shown;
+        n.setSelectionRange(at, b);
+      }
     }
     fit();
-    if (cfg.onInput) cfg.onInput(n.value);
+    if (cfg.onInput) cfg.onInput(toStored(n.value));
   });
-  n.addEventListener('change', () => cfg.onChange && cfg.onChange(n.value));
+  n.addEventListener('change', () => cfg.onChange && cfg.onChange(toStored(n.value)));
   if (typeof ResizeObserver === 'function') {
     let w = -1;
     new ResizeObserver(() => { if (n.clientWidth !== w) { w = n.clientWidth; fit(); } }).observe(n);
   }
   n.fit = fit;   // 값을 코드로 바꾼 쪽이 부른다(입력 이벤트 없이 value 를 갈아 끼울 때)
+  n.stored = () => toStored(n.value);   // 저장되는 글 — 칸의 value 는 보이는 글이다
   return n;
 }
 

@@ -46,7 +46,159 @@ const TICKET_STATUS_ALIAS = { onsale: 'on_sale', soldout: 'sold_out' };
  * 푸드존 줄 · DIY존 줄 — 앱과 **같아야 한다**(Hoyoland.kt `foodPrograms` · `HoyolandBooth.isDiy`).
  * 어드민의 푸드존 · DIY 탭이 이 기준으로 programs · booths 배열에서 제 줄을 고른다.
  */
-const isFoodProgram = (p) => String(p?.title ?? '').startsWith('푸드');
+const isFoodProgram = (p) => String(p?.title ?? '').startsWith('푸드') || hasMenuImages(p);
+/**
+ * 메뉴 사진이 걸린 줄인가 — 메뉴 사진은 푸드존 탭에서만 걸 수 있어, **그 줄이 푸드존 탭에서 만든 것**이라는 표시가 된다(10/6).
+ * 제목만 보던 때는 제목 머리가 빠진 문서(「푸드존 — 원신」 → 「원신」) 하나로 메뉴판이 통째로 프로그램 탭 · 앱의
+ * 「행사 구성」에 섰다. 앱 `HoyolandProgram.isFood` 와 같은 기준이다.
+ */
+const hasMenuImages = (p) => !!p && !!p.menuImages && typeof p.menuImages === 'object' && Object.keys(p.menuImages).length > 0;
+
+/**
+ * 푸드존 줄의 제목 ↔ 구분 · 게임 — 「푸드트럭 — 붕괴: 스타레일」 ↔ { kind: '푸드트럭', game: '붕괴: 스타레일' }.
+ *
+ * 앱은 푸드존을 **제목으로** 읽는다: 「푸드」로 시작하면 푸드존이고(foodPrograms), 제목에 든 게임 이름으로 게임을 가린다
+ * (programGame). 그 규칙을 손으로 맞춰 적게 하지 않고, 어드민은 게임만 고르게 하고 제목은 여기서 만든다.
+ * 문서 꼴은 그대로라 깔려 있는 앱이 그대로 읽는다.
+ */
+const FOOD_KINDS = ['푸드존', '푸드트럭'];
+function foodTitle(title) {
+  const t = String(title ?? '').trim();
+  // 제목 머리가 빠진 줄(「원신」) — 통째로 게임 이름이다. 머리는 「푸드존」으로 본다(normalize 가 제목도 고쳐 둔다).
+  if (t && !t.startsWith('푸드')) return { kind: FOOD_KINDS[0], game: t };
+  const at = t.indexOf(' — ');
+  const kind = (at < 0 ? t : t.slice(0, at)).replace(/\s*—\s*$/, '').trim();
+  return { kind: kind || FOOD_KINDS[0], game: at < 0 ? '' : t.slice(at + 3).trim() };
+}
+function foodTitleOf(kind, game) {
+  const k = String(kind ?? '').trim() || FOOD_KINDS[0];
+  const g = String(game ?? '').trim();
+  return g ? `${k} — ${g}` : k;
+}
+/**
+ * 푸드존 탭의 줄(음식 한 건) ↔ 문서의 프로그램 — 규칙은 앱의 메뉴 파서와 **같아야 한다**
+ * (Android `parseFoodBlocks` · iOS `hoyolandFoodBlocks`).
+ *
+ *   「· 이름 — 7,000원」        음식 한 줄. 줄표 뒤가 가격이다
+ *   그 아래 들여쓴 줄            그 음식의 설명
+ *   메뉴 바로 위의 문단          가게 이름(앱이 굵게 그린다)
+ *   그 밖의 문단                 안내 문구 — 탭에서는 **음식 이름 없이 설명만 있는 줄**이다
+ *
+ * 줄: { game, shop, image, name, desc, price } + 문서에 되돌려 줄 것(kind — 제목 머리, priceText — 숫자가 아닌 가격).
+ */
+const FOOD_PRICE = /^([\d,]+)\s*원$/;
+function foodRowsFromPrograms(programs) {
+  const rows = [];
+  for (const p of (programs || [])) {
+    if (!isFoodProgram(p)) continue;
+    const { kind, game } = foodTitle(p.title);
+    const images = (p.menuImages && typeof p.menuImages === 'object') ? p.menuImages : {};
+    const lines = String(p.desc ?? '').split('\n');
+    const deep = (raw) => /^(\t| {2})/.test(raw);   // 앱이 들여쓴 줄로 치는 기준 — 띄어쓰기 둘 이상이나 탭
+    let shop = '';
+    let item = null;    // 지금 메뉴 묶음의 마지막 음식 — 들여쓴 줄이 여기에 붙는다
+    let note = null;    // 이어지는 안내 문단
+    const base = () => ({ game, shop, image: '', name: '', desc: '', price: 0, kind });
+    lines.forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line) { note = null; return; }
+      if (deep(raw) && item) {
+        const sub = line.replace(/^· /, '');
+        item.desc = item.desc ? `${item.desc}\n${sub}` : sub;
+        return;
+      }
+      if (line.startsWith('· ')) {
+        const body = line.slice(2);
+        const at = body.lastIndexOf(' — ');
+        const name = (at < 0 ? body : body.slice(0, at)).trim();
+        const priceText = at < 0 ? '' : body.slice(at + 3).trim();
+        const m = FOOD_PRICE.exec(priceText);
+        item = { ...base(), name, price: m ? Number(m[1].replace(/,/g, '')) : 0, image: String(images[name] ?? '') };
+        if (!m && priceText) item.priceText = priceText;
+        rows.push(item);
+        note = null;
+        return;
+      }
+      // 문단 — 바로 다음 줄(빈 줄은 건너)이 메뉴면 가게 이름, 아니면 안내 문구다.
+      item = null;
+      const next = lines.slice(i + 1).find((l) => l.trim());
+      if (next !== undefined && !deep(next) && next.trim().startsWith('· ')) { shop = line; note = null; return; }
+      if (note) note.desc += '\n' + line;
+      else { note = { ...base(), desc: line }; rows.push(note); }
+    });
+  }
+  return rows;
+}
+/**
+ * 줄 → 프로그램. 게임마다 한 건, 그 안에서 가게마다 [가게 이름 · 메뉴 · 안내] 순으로 쌓고 덩이 사이는 빈 줄이다.
+ * 이름도 설명도 없는 줄(적다 만 줄)은 내보내지 않는다. `old` 는 지금 문서의 푸드존 프로그램 — 탭에 칸이 없는 값
+ * (마감 표기 등)을 같은 게임의 것에서 물려받는다.
+ */
+function foodProgramsFromRows(rows, old) {
+  const text = (v) => String(v ?? '').trim();
+  const games = new Map();   // 게임 → { kind, shops: 가게 → { items, notes } } — 먼저 나온 순서대로
+  for (const r of rows) {
+    if (!text(r.name) && !text(r.desc)) continue;
+    const game = text(r.game);
+    if (!games.has(game)) games.set(game, { kind: r.kind || FOOD_KINDS[0], shops: new Map() });
+    const shops = games.get(game).shops;
+    const shop = text(r.shop);
+    if (!shops.has(shop)) shops.set(shop, { items: [], notes: [] });
+    (text(r.name) ? shops.get(shop).items : shops.get(shop).notes).push(r);
+  }
+  return [...games].map(([game, g]) => {
+    const title = foodTitleOf(g.kind, game);
+    const blocks = [];
+    const images = {};
+    for (const [shop, x] of g.shops) {
+      if (shop) blocks.push(shop);
+      if (x.items.length) blocks.push(x.items.map((r) => {
+        const name = text(r.name);
+        const price = Number(r.price) > 0 ? `${Number(r.price).toLocaleString('ko-KR')}원` : text(r.priceText);
+        if (text(r.image)) images[name] = text(r.image);
+        const sub = String(r.desc ?? '').split('\n').map((l) => l.trim()).filter(Boolean).map((l) => GL_INDENT + l);
+        return [`· ${name}${price ? ` — ${price}` : ''}`, ...sub].join('\n');
+      }).join('\n'));
+      for (const n of x.notes) blocks.push(String(n.desc).split('\n').map((l) => l.trim()).filter(Boolean).join('\n'));
+    }
+    const prev = (old || []).find((p) => p && p.title === title) || (old || []).find((p) => p && foodTitle(p.title).game === game) || {};
+    const out = { ...prev, title, desc: blocks.join('\n\n') };
+    if (Object.keys(images).length) out.menuImages = images; else delete out.menuImages;
+    return out;
+  });
+}
+/**
+ * 푸드존 탭이 그리는 줄 — 문서에서 한 번 풀어 [d.food] 에 들고 다닌다.
+ *
+ * 매번 다시 풀지 않는 이유: 적다 만 줄(이름이 아직 없는 줄)은 문서에 나가지 않아, 다시 풀면 사라진다.
+ * 문서의 푸드존이 **밖에서** 바뀌면(되돌리기 · 불러오기 · 회차 바꾸기) 그때만 다시 푼다 — `sig` 가 그걸 가린다.
+ */
+function foodRowsOf(d) {
+  const sig = JSON.stringify((d.draft.programs || []).filter(isFoodProgram));
+  if (!d.food || d.food.sig !== sig) {
+    const rows = foodRowsFromPrograms(d.draft.programs);
+    d.food = { rows, sig, rowsSig: JSON.stringify(rows) };
+  }
+  return d.food.rows;
+}
+/** 탭의 줄이 바뀌었으면 문서의 푸드존 프로그램을 다시 만든다 — [markDirty] 가 부른다(편집이 지나는 한 통로). */
+function syncFood(d) {
+  const f = d && d.food;
+  if (!f || !d.draft || !Array.isArray(d.draft.programs)) return;
+  const programs = d.draft.programs;
+  const cur = programs.filter(isFoodProgram);
+  if (JSON.stringify(cur) !== f.sig) { d.food = null; return; }   // 문서가 밖에서 바뀌었다 — 들고 있던 줄은 낡았다
+  const rowsSig = JSON.stringify(f.rows);
+  if (rowsSig === f.rowsSig) return;                              // 줄은 그대로다 — 문서를 건드리지 않는다
+  const next = foodProgramsFromRows(f.rows, cur);
+  // 푸드존은 **있던 자리**(첫 푸드존 줄의 자리)에 모아 넣는다. 다른 프로그램의 순서는 그대로다.
+  const first = programs.findIndex(isFoodProgram);
+  const rest = programs.filter((p) => !isFoodProgram(p));
+  rest.splice(first < 0 ? rest.length : first, 0, ...next);
+  programs.splice(0, programs.length, ...rest);
+  f.sig = JSON.stringify(next);
+  f.rowsSig = rowsSig;
+}
 const isDiyBooth = (b) => !String(b?.game ?? '').trim() && String(b?.location ?? '').includes('DIY');
 
 /** 비고를 앱과 같은 규칙으로 가른다. */
@@ -199,6 +351,10 @@ const HOYOLAND = {
     for (const k of ['lineup', 'programs', 'days', 'goods', 'booths', 'past', 'entryGroups']) if (!Array.isArray(o[k])) o[k] = [];
     o.days = o.days.map((day) => ({ ymd: '', ...day, slots: Array.isArray(day.slots) ? day.slots : [] }));
     o.past = o.past.map((p) => ({ title: '', ...p, facts: Array.isArray(p.facts) ? p.facts : [] }));
+    // 제목 머리가 빠진 푸드존 줄(메뉴 사진은 걸려 있는데 제목이 「원신」) — 「푸드존 — 원신」으로 고쳐 읽는다(10/6).
+    // 깔린 앱은 제목 머리로만 푸드존을 알아본다. 고친 제목은 변경사항에 뜨고, 반영하면 문서에 남는다.
+    o.programs = o.programs.map((p) => (hasMenuImages(p) && String(p.title ?? '').trim() && !String(p.title).trim().startsWith('푸드')
+      ? { ...p, title: foodTitleOf(FOOD_KINDS[0], p.title) } : p));
     // 사진을 회차 폴더로 옮긴 회차 — 문서에 남은 옛 경로를 새 경로로 고쳐 읽는다(moveAssets). 원본은 건드리지 않는다.
     const year = editionYear(o.edition);
     if (ASSET_MOVED_YEARS.includes(year)) {
@@ -429,18 +585,33 @@ const HOYOLAND = {
         { key: 'deadline', label: '마감 표기', type: 'text' },
       ] },
     /*
-     * 푸드존 — 프로그램과 **같은 배열(programs)** 을 쓰는 다른 탭이다(10/6). 앱이 제목이 「푸드」로 시작하는 줄을
-     * 푸드존 페이지로 빼내므로(Hoyoland.kt foodPrograms) 어드민도 같은 기준으로 가른다. 문서 꼴은 그대로라
-     * 깔려 있는 앱이 그대로 읽는다. 새 줄은 「푸드존 — 」 으로 시작한다([seed]) — 그 머리를 지우면 프로그램 탭으로 간다.
+     * 푸드존 — **음식 한 줄씩** 적는 탭이다(10/6). 칸은 게임 · 가게 이름 · 썸네일 · 음식 이름 · 음식 설명 · 가격.
+     *
+     * 문서에는 예전 꼴 그대로 나간다: 프로그램(programs) 한 건이 게임 하나고, 그 설명글에 「· 이름 — 7,000원」 줄과
+     * 들여쓴 설명 줄이, menuImages 에 이름 → 사진이 들어간다([foodProgramsFromRows]). 그래서 깔려 있는 앱이 그대로 읽는다.
+     * 화면의 줄은 문서에서 풀어낸 것이고([foodRowsFromPrograms]), 고칠 때마다 문서 쪽을 다시 만든다([syncFood]).
+     *
+     * 아래 `columns` 는 **문서의 꼴**이다(전부 숨김) — 변경사항이 이 이름으로 부른다. 화면의 칸은 `itemColumns` 다.
      */
-    { id: 'food', group: '행사', label: '푸드존', type: 'list', path: 'programs', countable: true,
-      only: (p) => isFoodProgram(p), seed: { title: '푸드존 — ' },
-      desc: '게임별 푸드존 · 푸드트럭 메뉴. 제목은 「푸드」로 시작해야 앱이 푸드존으로 읽습니다(“푸드존 — 원신”). 설명글의 “· 이름 — 가격” 줄이 메뉴 한 줄이고, 그 줄마다 사진을 겁니다.',
+    { id: 'food', group: '행사', label: '푸드존', type: 'food', path: 'programs', countable: true,
+      only: (p) => isFoodProgram(p),
+      count: (d) => foodRowsFromPrograms(d.programs).filter((r) => r.name).length,
+      desc: '음식 한 줄씩 적습니다. 가게 이름을 비우면 앱에 가게 이름 없이 메뉴만 나옵니다. 음식 이름 없이 설명만 적은 줄은 그 가게의 안내 문구로 나갑니다(“세트로 사면 12,000원”).',
+      minWidth: '1180px',
       columns: [
-        { key: 'title', label: '제목', type: 'text', required: true, placeholder: '푸드존 — 원신' },
-        { key: 'desc', label: '메뉴', type: 'text', lines: true },
-        // 설명글의 메뉴 줄마다 사진 경로를 건다.
-        { key: 'menuImages', label: '메뉴 사진', type: 'menuImages', width: '350px' },
+        { key: 'title', label: '제목', type: 'text', hidden: true },
+        { key: 'desc', label: '메뉴', type: 'text', lines: true, hidden: true },
+        { key: 'menuImages', label: '메뉴 사진', type: 'text', hidden: true },
+      ],
+      itemColumns: [
+        { key: 'game', label: '게임', type: 'game', width: '160px', placeholder: '게임 선택' },
+        { key: 'shop', label: '가게 이름', type: 'text', width: '190px', placeholder: '비우면 안 나옵니다' },
+        // 썸네일 — config/ 기준 경로(food/2026/hsr-06.webp). 번호는 그 회차의 푸드 사진 전체에서 이어 딴다.
+        { key: 'image', label: '썸네일', type: 'image', width: '290px', placeholder: 'food/2026/hsr-06.webp', assetDir: 'food', assetDigits: 2,
+          assetUsed: () => foodRowsOf(state.d).map((r) => r.image) },
+        { key: 'name', label: '음식 이름', type: 'text', required: true },
+        { key: 'desc', label: '음식 설명', type: 'text', lines: true },
+        { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
       ] },
     { id: 'days', group: '행사', label: '무대 시간표', type: 'days', path: 'days', countable: true,
       desc: '일자별 편성. 빈 배열도 유효한 값이라 시간표를 통째로 내릴 수 있습니다.' },
@@ -2225,58 +2396,11 @@ function inputFor(cfg, value, onChange, row) {
       const up = cfg.assetDir ? uploadButton(
         () => ({
           dir: assetDir(cfg.assetDir), digits: cfg.assetDigits || 3, abbr: assetAbbr(row && row.game), current: input.value,
-          used: (get(state.draft, cfg.assetDir) || []).map((r) => r && r[cfg.key]),
+          used: cfg.assetUsed ? cfg.assetUsed() : (get(state.draft, cfg.assetDir) || []).map((r) => r && r[cfg.key]),
         }),
         (path) => { input.value = path; input.fit(); commit(path); paint(path); },
       ) : null;
       return el('div', { class: 'img-cell' }, [img, input, up]);
-    }
-
-    case 'menuImages': {
-      // 푸드 메뉴 사진 — 설명글의 "· 이름 — 가격" 줄마다 경로 칸. 앱이 **이름 글자 그대로** 맞춰 붙이므로
-      // 이름은 여기서 설명글에서 뽑아 보여 준다(손으로 적게 하면 한 글자 틀려도 조용히 안 붙는다).
-      if (!row || !String(row.title ?? '').startsWith('푸드')) {
-        return el('span', { class: 'muted', text: '푸드 프로그램만' });
-      }
-      const names = String(row.desc ?? '').split('\n')
-        .filter((l) => l.startsWith('· ') && l.includes(' — '))
-        .map((l) => l.slice(2, l.lastIndexOf(' — ')).trim());
-      if (!names.length) return el('span', { class: 'muted', text: '설명글에 메뉴 줄이 없습니다' });
-      const map = { ...(value || {}) };
-      const save = (fin) => {
-        for (const k of Object.keys(map)) if (!String(map[k] ?? '').trim()) delete map[k];
-        const next = Object.keys(map).length ? { ...map } : undefined;
-        if (fin) commit(next); else onChange(next);
-      };
-      // 설명글에서 사라진 메뉴에 남은 사진은 앱에서 안 붙는다 — 알려 준다.
-      const orphan = Object.keys(map).filter((k) => !names.includes(k));
-      return el('div', { class: 'menu-img-list' }, [
-        ...names.map((name) => {
-          const { img, paint } = assetThumb();
-          paint(map[name]);
-          const text = glArea({
-            value: map[name] ?? '', placeholder: 'food/2026/hsr-06.webp',
-            onInput: (v) => { map[name] = v; paint(v); save(false); },
-            onChange: (v) => { map[name] = v; paint(v); save(true); },
-          });
-          // 번호는 그 회차의 푸드 프로그램 전체에서 이어 딴다(food/2026/gi-02 … zzz-15). 게임은 제목("푸드존 — 원신")에서 읽는다.
-          const up = uploadButton(
-            () => ({
-              dir: assetDir('food'), digits: 2, abbr: assetAbbr(row.title), current: map[name],
-              used: (state.draft.programs || []).flatMap((p) => Object.values((p && p.menuImages) || {})).concat(Object.values(map)),
-            }),
-            (path) => { map[name] = path; text.value = path; text.fit(); paint(path); save(true); },
-          );
-          return el('div', { class: 'img-cell' }, [
-            img,
-            el('div', { class: 'menu-img-body' }, [
-              el('div', { class: 'menu-img-name', text: name }),
-              el('div', { class: 'img-cell' }, [text, up]),
-            ]),
-          ]);
-        }),
-        orphan.length ? el('div', { class: 'note', text: `⚠ 설명글에 없는 메뉴의 사진: ${orphan.join(', ')}` }) : null,
-      ]);
     }
 
     default:
@@ -2459,7 +2583,7 @@ function formGrid(sec) {
 function rowHits(row, columns, q) {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
-  const text = columns.map((c) => String(row[c.key] ?? '')).join(' ').toLowerCase();
+  const text = columns.map((c) => String((c.get ? c.get(row) : row[c.key]) ?? '')).join(' ').toLowerCase();
   return words.every((w) => text.includes(w));
 }
 
@@ -2493,7 +2617,13 @@ function parseTsv(text, columns) {
   const body = header ? cells.slice(1) : cells;
   const rows = body.map((r) => {
     const o = {};
-    keys.forEach((k, i) => { o[k] = tsvCell(r[i], columns.find((c) => c.key === k)); });
+    const later = [];   // 다른 칸의 값으로 쓰는 열(set) — 제 키를 남기지 않고, 나머지 칸이 들어간 뒤에 쓴다
+    keys.forEach((k, i) => {
+      const col = columns.find((c) => c.key === k);
+      const v = tsvCell(r[i], col);
+      if (col && col.set) later.push([col, v]); else o[k] = v;
+    });
+    for (const [col, v] of later) col.set(o, v);
     return o;
   });
   return { rows, keys, header };
@@ -2501,19 +2631,26 @@ function parseTsv(text, columns) {
 
 function renderList(sec, opts = {}) {
   const path = opts.path || sec.path;
-  const columns = opts.columns || sec.columns;
-  const rows = get(state.draft, path);
+  const columns = (opts.columns || sec.columns).filter((c) => !c.hidden);
+  // opts.rows — 문서의 배열이 아니라 **풀어낸 줄**을 그릴 때(푸드존 탭 — renderFood). 줄을 고치면 markDirty 가 문서 쪽을 다시 만든다.
+  const rows = opts.rows || get(state.draft, path);
+  /*
+   * 열 정의의 두 가지 변형:
+   *   hidden   칸으로 세우지 않는다 — 값은 문서에 있고 이름(label)은 변경사항이 부른다(푸드존의 제목).
+   *   get · set  제 키가 없는 칸 — 다른 값에서 읽고 다른 값으로 쓴다(푸드존의 게임 · 구분 → 제목). 문서에 그 키를 남기지 않는다.
+   */
+  const allColumns = opts.columns || sec.columns;
   /*
    * 한 배열을 두 탭이 나눠 쓸 때(프로그램 · 푸드존, 부스 체험 · DIY) 이 탭의 줄만 고른다(sec.only).
    * `rows` 는 **배열 전체** 그대로 둔다 — 편집 · 삭제 · 이동이 원래 자리(i)로 이뤄져 다른 탭의 줄을 건드리지 않는다.
    * 새 줄에는 이 탭에 서게 하는 값(sec.seed)을 넣어 준다.
    */
-  const only = opts.path ? null : sec.only;
+  const only = (opts.path || opts.rows) ? null : sec.only;
   const own = (r) => !only || only(r);
   const total = () => (only ? rows.filter(own).length : rows.length);
-  const blank = () => ({ ...Object.fromEntries(columns.map((c) =>
+  const blank = opts.blank || (() => ({ ...Object.fromEntries(allColumns.filter((c) => !c.set).map((c) =>
     [c.key, c.type === 'bool' ? false : c.type === 'number' ? 0 : c.type === 'select' ? c.options[0].value : ''])),
-    ...(only ? sec.seed : null) });
+    ...(only ? sec.seed : null) }));
   /** 이 탭의 마지막 줄 바로 뒤에 넣는다 — 나눠 쓰지 않는 표에서는 맨 끝과 같다. */
   const addRows = (list) => {
     let at = rows.length;
@@ -2525,7 +2662,7 @@ function renderList(sec, opts = {}) {
   // 그때 검색어가 날아가면 105줄짜리 표에서 방금 보던 자리를 다시 찾아야 한다.
   const searchable = opts.searchable ?? (total() >= LIST_SEARCH_MIN);
   const selectable = opts.selectable ?? (total() >= LIST_SEARCH_MIN);
-  const stateKey = only ? `${path}#${sec.id}` : path;   // 검색어 · 선택은 탭마다 따로다
+  const stateKey = (only || opts.rows) ? `${path}#${sec.id}` : path;   // 검색어 · 선택은 탭마다 따로다
   state.q ||= {};
   const q = () => (searchable ? (state.q[stateKey] || '') : '');
 
@@ -2562,7 +2699,7 @@ function renderList(sec, opts = {}) {
 
   const paint = () => {
     const n = total();
-    const hits = rows.map((row, i) => ({ row, i })).filter(({ row }) => own(row) && rowHits(row, columns, q()));
+    const hits = rows.map((row, i) => ({ row, i })).filter(({ row }) => own(row) && rowHits(row, allColumns, q()));
     visible = hits.map((h) => h.row);
     count.textContent = hits.length === n ? `${n}건` : `${n}건 중 ${hits.length}건`;
     body.replaceChildren();
@@ -2581,7 +2718,10 @@ function renderList(sec, opts = {}) {
           onChange: (v) => { if (v) sel.add(row); else sel.delete(row); syncSel(); },
         })]));
       }
-      for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; }, row)]));
+      for (const c of columns) {
+        tr.append(el('td', { 'data-label': c.label }, [inputFor(c, c.get ? c.get(row) : row[c.key],
+          (v) => { if (c.set) c.set(row, v); else row[c.key] = v; }, row)]));
+      }
       tr.append(el('td', { class: 'actions' }, [
         // 손잡이를 잡고 끌어 순서를 바꾼다(ui.js glDragHandle).
         // 걸러낸 상태에서는 못 바꾼다 — 화면의 이웃과 배열의 이웃이 달라, 끄는 사람이 보고 있는 줄이 아니라
@@ -2630,7 +2770,7 @@ function renderList(sec, opts = {}) {
         if (!await glConfirm(`고른 ${n}건의 “${c.label}” 을 같은 값으로 채웁니다.`, {
           title: '값 채우기', ok: `${n}건 채우기`, note: `값: ${shown}`,
         })) return;
-        for (const r of rows) if (sel.has(r)) r[fillKey] = fillValue;
+        for (const r of rows) if (sel.has(r)) { if (c.set) c.set(r, fillValue); else r[fillKey] = fillValue; }
         markDirty();
         render();
       } }, ['채우기']),
@@ -2785,6 +2925,18 @@ function moveTo(arr, from, to) {
   arr.splice(to, 0, arr.splice(from, 1)[0]);
   markDirty();
   render();
+}
+
+/** 푸드존 — 음식 한 줄씩. 줄은 문서에서 풀어낸 것이다([foodRowsOf]). 새 줄은 바로 위 줄의 게임 · 가게를 물려받는다. */
+function renderFood(sec) {
+  const rows = foodRowsOf(state.d);
+  return renderList(sec, {
+    rows, columns: sec.itemColumns,
+    blank: () => {
+      const last = rows[rows.length - 1] || {};
+      return { game: last.game || '', shop: last.shop || '', image: '', name: '', desc: '', price: 0, ...(last.kind ? { kind: last.kind } : {}) };
+    },
+  });
 }
 
 function renderGoods(sec) {
@@ -4561,7 +4713,7 @@ function download() {
 
 const RENDERERS = {
   dashboard: renderDashboard, form: renderForm, list: renderList, strlist: renderStrList,
-  days: renderDays, goods: renderGoods, past: renderPast,
+  days: renderDays, goods: renderGoods, past: renderPast, food: renderFood,
   apis: renderApis, export: renderExport, live: renderLive,
   publish: renderPublish, info: renderInfo,
   changes: renderChanges, history: renderHistory,
@@ -4749,6 +4901,8 @@ function syncUndoButtons() {
 
 /** 값이 바뀌었다 — 배지·초안 보관·사이드바 점을 다시 맞춘다([isDirty] 가 실제 판정을 한다). */
 function markDirty() {
+  // 푸드존 탭의 줄이 바뀌었으면 문서 쪽을 먼저 다시 만든다 — 아래 스냅샷 · 초안 보관이 고친 문서를 담는다.
+  syncFood(state.d);
   // 직전 상태를 쌓는다. **한 박자 늦다** — 지금 찍으면 이미 바뀐 뒤라 되돌릴 자리가 없다.
   const d = state.d;
   const now = snapOf();
@@ -5024,7 +5178,8 @@ function selftest() {
       assert(rows.every((r) => sec(x).only(r) !== sec(y).only(r)), `${x} · ${y} 가 같은 줄을 둘 다 가졌거나 둘 다 놓쳤다`);
     }
     // 새 줄은 만든 탭에 선다.
-    assert(sec('food').only(sec('food').seed) && sec('diy').only(sec('diy').seed), '새 줄이 제 탭에 서지 않는다');
+    // 푸드존 탭은 음식 한 줄씩 적는 화면이라 새 줄을 따로 만든다(renderFood) — 여기는 DIY 만 본다.
+    assert(sec('diy').only(sec('diy').seed), '새 줄이 제 탭에 서지 않는다');
     assert(sec('programs').only({ title: '' }) && sec('booths').only({ title: '', game: '', location: '' }), '빈 줄이 프로그램 · 부스 체험 탭에 서지 않는다');
     // 변경사항도 그 줄이 선 탭의 이름으로 부른다.
     const tree = { programs, booths };
@@ -5305,7 +5460,7 @@ function selftest() {
     assert(type(one, '첫 줄 \n 둘째 줄\n') === '첫 줄 둘째 줄', '한 문단 칸에 줄바꿈이 들어갔다: ' + JSON.stringify(one.value));
     // 줄바꿈을 받는 칸 — 설명 · 메뉴. 값 그대로다.
     const many = inputFor({ type: 'text', lines: true }, '', () => {});
-    assert(type(many, '· 커피 — 6,000원\n· 빵 — 4,000원') === '· 커피 — 6,000원\n· 빵 — 4,000원', '설명 칸이 줄바꿈을 지웠다');
+    assert(type(many, '커피 — 6,000원\n빵 — 4,000원') === '커피 — 6,000원\n빵 — 4,000원', '설명 칸이 줄바꿈을 지웠다');
     // 정하지 않은 칸이라도 **이미 줄바꿈이 든 값**은 지키고 받는다 — 화면에 올리는 것만으로 값이 바뀌면 안 된다.
     const kept = inputFor({ type: 'text' }, '첫 줄\n둘째 줄', () => {});
     assert(kept.value === '첫 줄\n둘째 줄' && type(kept, '첫 줄\n둘째 줄\n셋째') === '첫 줄\n둘째 줄\n셋째', '이미 든 줄바꿈을 지웠다');
@@ -5313,8 +5468,9 @@ function selftest() {
     assert(all.filter((c) => c.key === 'desc').every((c) => c.lines), '줄바꿈을 받지 않는 설명 칸이 있다');
     assert(inputFor({ type: 'textarea' }, '', () => {}).classList.contains('gl-tall'), '긴 글 칸이 넉넉하게 시작하지 않는다');
   });
-  check('설명 칸 · 줄 머리의 "- " · "* " · "+ " 는 가운뎃점 목록이 된다', () => {
-    const ta = inputFor({ type: 'text', lines: true }, '', () => {});
+  check('설명 칸 · 줄 머리의 "- " · "* " · "+ " 는 목록이 된다 — 보이는 것은 굵은 점, 저장되는 것은 가운뎃점', () => {
+    let got = null;
+    const ta = inputFor({ type: 'text', lines: true }, '', (v) => { got = v; });
     const type = (text, at = text.length) => { ta.value = text; ta.setSelectionRange(at, at); ta.dispatchEvent(new Event('input')); return ta.value; };
     const enter = (text, at = text.length) => {
       ta.value = text; ta.setSelectionRange(at, at);
@@ -5322,20 +5478,160 @@ function selftest() {
       ta.dispatchEvent(e);
       return [ta.value, e.defaultPrevented];
     };
-    assert(type('- ') === '· ' && type('구성품입니다.\n- ') === '구성품입니다.\n· ', '줄 머리의 "- " 를 바꾸지 않았다');
-    assert(type('* ') === '· ' && type('· 하나\n+ ') === '· 하나\n· ', '줄 머리의 "* " · "+ " 를 바꾸지 않았다');
+    assert(type('- ') === '• ' && type('구성품입니다.\n- ') === '구성품입니다.\n• ', '줄 머리의 "- " 를 바꾸지 않았다');
+    assert(type('* ') === '• ' && type('• 하나\n+ ') === '• 하나\n• ', '줄 머리의 "* " · "+ " 를 바꾸지 않았다');
     assert(ta.selectionStart === ta.value.length, '바꾼 뒤 커서가 제자리가 아니다');
+    // 값으로는 가운뎃점이 나간다 — 깔린 앱이 「· 항목」 줄만 목록 · 메뉴로 읽는다.
+    assert(got === '· 하나\n· ' && ta.stored() === '· 하나\n· ', '저장되는 글자가 가운뎃점이 아니다: ' + JSON.stringify(got));
     // 줄 가운데의 "- " 와 이미 있던 줄은 그대로다 — 「10:00 - 11:00」 같은 값을 건드리면 안 된다.
     assert(type('10:00 - ') === '10:00 - ' && type('- 예전 줄\n둘째') === '- 예전 줄\n둘째', '줄 머리가 아닌 "- " 를 바꿨다');
     // 목록 줄에서 Enter — 다음 줄도 목록. 빈 항목에서 Enter — 목록 끝.
-    assert(enter('· 소형 스티커')[0] === '· 소형 스티커\n· ', '목록을 잇지 않았다');
-    assert(enter('· 소형 스티커\n· ')[0] === '· 소형 스티커\n', '빈 항목에서 목록을 끝내지 않았다');
+    assert(enter('• 소형 스티커')[0] === '• 소형 스티커\n• ', '목록을 잇지 않았다');
+    assert(enter('• 소형 스티커\n• ')[0] === '• 소형 스티커\n', '빈 항목에서 목록을 끝내지 않았다');
     const plain = enter('그냥 줄');
     assert(plain[0] === '그냥 줄' && !plain[1], '목록이 아닌 줄의 Enter 를 가로챘다');
-    // 한 문단 칸은 목록을 받지 않는다(줄바꿈이 없다).
-    const one = inputFor({ type: 'text' }, '', () => {});
+    // 저장된 가운뎃점 줄은 굵은 점으로 보이고, 고치지 않으면 값은 그대로다. 줄 가운데의 가운뎃점은 구분 기호라 안 바뀐다.
+    let out = null;
+    const menu = inputFor({ type: 'text', lines: true }, '· A·B조 — 오전 10시\n   부연 · 설명\n· 커피 — 6,000원', (v) => { out = v; });
+    assert(menu.value === '• A·B조 — 오전 10시\n   부연 · 설명\n• 커피 — 6,000원', '저장된 목록이 굵은 점으로 보이지 않는다: ' + JSON.stringify(menu.value));
+    menu.dispatchEvent(new Event('input'));
+    assert(out === '· A·B조 — 오전 10시\n   부연 · 설명\n· 커피 — 6,000원', '보였다가 나간 값이 달라졌다: ' + JSON.stringify(out));
+    // 도구 버튼 · 붙여넣기로 들어온 가운뎃점 줄도 보이는 글자로 맞춘다.
+    menu.value = '· 새 줄'; menu.setSelectionRange(2, 4); menu.dispatchEvent(new Event('input'));
+    assert(menu.value === '• 새 줄' && menu.selectionStart === 2 && menu.selectionEnd === 4 && out === '· 새 줄', '넣은 줄을 맞추지 않았거나 선택이 풀렸다');
+    // 한 문단 칸은 목록을 받지 않는다(줄바꿈이 없다) — 글자도 바꾸지 않는다.
+    const one = inputFor({ type: 'text' }, '· 그대로', () => {});
+    assert(one.value === '· 그대로', '한 문단 칸의 가운뎃점을 바꿨다');
     one.value = '- '; one.setSelectionRange(2, 2); one.dispatchEvent(new Event('input'));
     assert(one.value === '- ', '한 문단 칸의 "- " 를 바꿨다');
+  });
+  check('설명 칸 · 마크다운식 편집 — 번호 · 들여쓰기 · 줄표 · 붙여넣기', () => {
+    let out = null;
+    const ta = inputFor({ type: 'text', lines: true }, '', (v) => { out = v; });
+    const key = (text, k, opt = {}) => {
+      const at = opt.at ?? text.length;
+      ta.value = text; ta.setSelectionRange(at, opt.end ?? at);
+      const e = new KeyboardEvent('keydown', { key: k, shiftKey: !!opt.shift, cancelable: true });
+      ta.dispatchEvent(e);
+      return [ta.value, e.defaultPrevented];
+    };
+    const type = (text) => { ta.value = text; ta.setSelectionRange(text.length, text.length); ta.dispatchEvent(new Event('input')); return ta.value; };
+    // 번호 목록 — 다음 번호로 잇고, 빈 번호에서 끝낸다. 앱이 「1. …」 줄을 순서 줄로 그린다.
+    assert(key('1. 티켓링크에서 검색', 'Enter')[0] === '1. 티켓링크에서 검색\n2. ', '번호를 잇지 않았다');
+    assert(key('9. 아홉\n10. 열', 'Enter')[0] === '9. 아홉\n10. 열\n11. ', '두 자리 번호를 잇지 못한다');
+    assert(key('1. 하나\n2. ', 'Enter')[0] === '1. 하나\n', '빈 번호에서 목록을 끝내지 않았다');
+    // 줄 가운데에서 Enter — 뒤의 글이 새 항목으로 내려간다.
+    assert(key('• 커피빵', 'Enter', { at: 4 })[0] === '• 커피\n• 빵', '줄 가운데에서 항목을 가르지 못한다');
+    // 들여쓴 줄(부연) — Enter 가 들여쓰기를 잇고, 빈 줄에서 푼다.
+    assert(key('• 만두\n   추천 메뉴', 'Enter')[0] === '• 만두\n   추천 메뉴\n   ', '들여쓰기를 잇지 않았다');
+    assert(key('• 만두\n   ', 'Enter')[0] === '• 만두\n', '빈 부연 줄에서 들여쓰기를 풀지 않았다');
+    // Tab — 목록 안에서만 들여쓰기다. 목록 밖에서는 다음 칸으로 넘어가야 한다(가로채지 않는다).
+    const tab = key('• 만두\n추천 메뉴', 'Tab');
+    assert(tab[0] === '• 만두\n   추천 메뉴' && tab[1], '목록 아래 줄을 들이지 못한다');
+    // 들이면 점 모양이 깊이를 따라 바뀐다 — • → ∘ → ▪ → 다시 •(노션과 같다). 내면 되돌아온다.
+    assert(key('• 만두', 'Tab')[0] === '   ∘ 만두' && key('   ∘ 만두', 'Tab')[0] === '      ▪ 만두' && key('      ▪ 만두', 'Tab')[0] === '         • 만두', '들인 줄의 점이 깊이를 따르지 않는다');
+    assert(key('      ▪ 만두', 'Tab', { shift: true })[0] === '   ∘ 만두' && key('   ∘ 만두', 'Tab', { shift: true })[0] === '• 만두', '낸 줄의 점이 깊이를 따르지 않는다');
+    assert(ta.stored() === '· 만두' && key('   ∘ 만두', 'Enter')[0] === '   ∘ 만두\n   ∘ ', '들여쓴 목록을 같은 점으로 잇지 않았다');
+    const plainTab = key('그냥 문단', 'Tab');
+    assert(plainTab[0] === '그냥 문단' && !plainTab[1], '목록 밖의 Tab 을 가로챘다 — 다음 칸으로 못 넘어간다');
+    assert(key('• 만두\n   추천 메뉴', 'Tab', { shift: true })[0] === '• 만두\n추천 메뉴', '들여쓰기를 내지 못한다');
+    assert(!key('• 만두', 'Tab', { shift: true })[1], '들여쓰기가 없는 줄의 Shift+Tab 을 가로챘다');
+    // Backspace — 표식 바로 뒤에서는 표식을 통째로, 표식이 없으면 들여쓰기 한 단.
+    assert(key('하나\n• ', 'Backspace')[0] === '하나\n' && key('2. ', 'Backspace')[0] === '', '표식을 통째로 지우지 못한다');
+    assert(key('   ∘ ', 'Backspace')[0] === '   ' && key('   ', 'Backspace')[0] === '', '들여쓰기를 무르지 못한다');
+    assert(!key('• 글자', 'Backspace')[1], '글자를 지우는 Backspace 를 가로챘다');
+    // 줄표 — " -- " 가 " — " 이 된다. 앱이 줄표 뒤를 값으로 읽는다.
+    assert(type('• 커피 -- ') === '• 커피 — ' && out === '· 커피 — ', '줄표로 바꾸지 않았다: ' + JSON.stringify(ta.value));
+    assert(type('a--b ') === 'a--b ', '띄어 쓰지 않은 "--" 를 바꿨다');
+    // 들여쓴 목록 줄도 같은 점으로 보이고 가운뎃점으로 나간다(앱은 들여쓴 「· 」 줄을 부연으로 읽는다).
+    assert(type('• 세트\n   - ') === '• 세트\n   ∘ ' && out === '· 세트\n   · ', '들여쓴 목록 줄을 바꾸지 않았다');
+    const sub = inputFor({ type: 'text', lines: true }, '· 세트\n   · 구성품\n      · 낱개\n\t· 탭', () => {});
+    assert(sub.value === '• 세트\n   ∘ 구성품\n      ▪ 낱개\n\t∘ 탭' && sub.stored() === '· 세트\n   · 구성품\n      · 낱개\n\t· 탭', '들여쓴 줄의 점이 깊이를 따르지 않거나 값이 달라졌다: ' + JSON.stringify(sub.value));
+    // 손으로 들여쓰기를 고쳐 깊이가 달라진 줄도 점을 맞춘다.
+    assert(type('   • 손으로 들인 줄') === '   ∘ 손으로 들인 줄', '깊이가 달라진 줄의 점을 맞추지 않았다');
+    // 예전 가운데 점(◦ U+25E6)으로 남아 있던 줄도 목록 점으로 알아보고 지금 글자로 맞춘다.
+    assert(type('   ◦ 예전 점') === '   ∘ 예전 점' && out === '   · 예전 점', '예전 가운데 점을 알아보지 못한다');
+    assert(glDepth('') === 0 && glDepth(' ') === 0 && glDepth('  ') === 1 && glDepth('   ') === 1 && glDepth('      ') === 2 && glDepth('\t\t') === 2, '들여쓰기 깊이를 잘못 쟀다');
+    // 붙여넣기 — 마크다운 목록 줄이 그대로 목록이 된다.
+    try {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', '구성품\r\n- 에코백 1개\n* 스티커\n  + 소형 4종');
+      ta.value = ''; ta.setSelectionRange(0, 0);
+      ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, cancelable: true }));
+      assert(ta.value === '구성품\n• 에코백 1개\n• 스티커\n   ∘ 소형 4종' && out === '구성품\n· 에코백 1개\n· 스티커\n   · 소형 4종', '붙여넣은 목록을 바꾸지 않았다: ' + JSON.stringify(ta.value));
+    } catch (e) { if (!/DataTransfer|ClipboardEvent|constructor/.test(String(e))) throw e; }
+    // 붙여넣은 목록의 깊이는 **들여쓴 폭이 아니라 포함 관계**로 센다 — 한 단을 둘로 적든 넷으로 적든 탭으로 적든 같은 목록이다.
+    const nested = '• a\n   ∘ b\n      ▪ c\n• d';
+    assert(glPasteList('- a\n  - b\n    - c\n- d') === nested, '둘씩 들여쓴 목록을 잘못 읽었다: ' + JSON.stringify(glPasteList('- a\n  - b\n    - c\n- d')));
+    assert(glPasteList('- a\n    - b\n        - c\n- d') === nested, '넷씩 들여쓴 목록을 잘못 읽었다: ' + JSON.stringify(glPasteList('- a\n    - b\n        - c\n- d')));
+    assert(glPasteList('- a\n\t- b\n\t\t- c\n- d') === nested, '탭으로 들여쓴 목록을 잘못 읽었다');
+    // 번호 줄 · 부연 줄 · 목록 밖의 줄.
+    assert(glPasteList('안내\n1. 하나\n    - 딸린 것\n      부연\n2. 둘\n\n끝') === '안내\n1. 하나\n   ∘ 딸린 것\n      부연\n2. 둘\n\n끝', '번호 · 부연이 섞인 목록을 잘못 읽었다: ' + JSON.stringify(glPasteList('안내\n1. 하나\n    - 딸린 것\n      부연\n2. 둘\n\n끝')));
+    assert(ta.title.includes('목록') && !inputFor({ type: 'text' }, '', () => {}).title, '안내가 줄바꿈을 받는 칸에만 붙지 않았다');
+  });
+  check('푸드존 · 게임을 고르면 앱이 읽는 제목이 된다', () => {
+    const food = HOYOLAND.sections.find((x) => x.id === 'food');
+    const col = (key) => food.columns.find((c) => c.key === key);
+    assert(JSON.stringify(foodTitle('푸드트럭 — 붕괴: 스타레일')) === JSON.stringify({ kind: '푸드트럭', game: '붕괴: 스타레일' }), '제목을 잘못 갈랐다');
+    assert(foodTitle('푸드존').game === '' && foodTitle('푸드존 — ').kind === '푸드존' && foodTitle('').kind === '푸드존', '게임 없는 제목을 잘못 읽었다');
+    // 제목 머리가 빠진 줄 — 메뉴 사진이 걸려 있으면 푸드존이고, 읽을 때 제목을 고친다(앱 HoyolandProgram.isFood 와 같은 기준).
+    const lost = { title: '붕괴: 스타레일', desc: '· 만두 — 7,000원', menuImages: { '만두': 'food/2026/hsr-01.webp' } };
+    assert(isFoodProgram(lost) && !isFoodProgram({ title: '붕괴: 스타레일', menuImages: {} }) && !isFoodProgram({ title: '웰컴 키트 — 원신' }), '메뉴 사진으로 푸드존을 가리지 못한다');
+    assert(JSON.stringify(foodTitle('붕괴: 스타레일')) === JSON.stringify({ kind: '푸드존', game: '붕괴: 스타레일' }), '머리 없는 제목에서 게임을 못 읽는다');
+    const fixed = HOYOLAND.normalize({ programs: [lost, { title: '웰컴 키트 — 원신', desc: 'x' }, { title: '푸드트럭 — 원신', menuImages: { a: 'food/x.webp' } }] }).programs.map((p) => p.title);
+    assert(fixed.join('|') === '푸드존 — 붕괴: 스타레일|웰컴 키트 — 원신|푸드트럭 — 원신', '머리 빠진 푸드존 제목을 고치지 않았거나 멀쩡한 제목을 건드렸다: ' + fixed.join('|'));
+    assert(col('title').hidden && col('title').label === '제목' && col('desc').label === '메뉴', '문서 칸의 이름이 다르다 — 변경사항이 이 이름으로 부른다');
+    assert(food.itemColumns.map((c) => c.label).join() === '게임,가게 이름,썸네일,음식 이름,음식 설명,가격(원)', '푸드존 탭의 칸이 다르다');
+  });
+  // 푸드존 탭 — 화면은 음식 한 줄씩이고 문서는 예전 꼴(설명글 + menuImages)이다. 오가며 한 글자라도 달라지면
+  // 탭을 열어 보기만 해도 변경사항이 생기고, 앱의 메뉴판이 달라진다.
+  check('푸드존 · 음식 한 줄씩 적고 문서에는 앱이 읽는 꼴로 나간다', () => {
+    const docs = [
+      { title: '푸드존 — 원신', desc: '· 모험가 특제 닭구이 — 10,000원\n· 축제 핫도그 — 7,000원', menuImages: { '모험가 특제 닭구이': 'food/2026/gi-02.webp' } },
+      { title: '푸드트럭 — 붕괴: 스타레일', deadline: '10.5 까지',
+        desc: '빽! 낙원 핫플 리스트: 푸드트럭 편\n\n· 레몬 만두 — 7,000원\n   효 사장님 추천\n· 개척 여정의 커피 — 6,000원\n   히메코와 한 잔\n\n세트로 사면 12,000원입니다.\n메뉴를 사면 푸드픽을 줍니다.' },
+      { title: '푸드존 — 젠레스 존 제로',
+        desc: '오렐리아 카페테리아\n\n· 코스 A — 피시 앤 칩스 세트 — 12,000원\n   피시 앤 칩스 + 주스\n\n코스를 주문하면 푸드픽을 줍니다.\n\nCuppaMoment\n\n· 이아스 쿠키 — 3,000원\n· 오늘의 차 — 시가',
+        menuImages: { '코스 A — 피시 앤 칩스 세트': 'food/2026/zzz-11.webp', '이아스 쿠키': 'food/2026/zzz-15.webp' } },
+    ];
+    const rows = foodRowsFromPrograms([{ title: '웰컴 키트 — 원신', desc: '· 리딤코드' }, ...docs]);
+    const pick = (r) => [r.game, r.shop, r.name, r.desc, r.price, r.image].join('|');
+    assert(rows.length === 9, '줄 수가 다르다: ' + rows.length);
+    assert(pick(rows[0]) === '원신||모험가 특제 닭구이||10000|food/2026/gi-02.webp', '음식 줄을 잘못 풀었다: ' + pick(rows[0]));
+    assert(pick(rows[2]) === '붕괴: 스타레일|빽! 낙원 핫플 리스트: 푸드트럭 편|레몬 만두|효 사장님 추천|7000|', '가게 이름 · 설명을 잘못 풀었다: ' + pick(rows[2]));
+    // 안내 문구 — 음식 이름 없이 설명만 있는 줄. 이어진 두 줄은 한 줄(줄바꿈)이다.
+    assert(pick(rows[4]) === '붕괴: 스타레일|빽! 낙원 핫플 리스트: 푸드트럭 편||세트로 사면 12,000원입니다.\n메뉴를 사면 푸드픽을 줍니다.|0|', '안내 문구를 잘못 풀었다: ' + pick(rows[4]));
+    // 이름에 줄표가 든 음식 — 마지막 줄표 뒤만 가격이다. 한 게임에 가게가 둘.
+    assert(pick(rows[5]) === '젠레스 존 제로|오렐리아 카페테리아|코스 A — 피시 앤 칩스 세트|피시 앤 칩스 + 주스|12000|food/2026/zzz-11.webp', '줄표가 든 이름을 잘못 풀었다: ' + pick(rows[5]));
+    assert(rows[7].shop === 'CuppaMoment' && rows[8].price === 0 && rows[8].priceText === '시가', '둘째 가게나 숫자가 아닌 가격을 잘못 풀었다');
+    // 다시 문서로 — 한 글자도 달라지지 않는다(탭에 칸이 없는 마감 표기 · 제목 머리 「푸드트럭」도 그대로다).
+    const back = foodProgramsFromRows(rows, docs);
+    assert(JSON.stringify(back) === JSON.stringify(docs), '오간 문서가 달라졌다: ' + JSON.stringify(back));
+    // 새로 적은 줄 — 가격은 천 단위 쉼표 + 원, 가게 이름을 비우면 가게 줄이 없다. 적다 만 줄은 나가지 않는다.
+    const made = foodProgramsFromRows([
+      { game: '원신', shop: '', image: ' food/2027/gi-01.webp ', name: '닭구이', desc: '모험가 특제\n매콤한 맛', price: 12000 },
+      { game: '원신', shop: '', image: '', name: '', desc: '', price: 0 },
+      { game: '원신', shop: '달빛 카페', image: '', name: '크레이프', desc: '', price: 0 },
+      { game: '', shop: '', image: '', name: '공용 생수', desc: '', price: 1000 },
+    ], []);
+    assert(made.length === 2 && made[0].title === '푸드존 — 원신' && made[1].title === '푸드존', '게임마다 한 건이 아니다: ' + made.map((p) => p.title).join());
+    assert(made[0].desc === '· 닭구이 — 12,000원\n   모험가 특제\n   매콤한 맛\n\n달빛 카페\n\n· 크레이프', '문서의 설명글이 다르다: ' + JSON.stringify(made[0].desc));
+    assert(JSON.stringify(made[0].menuImages) === '{"닭구이":"food/2027/gi-01.webp"}' && !('menuImages' in made[1]), '썸네일을 잘못 걸었다');
+    assert(made.every(isFoodProgram), '만든 줄이 푸드존이 아니다');
+    // 줄을 고치면 문서의 푸드존만 다시 만들고, 다른 프로그램은 제자리다. 줄이 그대로면 문서를 건드리지 않는다.
+    const d = { draft: { programs: [{ title: '전시존', desc: 'a' }, JSON.parse(JSON.stringify(docs[0])), { title: '웰컴 키트', desc: 'b' }] } };
+    const before = JSON.stringify(d.draft.programs);
+    const live = foodRowsOf(d);
+    syncFood(d);
+    assert(JSON.stringify(d.draft.programs) === before, '고치지 않았는데 문서가 바뀌었다');
+    live[1].price = 8000;
+    live.push({ game: '붕괴: 스타레일', shop: '', image: '', name: '만두', desc: '', price: 7000 });
+    syncFood(d);
+    assert(d.draft.programs.map((p) => p.title).join('|') === '전시존|푸드존 — 원신|푸드존 — 붕괴: 스타레일|웰컴 키트', '푸드존이 제자리에 들어가지 않았다: ' + d.draft.programs.map((p) => p.title).join('|'));
+    assert(d.draft.programs[1].desc.endsWith('· 축제 핫도그 — 8,000원') && foodRowsOf(d) === live, '고친 값이 문서에 안 갔거나 줄을 다시 풀었다');
+    // 문서가 밖에서 바뀌면(되돌리기 · 불러오기) 들고 있던 줄을 버리고 다시 푼다.
+    d.draft.programs = JSON.parse(before);
+    assert(foodRowsOf(d) !== live && foodRowsOf(d).length === 2, '낡은 줄을 그대로 썼다');
   });
   check('끌어 놓기 · 놓일 자리와 옮긴 뒤의 순서', () => {
     const rects = [0, 40, 80, 120].map((top) => ({ top, height: 40 }));   // 네 줄
