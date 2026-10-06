@@ -69,6 +69,12 @@ data class CombatClear(
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
+    /**
+     * 편성이 잡힌 층이 하나라도 있는가. false 인데 [note] 가 있으면 **'기록 없음' 자리표**다 —
+     * 받아 왔지만 편성이 없는 기간이고, 화면은 층 목록 대신 그 한 줄을 그린다.
+     */
+    val hasLineup: Boolean get() = rooms.any { !it.isEmpty }
+
     /** 이 시즌에 한 번이라도 투입된 캐릭터 — 등장 횟수 많은 순. 상단 요약용. */
     val roster: List<CombatAvatar>
         get() = rooms
@@ -99,7 +105,13 @@ data class CombatModeClears(
     val gameColor: Long get() = GameData.colorFor(game)
     val gameShort: String get() = GameData.byNameOrNull(game)?.shortName ?: game
     /** 펼칠 지난 기록이 있는가. */
-    val hasPrevious: Boolean get() = previous?.rooms?.isNotEmpty() == true
+    val hasPrevious: Boolean get() = previous?.hasLineup == true
+
+    /**
+     * 편성이 한 건도 없는 모드의 안내 한 줄("이번 기간에는 도전하지 않았어요"). 편성이 있으면 빈 문자열.
+     * 비어 있지 않으면 화면은 접기 · 층 목록 없이 **제목 + 이 한 줄**만 그린다.
+     */
+    val emptyNote: String get() = (current ?: previous)?.takeIf { !it.hasLineup }?.note.orEmpty()
 }
 
 object CombatClearLogic {
@@ -133,7 +145,7 @@ object CombatClearLogic {
 
     /** 게임+모드로 묶어 화면 순서대로 — 같은 모드의 이번/지난 시즌이 붙어 있게 한다. */
     fun grouped(clears: List<CombatClear>): List<CombatClear> =
-        clears.filter { it.rooms.any { r -> !r.isEmpty } }
+        clears.filter { it.hasLineup || it.note.isNotBlank() }   // 자리표('기록 없음')는 남긴다
             .sortedWith(compareBy({ it.game }, { it.mode }, { !it.current }))
 
     /**
@@ -143,19 +155,32 @@ object CombatClearLogic {
      * 게임 정보 탭의 다른 목록과 순서가 어긋나 같은 화면인데 배치가 달라 보인다.
      */
     fun byMode(clears: List<CombatClear>): List<CombatModeClears> {
-        val usable = clears.filter { it.rooms.any { r -> !r.isEmpty } }
         val gameOrder = GameData.games.map { it.displayName }
-        return usable
+        return clears
             .groupBy { it.game to it.mode }
-            .map { (key, list) ->
+            .mapNotNull { (key, list) ->
+                val real = list.filter { it.hasLineup }
+                if (real.isNotEmpty()) {
+                    // 편성이 한 시즌이라도 있으면 예전 그대로 — 빈 시즌의 자리표는 버린다
+                    // (이번 시즌 미도전이면 지난 시즌을 바로 보여 주는 규칙이 그대로 선다).
+                    return@mapNotNull CombatModeClears(
+                        game = key.first,
+                        mode = key.second,
+                        current = real.firstOrNull { it.current },
+                        previous = real.firstOrNull { !it.current },
+                    )
+                }
+                // 편성이 한 건도 없는 모드 — 말없이 빼면 게임째 목록에서 사라져 고장처럼 보였다
+                // (10/6 「젠레스가 안 떠요」). 자리표 하나만 남겨 왜 비었는지 한 줄로 밝힌다. 이번 기간 것이 먼저다.
+                val notes = list.filter { it.note.isNotBlank() }
+                val placeholder = notes.firstOrNull { it.current } ?: notes.firstOrNull() ?: return@mapNotNull null
                 CombatModeClears(
                     game = key.first,
                     mode = key.second,
-                    current = list.firstOrNull { it.current },
-                    previous = list.firstOrNull { !it.current },
+                    current = placeholder.takeIf { it.current },
+                    previous = placeholder.takeIf { !it.current },
                 )
             }
-            .filter { it.current != null || it.previous != null }
             .sortedWith(
                 compareBy(
                     { gameOrder.indexOf(it.game).takeIf { i -> i >= 0 } ?: Int.MAX_VALUE },

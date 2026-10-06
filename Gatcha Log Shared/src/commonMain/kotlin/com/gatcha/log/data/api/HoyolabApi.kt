@@ -714,7 +714,9 @@ object HoyolabApi {
         for ((type, current) in listOf(1 to true, 2 to false)) {
             val d = zzzRecord(ltuid, ltoken, "hadal_info_v2", "role_id=$uid&server=$server&schedule_type=$type") ?: continue
             anyOk = true
-            d.optJSONObject("hadal_info_v2")?.let { hadalClear(it, current) }?.takeIf { it.rooms.isNotEmpty() }?.let { out += it }
+            // 편성이 없어도 사유(note)가 있으면 남긴다 — 화면이 그 한 줄을 그린다.
+            d.optJSONObject("hadal_info_v2")?.let { hadalClear(it, current) }
+                ?.takeIf { it.hasLineup || it.note.isNotBlank() }?.let { out += it }
         }
         return out.takeIf { anyOk }
     }
@@ -756,13 +758,29 @@ object HoyolabApi {
                 .joinToString(" · ")
         } else ""
         // 1~3층은 API 가 편성을 주지 않는다(통과 층 수만) — 말없이 빠져 있으면 누락처럼 보여 한 줄로 밝힌다.
-        val passed = minOf(b?.optInt("cur_period_zone_layer_count") ?: 0, 3)
-        val note = if (passed > 0) "1~${passed}층 통과 · HoYoLAB 이 이 층들의 편성은 주지 않아요" else ""
+        val layers = b?.optInt("cur_period_zone_layer_count") ?: 0
+        val passed = minOf(layers, 3)
+        val lineups = rooms.filterNot { it.isEmpty }
+        val note = when {
+            // 편성이 한 층도 안 왔다 — 4 · 5층 상세가 둘 다 null 인 응답(10/6 실측: 통과 4층인데도 null 이었다).
+            lineups.isEmpty() && layers > 0 -> "${layers}층 통과 · HoYoLAB 이 편성을 주지 않았어요"
+            lineups.isEmpty() -> noRecordNote(current)
+            passed > 0 -> "1~${passed}층 통과 · HoYoLAB 이 이 층들의 편성은 주지 않아요"
+            else -> ""
+        }
         return CombatClear(
             Game.ZZZ.displayName, "시유 방어전", season = periodLabel(h), current = current,
-            rooms = rooms.filterNot { it.isEmpty }, scoreLabel = scoreLabel, note = note,
+            rooms = lineups, scoreLabel = scoreLabel, note = note,
         )
     }
+
+    /** 받아 왔지만 편성이 없는 기간의 안내 — 화면이 층 목록 자리에 그린다([CombatClear.hasLineup]). */
+    private fun noRecordNote(current: Boolean): String =
+        if (current) "이번 기간에는 도전하지 않았어요" else "지난 기간에는 도전하지 않았어요"
+
+    /** 편성이 없으면 '기록 없음' 자리표로 바꾼다 — 버리면 그 모드(하나뿐이면 게임째)가 목록에서 사라진다. */
+    private fun CombatClear.orNoRecord(): CombatClear =
+        if (hasLineup) this else copy(rooms = emptyList(), note = note.ifBlank { noRecordNote(current) })
 
     /** 에이전트 3명 + 뱅부(있으면 끝에). 등급은 "S"/"A" 문자열로 온다. */
     /**
@@ -1200,7 +1218,7 @@ object HoyolabApi {
                 }
             }
             else -> emptyList<CombatClear>()
-        }.filter { it.rooms.isNotEmpty() }.takeIf { anyOk }
+        }.map { it.orNoRecord() }.takeIf { anyOk }
     }
 
     /** 나선 비경: floors[] → levels[] → battles[](1=상반, 2=하반). */
