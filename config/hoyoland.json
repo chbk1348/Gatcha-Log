@@ -101,31 +101,31 @@
       "title": "푸드존 — 원신",
       "desc": "· 모험가 특제 닭구이 — 10,000원\n· 달빛 한줄기의 축제 핫도그 — 7,000원\n· 뚝딱뚝딱 디저트 공방 크레이프 — 7,000원\n· 커피에 비친 술식 디저트 세트 — 10,000원",
       "menuImages": {
-        "모험가 특제 닭구이": "food/gi-02.webp",
-        "달빛 한줄기의 축제 핫도그": "food/gi-03.webp",
-        "뚝딱뚝딱 디저트 공방 크레이프": "food/gi-04.webp",
-        "커피에 비친 술식 디저트 세트": "food/gi-05.webp"
+        "모험가 특제 닭구이": "food/2026/gi-02.webp",
+        "달빛 한줄기의 축제 핫도그": "food/2026/gi-03.webp",
+        "뚝딱뚝딱 디저트 공방 크레이프": "food/2026/gi-04.webp",
+        "커피에 비친 술식 디저트 세트": "food/2026/gi-05.webp"
       }
     },
     {
       "title": "푸드트럭 — 붕괴: 스타레일",
       "desc": "빽! 낙원 핫플 리스트: 푸드트럭 편\n\n· 행운의 황금 레몬 만두 — 7,000원\n   효 사장님 추천 음식 먹고 만사 형통\n· 임무 순서: 오므라이스&가라아게 — 9,000원\n   블레이드가 챙겨주는 든든한 한 끼\n· 복슬복슬호 팬케이크 — 7,000원\n   만화가 나힐럭스의 달콤한 작업실\n· 개척 여정의 커피 — 6,000원\n   은하열차에서 히메코와 한 잔\n\n팬케이크와 커피를 세트로 사면 12,000원입니다(따로 사면 13,000원).\n메뉴를 사면 캐릭터 푸드픽을 줍니다.",
       "menuImages": {
-        "행운의 황금 레몬 만두": "food/hsr-06.webp",
-        "임무 순서: 오므라이스&가라아게": "food/hsr-07.webp",
-        "복슬복슬호 팬케이크": "food/hsr-08.webp",
-        "개척 여정의 커피": "food/hsr-09.webp"
+        "행운의 황금 레몬 만두": "food/2026/hsr-06.webp",
+        "임무 순서: 오므라이스&가라아게": "food/2026/hsr-07.webp",
+        "복슬복슬호 팬케이크": "food/2026/hsr-08.webp",
+        "개척 여정의 커피": "food/2026/hsr-09.webp"
       }
     },
     {
       "title": "푸드존 — 젠레스 존 제로",
       "desc": "오렐리아 아카데미 카페테리아\n\n· 코스 A — 피시 앤 칩스 세트 — 12,000원\n   피시 앤 칩스 + 완두콩/브로콜리/당근 + 주스\n· 코스 B — 스테이크 세트 — 13,500원\n   선데이 로스트 + 감자 무스 샐러드 + 완두콩/브로콜리/당근 + 주스\n\n코스 A·B 를 주문하면 와이즈&벨 푸드픽을 줍니다.\n\nCuppaMoment\n\n· '한 잔의 여유' 세트 — 10,000원\n   홍차 또는 밀크티 + 스콘 (우유·펄 추가 시 1,000원)\n· '트루 블루스' 세트 — 12,000원\n   베일리스 하이볼(논알콜) + 소시지 롤\n· 이아스 쿠키 — 3,000원\n\n세트 메뉴를 주문하면 레미엘·벨리나 푸드픽 중 1종을 랜덤으로 줍니다.",
       "menuImages": {
-        "코스 A — 피시 앤 칩스 세트": "food/zzz-11.webp",
-        "코스 B — 스테이크 세트": "food/zzz-12.webp",
-        "'한 잔의 여유' 세트": "food/zzz-13.webp",
-        "'트루 블루스' 세트": "food/zzz-14.webp",
-        "이아스 쿠키": "food/zzz-15.webp"
+        "코스 A — 피시 앤 칩스 세트": "food/2026/zzz-11.webp",
+        "코스 B — 스테이크 세트": "food/2026/zzz-12.webp",
+        "'한 잔의 여유' 세트": "food/2026/zzz-13.webp",
+        "'트루 블루스' 세트": "food/2026/zzz-14.webp",
+        "이아스 쿠키": "food/2026/zzz-15.webp"
       }
     }
   ],
@@ -198,7 +198,7 @@
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/hsr-036.webp"
+      "image": "goods/2026/hsr-036.webp"
     },
     {
       "name": "아크릴 스탠드 - 펄",
@@ -206,7 +206,7 @@
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/hsr-037.webp"
+      "image": "goods/2026/hsr-037.webp"
     },
     {
       "name": "여권 케이스",
@@ -214,7 +214,7 @@
       "game": "붕괴: 스타레일",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/hsr-044.webp"
+      "image": "goods/2026/hsr-044.webp"
     },
     {
       "name": "장패드",
@@ -222,7 +222,7 @@
       "game": "붕괴: 스타레일",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/hsr-041.webp"
+      "image": "goods/2026/hsr-041.webp"
     },
     {
       "name": "말랑 모찌 쿠션 - 어벤츄린·웨이브",
@@ -230,7 +230,7 @@
       "game": "붕괴: 스타레일",
       "category": "패브릭",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/hsr-042.webp"
+      "image": "goods/2026/hsr-042.webp"
     },
     {
       "name": "말랑 모찌 쿠션 - 펄",
@@ -238,7 +238,7 @@
       "game": "붕괴: 스타레일",
       "category": "패브릭",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/hsr-043.webp"
+      "image": "goods/2026/hsr-043.webp"
     },
     {
       "name": "테마 패키지 - 어벤츄린·웨이브",
@@ -246,7 +246,7 @@
       "game": "붕괴: 스타레일",
       "category": "세트",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정\n구성: 테마 캐릭터 홀로그램 색지 · 키링 · 캔배지 · 책갈피 · 유사 코롯토 · 엽서",
-      "image": "goods/hsr-039.webp"
+      "image": "goods/2026/hsr-039.webp"
     },
     {
       "name": "테마 패키지 - 펄",
@@ -254,7 +254,7 @@
       "game": "붕괴: 스타레일",
       "category": "세트",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정\n구성: 테마 캐릭터 홀로그램 색지 · 키링 · 캔배지 · 책갈피 · 유사 코롯토 · 엽서",
-      "image": "goods/hsr-040.webp"
+      "image": "goods/2026/hsr-040.webp"
     },
     {
       "name": "비치타올",
@@ -262,7 +262,7 @@
       "game": "붕괴: 스타레일",
       "category": "패브릭",
       "note": "호요랜드2026 시리즈 · 입장권 '붕괴: 스타레일' 선택 시 무료 증정 · 1인 5개 한정",
-      "image": "goods/hsr-038.webp"
+      "image": "goods/2026/hsr-038.webp"
     },
     {
       "name": "미니피규어 디오라마 세트 - 콜롬비나",
@@ -270,7 +270,7 @@
       "game": "원신",
       "category": "피규어",
       "note": "호요랜드2026 시리즈 · 입장권 '원신' 선택 시 무료 증정 · 1인 5개 한정",
-      "image": "goods/gi-001.webp"
+      "image": "goods/2026/gi-001.webp"
     },
     {
       "name": "장패드",
@@ -278,7 +278,7 @@
       "game": "원신",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/gi-002.webp"
+      "image": "goods/2026/gi-002.webp"
     },
     {
       "name": "아크릴스탠드 세트",
@@ -286,7 +286,7 @@
       "game": "원신",
       "category": "아크릴 스탠드",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/gi-003.webp"
+      "image": "goods/2026/gi-003.webp"
     },
     {
       "name": "에폭시 마그넷 카드",
@@ -294,7 +294,7 @@
       "game": "원신",
       "category": "잡화",
       "note": "호요랜드2026 시리즈 · 랜덤 · 1인 5개 한정",
-      "image": "goods/gi-004.webp"
+      "image": "goods/2026/gi-004.webp"
     },
     {
       "name": "기도의 밤 필름 티켓",
@@ -302,7 +302,7 @@
       "game": "원신",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 랜덤 · 1인 5개 한정",
-      "image": "goods/gi-005.webp"
+      "image": "goods/2026/gi-005.webp"
     },
     {
       "name": "미니아크릴 디오라마",
@@ -310,7 +310,7 @@
       "game": "원신",
       "category": "아크릴",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/gi-006.webp"
+      "image": "goods/2026/gi-006.webp"
     },
     {
       "name": "포토카드 수납케이스",
@@ -318,7 +318,7 @@
       "game": "원신",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/gi-007.webp"
+      "image": "goods/2026/gi-007.webp"
     },
     {
       "name": "아크릴 포토프롭 홀더키링",
@@ -326,7 +326,7 @@
       "game": "원신",
       "category": "키링",
       "note": "호요랜드2026 시리즈 · 랜덤 · 1인 5개 한정",
-      "image": "goods/gi-008.webp"
+      "image": "goods/2026/gi-008.webp"
     },
     {
       "name": "유사 아크릴 스탠드 (광추 시리즈) - 연옥을 불사른 새로운 몸",
@@ -334,7 +334,7 @@
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
       "note": "",
-      "image": "goods/hsr-045.webp"
+      "image": "goods/2026/hsr-045.webp"
     },
     {
       "name": "유사 아크릴 스탠드 (광추 시리즈) - 다음 꽃피는 계절의 만남",
@@ -342,7 +342,7 @@
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
       "note": "",
-      "image": "goods/hsr-046.webp"
+      "image": "goods/2026/hsr-046.webp"
     },
     {
       "name": "유사 아크릴 스탠드 (광추 시리즈) - 갤럭시 시티에 오신 것을 환영합니다",
@@ -350,63 +350,63 @@
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
       "note": "",
-      "image": "goods/hsr-047.webp"
+      "image": "goods/2026/hsr-047.webp"
     },
     {
       "name": "아크릴 코롯토 (표지 촬영) - 파이논",
       "price": 18000,
       "game": "붕괴: 스타레일",
       "category": "아크릴",
-      "image": "goods/hsr-048.webp"
+      "image": "goods/2026/hsr-048.webp"
     },
     {
       "name": "아크릴 스탠드 (캐릭터 일러스트) - 효광",
       "price": 18000,
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
-      "image": "goods/hsr-049.webp"
+      "image": "goods/2026/hsr-049.webp"
     },
     {
       "name": "아크릴 스탠드 (캐릭터 일러스트) - 스파키",
       "price": 18000,
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
-      "image": "goods/hsr-050.webp"
+      "image": "goods/2026/hsr-050.webp"
     },
     {
       "name": "아크릴 스탠드 (캐릭터 일러스트) - 천야·블레이드",
       "price": 18000,
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
-      "image": "goods/hsr-051.webp"
+      "image": "goods/2026/hsr-051.webp"
     },
     {
       "name": "허수아비 아크릴 스프링 스탠드 - 개척자(여)",
       "price": 16000,
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
-      "image": "goods/hsr-052.webp"
+      "image": "goods/2026/hsr-052.webp"
     },
     {
       "name": "허수아비 아크릴 스프링 스탠드 - 개척자(남)",
       "price": 16000,
       "game": "붕괴: 스타레일",
       "category": "아크릴 스탠드",
-      "image": "goods/hsr-053.webp"
+      "image": "goods/2026/hsr-053.webp"
     },
     {
       "name": "캔배지 (캐릭터 일러스트) - 효광",
       "price": 7000,
       "game": "붕괴: 스타레일",
       "category": "뱃지",
-      "image": "goods/hsr-054.webp"
+      "image": "goods/2026/hsr-054.webp"
     },
     {
       "name": "캔배지 (캐릭터 일러스트) - 스파키",
       "price": 7000,
       "game": "붕괴: 스타레일",
       "category": "뱃지",
-      "image": "goods/hsr-055.webp"
+      "image": "goods/2026/hsr-055.webp"
     },
     {
       "name": "사각쿠션 (여자 기숙사) - 반디",
@@ -414,7 +414,7 @@
       "game": "붕괴: 스타레일",
       "category": "패브릭",
       "note": "솜 포함",
-      "image": "goods/hsr-056.webp"
+      "image": "goods/2026/hsr-056.webp"
     },
     {
       "name": "사각쿠션 (여자 기숙사) - 로빈",
@@ -422,7 +422,7 @@
       "game": "붕괴: 스타레일",
       "category": "패브릭",
       "note": "솜 포함",
-      "image": "goods/hsr-057.webp"
+      "image": "goods/2026/hsr-057.webp"
     },
     {
       "name": "사각쿠션 (여자 기숙사) - 카프카",
@@ -430,7 +430,7 @@
       "game": "붕괴: 스타레일",
       "category": "패브릭",
       "note": "솜 포함",
-      "image": "goods/hsr-058.webp"
+      "image": "goods/2026/hsr-058.webp"
     },
     {
       "name": "사각쿠션 (여자 기숙사) - 은랑",
@@ -438,35 +438,35 @@
       "game": "붕괴: 스타레일",
       "category": "패브릭",
       "note": "솜 포함",
-      "image": "goods/hsr-059.webp"
+      "image": "goods/2026/hsr-059.webp"
     },
     {
       "name": "봉제인형 - 이카",
       "price": 58000,
       "game": "붕괴: 스타레일",
       "category": "인형",
-      "image": "goods/hsr-060.webp"
+      "image": "goods/2026/hsr-060.webp"
     },
     {
       "name": "대형 봉제인형 (POTEPOTTE) - 반디",
       "price": 76000,
       "game": "붕괴: 스타레일",
       "category": "인형",
-      "image": "goods/hsr-061.webp"
+      "image": "goods/2026/hsr-061.webp"
     },
     {
       "name": "대형 봉제인형 (POTEPOTTE) - 선데이",
       "price": 76000,
       "game": "붕괴: 스타레일",
       "category": "인형",
-      "image": "goods/hsr-062.webp"
+      "image": "goods/2026/hsr-062.webp"
     },
     {
       "name": "대형 봉제인형 (POTEPOTTE) - 로빈",
       "price": 76000,
       "game": "붕괴: 스타레일",
       "category": "인형",
-      "image": "goods/hsr-063.webp"
+      "image": "goods/2026/hsr-063.webp"
     },
     {
       "name": "미니 피규어 (앰포리어스 영웅기 젠가 제1탄)",
@@ -474,7 +474,7 @@
       "game": "붕괴: 스타레일",
       "category": "피규어",
       "note": "1팩 · 랜덤 1종",
-      "image": "goods/hsr-064.webp"
+      "image": "goods/2026/hsr-064.webp"
     },
     {
       "name": "미니 피규어 (토끼버섯과 버섯토끼 시리즈)",
@@ -482,7 +482,7 @@
       "game": "붕괴: 스타레일",
       "category": "피규어",
       "note": "1팩 · 랜덤 4개입",
-      "image": "goods/hsr-065.webp"
+      "image": "goods/2026/hsr-065.webp"
     },
     {
       "name": "키메라 미니 피규어 (아웅아웅 2탄)",
@@ -490,7 +490,7 @@
       "game": "붕괴: 스타레일",
       "category": "피규어",
       "note": "1팩 · 랜덤 4개입",
-      "image": "goods/hsr-066.webp"
+      "image": "goods/2026/hsr-066.webp"
     },
     {
       "name": "미니 피규어 (남자 기숙사)",
@@ -498,21 +498,21 @@
       "game": "붕괴: 스타레일",
       "category": "피규어",
       "note": "1팩 · 랜덤 1종",
-      "image": "goods/hsr-067.webp"
+      "image": "goods/2026/hsr-067.webp"
     },
     {
       "name": "1/7 피규어 - 어벤츄린",
       "price": 440000,
       "game": "붕괴: 스타레일",
       "category": "피규어",
-      "image": "goods/hsr-068.webp"
+      "image": "goods/2026/hsr-068.webp"
     },
     {
       "name": "장우산 (내가 쓰는 대로) - 파이논",
       "price": 44000,
       "game": "붕괴: 스타레일",
       "category": "잡화",
-      "image": "goods/hsr-069.webp"
+      "image": "goods/2026/hsr-069.webp"
     },
     {
       "name": "SD캔배지 - 콜롬비나 (9종 세트)",
@@ -520,7 +520,7 @@
       "game": "원신",
       "category": "뱃지",
       "note": "신월의 축복",
-      "image": "goods/gi-009.webp"
+      "image": "goods/2026/gi-009.webp"
     },
     {
       "name": "SD캔배지 - 콜롬비나 (낱개)",
@@ -528,7 +528,7 @@
       "game": "원신",
       "category": "뱃지",
       "note": "신월의 축복 · 랜덤",
-      "image": "goods/gi-010.webp"
+      "image": "goods/2026/gi-010.webp"
     },
     {
       "name": "SD 미니 아크릴스탠드 - 콜롬비나 (A)",
@@ -536,7 +536,7 @@
       "game": "원신",
       "category": "아크릴 스탠드",
       "note": "신월의 축복",
-      "image": "goods/gi-011.webp"
+      "image": "goods/2026/gi-011.webp"
     },
     {
       "name": "SD 미니 아크릴스탠드 - 콜롬비나 (B)",
@@ -544,7 +544,7 @@
       "game": "원신",
       "category": "아크릴 스탠드",
       "note": "신월의 축복",
-      "image": "goods/gi-012.webp"
+      "image": "goods/2026/gi-012.webp"
     },
     {
       "name": "아크릴 색지 - 콜롬비나",
@@ -552,7 +552,7 @@
       "game": "원신",
       "category": "아크릴",
       "note": "어느 겨울밤, 한 여행자",
-      "image": "goods/gi-013.webp"
+      "image": "goods/2026/gi-013.webp"
     },
     {
       "name": "아크릴 색지",
@@ -560,7 +560,7 @@
       "game": "원신",
       "category": "아크릴",
       "note": "극북의 야행시",
-      "image": "goods/gi-014.webp"
+      "image": "goods/2026/gi-014.webp"
     },
     {
       "name": "아크릴 액자 - 콜롬비나",
@@ -568,7 +568,7 @@
       "game": "원신",
       "category": "아크릴",
       "note": "극북의 야행시",
-      "image": "goods/gi-015.webp"
+      "image": "goods/2026/gi-015.webp"
     },
     {
       "name": "기념 티켓카드 세트 - 콜롬비나",
@@ -576,7 +576,7 @@
       "game": "원신",
       "category": "세트",
       "note": "5주년",
-      "image": "goods/gi-016.webp"
+      "image": "goods/2026/gi-016.webp"
     },
     {
       "name": "봉제인형 키링 - 종려",
@@ -584,7 +584,7 @@
       "game": "원신",
       "category": "키링",
       "note": "눈속의 즐거움",
-      "image": "goods/gi-017.webp"
+      "image": "goods/2026/gi-017.webp"
     },
     {
       "name": "봉제인형 키링 - 스커크",
@@ -592,7 +592,7 @@
       "game": "원신",
       "category": "키링",
       "note": "눈속의 즐거움",
-      "image": "goods/gi-018.webp"
+      "image": "goods/2026/gi-018.webp"
     },
     {
       "name": "봉제인형 키링 - 타르탈리아",
@@ -600,7 +600,7 @@
       "game": "원신",
       "category": "키링",
       "note": "눈속의 즐거움",
-      "image": "goods/gi-019.webp"
+      "image": "goods/2026/gi-019.webp"
     },
     {
       "name": "봉제인형 키링 - 나히다",
@@ -608,7 +608,7 @@
       "game": "원신",
       "category": "키링",
       "note": "눈속의 즐거움",
-      "image": "goods/gi-020.webp"
+      "image": "goods/2026/gi-020.webp"
     },
     {
       "name": "봉제인형 키링 - 두린",
@@ -616,7 +616,7 @@
       "game": "원신",
       "category": "키링",
       "note": "눈속의 즐거움",
-      "image": "goods/gi-021.webp"
+      "image": "goods/2026/gi-021.webp"
     },
     {
       "name": "봉제인형 키링 - 소",
@@ -624,7 +624,7 @@
       "game": "원신",
       "category": "키링",
       "note": "달콤한 꿈의 속삭임",
-      "image": "goods/gi-022.webp"
+      "image": "goods/2026/gi-022.webp"
     },
     {
       "name": "봉제인형 키링 - 느비예트",
@@ -632,7 +632,7 @@
       "game": "원신",
       "category": "키링",
       "note": "달콤한 꿈의 속삭임",
-      "image": "goods/gi-023.webp"
+      "image": "goods/2026/gi-023.webp"
     },
     {
       "name": "봉제인형 키링 - 타이나리",
@@ -640,7 +640,7 @@
       "game": "원신",
       "category": "키링",
       "note": "달콤한 꿈의 속삭임",
-      "image": "goods/gi-024.webp"
+      "image": "goods/2026/gi-024.webp"
     },
     {
       "name": "봉제인형 키링 - 키니치",
@@ -648,7 +648,7 @@
       "game": "원신",
       "category": "키링",
       "note": "달콤한 꿈의 속삭임",
-      "image": "goods/gi-025.webp"
+      "image": "goods/2026/gi-025.webp"
     },
     {
       "name": "봉제인형 키링 - 카미사토 아야토",
@@ -656,7 +656,7 @@
       "game": "원신",
       "category": "키링",
       "note": "달콤한 꿈의 속삭임",
-      "image": "goods/gi-026.webp"
+      "image": "goods/2026/gi-026.webp"
     },
     {
       "name": "문구 세트 - 아를레키노",
@@ -664,7 +664,7 @@
       "game": "원신",
       "category": "문구",
       "note": "고요한 밤의 환상",
-      "image": "goods/gi-027.webp"
+      "image": "goods/2026/gi-027.webp"
     },
     {
       "name": "문구 세트 - 키니치",
@@ -672,7 +672,7 @@
       "game": "원신",
       "category": "문구",
       "note": "고요한 밤의 환상",
-      "image": "goods/gi-028.webp"
+      "image": "goods/2026/gi-028.webp"
     },
     {
       "name": "문구 세트 - 클레",
@@ -680,7 +680,7 @@
       "game": "원신",
       "category": "문구",
       "note": "고요한 밤의 환상",
-      "image": "goods/gi-029.webp"
+      "image": "goods/2026/gi-029.webp"
     },
     {
       "name": "문구 세트 - 방랑자",
@@ -688,7 +688,7 @@
       "game": "원신",
       "category": "문구",
       "note": "고요한 밤의 환상",
-      "image": "goods/gi-030.webp"
+      "image": "goods/2026/gi-030.webp"
     },
     {
       "name": "문구 세트 - 라이오슬리",
@@ -696,7 +696,7 @@
       "game": "원신",
       "category": "문구",
       "note": "고요한 밤의 환상",
-      "image": "goods/gi-031.webp"
+      "image": "goods/2026/gi-031.webp"
     },
     {
       "name": "캔배지&파우치 세트 - 방랑자",
@@ -704,7 +704,7 @@
       "game": "원신",
       "category": "세트",
       "note": "고요한 밤의 환상",
-      "image": "goods/gi-032.webp"
+      "image": "goods/2026/gi-032.webp"
     },
     {
       "name": "캔배지&파우치 세트 - 라이오슬리",
@@ -712,7 +712,7 @@
       "game": "원신",
       "category": "세트",
       "note": "고요한 밤의 환상",
-      "image": "goods/gi-033.webp"
+      "image": "goods/2026/gi-033.webp"
     },
     {
       "name": "트레이딩 피규어 - 세트 (9종)",
@@ -720,7 +720,7 @@
       "game": "원신",
       "category": "피규어",
       "note": "우인단 집행관",
-      "image": "goods/gi-034.webp"
+      "image": "goods/2026/gi-034.webp"
     },
     {
       "name": "트레이딩 피규어 - 낱개",
@@ -728,7 +728,7 @@
       "game": "원신",
       "category": "피규어",
       "note": "우인단 집행관 · 9종 중 랜덤",
-      "image": "goods/gi-035.webp"
+      "image": "goods/2026/gi-035.webp"
     },
     {
       "name": "블록 - 이아스",
@@ -736,7 +736,7 @@
       "game": "젠레스 존 제로",
       "category": "블록",
       "note": "호요랜드2026 시리즈 · 입장권 '젠레스 존 제로' 선택 시 무료 증정 · 1인 5개 한정",
-      "image": "goods/zzz-070.webp"
+      "image": "goods/2026/zzz-070.webp"
     },
     {
       "name": "바인더 세트",
@@ -744,7 +744,7 @@
       "game": "젠레스 존 제로",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/zzz-071.webp"
+      "image": "goods/2026/zzz-071.webp"
     },
     {
       "name": "홀로그램 티켓 세트",
@@ -752,7 +752,7 @@
       "game": "젠레스 존 제로",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/zzz-072.webp"
+      "image": "goods/2026/zzz-072.webp"
     },
     {
       "name": "SD 쿠션 - 레미엘",
@@ -760,7 +760,7 @@
       "game": "젠레스 존 제로",
       "category": "패브릭",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/zzz-073.webp"
+      "image": "goods/2026/zzz-073.webp"
     },
     {
       "name": "장패드 - 레미엘",
@@ -768,7 +768,7 @@
       "game": "젠레스 존 제로",
       "category": "문구",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/zzz-074.webp"
+      "image": "goods/2026/zzz-074.webp"
     },
     {
       "name": "아크릴 패널",
@@ -776,7 +776,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/zzz-075.webp"
+      "image": "goods/2026/zzz-075.webp"
     },
     {
       "name": "키보드 손목 받침대",
@@ -784,7 +784,7 @@
       "game": "젠레스 존 제로",
       "category": "잡화",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/zzz-076.webp"
+      "image": "goods/2026/zzz-076.webp"
     },
     {
       "name": "아크릴 스탠드 - 레미엘",
@@ -792,7 +792,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴 스탠드",
       "note": "호요랜드2026 시리즈 · 1인 5개 한정",
-      "image": "goods/zzz-077.webp"
+      "image": "goods/2026/zzz-077.webp"
     },
     {
       "name": "아크릴 코스터",
@@ -800,7 +800,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "호요랜드2026 시리즈 · 랜덤 1종 · 1인 5개 한정",
-      "image": "goods/zzz-078.webp"
+      "image": "goods/2026/zzz-078.webp"
     },
     {
       "name": "아크릴 스탠드 - 엘렌 조",
@@ -808,7 +808,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴 스탠드",
       "note": "낙원이 빛나는 순간",
-      "image": "goods/zzz-079.webp"
+      "image": "goods/2026/zzz-079.webp"
     },
     {
       "name": "아크릴 스탠드 - 호시미 미야비",
@@ -816,7 +816,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴 스탠드",
       "note": "낙원이 빛나는 순간",
-      "image": "goods/zzz-080.webp"
+      "image": "goods/2026/zzz-080.webp"
     },
     {
       "name": "아크릴 프레임 세트 - 시시아",
@@ -824,7 +824,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "시네마",
-      "image": "goods/zzz-081.webp"
+      "image": "goods/2026/zzz-081.webp"
     },
     {
       "name": "아크릴 프레임 세트 - 수나",
@@ -832,7 +832,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "시네마",
-      "image": "goods/zzz-082.webp"
+      "image": "goods/2026/zzz-082.webp"
     },
     {
       "name": "아크릴 프레임 세트 - 남궁우",
@@ -840,7 +840,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "시네마",
-      "image": "goods/zzz-083.webp"
+      "image": "goods/2026/zzz-083.webp"
     },
     {
       "name": "아크릴 프레임 세트 - 아리아",
@@ -848,7 +848,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "시네마",
-      "image": "goods/zzz-084.webp"
+      "image": "goods/2026/zzz-084.webp"
     },
     {
       "name": "아크릴 프레임 세트 - 이블린",
@@ -856,7 +856,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "시네마",
-      "image": "goods/zzz-085.webp"
+      "image": "goods/2026/zzz-085.webp"
     },
     {
       "name": "아크릴 프레임 세트 - 아스트라 야오",
@@ -864,7 +864,7 @@
       "game": "젠레스 존 제로",
       "category": "아크릴",
       "note": "시네마",
-      "image": "goods/zzz-086.webp"
+      "image": "goods/2026/zzz-086.webp"
     },
     {
       "name": "미니 카드 세트 - 제인 도",
@@ -872,7 +872,7 @@
       "game": "젠레스 존 제로",
       "category": "문구",
       "note": "HB2U",
-      "image": "goods/zzz-087.webp"
+      "image": "goods/2026/zzz-087.webp"
     },
     {
       "name": "미니 카드 세트 제6탄 - 엘렌 조",
@@ -880,7 +880,7 @@
       "game": "젠레스 존 제로",
       "category": "문구",
       "note": "HB2U",
-      "image": "goods/zzz-088.webp"
+      "image": "goods/2026/zzz-088.webp"
     },
     {
       "name": "배지&미니 카드 세트 - 남궁우",
@@ -888,7 +888,7 @@
       "game": "젠레스 존 제로",
       "category": "세트",
       "note": "망상 드림",
-      "image": "goods/zzz-089.webp"
+      "image": "goods/2026/zzz-089.webp"
     },
     {
       "name": "봉제인형 키링",
@@ -896,7 +896,7 @@
       "game": "젠레스 존 제로",
       "category": "키링",
       "note": "메에~ 빛나는 순간 · 랜덤 1종",
-      "image": "goods/zzz-090.webp"
+      "image": "goods/2026/zzz-090.webp"
     },
     {
       "name": "봉제인형 키링 - 럭키부",
@@ -904,7 +904,7 @@
       "game": "젠레스 존 제로",
       "category": "키링",
       "note": "웅나",
-      "image": "goods/zzz-091.webp"
+      "image": "goods/2026/zzz-091.webp"
     },
     {
       "name": "봉제인형 키링 - 샤크부",
@@ -912,7 +912,7 @@
       "game": "젠레스 존 제로",
       "category": "키링",
       "note": "웅나",
-      "image": "goods/zzz-092.webp"
+      "image": "goods/2026/zzz-092.webp"
     },
     {
       "name": "봉제 인형 쿠션",
@@ -920,7 +920,7 @@
       "game": "젠레스 존 제로",
       "category": "인형",
       "note": "메에~ 빛나는 순간",
-      "image": "goods/zzz-093.webp"
+      "image": "goods/2026/zzz-093.webp"
     },
     {
       "name": "마우스 패드 - 쏟아지는 별의 폭풍",
@@ -928,7 +928,7 @@
       "game": "젠레스 존 제로",
       "category": "문구",
       "note": "협주 채널",
-      "image": "goods/zzz-094.webp"
+      "image": "goods/2026/zzz-094.webp"
     },
     {
       "name": "마우스 패드 - 눈물은 과거와 함께 묻으리(상)",
@@ -936,7 +936,7 @@
       "game": "젠레스 존 제로",
       "category": "문구",
       "note": "협주 채널",
-      "image": "goods/zzz-095.webp"
+      "image": "goods/2026/zzz-095.webp"
     },
     {
       "name": "러그 - 「Bangboo」",
@@ -944,7 +944,7 @@
       "game": "젠레스 존 제로",
       "category": "패브릭",
       "note": "증폭",
-      "image": "goods/zzz-096.webp"
+      "image": "goods/2026/zzz-096.webp"
     },
     {
       "name": "「Bangboo」 조립 블록카 - 붉은 혜성·개조",
@@ -952,7 +952,7 @@
       "game": "젠레스 존 제로",
       "category": "블록",
       "note": "질풍 전설",
-      "image": "goods/zzz-097.webp"
+      "image": "goods/2026/zzz-097.webp"
     },
     {
       "name": "「Bangboo」 조립 블록카 - 황야의 기사",
@@ -960,7 +960,7 @@
       "game": "젠레스 존 제로",
       "category": "블록",
       "note": "질풍 전설",
-      "image": "goods/zzz-098.webp"
+      "image": "goods/2026/zzz-098.webp"
     },
     {
       "name": "필드 블록 세트 - 비단잉어 국숫집",
@@ -968,7 +968,7 @@
       "game": "젠레스 존 제로",
       "category": "블록",
       "note": "6단지",
-      "image": "goods/zzz-099.webp"
+      "image": "goods/2026/zzz-099.webp"
     },
     {
       "name": "피규어 - 기사부",
@@ -976,7 +976,7 @@
       "game": "젠레스 존 제로",
       "category": "피규어",
       "note": "Happy Shake",
-      "image": "goods/zzz-100.webp"
+      "image": "goods/2026/zzz-100.webp"
     },
     {
       "name": "피규어 - 호시미 미야비",
@@ -984,7 +984,7 @@
       "game": "젠레스 존 제로",
       "category": "피규어",
       "note": "GSC 넨도로이드",
-      "image": "goods/zzz-101.webp"
+      "image": "goods/2026/zzz-101.webp"
     },
     {
       "name": "피규어 - 아사바 하루마사 1/8",
@@ -992,7 +992,7 @@
       "game": "젠레스 존 제로",
       "category": "피규어",
       "note": "낙원이 빛나는 순간 Ver.",
-      "image": "goods/zzz-102.webp"
+      "image": "goods/2026/zzz-102.webp"
     },
     {
       "name": "피규어 - 엘렌 조 1/8",
@@ -1000,7 +1000,7 @@
       "game": "젠레스 존 제로",
       "category": "피규어",
       "note": "월요일부터 금요일까지 Ver.",
-      "image": "goods/zzz-103.webp"
+      "image": "goods/2026/zzz-103.webp"
     },
     {
       "name": "피규어 - 츠키시로 야나기 1/8",
@@ -1008,7 +1008,7 @@
       "game": "젠레스 존 제로",
       "category": "피규어",
       "note": "잠시 멈춰 섰다 다시 Ver.",
-      "image": "goods/zzz-104.webp"
+      "image": "goods/2026/zzz-104.webp"
     },
     {
       "name": "피규어 - 엘렌 조 1/7",
@@ -1016,7 +1016,7 @@
       "game": "젠레스 존 제로",
       "category": "피규어",
       "note": "진영",
-      "image": "goods/zzz-105.webp"
+      "image": "goods/2026/zzz-105.webp"
     }
   ],
 

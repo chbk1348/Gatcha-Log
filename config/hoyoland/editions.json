@@ -1,0 +1,11 @@
+{
+  "_comment": "호요랜드 회차 목록 — 어드민의 회차 탭이 읽는다. published 가 앱에 게시 중인 회차(config/hoyolandV2 · config/hoyoland_v2.json)이고, 나머지는 config/hoyoland/editions/{연도}.json 에 있다. 앱은 이 파일을 읽지 않는다.",
+  "published": "2027",
+  "editions": [
+    "2026",
+    "2027"
+  ],
+  "archived": [
+    "2026"
+  ]
+}

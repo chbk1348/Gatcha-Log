@@ -136,6 +136,35 @@ const FACT_COLS = [
   { key: 'value', label: '내용', type: 'text' },
 ];
 
+/** 행사명 끝의 연도 — 「호요랜드 2028」 → "2028", 없으면 빈 문자열. 회차 ID 이자 탭 이름의 뿌리다. */
+const editionYear = (name) => (/(\d{4})$/.exec(String(name ?? '').trim()) || [])[1] || '';
+
+/**
+ * 사진을 회차 폴더로 **옮긴 회차** — 그 전에는 config/goods · config/food 바로 아래에 있었다(2026-10-06).
+ * 이 회차의 문서에 남은 옛 경로(goods/hsr-036.webp)는 읽을 때 새 경로(goods/2026/hsr-036.webp)로 고쳐 읽는다([moveAssets]).
+ * 원격 문서는 다음 저장 · 반영 때 새 경로로 바뀐다.
+ */
+const ASSET_MOVED_YEARS = ['2026'];
+const ASSET_FLAT = /^\/?(goods|food)\/([^/]+)$/;
+
+/** [raw](호요랜드 문서) 안의 옛 사진 경로를 [year] 회차 폴더 경로로 고친다 — 제자리에서 고치고, 고친 개수를 돌려준다. */
+function moveAssets(raw, year) {
+  if (!raw || !ASSET_MOVED_YEARS.includes(year)) return 0;
+  let n = 0;
+  const fix = (v) => {
+    const m = ASSET_FLAT.exec(String(v ?? '').trim());
+    if (!m) return v;
+    n += 1;
+    return `${m[1]}/${year}/${m[2]}`;
+  };
+  for (const g of Array.isArray(raw.goods) ? raw.goods : []) if (g && g.image) g.image = fix(g.image);
+  for (const p of Array.isArray(raw.programs) ? raw.programs : []) {
+    if (!p || !p.menuImages || typeof p.menuImages !== 'object') continue;
+    for (const k of Object.keys(p.menuImages)) p.menuImages[k] = fix(p.menuImages[k]);
+  }
+  return n;
+}
+
 const HOYOLAND = {
   id: 'hoyoland',
   label: '호요랜드',
@@ -163,6 +192,13 @@ const HOYOLAND = {
     for (const k of ['lineup', 'programs', 'days', 'goods', 'booths', 'past', 'entryGroups']) if (!Array.isArray(o[k])) o[k] = [];
     o.days = o.days.map((day) => ({ ymd: '', ...day, slots: Array.isArray(day.slots) ? day.slots : [] }));
     o.past = o.past.map((p) => ({ title: '', ...p, facts: Array.isArray(p.facts) ? p.facts : [] }));
+    // 사진을 회차 폴더로 옮긴 회차 — 문서에 남은 옛 경로를 새 경로로 고쳐 읽는다(moveAssets). 원본은 건드리지 않는다.
+    const year = editionYear(o.edition);
+    if (ASSET_MOVED_YEARS.includes(year)) {
+      o.goods = o.goods.map((g) => (g && typeof g === 'object' ? { ...g } : g));
+      o.programs = o.programs.map((p) => (p && typeof p === 'object' ? { ...p, ...(p.menuImages && typeof p.menuImages === 'object' ? { menuImages: { ...p.menuImages } } : {}) } : p));
+      moveAssets(o, year);
+    }
     return o;
   },
 
@@ -395,9 +431,9 @@ const HOYOLAND = {
         { key: 'category', label: '분류', type: 'suggest', options: GOODS_CATEGORIES, width: '130px' },
         { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
         { key: 'note', label: '비고', type: 'text', placeholder: '호요랜드2026 시리즈 · 1인 5개 한정' },
-        // 사진 — config/ 기준 경로(goods/hsr-036.webp). 파일은 저장소 config/goods/ 에 올린다.
-        // assetDir — 「올리기」가 쓰는 폴더이자, 번호를 이어 딸 때 훑는 목록(draft.goods)의 이름이다.
-        { key: 'image', label: '사진', type: 'image', width: '290px', placeholder: 'goods/hsr-036.webp', assetDir: 'goods', assetDigits: 3 },
+        // 사진 — config/ 기준 경로(goods/2026/hsr-036.webp). 파일은 저장소 config/goods/{회차}/ 에 올린다([assetDir]).
+        // assetDir — 「올리기」가 쓰는 폴더(여기에 회차가 붙는다)이자, 번호를 이어 딸 때 훑는 목록(draft.goods)의 이름이다.
+        { key: 'image', label: '사진', type: 'image', width: '290px', placeholder: 'goods/2026/hsr-036.webp', assetDir: 'goods', assetDigits: 3 },
       ] },
     { id: 'booths', group: '행사', label: '부스 체험', type: 'list', path: 'booths', countable: true,
       desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다. 참가비는 숫자로 넣고, 무료면 0 입니다.',
@@ -1188,8 +1224,14 @@ const issuesNow = () => state.res.validate(state.draft);
  * 게시 중인 회차의 편집 · 반영도 바뀐 것이 없다.
  *
  * 나머지 회차(보관 · 게시 전)는 회차마다 따로 둔 문서에 산다. **앱은 이 문서들을 읽지 않는다.**
- *   회차  config/hoyolandEdition{연도}   정본  config/hoyoland_editions/{연도}.json
- *   목록  config/hoyolandEditions        정본  config/hoyoland_editions/index.json
+ *   회차  config/hoyolandEdition{연도}   정본  config/hoyoland/editions/{연도}.json
+ *   목록  config/hoyolandEditions        정본  config/hoyoland/editions.json
+ *
+ * 저장소의 호요랜드 파일은 이렇게 놓인다. 앱이 읽는 두 파일은 깔린 앱에 경로가 박혀 있어 **제자리**이고,
+ * 어드민만 읽는 것은 config/hoyoland/ 아래에, 사진은 회차 폴더에 모은다([assetDir]).
+ *   config/hoyoland_v2.json · config/hoyoland.json      앱이 읽는 정본(27.51.0 이상 · 27.50.x 이하)
+ *   config/hoyoland/editions.json · editions/{연도}.json  회차 목록 · 보관/게시 전 회차
+ *   config/goods/{연도}/ · config/food/{연도}/            그 회차의 굿즈 · 푸드 사진
  *
  * 회차가 넘어가는 길은 「이 회차를 앱에 게시」 하나다(publishEdition) — 앱이 읽는 문서를 새 회차로 갈고,
  * 게시 중이던 회차는 제 문서로 옮겨 보관한다. 「행사 추가」는 회차를 만들기만 한다.
@@ -1197,13 +1239,11 @@ const issuesNow = () => state.res.validate(state.draft);
 
 const EDITIONS = {
   doc: 'hoyolandEditions',
-  file: 'config/hoyoland_editions/index.json',
+  file: 'config/hoyoland/editions.json',
   docOf: (id) => 'hoyolandEdition' + id,
-  fileOf: (id) => `config/hoyoland_editions/${id}.json`,
+  fileOf: (id) => `config/hoyoland/editions/${id}.json`,
 };
 
-/** 행사명 끝의 연도 — 「호요랜드 2028」 → "2028", 없으면 빈 문자열. 회차 ID 이자 탭 이름의 뿌리다. */
-const editionYear = (name) => (/(\d{4})$/.exec(String(name ?? '').trim()) || [])[1] || '';
 /** 탭에 적는 이름 — "2028" → 「28년」. */
 const editionTab = (id) => `${String(id).slice(2)}년`;
 
@@ -1223,7 +1263,7 @@ const editionState = (id) => (id === editions.published ? 'live' : editions.arch
 
 /** 목록 문서의 JSON — 라이브와 정본에 같은 것을 쓴다. */
 const editionIndexJson = (x = editions) => JSON.stringify({
-  _comment: '호요랜드 회차 목록 — 어드민의 회차 탭이 읽는다. published 가 앱에 게시 중인 회차(config/hoyolandV2 · config/hoyoland_v2.json)이고, 나머지는 config/hoyoland_editions/{연도}.json 에 있다. 앱은 이 파일을 읽지 않는다.',
+  _comment: '호요랜드 회차 목록 — 어드민의 회차 탭이 읽는다. published 가 앱에 게시 중인 회차(config/hoyolandV2 · config/hoyoland_v2.json)이고, 나머지는 config/hoyoland/editions/{연도}.json 에 있다. 앱은 이 파일을 읽지 않는다.',
   published: x.published, editions: x.ids, archived: x.archived,
 }, null, 2) + '\n';
 
@@ -1268,6 +1308,32 @@ function editionRes(id) {
     doc: EDITIONS.docOf(id), file: EDITIONS.fileOf(id), legacy: null, since: '',
   });
   return editionResCache.get(id);
+}
+
+/**
+ * 사진은 **회차 폴더**에 둔다 — goods/2027/gi-001.webp · food/2027/hsr-01.webp(config/ 기준).
+ * 한 폴더에 섞어 두면 회차가 넘어갈 때 번호가 이어지고, 지난 회차 사진을 어느 것까지 지워도 되는지 알 수 없다.
+ * 「올리기」는 지금 보고 있는 회차의 폴더에 올린다.
+ */
+const assetDir = (dir) => (currentEdition() ? `${dir}/${currentEdition()}` : dir);
+
+/**
+ * 구버전 문서에 남은 옛 사진 경로를 고칠 쓰기 — [{ doc, json, n }], 고칠 것이 없으면 빈 목록.
+ *
+ * 구버전 앱(27.50.x 이하)은 구버전 문서의 경로 그대로 사진을 읽는다. 그 문서에 쓰는 길은 날짜가 잡힌 판의 반영뿐이라
+ * (legacyMirror), 사진을 옮긴 회차가 거기 남아 있는 동안은 경로를 고칠 길이 없다. 그 회차를 저장할 때 같이 고친다 —
+ * **경로만** 바뀌고 나머지 내용은 구버전 문서의 것 그대로다(보관본의 편집은 여전히 앱에 나가지 않는다).
+ */
+async function legacyAssetFix(c, id) {
+  if (!ASSET_MOVED_YEARS.includes(id)) return [];
+  try {
+    const v = await c.pull(HOYOLAND.legacy.doc);
+    if (!v || !String(v.json).trim()) return [];
+    const raw = JSON.parse(v.json);
+    if (editionYear(raw.edition) !== id) return [];
+    const n = moveAssets(raw, id);
+    return n ? [{ doc: HOYOLAND.legacy.doc, json: JSON.stringify(raw, null, 2) + '\n', n }] : [];
+  } catch (e) { return []; }
 }
 
 /** 지금 보고 있는 회차 — 호요랜드가 아니면 빈 문자열. */
@@ -1975,7 +2041,8 @@ function assetAbbr(text) {
  *
  * 칸에 이미 같은 폴더의 경로가 있으면 **그 이름을 그대로** 쓴다 — 새 번호를 따면 옛 파일이
  * 저장소에 남고 번호가 한 칸씩 밀린다. 없으면 지금 쓰이는 번호 중 가장 큰 것 다음을 딴다
- * (기존 규칙: goods/gi-001 … zzz-105 처럼 게임 머리 + 폴더 전체에서 이어지는 번호).
+ * (기존 규칙: goods/2026/gi-001 … zzz-105 처럼 게임 머리 + 폴더 전체에서 이어지는 번호).
+ * [dir] 은 회차까지 붙은 폴더다(goods/2027) — 다른 회차의 번호는 세지 않는다.
  */
 function assetPathFor({ dir, abbr, used, digits, ext, current }) {
   const cur = String(current ?? '').trim();
@@ -2099,7 +2166,7 @@ function inputFor(cfg, value, onChange, row) {
       });
       const up = cfg.assetDir ? uploadButton(
         () => ({
-          dir: cfg.assetDir, digits: cfg.assetDigits || 3, abbr: assetAbbr(row && row.game), current: input.value,
+          dir: assetDir(cfg.assetDir), digits: cfg.assetDigits || 3, abbr: assetAbbr(row && row.game), current: input.value,
           used: (get(state.draft, cfg.assetDir) || []).map((r) => r && r[cfg.key]),
         }),
         (path) => { input.value = path; commit(path); paint(path); },
@@ -2130,14 +2197,14 @@ function inputFor(cfg, value, onChange, row) {
           const { img, paint } = assetThumb();
           paint(map[name]);
           const text = glText({
-            value: map[name] ?? '', placeholder: 'food/hsr-06.webp',
+            value: map[name] ?? '', placeholder: 'food/2026/hsr-06.webp',
             onInput: (v) => { map[name] = v; paint(v); save(false); },
             onChange: (v) => { map[name] = v; paint(v); save(true); },
           });
-          // 번호는 푸드 프로그램 전체에서 이어 딴다(food/gi-02 … zzz-15). 게임은 제목("푸드존 — 원신")에서 읽는다.
+          // 번호는 그 회차의 푸드 프로그램 전체에서 이어 딴다(food/2026/gi-02 … zzz-15). 게임은 제목("푸드존 — 원신")에서 읽는다.
           const up = uploadButton(
             () => ({
-              dir: 'food', digits: 2, abbr: assetAbbr(row.title), current: map[name],
+              dir: assetDir('food'), digits: 2, abbr: assetAbbr(row.title), current: map[name],
               used: (state.draft.programs || []).flatMap((p) => Object.values((p && p.menuImages) || {})).concat(Object.values(map)),
             }),
             (path) => { map[name] = path; text.value = path; paint(path); save(true); },
@@ -3786,18 +3853,23 @@ async function publish() {
   const canonLine = canonFollowsLive(res)
     ? `정본(${canonFiles(res, json).map((f) => f.path).join(' · ')})도 ${window.gh.branch} 에 같이 커밋합니다.`
     : 'GitHub 가 연결돼 있지 않아 정본은 그대로 둡니다.';
+  // 사진을 회차 폴더로 옮긴 회차 — 구버전 문서에 남은 옛 경로도 이번에 같이 고친다(legacyAssetFix).
+  const assetFix = side && c.available ? await legacyAssetFix(c, res.editionId) : [];
+  const assetLine = assetFix.length
+    ? `구버전 앱용 문서(config/${assetFix[0].doc})에 남은 옛 사진 경로 ${assetFix[0].n}곳도 회차 폴더 경로로 같이 고칩니다 — 경로만 바뀌고 내용은 그대로입니다.` : '';
   if (!await glConfirm(side
     ? `${side} 회차를 회차 문서(${where})에 저장합니다. 앱에는 나가지 않습니다.`
     : `${res.label} 을 라이브(${where})에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.`, {
     title: side ? '저장' : '라이브 반영', ok: side ? '저장' : '반영',
-    note: [what, legacyNote(res, mirror), canonLine, errCount && !side ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : ''].filter(Boolean).join(' '),
+    note: [what, legacyNote(res, mirror), assetLine, canonLine, errCount && !side ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : ''].filter(Boolean).join(' '),
   })) return;
   let rescued = [];
   try {
     // 구버전 문서를 덮는 판이면, 거기 남은 회차를 보관본으로 먼저 옮겨 싣는다(rescueLegacyEdition).
     if (mirror && res === HOYOLAND) rescued = await rescueLegacyEdition(c);
     await c.pushMany([res.doc, ...(mirror ? [mirror.doc] : [])].map((doc) => ({ doc, json }))
-      .concat(rescued.map((x) => ({ doc: x.doc, json: x.json }))));
+      .concat([...rescued, ...assetFix].map((x) => ({ doc: x.doc, json: x.json }))));
+    if (assetFix.length) docs.hoyoland.reach = undefined;   // 구버전 문서가 바뀌었다 — 대시보드가 다시 읽는다
     for (const x of rescued) delete docs['hoyoland@' + x.id];   // 다음에 그 탭을 열 때 새 보관본을 읽는다
     state.live = { json, updatedAt: Date.now(), updatedBy: c.user.email || c.user.uid };
     // 반영한 값이 곧 **새 기준**이다. 안 바꾸면 [isDirty] 가 아직 옛 원본과 비교해,
@@ -3811,6 +3883,7 @@ async function publish() {
     markClean(side ? '저장됨' : '라이브 반영됨');
     render();
     toast(side ? `${side} 회차를 저장했습니다. 앱에는 나가지 않는 회차입니다.`
+        + (assetFix.length ? ` 구버전 문서의 사진 경로 ${assetFix[0].n}곳도 고쳤습니다.` : '')
       : c.historyDisabled
         ? '라이브에 반영했습니다. 다만 발행 이력이 남지 않았습니다 — firestore.rules 를 배포하세요.'
         : '라이브에 반영했습니다. 앱은 다음 조회부터 이 값을 읽습니다.'
@@ -5065,6 +5138,22 @@ function selftest() {
     assert(assetPathFor({ dir: 'food', abbr: 'zzz', digits: 2, used, ext: 'webp', current: 'goods/gi-001.webp' }) === 'food/zzz-03.webp', '다른 폴더의 이름을 가져다 썼다');
     assert(assetAbbr('푸드존 — 원신') === 'gi' && assetAbbr('붕괴: 스타레일') === 'hsr' && assetAbbr('') === 'etc', '게임 머리를 잘못 읽었다');
   });
+  check('사진은 회차 폴더에 — 옮긴 회차의 옛 경로를 고쳐 읽는다', () => {
+    const raw = { edition: '호요랜드 2026', goods: [{ name: 'a', image: 'goods/hsr-036.webp' }, { name: 'b', image: 'goods/2026/gi-001.webp' }, { name: 'c', image: 'https://x/y.webp' }, { name: 'd', image: '' }],
+      programs: [{ title: '푸드존 — 원신', menuImages: { '커피': 'food/gi-02.webp', '빵': ' /food/gi-03.webp ' } }, { title: '전시' }] };
+    const d = HOYOLAND.normalize(raw);
+    assert(d.goods.map((g) => g.image).join() === 'goods/2026/hsr-036.webp,goods/2026/gi-001.webp,https://x/y.webp,', '굿즈 사진 경로를 잘못 고쳤다');
+    assert(d.programs[0].menuImages['커피'] === 'food/2026/gi-02.webp' && d.programs[0].menuImages['빵'] === 'food/2026/gi-03.webp', '메뉴 사진 경로를 고치지 않았다');
+    assert(raw.goods[0].image === 'goods/hsr-036.webp' && raw.programs[0].menuImages['커피'] === 'food/gi-02.webp', '원본을 건드렸다 — 저장할 것이 없는 것으로 보인다');
+    // 옮기지 않은 회차의 경로는 손대지 않는다 — 그 폴더에 파일이 없다.
+    assert(HOYOLAND.normalize({ edition: '호요랜드 2025', goods: [{ name: 'a', image: 'goods/x-001.webp' }] }).goods[0].image === 'goods/x-001.webp', '옮기지 않은 회차의 경로를 고쳤다');
+    assert(moveAssets({ goods: [{ image: 'goods/a.webp' }, { image: 'partner/googleplay.png' }] }, '2026') === 1, '고친 개수가 다르다(파트너 로고는 회차 폴더가 아니다)');
+    assert(moveAssets({ goods: [{ image: 'goods/a.webp' }] }, '2027') === 0, '옮기지 않은 회차를 고쳤다');
+    // 회차 폴더 안에서 번호를 잇는다 — 다른 회차의 번호는 세지 않는다.
+    const used = ['goods/2026/zzz-105.webp', 'goods/2027/gi-002.webp'];
+    assert(assetPathFor({ dir: 'goods/2027', abbr: 'hsr', digits: 3, used, ext: 'webp', current: '' }) === 'goods/2027/hsr-003.webp', '회차 폴더의 번호를 잇지 않았다');
+    assert(assetPathFor({ dir: 'goods/2027', abbr: 'hsr', digits: 3, used, ext: 'webp', current: 'goods/2027/gi-002.webp' }) === 'goods/2027/gi-002.webp', '회차 폴더에 있던 이름을 버렸다');
+  });
   check('version.json 만 PR 로 올린다', () => {
     // main 에 바로 쓰면 raw 로 즉시 나가 라이브 반영과 다를 것이 없다 — 라이브에서 뺀 이유가 사라진다.
     assert(commitsViaPr(VERSION), 'version.json 을 main 에 바로 쓴다');
@@ -5117,10 +5206,10 @@ function selftest() {
       assert(editions.archived.join() === '2026', '게시 중인 회차 · 없는 회차가 보관에 섞였다');
       assert(editionRes('2027') === HOYOLAND && byId('hoyoland') === HOYOLAND, '게시 중인 회차가 HOYOLAND 가 아니다');
       const side = editionRes('2026');
-      assert(side.doc === 'hoyolandEdition2026' && side.file === 'config/hoyoland_editions/2026.json', '보관 회차의 자리가 다르다');
+      assert(side.doc === 'hoyolandEdition2026' && side.file === 'config/hoyoland/editions/2026.json', '보관 회차의 자리가 다르다');
       assert(side.doc !== HOYOLAND.doc && side.doc !== HOYOLAND.legacy.doc, '보관 회차가 앱이 읽는 문서에 쓴다');
       assert(side.legacy === null && legacyMirror(side, JSON.stringify({ startYmd: '2026-10-02', endYmd: '2026-10-05' })) === null, '보관 회차가 구버전 문서를 건드린다');
-      assert(canonFiles(side, JSON.stringify({ startYmd: '2026-10-02', endYmd: '2026-10-05' })).map((f) => f.path).join() === 'config/hoyoland_editions/2026.json', '보관 회차의 정본이 앱이 읽는 파일에 닿는다');
+      assert(canonFiles(side, JSON.stringify({ startYmd: '2026-10-02', endYmd: '2026-10-05' })).map((f) => f.path).join() === 'config/hoyoland/editions/2026.json', '보관 회차의 정본이 앱이 읽는 파일에 닿는다');
       assert(byId('hoyoland@2026') === side && editionRes('2026') === side, '같은 회차가 다른 객체로 나온다');
       assert(editionState('2027') === 'live' && editionState('2026') === 'archived' && editionState('2028') === 'draft', '회차 상태가 다르다');
       assert(side.validate && side.normalize({}).ticket.status === 'undecided', '회차 리소스가 스키마를 물려받지 못했다');
