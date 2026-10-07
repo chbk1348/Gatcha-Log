@@ -77,9 +77,12 @@ class NotificationCheckerTest {
     /** 변경 사항이 비면 본문이 빈 알림이 된다 — 눌렀을 때 일어나는 일을 대신 적는다. */
     @Test
     fun appUpdateAlertWithoutNotesSaysWhatTapDoes() {
-        val (title, text) = NotificationChecker.appUpdateAlert(update(name = ""), current = 275060)
+        val (title, text) = NotificationChecker.appUpdateAlert(update(name = ""), current = 275060, installsInApp = true)
         assertEquals("새 버전이 나왔어요", title)
         assertEquals("눌러서 바로 받아 설치할 수 있어요", text)
+        // iOS 는 앱이 설치까지 할 수 없다 — 릴리즈 페이지로 간다고 적는다.
+        val (_, ios) = NotificationChecker.appUpdateAlert(update(name = ""), current = 275060, installsInApp = false)
+        assertEquals("눌러서 릴리즈 페이지에서 받을 수 있어요", ios)
     }
 
     /** 지금 버전이 최소 지원 버전 아래면 앱을 열자마자 막힌다 — 알림도 그렇게 말한다. */

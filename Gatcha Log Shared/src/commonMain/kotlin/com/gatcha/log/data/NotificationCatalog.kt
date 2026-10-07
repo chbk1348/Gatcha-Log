@@ -49,15 +49,15 @@ object NotificationCatalog {
         get() = !HoyolandApi.current.phase().isOffSeason   // 종료 · 일정 미정이면 알릴 날짜가 없다
 
     /**
-     * 앱 업데이트 알림을 보여 줄 플랫폼인가 — Android 만([UpdateChecker.notifiesNewVersion]).
-     * iOS 에서는 목록에도 없고 점검도 돌지 않는다.
+     * 앱 업데이트 알림을 보여 줄 플랫폼인가([UpdateChecker.notifiesNewVersion]) — 27.51.1 부터 두 플랫폼 모두다.
+     * iOS 는 알림을 누르면 받아 설치하는 대신 GitHub 릴리즈 페이지로 간다.
      */
     val appUpdateAlertsActive: Boolean
         get() = UpdateChecker.notifiesNewVersion
 
     /**
      * 전체 항목 — 묶음 순서대로. 호요랜드는 행사 중일 때만([hoyolandAlertsActive]),
-     * 앱 업데이트는 Android 에서만([appUpdateAlertsActive]).
+     * 앱 업데이트는 알리는 플랫폼에서만([appUpdateAlertsActive]).
      */
     val items: List<NotifyItem>
         get() = allItems.filter {

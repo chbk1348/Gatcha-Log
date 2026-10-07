@@ -58,6 +58,10 @@ final class SpendingStore {
     private(set) var forceUpdate: Bool = false
     /// 업데이트 대상 버전명(강제 업데이트 화면 표시용).
     private(set) var updateVersionName: String = ""
+    /// 새 버전이 있다 — 강제가 아니면 앱 루트가 업데이트 창을 띄운다(27.51.1, Android UpdateDialog 파리티).
+    private(set) var updateAvailable: Bool = false
+    /// 새 버전의 변경 사항(업데이트 창 본문).
+    private(set) var updateNotes: [String] = []
 
     // ── Phase 2 (마이페이지/설정) ──
     private(set) var spendings: [Spending] = []
@@ -174,6 +178,7 @@ final class SpendingStore {
 
     // ── Phase 6 (27.33.0 알림 설정 — 방해금지·데일리 요약) ──
     private(set) var notifyNews: Bool = false
+    private(set) var notifyAppUpdate: Bool = false
     private(set) var notifyHoyoland: Bool = false
     private(set) var notifyCombat: Bool = true
     private(set) var notifyDndEnabled: Bool = false
@@ -276,7 +281,11 @@ final class SpendingStore {
         bind(vm.initialSyncing) { [weak self] in self?.initialSyncing = $0.boolValue }
         bind(vm.signingOut) { [weak self] in self?.signingOut = $0.boolValue }
         bind(vm.forceUpdate) { [weak self] in self?.forceUpdate = $0.boolValue }
-        bind(vm.updateInfo) { [weak self] in self?.updateVersionName = $0?.versionName ?? "" }
+        bind(vm.updateInfo) { [weak self] in
+            self?.updateVersionName = $0?.versionName ?? ""
+            self?.updateAvailable = $0 != nil
+            self?.updateNotes = $0?.notes ?? []
+        }
 
         // 파생값
         bind(vm.currentMonthTotal) { [weak self] in self?.monthlyTotal = $0.int64Value }
@@ -371,6 +380,7 @@ final class SpendingStore {
         // Phase 5
         // Phase 6 (알림 설정)
         bind(vm.notifyNews) { [weak self] in self?.notifyNews = $0.boolValue }
+        bind(vm.notifyAppUpdate) { [weak self] in self?.notifyAppUpdate = $0.boolValue }
         bind(vm.notifyHoyoland) { [weak self] in self?.notifyHoyoland = $0.boolValue }
         bind(vm.notifyCombat) { [weak self] in self?.notifyCombat = $0.boolValue }
         bind(vm.notifyDndEnabled) { [weak self] in self?.notifyDndEnabled = $0.boolValue }
@@ -439,6 +449,7 @@ final class SpendingStore {
     func setNotifyPickup(_ v: Bool) { vm.setNotifyPickup(v: v) }
     // Phase 6 (27.33.0) — 방해금지·데일리 요약
     func setNotifyNews(_ v: Bool) { vm.setNotifyNews(v: v) }
+    func setNotifyAppUpdate(_ v: Bool) { vm.setNotifyAppUpdate(v: v) }
     func setNotifyHoyoland(_ v: Bool) { vm.setNotifyHoyoland(v: v) }
     func setNotifyCombat(_ v: Bool) { vm.setNotifyCombat(v: v) }
     /// OS 알림 권한을 처음 허용했을 때 — 항목별 알림 일곱 개를 한꺼번에 켠다.
@@ -463,6 +474,8 @@ final class SpendingStore {
     func checkForUpdate(manual: Bool = true) { vm.checkForUpdate(manual: manual) }
     /// 강제 업데이트 화면의 '지금 업데이트' — iOS 는 릴리스 페이지를 연다(사이드로딩).
     func startInAppUpdate() { vm.startInAppUpdate() }
+    /// 업데이트 창의 「나중에」 — 강제 업데이트면 닫히지 않는다.
+    func dismissUpdate() { vm.dismissUpdate() }
     /// false 면 검증·저장 실패(안내 토스트는 VM 이 띄운다) — 폼은 닫지 않는다.
     @discardableResult
     func updateHoyolabConfig(_ config: HoyolabConfig) -> Bool { vm.updateHoyolabConfig(input: config) }

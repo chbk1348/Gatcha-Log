@@ -60,7 +60,8 @@ struct NotificationSettingsView: View {
          .pickup: store.notifyPickup,
          .combat: store.notifyCombat,
          .news: store.notifyNews,
-         .hoyoland: store.notifyHoyoland]
+         .hoyoland: store.notifyHoyoland,
+         .appUpdate: store.notifyAppUpdate]
     }
     private var anyNotifyOn: Bool { notifyState.values.contains(true) }
     /// 보이는 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
@@ -75,8 +76,8 @@ struct NotificationSettingsView: View {
         case .combat: return notifyBind(\.notifyCombat, store.setNotifyCombat)
         case .news: return notifyBind(\.notifyNews, store.setNotifyNews)
         case .hoyoland: return notifyBind(\.notifyHoyoland, store.setNotifyHoyoland)
-        // Android 전용 — iOS 목록에는 나오지 않는다(NotificationCatalog.appUpdateAlertsActive).
-        case .appUpdate: return .constant(false)
+        // 27.51.1 부터 iOS 도 새 버전을 알린다 — 누르면 업데이트 창을 거쳐 GitHub 릴리즈 페이지로 간다.
+        case .appUpdate: return notifyBind(\.notifyAppUpdate, store.setNotifyAppUpdate)
         }
     }
 

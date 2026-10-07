@@ -235,6 +235,18 @@ struct ContentView: View {
         }
         // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
         .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
+        // 업데이트 창(27.51.1) — 새 버전이 있고 강제가 아닐 때. Android UpdateDialog 와 같은 문구 · 같은 단추 순서다.
+        // iOS 는 앱이 설치까지 할 수 없어 「릴리즈 페이지 열기」가 GitHub 릴리즈 페이지를 연다(거기서 IPA 를 받아 설치).
+        // 실행할 때 · 설정 ▸ 업데이트 확인 · 새 버전 알림을 눌렀을 때 모두 이 창으로 온다. 강제 업데이트는 위의 전체 화면이 맡는다.
+        .alert("업데이트 있어요" + (store.updateVersionName.isEmpty ? "" : " (v\(store.updateVersionName))"), isPresented: Binding(
+            get: { store.updateAvailable && !store.forceUpdate },
+            set: { if !$0 { store.dismissUpdate() } }
+        )) {
+            Button("나중에", role: .cancel) { store.dismissUpdate() }
+            Button("릴리즈 페이지 열기") { store.startInAppUpdate() }.glgAlertTint()
+        } message: {
+            Text((["GitHub 릴리즈 페이지에서 새 버전을 받아 설치할 수 있어요."] + store.updateNotes.map { "· " + $0 }).joined(separator: "\n"))
+        }
         // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
         // 제목이 종류마다 달라 ErrorAlert 가 제목까지 들고 온다(Android MainActivity 파리티).
         .alert(store.errorAlert?.title ?? "", isPresented: Binding(
