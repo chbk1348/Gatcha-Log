@@ -228,14 +228,15 @@ function goodsNote(note) {
  * 앞의 6개는 앱 GameData.Game 과 1:1 이다 — 약칭 · 색을 앱이 이미 알아서 lineup 의
  * abbr · colorArgb 를 비워 둔다. 뒤의 4개는 행사에만 나와 앱이 모르므로 둘을 채워야 한다.
  * 정본은 GameData.kt 다. 게임이 늘면 여기도 같이 고친다.
+ * `short` 는 꼬리표에 쓰는 짧은 이름(GameData.shortName)이다 — 이름과 같으면 적지 않는다.
  * ═════════════════════════════════════════════════════════════ */
 
 const GAME_CATALOG = [
   { name: '원신', abbr: 'GI', argb: '0xFF4F8EF7', app: true },
-  { name: '붕괴: 스타레일', abbr: 'HSR', argb: '0xFFB06BFF', app: true },
-  { name: '젠레스 존 제로', abbr: 'ZZZ', argb: '0xFFF5A623', app: true },
+  { name: '붕괴: 스타레일', short: '스타레일', abbr: 'HSR', argb: '0xFFB06BFF', app: true },
+  { name: '젠레스 존 제로', short: '젠레스', abbr: 'ZZZ', argb: '0xFFF5A623', app: true },
   { name: '명조', abbr: 'WW', argb: '0xFFE5007F', app: true },
-  { name: '명일방주: 엔드필드', abbr: 'EF', argb: '0xFF1CB8A8', app: true },
+  { name: '명일방주: 엔드필드', short: '엔드필드', abbr: 'EF', argb: '0xFF1CB8A8', app: true },
   { name: '이환', abbr: 'NTE', argb: '0xFF6C5CE7', app: true },
   { name: '붕괴3rd', abbr: 'HI3', argb: '0xFF30C6E8' },
   { name: '미해결사건부', abbr: 'ToT', argb: '0xFFE0557B' },
@@ -269,9 +270,7 @@ const VENUE_NAMES = ['일산 킨텍스 제1전시장', '일산 킨텍스 제2전
  * ═════════════════════════════════════════════════════════════ */
 
 /** 굿즈존 공통 안내 — 굿즈 목록 맨 위 카드(스크롤하면 올라가 가려진다). 비우면 카드가 없다. 「굿즈샵」 탭 맨 위 섹션이 그린다. */
-const GOODS_GUIDE_FIELD = { key: 'goodsGuide', label: '굿즈존 안내', type: 'textarea',
-  note: '줄 규칙: 글머리 없는 줄은 묶음 제목, “· 항목 — 값”, 들여쓴 줄은 위 항목의 부연',
-  tools: (ta) => guideTools(ta), preview: (v) => guidePreview(v), previewSide: true };
+const GOODS_GUIDE_FIELD = { key: 'goodsGuide', label: '굿즈존 안내', type: 'textarea', hint: true };
 
 const TICKET_STATUS = [
   { value: 'undecided', label: '미정 — 예매 정보 공개 전' },
@@ -297,7 +296,7 @@ const SLOT_COLS = [
   { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '비우면 합동' },
   { key: 'cast', label: '출연', type: 'text', width: '160px' },
   { key: 'minutes', label: '길이(분)', type: 'number', width: '110px', min: 0 },
-  { key: 'desc', label: '설명', type: 'text', lines: true },
+  { key: 'desc', label: '설명', type: 'text', lines: true, hint: true, placeholder: '한 줄이면 충분합니다' },
 ];
 
 const FACT_COLS = [
@@ -629,7 +628,7 @@ const HOYOLAND = {
       lead: (r) => perkChip(r),
       columns: [
         { key: 'title', label: '제목', type: 'text', required: true, placeholder: '웰컴 키트 — 원신' },
-        { key: 'desc', label: '구성', type: 'text', lines: true, span: 'all' },
+        { key: 'desc', label: '구성', type: 'text', lines: true, span: 'all', hint: true },
         { key: 'deadline', label: '교환 기한 · 조건', type: 'text', placeholder: '리딤코드 10.1 ~ 12.31 · 계정당 4회' },
       ],
       preview: (d) => perksPreview(d) },
@@ -646,7 +645,13 @@ const HOYOLAND = {
       only: (p) => isFoodProgram(p),
       count: (d) => foodRowsFromPrograms(d.programs).filter((r) => r.name).length,
       desc: '음식 한 줄씩 적습니다. 가게 이름을 비우면 앱에 가게 이름 없이 메뉴만 나옵니다. 음식 이름 없이 설명만 적은 줄은 그 가게의 안내 문구로 나갑니다(“세트로 사면 12,000원”).',
-      minWidth: '1180px',
+      // 시안 「현장 개편 · 푸드존」(10/7) — 줄 단위 편집. 12칸 격자: 게임 4 · 가게 8 / 음식 8 · 가격 4 / 설명 5 · 썸네일 7.
+      unit: '줄', addLabel: '+ 음식 추가', search: '검색 — 게임 · 가게 · 음식 이름', paste: true,
+      rowCols: 'repeat(12,minmax(0,1fr))', rowKeys: ['game', 'shop', 'name', 'price', 'desc', 'image'],
+      rowSpan: { game: 4, shop: 8, name: 8, price: 4, desc: 5, image: 7 },
+      // 음식 이름 없이 설명만 있는 줄은 가게의 안내 문구다 — 앞 꼬리표가 「안내」로 바뀐다.
+      lead: (r) => (!String(r.name ?? '').trim() && String(r.desc ?? '').trim() ? chip('안내', CHIP_ACCENT) : gameChip(r.game)),
+      preview: () => foodPreview(),
       columns: [
         { key: 'title', label: '제목', type: 'text', hidden: true },
         { key: 'desc', label: '메뉴', type: 'text', lines: true, hidden: true },
@@ -658,7 +663,7 @@ const HOYOLAND = {
         // 썸네일 — config/ 기준 경로(food/2026/hsr-06.webp). 번호는 그 회차의 푸드 사진 전체에서 이어 딴다.
         { key: 'image', label: '썸네일', type: 'image', width: '290px', placeholder: 'food/2026/hsr-06.webp', assetDir: 'food', assetDigits: 2,
           assetUsed: () => foodRowsOf(state.d).map((r) => r.image) },
-        { key: 'name', label: '음식 이름', type: 'text', required: true },
+        { key: 'name', label: '음식 이름', type: 'text', required: true, placeholder: '비우면 안내 문구' },
         { key: 'desc', label: '음식 설명', type: 'text', lines: true },
         { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
       ] },
@@ -668,9 +673,17 @@ const HOYOLAND = {
       desc: '가격은 숫자로 넣습니다 — 문자열이면 앱이 합계를 내지 못합니다. 미정이면 0.',
       // 굿즈존 안내는 문서 맨 위 칸(goodsGuide)이지만 앱에서는 굿즈 목록 위에 서는 글이라 이 탭에 둔다(10/6, 「기본 정보」에서 옮김).
       rootFields: [GOODS_GUIDE_FIELD],
+      // 시안 「현장 개편 · 굿즈샵」(10/7) — 줄 단위 편집. 칸 비율: 상품명 5 · 게임 3 · 분류 2 · 가격 2 / 비고 5 · 사진 7.
+      // 분류 · 가격은 112 · 132 아래로 줄지 않는다 — 드롭다운 · 숫자 스테퍼는 글 칸보다 넓어 다섯 자리 가격이 잘린다.
+      title: '굿즈', unit: '개', addLabel: '+ 굿즈 추가', search: '검색 — 여러 낱말은 모두 걸립니다', selectable: true, paste: true,
+      rowCols: 'minmax(0,5fr) minmax(0,3fr) minmax(112px,2fr) minmax(132px,2fr)', rowSpan: { image: 3 },
+      top: (rows) => goodsStats(rows),
+      // 비고는 앱이 쪼개서 꼬리표로 뺀다 — 적은 대로 보이지 않으니 갈린 결과를 칸 바로 아래에 세운다.
+      under: { note: (g) => goodsNoteLine(g) },
+      preview: (d) => goodsPreview(d),
       columns: [
         { key: 'name', label: '상품명', type: 'text', required: true },
-        { key: 'game', label: '게임', type: 'game', width: '150px' },
+        { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '공통' },
         { key: 'category', label: '분류', type: 'suggest', options: GOODS_CATEGORIES, width: '130px' },
         { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
         { key: 'note', label: '비고', type: 'text', placeholder: '호요랜드2026 시리즈 · 1인 5개 한정' },
@@ -679,32 +692,43 @@ const HOYOLAND = {
         { key: 'image', label: '사진', type: 'image', width: '290px', placeholder: 'goods/2026/hsr-036.webp', assetDir: 'goods', assetDigits: 3 },
       ] },
     // DIY존은 같은 booths 배열에 있지만 탭을 따로 쓴다(10/6) — 여기에는 DIY 가 아닌 줄만 선다([only]).
-    { id: 'booths', group: '행사', label: '부스 체험', type: 'list', path: 'booths', countable: true,
+    { id: 'booths', group: '행사', label: '부스 체험', type: 'rows', path: 'booths', countable: true,
       only: (b) => !isDiyBooth(b),
-      desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다. 참가비는 숫자로 넣고, 무료면 0 입니다. 게임 없이 구분이 「DIY존」인 줄은 DIY 탭에 섭니다.',
+      desc: '체험존 운영 정보. 참가비는 숫자로 넣고, 무료면 0 입니다. 게임 없이 구분이 「파트너사」로 시작하면 앱의 파트너사 탭에, 「DIY존」이면 DIY 탭에 섭니다.',
+      // 시안 「현장 개편 · 부스 체험」(10/7) — 줄 단위 편집. 12칸 격자: 부스명 5 · 게임 4 · 참가비 3 / 구분 5 · 보상 7 / 설명.
+      unit: '곳', addLabel: '+ 부스 추가', search: '검색 — 부스명 · 게임 · 구분', selectable: true, paste: true,
+      rowCols: 'repeat(12,minmax(0,1fr))', rowKeys: ['title', 'game', 'price', 'location', 'reward', 'desc'],
+      rowSpan: { title: 5, game: 4, price: 3, location: 5, reward: 7, desc: 'all' },
+      lead: (r) => boothChip(r),
+      preview: (d) => boothsPreview(d),
       columns: [
         { key: 'title', label: '부스명', type: 'text', required: true },
-        { key: 'game', label: '게임', type: 'game', width: '150px' },
-        { key: 'location', label: '구분', type: 'text', width: '120px' },
+        { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '비우면 공통' },
+        { key: 'location', label: '구분', type: 'text', width: '120px', placeholder: '무료 체험존' },
         // 참가비를 설명에 묻어 두면 "얼마 들고 가야 하나"를 문장에서 캐야 한다. 앱도 이 값으로
         // 무료/유료 배지를 가른다(HoyolandBooth.isPaid) — 0 이 곧 '무료' 다.
         { key: 'price', label: '참가비(원)', type: 'number', width: '110px', min: 0 },
-        { key: 'reward', label: '보상', type: 'text', width: '140px' },
-        { key: 'desc', label: '설명', type: 'text', lines: true },
+        { key: 'reward', label: '보상', type: 'text', width: '140px', lines: true },
+        { key: 'desc', label: '설명', type: 'text', lines: true, hint: true },
       ] },
     /*
      * DIY — 부스 체험과 **같은 배열(booths)** 을 쓰는 다른 탭이다(10/6). 앱 부스 페이지의 DIY 탭과 같은 기준
      * (Hoyoland.kt HoyolandBooth.isDiy — 게임이 비고 구분에 「DIY」)으로 가른다. 게임 · 구분은 칸으로 두지 않고
      * 새 줄에 넣어 준다([seed]) — 손으로 고칠 값이 아니고, 바꾸면 이 탭에서 사라진다.
      */
-    { id: 'diy', group: '행사', label: 'DIY', type: 'list', path: 'booths', countable: true,
+    { id: 'diy', group: '행사', label: 'DIY', type: 'rows', path: 'booths', countable: true,
       only: (b) => isDiyBooth(b), seed: { game: '', location: 'DIY존' },
-      desc: 'DIY존. 참가비가 0 인 줄은 앱이 맨 위 「이용 안내」로 읽고(한 줄만), 참가비가 있는 줄이 만들기 목록입니다.',
+      desc: 'DIY존. 참가비가 0 인 줄은 앱이 맨 위 「이용 안내」로 읽고(한 줄만), 참가비가 있는 줄이 만들기 목록입니다. 게임 · 구분은 칸으로 두지 않습니다 — 이 탭에서 만든 줄은 「DIY존」으로 들어갑니다.',
+      // 시안 「현장 개편 · DIY」(10/7) — 줄 단위 편집. 앞 꼬리표는 참가비로 갈린다(0 = 이용 안내 · 그 밖 = 만들기).
+      unit: '건', addLabel: '+ 만들기 추가', rowCols: 'minmax(0,1.2fr) 130px minmax(0,1.6fr)', rowSpan: { desc: 'all' },
+      leadWidth: 84,
+      lead: (r) => (Number(r.price) > 0 ? chip('만들기', CHIP_GRAY) : chip('이용 안내', CHIP_ACCENT)),
+      preview: (d) => diyPreview(d),
       columns: [
         { key: 'title', label: '이름', type: 'text', required: true, placeholder: '에코백 만들기' },
         { key: 'price', label: '참가비(원)', type: 'number', width: '110px', min: 0 },
         { key: 'reward', label: '받는 것', type: 'text', width: '220px' },
-        { key: 'desc', label: '설명', type: 'text', lines: true },
+        { key: 'desc', label: '설명', type: 'text', lines: true, hint: true },
       ] },
     { id: 'past', group: '연계', label: '지난 행사', type: 'past', path: 'past', countable: true,
       desc: '최신순. 비우면 앱 내장값으로 메웁니다. 항목은 「기간 · 장소 · 관람객」처럼 짧은 이름과 한 줄 값입니다.',
@@ -2572,56 +2596,6 @@ function guidePreview(text) {
   ]);
 }
 
-/*
- * 안내 글 툴바 — 규칙에 쓰는 글자가 키보드에 없다(`·` 가운뎃점 · `—` 줄표). 버튼은 커서가
- * **놓인 줄을 기준으로** 끼워 넣고, 채워야 할 자리를 선택해 둔다 — 누르고 바로 타이핑하면 덮인다.
- */
-function guideTools(ta) {
-  // 커서가 놓인 줄의 시작 · 끝(줄바꿈 제외)
-  const lineAt = () => {
-    const v = ta.value, i = ta.selectionStart;
-    const start = v.lastIndexOf('\n', i - 1) + 1;
-    const nl = v.indexOf('\n', i);
-    return { start, end: nl < 0 ? v.length : nl };
-  };
-  const fire = () => {
-    ta.dispatchEvent(new Event('input', { bubbles: true }));    // 값 반영 · 미리보기 갱신
-    // 타이핑은 손을 뗄 때(change) 저장 표시가 켜지지만, 버튼은 한 번 누른 것이 곧 한 번의 편집이다.
-    // 이걸 빼면 값만 바뀌고 "변경 없음" 인 채로 남아 초안에 저장되지 않는다.
-    ta.dispatchEvent(new Event('change', { bubbles: true }));
-  };
-
-  /** 빈 줄이면 그 자리에, 쓰던 줄이면 아래에 새 줄을 연다. [from, to) 는 선택해 둘 자리. */
-  const put = (text, from, to) => {
-    const v = ta.value, { start, end } = lineAt();
-    const fresh = !v.slice(start, end).trim();
-    const at = fresh ? start : end;
-    const body = fresh ? text : '\n' + text;
-    ta.value = v.slice(0, at) + body + v.slice(fresh ? end : at);
-    const head = at + body.length - text.length;
-    ta.focus();
-    ta.setSelectionRange(head + from, head + to);
-    fire();
-  };
-
-  const atCaret = (t) => {
-    const v = ta.value, a = ta.selectionStart, b = ta.selectionEnd;
-    ta.value = v.slice(0, a) + t + v.slice(b);
-    ta.focus();
-    ta.setSelectionRange(a + t.length, a + t.length);
-    fire();
-  };
-
-  const b = (label, title, fn) => el('button', { class: 'btn btn-sm', type: 'button', title, onclick: fn }, [label]);
-  return el('div', { class: 'guide-tools' }, [
-    // 묶음은 **빈 줄로** 갈린다 — 앞줄에 붙여 쓰면 같은 카드 안에 제목이 하나 더 생긴 꼴이 된다.
-    b('묶음 제목', '빈 줄을 띄우고 새 묶음을 연다', () => put('\n묶음 제목', 1, 6)),
-    b('· 항목 — 값', '한 줄 추가 — 이름과 값을 줄표로 가른다', () => put('· 이름 — 값', 2, 4)),
-    b('부연 줄', '바로 위 줄에 붙는 작은 설명', () => put('   부연', 3, 5)),
-    b('—', '줄표만 끼워 넣는다', () => atCaret(' — ')),
-  ]);
-}
-
 function renderForm(sec) {
   return card(sec, [formGrid(sec)]);
 }
@@ -2660,7 +2634,7 @@ function formGrid(sec) {
 /** 섹션 하나 — 제목 · 오른쪽 꼬리 · 설명 · 본문. */
 function sect(title, desc, kids, right = null) {
   return el('section', { class: 'sec' }, [
-    el('div', { class: 'sec-title' }, [el('h2', { text: title }), right]),
+    el('div', { class: 'sec-title' }, [el('h2', { text: title }), ...[].concat(right)]),
     desc ? el('p', { class: 'hint', text: desc }) : null,
     ...kids,
   ]);
@@ -2710,7 +2684,7 @@ function fieldCells(f, base) {
   const input = f.type === 'segment' ? segmentFor(f, base) : inputFor(f, base[f.key], (v) => { base[f.key] = v; });
   if (!f.hideLabel) cell.append(el('label', { text: f.label }));
   cell.append(input);
-  if (f.tools) cell.insertBefore(f.tools(input), input);
+  if (f.hint) cell.append(mdHint());
   if (f.note) cell.append(el('div', { class: 'note', text: f.note }));
   if (!f.preview) return [cell];
   const box = el('div', { class: 'field-preview' });
@@ -2855,54 +2829,297 @@ function entryMatchSection(d) {
   ]);
 }
 
-/** 목록 탭 — 표 대신 **줄 단위 편집**. 줄마다 앞 꼬리표(lead) · 칸 격자 · 위 · 아래 · 지우기. */
-function renderRows(sec) {
-  const rows = get(state.draft, sec.path);
-  const own = (r) => !sec.only || sec.only(r);
-  const cols = Object.fromEntries(sec.columns.map((c) => [c.key, c]));
-  const keys = sec.rowKeys || sec.columns.map((c) => c.key);
-  const blank = () => ({ ...Object.fromEntries(sec.columns.map((c) => [c.key, c.type === 'number' ? 0 : ''])), ...(sec.seed || null) });
-  const hits = rows.map((r, i) => ({ r, i })).filter(({ r }) => own(r));
-  const ico = (d, label, onclick, disabled) => el('button', { type: 'button', class: 'row-ico', title: label, 'aria-label': label, disabled, onclick },
+/** 줄바꿈을 받는 글 칸 아래 한 줄 — 마크다운처럼 치는 법(ui.js glArea 가 받는 것). 열 정의의 `hint` 가 켠다. */
+function mdHint() {
+  const k = (key, text) => el('span', {}, [el('b', { text: key }), text]);
+  return el('div', { class: 'md-hint' }, [k('- ', '목록'), k('Tab', ' 들이기 · 부연'), k('1. ', '번호'), k('--', ' 줄표 ( — 뒤는 값)')]);
+}
+
+/**
+ * 줄 단위 편집 섹션 — 표 대신 줄마다 앞 꼬리표(lead) · 칸 격자 · 위 · 아래 · 지우기(시안 「행사 정보 개편」 · 「현장 개편」).
+ *
+ * 섹션 정의가 켜는 것: `search`(검색창 — 값은 자리표시 글) · `selectable`(줄 고르기 · 값 채우기 · 선택 삭제) ·
+ * `paste`(표 붙여넣기) · `top`(목록 위 지표) · `under`(칸 아래 한 줄 — 그 줄 값으로 계산) · `rowSpan`(칸이 쓰는 열 수).
+ * opts.rows — 문서의 배열이 아니라 **풀어낸 줄**을 그릴 때(푸드존). 줄을 고치면 markDirty 가 문서 쪽을 다시 만든다.
+ *
+ * 줄을 더하고 · 옮기고 · 지울 때 화면을 통째로 다시 그리지 않는다 — 105줄짜리 굿즈에서 맨 위로 튕긴다.
+ * 목록만 다시 그리고 `change` 를 올려 보내 미리보기 · 딸린 섹션이 따라오게 한다.
+ */
+function rowsSection(sec, opts = {}) {
+  const rows = opts.rows || get(state.draft, sec.path);
+  const columns = opts.columns || sec.columns;
+  // 한 배열을 두 탭이 나눠 쓸 때(부스 체험 · DIY) 이 탭의 줄만 고른다. 편집 · 삭제 · 이동은 배열의 원래 자리(i)로 한다.
+  const only = opts.rows ? null : sec.only;
+  const own = (r) => !only || only(r);
+  const total = () => rows.filter(own).length;
+  const cols = Object.fromEntries(columns.map((c) => [c.key, c]));
+  const keys = sec.rowKeys || columns.map((c) => c.key);
+  const blank = opts.blank || (() => ({ ...Object.fromEntries(columns.map((c) => [c.key, c.type === 'number' ? 0 : ''])), ...(sec.seed || null) }));
+  // 검색어 · 고른 줄은 state 에 둔다 — 다른 탭에 다녀와도 남는다. 고른 줄은 자리가 아니라 **줄 자체**로 기억한다.
+  const stateKey = opts.stateKey || `${sec.path}#${sec.id}`;
+  state.q ||= {};
+  state.sel ||= {};
+  const q = () => (sec.search ? (state.q[stateKey] || '') : '');
+  const sel = sec.selectable ? (state.sel[stateKey] ||= new Set()) : new Set();
+  const ico = (d, label, onclick, disabled, title) => el('button', { type: 'button', class: 'row-ico', title: title || label, 'aria-label': label, disabled, onclick },
     [navIcon(d)]);
+  const btn = (label, title, onclick, cls = '') => el('button', { type: 'button', class: 'btn' + (cls ? ' ' + cls : ''), title, onclick }, [label]);
 
   const list = el('div', { class: 'rows' + (sec.twoCol ? ' two-col' : '') });
-  hits.forEach(({ r, i }, k) => {
+  const count = tag('');
+  const selN = el('span', { class: 'rows-bar-n', hidden: true });
+  const fill = el('div', { class: 'list-fill', hidden: true });
+  const paste = el('div', { class: 'list-paste', hidden: true });
+  const top = sec.top ? el('div') : null;
+  let visible = [];
+  let section = null;
+
+  const syncSel = () => {
+    for (const r of [...sel]) if (!rows.includes(r)) sel.delete(r);   // 지워진 줄의 잔재
+    selN.hidden = !sel.size;
+    selN.textContent = `${sel.size}건 선택`;
+    if (!sel.size) fill.hidden = true;
+  };
+  /** 줄이 늘거나 · 줄거나 · 자리가 바뀌었다 — 저장 표시를 켜고 목록만 다시 그린다. */
+  const changed = () => {
+    markDirty();
+    paint();
+    section.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  const rowItem = ({ r, i }, k, hits, filtered) => {
     const grid = el('div', { class: 'grid', style: `grid-template-columns:${sec.rowCols || 'repeat(2,minmax(0,1fr))'}` });
     for (const key of keys) {
       const c = cols[key];
       const span = (sec.rowSpan || {})[key] || c.span;
-      const cell = el('div', { class: 'field', style: span === 'all' ? 'grid-column:1/-1' : '' }, [
+      const cell = el('div', { class: 'field', style: span === 'all' ? 'grid-column:1/-1' : span ? `grid-column:span ${span}` : '' }, [
         el('label', { text: c.label }),
         inputFor(c, r[key], (v) => { r[key] = v; }, r),
+        c.hint ? mdHint() : null,
       ]);
+      const under = (sec.under || {})[key];
+      if (under) {
+        const box = el('div', { class: 'field-under' });
+        const fit = () => { const x = [].concat(under(r) || []); box.replaceChildren(...x); box.hidden = !x.length; };
+        fit();
+        cell.addEventListener('input', fit);    // 입력 칸이 먼저 값을 고친 뒤 여기로 올라온다
+        cell.addEventListener('change', fit);
+        cell.append(box);
+      }
       grid.append(cell);
     }
     if (sec.extra) { const x = sec.extra(r); if (x) grid.append(x); }
-    list.append(el('div', { class: 'row-item' }, [
-      sec.lead ? el('div', { class: 'row-lead' }, [sec.lead(r)]) : null,
+    const lead = sec.lead ? el('div', { class: 'row-lead', style: sec.leadWidth ? `width:${sec.leadWidth}px` : '' }) : null;
+    const idx = hits.map((h) => h.i);
+    const stuck = filtered ? '검색을 지워야 순서를 바꿀 수 있습니다' : '';
+    const item = el('div', { class: 'row-item' }, [
+      sec.selectable ? el('div', { class: 'row-sel' }, [glCheck({
+        value: sel.has(r), title: '이 줄 고르기',
+        onChange: (v) => { if (v) sel.add(r); else sel.delete(r); syncSel(); },
+      })]) : null,
+      lead,
       grid,
       el('div', { class: 'row-tools' }, [
-        ico('up', '위로', () => { reorderAt(rows, hits.map((h) => h.i), k, k - 1); markDirty(); render(); }, k === 0),
-        ico('down', '아래로', () => { reorderAt(rows, hits.map((h) => h.i), k, k + 1); markDirty(); render(); }, k === hits.length - 1),
-        ico('x', '지우기', () => { rows.splice(i, 1); markDirty(); render(); }),
+        // 걸러낸 상태에서는 못 옮긴다 — 화면의 이웃과 배열의 이웃이 달라, 보고 있는 줄이 아니라 숨은 줄 사이로 들어간다.
+        ico('up', '위로', () => { reorderAt(rows, idx, k, k - 1); changed(); }, filtered || k === 0, stuck),
+        ico('down', '아래로', () => { reorderAt(rows, idx, k, k + 1); changed(); }, filtered || k === hits.length - 1, stuck),
+        ico('x', '지우기', () => { rows.splice(i, 1); changed(); }),
       ]),
-    ]));
-  });
-  if (!hits.length) list.append(el('div', { class: 'row-empty', text: sec.warnEmpty ? '비어 있습니다 — ' + sec.warnEmpty : '비어 있습니다.' }));
+    ]);
+    if (lead) {
+      // 앞 꼬리표는 줄의 값(게임 · 참가비)을 따른다 — 고칠 때마다 그 줄의 꼬리표만 갈아 끼운다.
+      const fit = () => lead.replaceChildren(sec.lead(r));
+      fit();
+      item.addEventListener('input', fit);
+      item.addEventListener('change', fit);
+    }
+    return item;
+  };
 
-  const add = el('button', { class: 'btn btn-sm btn-secondary', onclick: () => {
+  const paintTop = () => top && top.replaceChildren(sec.top(rows.filter(own)));
+  const paint = () => {
+    const n = total();
+    const hits = rows.map((r, i) => ({ r, i })).filter(({ r }) => own(r) && rowHits(r, columns, q()));
+    visible = hits.map((h) => h.r);
+    count.textContent = `${n}${sec.unit || '건'}`;
+    syncSel();
+    list.replaceChildren(...hits.map((h, k) => rowItem(h, k, hits, hits.length !== n)));
+    if (!n) list.append(el('div', { class: 'row-empty', text: sec.warnEmpty ? '비어 있습니다 — ' + sec.warnEmpty : '비어 있습니다.' }));
+    else if (!hits.length) list.append(el('div', { class: 'row-empty', text: `“${q()}” 에 걸리는 줄이 없습니다.` }));
+  };
+
+  /*
+   * 고른 줄에 같은 값을 넣는다 — 굿즈 스무 줄의 게임을 하나씩 고르는 일이 흔하다.
+   * 값 칸은 **고른 칸의 타입 그대로** 세운다(게임은 드롭다운, 가격은 스테퍼). 칸이 바뀌면 값도 그 타입의 빈값으로 되돌린다.
+   */
+  if (sec.selectable) {
+    let fillKey = columns[0].key;
+    let fillValue = '';
+    const colOf = () => columns.find((x) => x.key === fillKey) || columns[0];
+    const fillBox = el('div', { class: 'list-fill-v' });
+    const paintFill = () => {
+      const c = colOf();
+      fillValue = c.type === 'number' ? 0 : '';
+      fillBox.replaceChildren(inputFor(c, fillValue, (v) => { fillValue = v; }));
+    };
+    paintFill();
+    fill.append(
+      el('span', { class: 'muted', text: '고른 줄의' }),
+      glSelect({ value: fillKey, width: '160px', options: columns.map((c) => ({ value: c.key, label: c.label })), onChange: (v) => { fillKey = v; paintFill(); } }),
+      el('span', { class: 'muted', text: '을' }),
+      fillBox,
+      el('span', { class: 'muted', text: '로' }),
+      el('div', { class: 'tools' }, [
+        btn('채우기', '', async () => {
+          const n = sel.size;
+          const c = colOf();
+          if (!await glConfirm(`고른 ${n}건의 “${c.label}” 을 같은 값으로 채웁니다.`, {
+            title: '값 채우기', ok: `${n}건 채우기`, note: `값: ${fillValue === '' ? '(빈 값)' : String(fillValue)}`,
+          })) return;
+          for (const r of rows) if (sel.has(r)) r[fillKey] = fillValue;
+          fill.hidden = true;
+          changed();
+        }, 'btn-sm btn-primary'),
+        btn('닫기', '', () => { fill.hidden = true; }, 'btn-sm'),
+      ]),
+    );
+  }
+
+  /*
+   * 스프레드시트에서 그대로 옮겨 붙이기 — 굿즈 100줄을 한 칸씩 치는 것은 어드민의 일이 아니다.
+   * 붙여넣은 글이 **어느 칸으로 들어가는지 먼저 보여 주고** 나서 넣는다.
+   */
+  if (sec.paste) {
+    const info = el('div', { class: 'note' });
+    let parsed = { rows: [], keys: [], header: false };
+    const box = glTextarea({
+      placeholder: '스프레드시트에서 복사해 붙여넣으세요 — 탭으로 갈린 표.\n첫 줄이 칸 이름이면 순서가 달라도 맞춰 넣습니다.',
+      onInput: (v) => {
+        parsed = parseTsv(v, columns);
+        const names = parsed.keys.map((key) => (cols[key] || {}).label || key).join(' · ');
+        info.textContent = parsed.rows.length
+          ? `${parsed.rows.length}줄 — ${names} 로 들어갑니다.${parsed.header ? ' (첫 줄은 칸 이름으로 읽었습니다)' : ''}`
+          : '아직 읽을 것이 없습니다.';
+        for (const b of paste.querySelectorAll('.paste-go')) b.disabled = !parsed.rows.length;
+      },
+    });
+    const filled = () => parsed.rows.map((r) => ({ ...blank(), ...r }));
+    const done = () => { paste.hidden = true; box.value = ''; parsed = { rows: [], keys: [], header: false }; changed(); };
+    const go = (label, cls, onclick) => el('button', { type: 'button', class: `btn btn-sm ${cls} paste-go`, disabled: true, onclick }, [label]);
+    paste.append(box, info, el('div', { class: 'tools' }, [
+      go('끝에 추가', 'btn-primary', async () => {
+        const n = parsed.rows.length;
+        if (!await glConfirm(`${n}줄을 목록 끝에 더합니다.`, { title: '붙여넣기', ok: `${n}줄 추가` })) return;
+        addRows(filled());
+        done();
+      }),
+      go('전체 교체', 'btn-danger', async () => {
+        const n = parsed.rows.length;
+        if (!await glConfirm(`지금 ${total()}줄을 모두 버리고 붙여넣은 ${n}줄로 바꿉니다.`, {
+          title: '목록 전체 교체', ok: `${n}줄로 교체`, danger: true,
+        })) return;
+        // 이 탭의 줄만 갈아 끼운다 — 같은 배열을 쓰는 다른 탭의 줄은 남는다.
+        const first = rows.findIndex(own);
+        const rest = rows.filter((r) => !own(r));
+        rest.splice(first < 0 ? rest.length : first, 0, ...filled());
+        rows.splice(0, rows.length, ...rest);
+        sel.clear();
+        done();
+      }),
+      btn('닫기', '', () => { paste.hidden = true; }, 'btn-sm'),
+    ]));
+  }
+  /** 이 탭의 마지막 줄 바로 뒤에 넣는다 — 나눠 쓰지 않는 목록에서는 맨 끝과 같다. */
+  const addRows = (more) => {
     let at = rows.length;
-    if (sec.only) for (let j = rows.length - 1; j >= 0; j--) if (own(rows[j])) { at = j + 1; break; }
-    rows.splice(at, 0, blank());
-    markDirty();
-    render();
+    if (only) for (let j = rows.length - 1; j >= 0; j--) if (own(rows[j])) { at = j + 1; break; }
+    rows.splice(at, 0, ...more);
+  };
+  const pasteBtn = sec.paste ? btn('표 붙여넣기', '스프레드시트에서 복사한 표를 붙여넣는다', () => { paste.hidden = !paste.hidden; }) : null;
+
+  const bar = [];
+  let search = null;
+  if (sec.search) {
+    search = glText({ value: q(), placeholder: sec.search, onInput: (v) => { state.q[stateKey] = v; paint(); } });
+    search.setAttribute('aria-label', '검색');
+    bar.push(el('div', { class: 'rows-search' }, [search, navIcon('search')]));
+  }
+  if (sec.selectable || (pasteBtn && !opts.pasteInTitle)) bar.push(el('span', { style: 'flex:1' }));
+  if (sec.selectable) {
+    const need = () => { if (!sel.size) toast('먼저 줄을 고르세요.'); return sel.size; };
+    bar.push(
+      selN,
+      btn('값 채우기', '고른 줄의 한 칸을 같은 값으로 채운다', () => { if (need()) fill.hidden = !fill.hidden; }),
+      btn('선택 삭제', '고른 줄을 지운다', async () => {
+        const n = need();
+        if (!n || !await glConfirm(`고른 ${n}건을 지웁니다.`, { title: '여러 줄 삭제', ok: `${n}건 삭제`, danger: true })) return;
+        for (let i = rows.length - 1; i >= 0; i--) if (sel.has(rows[i])) rows.splice(i, 1);
+        sel.clear();
+        changed();
+      }),
+      btn('보이는 줄 선택', '지금 보이는 줄을 모두 고른다 — 다 골라져 있으면 푼다', () => {
+        const all = visible.length && visible.every((r) => sel.has(r));
+        for (const r of visible) { if (all) sel.delete(r); else sel.add(r); }
+        paint();
+      }),
+    );
+  }
+  if (pasteBtn && !opts.pasteInTitle) bar.push(pasteBtn);
+
+  const add = el('button', { type: 'button', class: 'btn btn-sm btn-secondary', onclick: () => {
+    addRows([blank()]);
+    // 새 줄은 비어 있어 검색에 걸리지 않는다 — 걸러낸 채로 두면 더한 줄이 안 보인다.
+    if (search && q()) { state.q[stateKey] = ''; search.value = ''; }
+    changed();
   } }, [sec.addLabel || '+ 추가']);
 
-  const kids = [sect(sec.label, sec.desc, [list, el('div', { class: 'row-add' }, [add])],
-    tag(`${hits.length}${sec.unit || '건'}`))];
-  if (sec.after) kids.push(...[].concat(sec.after(state.draft)).filter(Boolean));
-  return withPreview(kids, sec.preview);
+  section = sect(opts.title || sec.title || sec.label, opts.desc ?? sec.desc, [
+    top,
+    bar.length ? el('div', { class: 'rows-bar' }, bar) : null,
+    sec.selectable ? fill : null,
+    sec.paste ? paste : null,
+    list,
+    el('div', { class: 'row-add' }, [add]),
+  ], [count, opts.pasteInTitle ? pasteBtn : null]);
+  if (top) {
+    paintTop();
+    section.addEventListener('input', paintTop);
+    section.addEventListener('change', paintTop);
+  }
+  paint();
+  return section;
+}
+
+/** 목록 탭 — 줄 단위 편집 섹션 + 딸린 섹션(after) + 오른쪽 앱 미리보기. */
+function renderRows(sec) {
+  const main = rowsSection(sec);
+  if (!sec.after) return withPreview([main], sec.preview);
+  // 딸린 섹션은 줄의 값으로 계산한다(입장 조 ↔ 예매 안내) — 줄이 바뀌면 다시 세운다.
+  const build = () => [].concat(sec.after(state.draft)).filter(Boolean);
+  let after = build();
+  main.addEventListener('change', () => {
+    const next = build();
+    for (const n of after) n.remove();
+    main.after(...next);
+    after = next;
+  });
+  return withPreview([main, ...after], sec.preview);
+}
+
+/* 꼬리표 — 12 Bold · 반경 6 · 제 색 14% 면(`.game-chip`). 게임은 게임 색 + 앱의 짧은 이름(GameData.shortName). */
+const CHIP_GRAY = '#6C727A';
+const CHIP_ACCENT = '#177881';
+const chip = (text, color, cls = '') => el('span', { class: 'game-chip' + (cls ? ' ' + cls : ''), style: `--c:${color}`, text });
+const gameShort = (name) => { const g = GAME_CATALOG.find((x) => x.name === name); return g ? (g.short || g.name) : String(name ?? ''); };
+/** 게임 꼬리표. 게임이 비면 [none] 을 회색으로 단다(「공통」 · 「전 IP」). */
+function gameChip(game, none = '공통', cls = '') {
+  const name = String(game ?? '').trim();
+  return name ? chip(gameShort(name), gameColorOf({ game: name }), cls) : chip(none, CHIP_GRAY, cls);
+}
+/** 부스 줄 앞 꼬리표 — 게임 > 파트너사(게임 없이 구분이 「파트너사」로 시작) > 공통. */
+const isPartnerBooth = (b) => !String(b?.game ?? '').trim() && String(b?.location ?? '').trim().startsWith('파트너사');
+function boothChip(b) {
+  return isPartnerBooth(b) ? chip('파트너사', CHIP_ACCENT) : gameChip(b.game);
 }
 
 /** 게임 색 — 줄의 색(앱에 없는 게임) > 카탈로그 색 > 회색. */
@@ -2931,7 +3148,7 @@ function perkGame(r) {
 }
 function perkChip(r) {
   const g = perkGame(r);
-  return g ? el('span', { class: 'game-chip', style: `--c:${argbToHex(g.argb)}`, text: g.abbr }) : el('span', { class: 'game-chip', style: '--c:#6C727A', text: '공통' });
+  return gameChip(g ? g.name : '');
 }
 
 /* ── 앱 미리보기 — 앱 화면을 줄인 그림. 앱 코드의 배치 · 문구 규칙을 따른다(HoyolandSection.kt). ── */
@@ -3380,102 +3597,297 @@ function moveTo(arr, from, to) {
   render();
 }
 
+/* ═════════════════════════════════════════════════════════════
+ * 「현장」 5탭(시안 「현장 개편」 · 10/7 확정) — 무대 시간표 · 굿즈샵 · 푸드존 · 부스 체험 · DIY
+ *
+ * 표를 걷고 줄 단위 편집([rowsSection])으로 옮겼다. 오른쪽 「앱에서 보이는 모습」은 앱 화면을 줄인 그림이다 —
+ * 앞의 두세 줄만 그린다. 부스 체험 · DIY 는 섹션 정의만으로 선다(`type: 'rows'`).
+ * ═════════════════════════════════════════════════════════════ */
+
+const won = (n) => `${(Number(n) || 0).toLocaleString('ko-KR')}원`;
+const trimmed = (v) => String(v ?? '').trim();
+
 /** 푸드존 — 음식 한 줄씩. 줄은 문서에서 풀어낸 것이다([foodRowsOf]). 새 줄은 바로 위 줄의 게임 · 가게를 물려받는다. */
 function renderFood(sec) {
   const rows = foodRowsOf(state.d);
-  return renderList(sec, {
+  return withPreview([rowsSection(sec, {
     rows, columns: sec.itemColumns,
     blank: () => {
       const last = rows[rows.length - 1] || {};
       return { game: last.game || '', shop: last.shop || '', image: '', name: '', desc: '', price: 0, ...(last.kind ? { kind: last.kind } : {}) };
     },
-  });
+  })], sec.preview);
 }
 
-function renderGoods(sec) {
-  const rows = get(state.draft, sec.path);
+/** 굿즈 지표 — 총 상품 · 평균가 · 가격 미정. 객체 하나를 담는 타일이라 테두리를 둔다(시안). */
+function goodsStats(rows) {
   const sum = rows.reduce((a, g) => a + (Number(g.price) || 0), 0);
-  const tiles = el('div', { class: 'tiles', style: 'margin-top:14px;margin-bottom:0' }, [
-    tile('총 상품', rows.length + '개'),
-    tile('평균가', (rows.length ? Math.round(sum / rows.length) : 0).toLocaleString('ko-KR') + '원'),
-    tile('가격 미정', rows.filter((g) => !Number(g.price)).length + '개', '', rows.some((g) => !Number(g.price)) ? 'warn' : ''),
+  const open = rows.filter((g) => !Number(g.price)).length;
+  const t = (k, v, cls = '') => el('div', { class: 'stat-tile' + (cls ? ' ' + cls : '') }, [el('div', { class: 'k', text: k }), el('div', { class: 'v', text: v })]);
+  return el('div', { class: 'stat-tiles' }, [
+    t('총 상품', `${rows.length}개`),
+    t('평균가', won(rows.length ? Math.round(sum / rows.length) : 0)),
+    t('가격 미정', `${open}개`, open ? 'warn' : ''),
   ]);
-
-  // 비고는 앱이 쪼개서 배지로 뺀다 — 적은 대로 보이지 않으니 갈린 결과를 옆에 세운다.
-  // 타이핑할 때마다 표 전체를 다시 그리면 입력 포커스가 날아가므로 이 상자만 갈아 끼운다.
-  const preview = el('div');
-  const paint = () => {
-    const noted = rows.filter((g) => String(g.note ?? '').trim());
-    preview.replaceChildren(...(noted.length ? [el('div', { class: 'note-preview' }, [
-      el('div', { class: 'k', text: '비고가 앱에서 이렇게 갈립니다' }),
-      ...noted.map((g) => {
-        const n = goodsNote(g.note);
-        return el('div', { class: 'np-row' }, [
-          el('strong', { text: g.name || '(이름 없음)' }),
-          n.series ? el('span', { class: 'pill ok', text: n.series }) : null,
-          n.limit ? el('span', {
-            class: 'pill ' + (n.limitCount ? 'warn' : 'err'),
-            text: n.limit + (n.limitCount ? ` · 담기 최대 ${n.limitCount}개` : ' · 수량 못 읽음'),
-          }) : null,
-          n.rest ? el('span', { class: 'muted', text: n.rest }) : null,
-        ]);
-      }),
-    ])] : []));
-  };
-  paint();
-
-  const node = renderList(sec, { summary: el('div', {}, [tiles, preview]) });
-  node.addEventListener('input', paint);    // 입력 칸의 onInput 이 먼저 row 를 고친 뒤 여기로 올라온다
-  node.addEventListener('change', paint);
-  // 맨 위 섹션 — 굿즈존 안내(10/6, 「기본 정보」에서 옮김). 왼쪽 글 · 오른쪽 앱 시트 미리보기.
-  const guide = sect('굿즈존 안내', '앱 굿즈 목록 맨 위에 서는 안내입니다. 비우면 안내가 뜨지 않습니다.', [
-    el('div', { class: 'grid', style: 'grid-template-columns:repeat(2,minmax(0,1fr));align-items:start' }, fieldCells(GOODS_GUIDE_FIELD, state.draft)),
-  ]);
-  return el('div', {}, [guide, node]);
 }
 
+/** 비고 칸 아래 — 앱에서 꼬리표로 갈린 결과. 비고가 비면 세우지 않는다. */
+function goodsNoteLine(g) {
+  if (!trimmed(g.note)) return null;
+  const n = goodsNote(g.note);
+  return [
+    el('span', { text: '앱에서' }),
+    n.series ? tag(n.series, 'ok') : null,
+    n.limit ? tag(n.limit + (n.limitCount ? ` · 담기 최대 ${n.limitCount}개` : ' · 수량 못 읽음'), n.limitCount ? 'warn' : 'err') : null,
+    n.rest ? el('span', { text: n.rest }) : null,
+  ].filter(Boolean);
+}
+
+/** 굿즈샵 — 맨 위 「굿즈존 안내」(문서 맨 위 칸 goodsGuide), 그 아래 굿즈 줄. */
+function renderGoods(sec) {
+  const guide = sect('굿즈존 안내', '앱 굿즈 목록 맨 위에 서는 안내입니다. 비우면 안내가 뜨지 않습니다. 줄 규칙: 「· 항목 — 값」, 들여쓴 줄은 위 항목의 부연.', [
+    el('div', { class: 'grid', style: 'grid-template-columns:minmax(0,1fr)' }, fieldCells(GOODS_GUIDE_FIELD, state.draft)),
+  ]);
+  return withPreview([guide, rowsSection(sec)], sec.preview);
+}
+
+/**
+ * 슬롯 줄 — 6칸 격자: 시작 1 · 길이 1 · 게임 2 / 제목 3 · 출연 3 / 설명. 게임을 비우면 전 IP 합동 무대다.
+ * 앞의 두 칸은 128 아래로 줄지 않는다 — 타임 피커 · 숫자 스테퍼는 글 칸보다 넓어, 좁은 화면에서 시각과 숫자가 잘린다.
+ */
+const SLOT_SEC = {
+  id: 'slots', unit: '슬롯', addLabel: '+ 슬롯 추가', paste: true,
+  rowCols: 'repeat(2,minmax(128px,1fr)) repeat(4,minmax(0,1fr))', rowKeys: ['time', 'minutes', 'game', 'title', 'cast', 'desc'],
+  rowSpan: { game: 2, title: 3, cast: 3, desc: 'all' },
+  lead: (r) => gameChip(r.game, '전 IP'),
+  columns: SLOT_COLS,
+};
+
+const dayParts = (ymd) => {
+  if (!isRealYmd(ymd)) return null;
+  const [, m, d] = ymd.split('-').map(Number);
+  return { m, d, w: WEEK[new Date(ymd + 'T00:00:00Z').getUTCDay()] };
+};
+
+/**
+ * 무대 시간표 — 「일자」(날짜 탭 · 고른 날짜 · 날짜 더하기 · 비우기) 아래에 **고른 날짜의** 슬롯 줄이 선다.
+ * 예전엔 날짜마다 표를 통째로 쌓았다. 고른 날짜는 이 창 동안만 기억한다(회차마다 따로).
+ */
 function renderDays(sec) {
   const days = get(state.draft, sec.path);
-  const kids = [el('div', { class: 'section-head' }, [
-    el('span', { class: 'muted', text: `${days.length}일 · 슬롯 ${days.reduce((a, d) => a + d.slots.length, 0)}건` }),
-    el('div', { class: 'tools' }, [
-      el('button', { class: 'btn btn-sm', onclick: fillDaysFromRange }, ['행사 기간으로 날짜 채우기']),
-      el('button', { class: 'btn btn-sm', onclick: () => { days.push({ ymd: '', slots: [] }); markDirty(); render(); } }, ['+ 날짜 추가']),
-      el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
-        const ok = await glConfirm(`${days.length}일 · 슬롯 ${days.reduce((a, d) => a + d.slots.length, 0)}건을 전부 지웁니다.`, {
-          title: '무대 시간표 비우기', ok: '비우기', danger: true,
-          note: '빈 배열도 유효한 값이라 앱에서 시간표가 통째로 사라집니다.',
-        });
-        if (ok) { days.length = 0; markDirty(); render(); }
-      } }, ['전체 비우기']),
-    ]),
-  ])];
-  if (!days.length) kids.push(el('div', { class: 'row-empty', text: '시간표가 비어 있습니다 — 앱은 날짜 탭만 세우고 “공개 전”으로 표시합니다.' }));
+  state.day ||= {};
+  const key = state.res.id;
+  const at = Math.min(Math.max(state.day[key] || 0, 0), Math.max(days.length - 1, 0));
+  const day = days[at];
+  const pick = (i) => { state.day[key] = i; render(); };
+  const slotCount = () => days.reduce((a, d) => a + d.slots.length, 0);
+  const title = () => { const p = day && dayParts(day.ymd); return p ? `${p.m}월 ${p.d}일 (${p.w})` : `Day ${at + 1}`; };
 
-  days.forEach((day, i) => {
-    kids.push(el('div', { class: 'day-block' }, [
-      el('div', { class: 'day-head' }, [
-        el('strong', { text: `Day ${i + 1}` }),
-        inputFor({ type: 'date' }, day.ymd, (v) => { day.ymd = v; }),
-        el('span', { class: 'pill' + (day.slots.length ? ' ok' : ''), text: `${day.slots.length}슬롯` }),
-        el('div', { class: 'tools' }, [
-          glDragHandle({
-            group: 'days', index: i, items: () => kids.filter((n) => n.classList.contains('day-block')),
-            disabled: days.length < 2, onMove: (from, to) => moveTo(days, from, to),
-          }),
-          el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
-            const ok = await glConfirm(`${day.ymd || 'Day ' + (i + 1)} 을 삭제합니다.`, {
-              title: '날짜 삭제', ok: '삭제', danger: true,
-              note: day.slots.length ? `이 날의 슬롯 ${day.slots.length}건도 같이 사라집니다.` : '',
-            });
-            if (ok) { days.splice(i, 1); markDirty(); render(); }
-          } }, ['✕']),
-        ]),
-      ]),
-      el('div', { class: 'day-body' }, [renderList({ warnEmpty: null }, { path: `${sec.path}.${i}.slots`, columns: SLOT_COLS, bare: true })]),
-    ]));
+  const count = tag('');
+  const tabs = el('div', { class: 'gl-tabs day-tabs', role: 'tablist', 'aria-label': '일자' });
+  const paintHead = () => {
+    count.textContent = `${days.length}일 · ${slotCount()}슬롯`;
+    tabs.replaceChildren(...days.map((d, i) => {
+      const p = dayParts(d.ymd);
+      return el('button', {
+        type: 'button', role: 'tab', class: 'gl-tab' + (i === at ? ' on' : ''), 'aria-selected': String(i === at),
+        onclick: () => { if (i !== at) pick(i); },
+      }, [p ? `${p.m}.${p.d} (${p.w})` : `Day ${i + 1}`, el('small', { text: `${d.slots.length}슬롯` })]);
+    }));
+  };
+  paintHead();
+
+  const ctl = el('div', { class: 'day-ctl' }, [
+    day ? el('div', { class: 'field' }, [el('label', { text: '고른 날짜' }), inputFor({ type: 'date' }, day.ymd, (v) => { day.ymd = v; })]) : null,
+    day ? el('button', { type: 'button', class: 'btn', onclick: async () => {
+      const ok = await glConfirm(`${day.ymd || 'Day ' + (at + 1)} 을 삭제합니다.`, {
+        title: '날짜 삭제', ok: '삭제', danger: true,
+        note: day.slots.length ? `이 날의 슬롯 ${day.slots.length}건도 같이 사라집니다.` : '',
+      });
+      if (ok) { days.splice(at, 1); markDirty(); render(); }
+    } }, ['이 날짜 지우기']) : null,
+    el('span', { class: 'grow' }),
+    el('button', { type: 'button', class: 'btn', onclick: fillDaysFromRange }, ['행사 기간으로 날짜 채우기']),
+    el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => { days.push({ ymd: '', slots: [] }); markDirty(); pick(days.length - 1); } }, ['+ 날짜 추가']),
+    el('button', { type: 'button', class: 'btn btn-danger', onclick: async () => {
+      const ok = await glConfirm(`${days.length}일 · 슬롯 ${slotCount()}건을 전부 지웁니다.`, {
+        title: '무대 시간표 비우기', ok: '비우기', danger: true,
+        note: '빈 배열도 유효한 값이라 앱에서 시간표가 통째로 사라집니다.',
+      });
+      if (ok) { days.length = 0; markDirty(); render(); }
+    } }, ['전체 비우기']),
+  ]);
+
+  const head = sect('일자', '날짜 탭을 눌러 그날의 편성을 고칩니다. 빈 날짜는 앱에서 날짜 탭만 서고 「공개 전」으로 보입니다.', [
+    days.length ? tabs : el('div', { class: 'row-empty', text: '시간표가 비어 있습니다 — 앱은 날짜 탭만 세우고 “공개 전”으로 표시합니다.' }),
+    ctl,
+  ], count);
+  const slots = day ? rowsSection(SLOT_SEC, {
+    rows: day.slots, stateKey: `${key}#days.${at}`, title: title(), pasteInTitle: true,
+    desc: '시작은 시작 시각만 적습니다 — 앱이 길이(분)로 끝 시각을 계산합니다. 게임을 비우면 전 IP 합동 무대입니다.',
+  }) : null;
+
+  const root = withPreview([head, slots].filter(Boolean), (d) => daysPreview(d, at));
+  // 날짜를 고치거나 슬롯이 늘고 줄면 탭 글자 · 건수 · 아래 섹션 제목이 따라온다.
+  root.addEventListener('change', () => {
+    paintHead();
+    if (slots) slots.querySelector('h2').textContent = title();
   });
-  return card(sec, kids);
+  return root;
+}
+
+/* ── 앱 미리보기 — 「현장」 ── */
+
+/** 앱의 글 규칙(HoyolandRichText)대로 줄인 글 — 목록 줄은 점, 들여쓴 줄은 한 단 안으로, 빈 줄은 문단 사이. */
+function apRich(text, cls = '') {
+  const lines = String(text ?? '').replace(/\s+$/, '').split('\n');
+  return el('div', { class: 'ap-rich' + (cls ? ' ' + cls : '') }, lines.map((raw) => {
+    const body = raw.trim();
+    if (!body) return el('div', { class: 'gap' });
+    const depth = glDepth(/^[ \t]*/.exec(raw)[0]);
+    const m = new RegExp(`^[·${GL_BULLET_ANY}] (.*)$`).exec(body);
+    return el('div', { class: m ? 'li' : '', style: depth ? `padding-left:${depth * 12}px` : '', text: m ? m[1] : body });
+  }));
+}
+const firstPara = (text) => String(text ?? '').split(/\n[ \t]*\n/)[0];
+/** 받는 것 — 선물 아이콘 + 글(옅은 노란 면). 색이 뜻을 싣는 면이라 남긴다. */
+const apReward = (text) => el('div', { class: 'ap-reward' }, [navIcon('perks'), apRich(text)]);
+/** 미리보기 머리 — 제목(17 Bold) 앞에 게임 꼬리표, 오른쪽 끝에 건수. */
+const apHead = (title, right = null, lead = null) => el('div', { class: 'ap-row' }, [lead, el('div', { class: 'ap-title', style: 'flex:1', text: title }), right]);
+
+function daysPreview(d, at) {
+  const day = d.days[at] || d.days[0];
+  if (!day) return [apTitle('일자별 시간표'), el('div', { class: 'ap-sub', text: '시간표가 비어 있습니다 — 앱은 날짜 탭만 세우고 “공개 전”으로 표시합니다.' })];
+  return [
+    apTitle('일자별 시간표'),
+    el('div', { class: 'ap-days' }, d.days.map((x, i) => {
+      const p = dayParts(x.ymd);
+      return el('div', { class: 'ap-day' + (x === day ? ' on' : '') }, [p ? `${p.m}.${p.d}` : `Day ${i + 1}`, el('div', { text: p ? `${p.w}요일` : '' })]);
+    })),
+    ...day.slots.slice(0, 3).flatMap((s, i) => {
+      const color = trimmed(s.game) ? gameColorOf({ game: trimmed(s.game) }) : CHIP_GRAY;
+      return [
+        i ? el('div', { class: 'ap-hair' }) : null,
+        el('div', { class: 'ap-slot' }, [
+          el('div', { class: 'ap-slot-t' }, [
+            el('strong', { text: s.time || '—' }),
+            Number(s.minutes) > 0 ? el('div', { text: `${Number(s.minutes)}분` }) : null,
+            gameChip(s.game, '전 IP', 'sm'),
+          ]),
+          el('div', { class: 'ap-slot-bar' }),
+          el('div', { class: 'ap-slot-b' }, [
+            el('strong', { text: s.title || '제목' }),
+            trimmed(s.desc) ? apRich(s.desc) : null,
+            trimmed(s.cast) ? el('div', { class: 'ap-cast', style: `--c:${color}`, text: `출연 · ${trimmed(s.cast)}` }) : null,
+          ]),
+        ]),
+      ];
+    }),
+    day.slots.length ? null : el('div', { class: 'ap-sub', text: '공개 전' }),
+    apNote('고른 날짜의 세 줄만 그렸습니다. 길이는 시각 아래에 서고, 설명의 목록 줄은 점으로 보입니다.'),
+  ];
+}
+
+function goodsPreview(d) {
+  const list = d.goods;
+  if (!list.length) return [apHead('굿즈 목록'), el('div', { class: 'ap-sub', text: '비어 있습니다.' })];
+  const prices = list.map((g) => Number(g.price) || 0).filter((p) => p > 0);
+  const [lo, hi] = [Math.min(...prices), Math.max(...prices)];
+  return [
+    apHead('굿즈 목록', tag(`${list.length}종`)),
+    prices.length ? el('div', { class: 'ap-range', text: lo === hi ? won(lo) : `${won(lo)} ~ ${won(hi)}` }) : null,
+    ...list.slice(0, 3).flatMap((g, i) => {
+      const n = goodsNote(g.note);
+      return [
+        i ? el('div', { class: 'ap-hair' }) : null,
+        el('div', { class: 'ap-goods' }, [
+          el('span', { class: 'ap-thumb' }),
+          el('div', { class: 'ap-goods-b' }, [
+            el('div', { class: 'ap-name', text: g.name || '상품명' }),
+            el('div', { class: 'ap-val', text: Number(g.price) ? won(g.price) : '가격 미정' }),
+            n.rest ? el('div', { class: 'ap-sub', text: n.rest }) : null,
+            n.series || n.limit ? el('div', { class: 'ap-tags' }, [n.series ? tag(n.series, 'ok') : null, n.limit ? tag(n.limit, 'hot') : null]) : null,
+          ]),
+          el('span', { class: 'ap-add', text: '담기' }),
+        ]),
+      ];
+    }),
+    apNote('앞의 세 줄만 그렸습니다. 비고는 「…시리즈」 · 「1인 N개 한정」 조각만 꼬리표가 되고 나머지는 글로 남습니다.'),
+  ];
+}
+
+/** 푸드존 — 맨 앞 게임의 세 줄. 탭이 들고 있는 줄([foodRowsOf])을 그린다 — 적다 만 줄도 바로 보인다. */
+function foodPreview() {
+  const rows = foodRowsOf(state.d).filter((r) => trimmed(r.name) || trimmed(r.desc));
+  if (!rows.length) return [apHead('푸드존'), el('div', { class: 'ap-sub', text: '비어 있습니다.' })];
+  const game = trimmed(rows[0].game);
+  const mine = rows.filter((r) => trimmed(r.game) === game);
+  const color = game ? gameColorOf({ game }) : CHIP_GRAY;
+  const out = [apHead('푸드존', tag(`${mine.filter((r) => trimmed(r.name)).length}종`), game ? gameChip(game, '', 'sm') : null)];
+  let shop = null;
+  for (const r of mine.slice(0, 3)) {
+    if (trimmed(r.shop) !== shop) {
+      shop = trimmed(r.shop);
+      if (shop) out.push(el('div', { class: 'ap-shop', style: `--c:${color}`, text: shop }));
+    }
+    if (!trimmed(r.name)) { out.push(apRich(r.desc)); continue; }
+    out.push(el('div', { class: 'ap-hair' }), el('div', { class: 'ap-goods' }, [
+      el('span', { class: 'ap-thumb lg' }),
+      el('div', { class: 'ap-goods-b' }, [
+        el('div', { class: 'ap-menu', style: `--c:${color}` }, [
+          el('span', { text: r.name }),
+          el('span', { text: Number(r.price) > 0 ? won(r.price) : trimmed(r.priceText) }),
+        ]),
+        trimmed(r.desc) ? apRich(r.desc, 'dim') : null,
+      ]),
+    ]));
+  }
+  out.push(apNote('한 게임의 세 줄만 그렸습니다. 가게 이름은 색 막대와 함께 굵게, 안내 문구는 메뉴 아래 문단으로 섭니다.'));
+  return out;
+}
+
+function boothsPreview(d) {
+  const list = d.booths.filter((b) => !isDiyBooth(b));
+  if (!list.length) return [apHead('부스'), el('div', { class: 'ap-sub', text: '비어 있습니다.' })];
+  return [
+    apHead('부스', tag(`${list.length}곳`)),
+    ...list.slice(0, 2).flatMap((b, i) => [
+      i ? el('div', { class: 'ap-hair' }) : null,
+      el('div', { class: 'ap-booth' }, [
+        el('div', { class: 'ap-row' }, [
+          trimmed(b.game) ? gameChip(b.game, '', 'sm') : null,
+          el('strong', { class: 'ap-booth-t', text: b.title || '부스명' }),
+          Number(b.price) > 0 ? tag(won(b.price), 'hot') : tag('무료', 'ok'),
+        ]),
+        trimmed(b.reward) ? apReward(b.reward) : null,
+        trimmed(b.desc) ? apRich(b.desc, 'lg') : null,
+      ]),
+    ]),
+    apNote('앞의 두 줄만 그렸습니다. 참가비 0 은 「무료」, 숫자가 있으면 금액 꼬리표가 됩니다. 파트너사 줄은 앱의 파트너사 탭에 따로 섭니다.'),
+  ];
+}
+
+/** DIY — 앱 부스 페이지의 「DIY」 탭. 참가비 0 인 첫 줄이 이용 안내, 참가비가 있는 첫 줄이 만들기 한 건이다. */
+function diyPreview(d) {
+  const list = d.booths.filter(isDiyBooth);
+  const games = [...new Set(d.booths.map((b) => trimmed(b.game)).filter(Boolean))].map(gameShort);
+  const tabs = ['전체', ...games, d.booths.some(isPartnerBooth) ? '파트너사' : null].filter(Boolean);
+  const guide = list.find((b) => !(Number(b.price) > 0));
+  const make = list.find((b) => Number(b.price) > 0);
+  return [
+    apTitle('부스'),
+    el('div', { class: 'ap-tabs' }, [...tabs.map((t) => el('span', { class: 'ap-tab', text: t })), el('span', { class: 'ap-tab on', text: 'DIY' })]),
+    list.length ? null : el('div', { class: 'ap-sub', text: '비어 있습니다.' }),
+    guide && trimmed(guide.desc) ? apRich(firstPara(guide.desc), 'xl') : null,
+    guide && trimmed(guide.reward) ? apReward(guide.reward) : null,
+    guide && make ? el('div', { class: 'ap-hair' }) : null,
+    make ? el('div', { class: 'ap-booth' }, [
+      el('div', { class: 'ap-row' }, [el('strong', { class: 'ap-booth-t', text: make.title || '이름' }), el('strong', { class: 'ap-booth-p', text: won(make.price) })]),
+      trimmed(make.desc) ? apRich(firstPara(make.desc), 'xl') : null,
+      trimmed(make.reward) ? apReward(make.reward) : null,
+    ]) : null,
+    apNote('앱 부스 페이지의 「DIY」 탭입니다. 이용 안내와 만들기 한 건만 그렸습니다(글은 첫 문단만).'),
+  ];
 }
 
 function fillDaysFromRange() {
@@ -5447,6 +5859,7 @@ const NAV_ICONS = {
   up: 'M6 15l6-6 6 6',
   down: 'M6 9l6 6 6-6',
   x: 'M6 6l12 12M18 6L6 18',
+  search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-3.6-3.6',
 };
 function navIcon(id) {
   const ns = 'http://www.w3.org/2000/svg';
@@ -5862,6 +6275,47 @@ function selftest() {
     // 메뉴 묶음이 없는 탭을 가리키면 어드민이 통째로 빈 화면이 된다(10/6, 「프로그램」 탭을 걷고 겪었다).
     assert(HOYOLAND.sections.every(Boolean), '메뉴 묶음에 없는 탭이 있다');
     assert(menu === '기본 정보 / 예매 / 입장 특전 / 입장 조 / 참여 게임 / 지난 행사 / 무대 시간표 / 굿즈샵 / 푸드존 / 부스 체험 / DIY', '메뉴가 다르다: ' + menu);
+  });
+
+  check('「현장」 5탭이 줄 단위 편집으로 선다 — 줄 수 · 앞 꼬리표 · 미리보기', () => {
+    const d = docs.hoyoland;
+    const keep = [state.resource, d.draft, d.food];
+    state.resource = 'hoyoland';
+    d.food = null;
+    d.draft = HOYOLAND.normalize({
+      days: [{ ymd: '2026-10-02', slots: [{ time: '10:00', title: '개장' }, { time: '12:30', title: '퀴즈쇼', game: '붕괴: 스타레일', minutes: 60, desc: '· 목록 줄' }] },
+        { ymd: '2026-10-03', slots: [] }],
+      goods: [{ name: '아크릴', game: '원신', price: 24000, note: '호요랜드2026 시리즈 · 1인 5개 한정' }, { name: '블록', price: 0 }],
+      programs: [{ title: '푸드존 — 원신', desc: '가게\n· 만두 — 7,000원\n   든든한 한 끼\n\n세트로 사면 12,000원' }],
+      booths: [{ title: '사격', game: '원신', price: 2000 }, { title: '구글 플레이', game: '', location: '파트너사 · 8홀' },
+        { title: 'DIY존 이용 안내', game: '', location: 'DIY존', price: 0 }, { title: '에코백 만들기', game: '', location: 'DIY존', price: 10000 }],
+    });
+    try {
+      const sec = (id) => HOYOLAND.sections.find((x) => x.id === id);
+      const draw = (id) => RENDERERS[sec(id).type](sec(id));
+      const leads = (n) => [...n.querySelectorAll('.row-lead')].map((x) => x.textContent).join();
+      const days = draw('days');
+      assert(days.querySelectorAll('.day-tabs .gl-tab').length === 2, '날짜 탭 수가 틀렸다');
+      assert(days.querySelectorAll('.row-item').length === 2, '고른 날짜의 슬롯만 서지 않았다');
+      assert(leads(days) === '전 IP,스타레일', '슬롯 앞 꼬리표가 틀렸다: ' + leads(days));
+      assert(days.querySelector('.md-hint'), '설명 칸 아래 글 칸 안내가 없다');
+      assert(days.querySelector('.app-preview .ap-rich .li'), '미리보기가 목록 줄을 점으로 그리지 않았다');
+      const goods = draw('goods');
+      assert(goods.querySelectorAll('.row-item').length === 2 && goods.querySelectorAll('.row-sel').length === 2, '굿즈 줄 · 고르기 칸이 틀렸다');
+      assert(goods.querySelectorAll('.stat-tile').length === 3, '굿즈 지표가 셋이 아니다');
+      assert([...goods.querySelectorAll('.field-under')].filter((x) => !x.hidden).length === 1, '비고가 있는 줄에만 「앱에서」 줄이 서지 않았다');
+      const food = draw('food');
+      assert(leads(food) === '원신,안내', '푸드존 앞 꼬리표가 틀렸다: ' + leads(food));
+      assert(food.querySelector('.app-preview .ap-shop').textContent === '가게', '푸드존 미리보기에 가게 이름이 없다');
+      const booths = draw('booths');
+      assert(leads(booths) === '원신,파트너사', '부스 앞 꼬리표가 틀렸다: ' + leads(booths));
+      const diy = draw('diy');
+      assert(leads(diy) === '이용 안내,만들기', 'DIY 앞 꼬리표가 틀렸다: ' + leads(diy));
+      assert(!diy.querySelector('.rows-bar'), 'DIY 에 도구 줄이 섰다');
+    } finally {
+      [state.resource, d.draft] = keep;
+      d.food = keep[2];
+    }
   });
 
   check('통째로 들고 나는 행은 열 이름을 붙여 읽힌다', () => {
@@ -6548,39 +7002,6 @@ function selftest() {
     assert(g[0].rows[0].label === '주문' && g[0].rows[0].value === '입장 팔찌 QR', '“ — ” 로 이름·값이 갈리지 않았다');
     assert(g[0].rows[1].subs.length === 1, '들여쓴 줄이 위 줄의 부연으로 붙지 않았다');
     assert(g[1].rows[0].label === '제한 없음' && g[1].rows[0].value === '', '“ — ” 없는 줄은 이름만 남아야 한다');
-  });
-
-  check('안내 도구가 커서 놓인 줄을 기준으로 끼워 넣는다', () => {
-    const ta = el('textarea');
-    document.body.append(ta);
-    const [group, item, sub, dash] = [...guideTools(ta).querySelectorAll('button')];
-    const sel = () => ta.value.slice(ta.selectionStart, ta.selectionEnd);
-
-    // 빈 줄에서는 그 자리에 선다 — 앞에 빈 줄을 하나 더 만들지 않는다.
-    ta.value = ''; ta.setSelectionRange(0, 0);
-    item.click();
-    assert(ta.value === '· 이름 — 값', '빈 칸에서 줄이 잘못 났다: ' + JSON.stringify(ta.value));
-    assert(sel() === '이름', '채울 자리가 선택되지 않았다: ' + sel());
-
-    // 쓰던 줄 아래로 새 줄을 연다.
-    ta.setSelectionRange(3, 3);
-    sub.click();
-    assert(ta.value === '· 이름 — 값\n   부연', '부연 줄이 잘못 붙었다: ' + JSON.stringify(ta.value));
-    assert(sel() === '부연', '부연 자리가 선택되지 않았다');
-
-    // 묶음은 빈 줄로 갈린다.
-    group.click();
-    assert(ta.value.endsWith('\n\n묶음 제목'), '묶음 앞 빈 줄이 없다: ' + JSON.stringify(ta.value));
-
-    // 줄표는 **커서 자리에 그대로** 들어간다 — 양옆 공백을 알아서 먹지 않는다(예측 가능한 쪽).
-    ta.value = '· 이름값'; ta.setSelectionRange(4, 4);
-    dash.click();
-    assert(ta.value === '· 이름 — 값', '줄표가 커서 자리에 들어가지 않았다: ' + JSON.stringify(ta.value));
-
-    // 도구가 만든 꼴을 파서가 그대로 읽는다 — 셋(어드민 도구 · 파서 · 앱)이 한 규칙이어야 한다.
-    const g = parseGuide('묶음 제목\n· 이름 — 값\n   부연');
-    assert(g.length === 1 && g[0].rows[0].value === '값' && g[0].rows[0].subs[0] === '부연', '도구가 만든 글을 파서가 달리 읽는다');
-    ta.remove();
   });
 
   check('안내 미리보기가 빈 글을 빈 카드로 알린다', () => {
