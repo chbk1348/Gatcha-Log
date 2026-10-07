@@ -208,6 +208,13 @@ struct ContentView: View {
         }
         // 실행 시 원격 매니페스트로 강제 업데이트 여부 확인(구버전이면 store.forceUpdate=true).
         .task { store.checkForUpdate(manual: false) }
+        #if DEBUG
+        // 개발자 전용 — 실행하자마자 API Ping 을 N 회 잰다(실행 인자 `-glPing 3`). 결과는 콘솔 `GatchaPing` 과 기기 기록에 남는다.
+        .task {
+            let runs = UserDefaults.standard.integer(forKey: "glPing")
+            if runs > 0 { store.debugPingRepeat(runs) }
+        }
+        #endif
         // 현재 탭 인덱스를 Kotlin 과 동기화 — 토스트를 보이는 탭에서만 컴포즈하기 위함
         // (탭 4(추가 버튼)는 실제 탭이 아니므로 제외)
         // iOS 16 호환을 위해 1-파라미터 onChange 사용 (2-파라미터 버전은 iOS 17+)

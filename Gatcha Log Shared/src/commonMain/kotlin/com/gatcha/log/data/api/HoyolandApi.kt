@@ -210,7 +210,8 @@ object HoyolandApi {
         // 지난 행사는 따로 둔 문서에서 온다([loadPast]) — 회차 문서와 나란히 받아 기다리는 시간을 늘리지 않는다.
         val (body, past) = coroutineScope {
             val pastJob = async { loadPast() }
-            (fetchLive()?.takeIf { parseOrNull(it) != null } ?: fetchRaw()) to pastJob.await()
+            // 라이브가 늦으면 정본을 같이 받는다([LiveConfig.getOrRaw]) — 예전엔 라이브 상한 4초를 다 쓴 뒤에야 정본이 나갔다.
+            LiveConfig.getOrRaw(CONFIG_DOC, URL) { parseOrNull(it) != null } to pastJob.await()
         }
         val parsed = body?.let(::parseOrNull)?.let { withPast(it, past) }
         if (parsed != null) {
@@ -251,8 +252,7 @@ object HoyolandApi {
 
     /** 라이브 → 정본 → 직전에 받은 값(메모리 · 디스크) 순. 끝내 없으면 null. */
     private suspend fun loadPast(): List<HoyolandPastEvent>? {
-        val body = LiveConfig.get(PAST_DOC)?.takeIf { parsePastDoc(it) != null }
-            ?: Net.get("$PAST_URL?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
+        val body = LiveConfig.getOrRaw(PAST_DOC, PAST_URL) { parsePastDoc(it) != null }
         body?.let(::parsePastDoc)?.let {
             pastList = it
             runCatching { settings.hoyolandPastRaw = body }
@@ -310,8 +310,7 @@ object HoyolandApi {
     /** 보관된 회차 목록을 다시 읽어 돌려준다(실패하면 직전 값). 화면은 이걸 부른 뒤 [archiveKeyOf] 를 다시 본다. */
     suspend fun loadArchiveIndex(): List<String> {
         if (archivedAtMillis != 0L && currentTimeMillis() - archivedAtMillis < ARCHIVE_FRESH_MS) return archivedKeys
-        val body = LiveConfig.get(EDITIONS_DOC)?.takeIf { parseArchiveIndex(it) != null }
-            ?: Net.get("$EDITIONS_URL?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
+        val body = LiveConfig.getOrRaw(EDITIONS_DOC, EDITIONS_URL) { parseArchiveIndex(it) != null }
         body?.let(::parseArchiveIndex)?.let {
             archivedKeys = it
             archivedAtMillis = currentTimeMillis()
@@ -334,8 +333,7 @@ object HoyolandApi {
     suspend fun loadArchive(key: String): HoyolandEvent? {
         if (!ARCHIVE_KEY.matches(key)) return null
         archives[key]?.let { (event, at) -> if (currentTimeMillis() - at < ARCHIVE_DOC_FRESH_MS) return event }
-        val body = LiveConfig.get(editionDoc(key))?.takeIf { parseOrNull(it) != null }
-            ?: Net.get("${editionUrl(key)}?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
+        val body = LiveConfig.getOrRaw(editionDoc(key), editionUrl(key)) { parseOrNull(it) != null }
         // 원격을 못 받았으면 직전에 받은 값 → 앱에 내장한 회차(2025 · 2024) 순으로 내려온다.
         // 내장 회차도 저장소에 같은 문서가 있어(10/6) 어드민에서 고치면 원격 값이 앞선다 — 내장값은 오프라인용이다.
         val parsed = body?.let(::parseOrNull)?.let(::asArchive)
@@ -358,15 +356,9 @@ object HoyolandApi {
         programGameTags = false,
     )
 
-    private suspend fun fetchLive(): String? = LiveConfig.get(CONFIG_DOC)
-
-    /**
-     * `?t=` 로 CDN 캐시를 우회한다 — raw.githubusercontent 는 커밋 뒤에도 몇 분간 옛 내용을
-     * 준다. 정본을 고쳐 커밋했는데 앱이 안 바뀌면 라이브 반영과 구분이 안 된다
-     * ([ZzzBannerApi] 도 같은 이유로 같은 방식을 쓴다).
-     */
-    private suspend fun fetchRaw(): String? =
-        Net.get("$URL?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
+    // 라이브 → 정본 읽기는 [LiveConfig.getOrRaw] 가 맡는다. 정본 주소에는 거기서 `?t=` 를 붙여 CDN 캐시를 우회한다 —
+    // raw.githubusercontent 는 커밋 뒤에도 몇 분간 옛 내용을 준다. 정본을 고쳐 커밋했는데 앱이 안 바뀌면
+    // 라이브 반영과 구분이 안 된다.
 
     /**
      * JSON → 모델. **빠진 키는 전부 번들 기본값으로 메운다** — 원격 파일이 일부만 갱신돼도

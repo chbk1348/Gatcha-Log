@@ -1,5 +1,8 @@
 package com.gatcha.log.data.work
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
@@ -61,12 +64,14 @@ object NotificationChecker {
     private suspend fun fetchLiveNotes(repo: GatchaRepository, cfg: HoyolabConfig): List<LiveNote> {
         if (!cfg.isLinked) return emptyList()
         val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
-        val fresh = mutableListOf<LiveNote>()
-        for (game in GameData.attendanceGames) {
-            val uid = uids[game.key].orEmpty()
-            if (uid.isBlank()) continue
-            val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, game.key, uid).note ?: continue
-            fresh += note
+        // 세 게임을 **동시에** 받는다(27.51.1) — 예전엔 차례로 받아 왕복 셋만큼 걸렸다. 화면 쪽 갱신도 같은 식으로 부른다
+        // (게임마다 한 건씩이라 HoYoLAB 한도와 무관하다). 순서는 게임 순서 그대로다.
+        val fresh = coroutineScope {
+            GameData.attendanceGames.mapNotNull { game ->
+                val uid = uids[game.key].orEmpty()
+                if (uid.isBlank()) null
+                else async { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, game.key, uid).note }
+            }.awaitAll().filterNotNull()
         }
         if (fresh.isNotEmpty()) {
             runCatching { repo.saveLiveNotes(mergeLiveNotes(repo.loadLiveNotes(), fresh)) }
@@ -218,17 +223,20 @@ object NotificationChecker {
 
         // ⑦ 새 게임 공지 — 게임별로 '마지막으로 알린 공지 시각'보다 새 글이 올라왔을 때만.
         if (settings.notifyNews) {
-            GameData.games.filter { it.newsSource != null }.forEach { game ->
+            // 다섯 게임의 공지를 **동시에** 받아 둔다(27.51.1) — 공개 API 라 줄 세울 이유가 없다. 판정은 예전 순서 그대로 한다.
+            val newsGames = GameData.games.filter { it.newsSource != null }
+            val fetched = coroutineScope { newsGames.map { g -> async { NewsApi.notices(g) } }.awaitAll() }
+            newsGames.forEachIndexed { i, game ->
                 // 실패(null)면 조용히 건너뛴다 — 네트워크 오류를 '새 공지 없음'으로 오해하지 않는다.
-                val notices = NewsApi.notices(game) ?: return@forEach
-                val latest = notices.maxByOrNull { it.createdAtMillis } ?: return@forEach
+                val notices = fetched[i] ?: return@forEachIndexed
+                val latest = notices.maxByOrNull { it.createdAtMillis } ?: return@forEachIndexed
                 val tag = "news:${game.key}"
                 val lastSeen = settings.lastNotified(tag).toLongOrNull()
 
                 if (lastSeen == null) {
                     // 최초 1회는 기준선만 잡는다 — 안 그러면 켜자마자 과거 공지로 알림이 쏟아진다.
                     settings.setLastNotified(tag, latest.createdAtMillis.toString())
-                    return@forEach
+                    return@forEachIndexed
                 }
                 if (latest.createdAtMillis > lastSeen) {
                     // **앱을 보고 있으면 아무것도 하지 않는다 — 기준선도 그대로 둔다.**
@@ -244,7 +252,7 @@ object NotificationChecker {
                     //
                     // 이제는 기준선을 그대로 두고 다음 백그라운드 점검에 넘긴다. 대가로 앱에서 이미
                     // 본 공지가 나중에 알림으로 한 번 더 올 수 있는데, 알림이 아예 안 오는 것보다 낫다.
-                    if (AppVisibility.isForeground) return@forEach
+                    if (AppVisibility.isForeground) return@forEachIndexed
                     settings.setLastNotified(tag, latest.createdAtMillis.toString())
                     val newCount = notices.count { it.createdAtMillis > lastSeen }
                     val more = if (newCount > 1) " (+${newCount - 1}건)" else ""

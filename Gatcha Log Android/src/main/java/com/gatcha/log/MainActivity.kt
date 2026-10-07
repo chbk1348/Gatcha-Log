@@ -117,6 +117,10 @@ class MainActivity : ComponentActivity() {
                 return@setContent
             }
             val viewModel: SpendingViewModel = viewModel()
+            // 개발자 전용 — 실행하자마자 API Ping 을 N 회 잰다(`--ei gl_ping 3`). 결과는 logcat `GatchaPing` 과 기기 기록에 남는다.
+            // 기기를 물려 놓고 여러 번 재 모을 때 쓴다. 릴리스 빌드에서는 extra 를 읽지 않는다.
+            val pingRuns = remember { if (BuildConfig.DEBUG) intent?.getIntExtra("gl_ping", 0) ?: 0 else 0 }
+            LaunchedEffect(pingRuns) { if (pingRuns > 0) viewModel.debugPingRepeat(pingRuns) }
             // 알림 딥링크 소비 — 탭 전환·상세 진입은 VM 상태(pendingTab/pendingNewsId)를 화면이 구독해 처리.
             LaunchedEffect(pendingLink) {
                 pendingLink?.let { viewModel.handleNotificationLink(it); pendingLink = null }

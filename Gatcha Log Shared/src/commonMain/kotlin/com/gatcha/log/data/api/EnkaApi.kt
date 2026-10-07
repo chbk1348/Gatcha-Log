@@ -145,11 +145,18 @@ object EnkaApi {
      * [ltuid]/[ltoken] 은 HSR 전용 — 본인 계정 연동 시 HoYoLAB 공식 KR 캐릭터명을 받아
      * mihomo 가 비워두는 신규 캐릭터 이름을 보완한다(§5). 미연동이면 빈 문자열 → mihomo 이름 폴백.
      */
-    suspend fun fetchProfile(game: String, uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
+    /**
+     * @param onPartial 스타레일 전용 — 느린 mihomo 를 기다리는 동안 **HoYoLAB 것만으로 먼저 만든 목록**을 건넨다(없으면 안 부른다).
+     *   부르는 쪽은 보여 줄 것이 아직 없을 때만 넘긴다. 최종 결과는 예전처럼 반환값으로 온다.
+     */
+    suspend fun fetchProfile(
+        game: String, uid: String, ltuid: String = "", ltoken: String = "",
+        onPartial: ((EnkaResult) -> Unit)? = null,
+    ): EnkaResult {
         val u = uid.trim()
         if (u.isBlank() || u.any { !it.isDigit() }) return EnkaResult(null, "UID는 숫자만 입력하세요")
         return when (game) {
-            "hsr", "starrail" -> fetchHsr(u, ltuid, ltoken)
+            "hsr", "starrail" -> fetchHsr(u, ltuid, ltoken, onPartial)
             "zzz" -> fetchZzz(u, ltuid, ltoken)
             else -> fetchGenshin(u, ltuid, ltoken)
         }
@@ -235,7 +242,9 @@ object EnkaApi {
     // (KR 표시문자열·세트명까지 계산해서 반환). 로스터+풀스탯 동일 응답에서 파싱.
     private val hsrSlots = listOf("머리", "핸드", "바디", "신발", "차원 구체", "연결 매듭")
 
-    private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
+    private suspend fun fetchHsr(
+        uid: String, ltuid: String = "", ltoken: String = "", onPartial: ((EnkaResult) -> Unit)? = null,
+    ): EnkaResult {
         // 셋 다 서로를 안 기다린다 — mihomo(쇼케이스+풀스탯) · 세트 메타(StarRailRes 2~3파일) ·
         // HoYoLAB 로스터. 예전엔 이 순서대로 **직렬**이라 왕복이 그대로 누적됐다(실측 메타만 0.5초).
         val linked = ltuid.isNotBlank() && ltoken.isNotBlank()
@@ -244,10 +253,28 @@ object EnkaApi {
             val setD = async { ensureHsrSetData() }   // 로스터(쇼케이스 밖) 세트 효과 계산용 메타
             // 본인 계정 연동 시: HoYoLAB avatar/info 로 보유 전체 캐릭터(쇼케이스 밖 포함)
             val hoyoD = if (linked) async { HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid) } else null
+            // **mihomo 를 기다리지 않고 먼저 그린다**(27.51.1). mihomo 는 한 번에 1.4초, 느리면 3초가 걸리는데(실측 10/7)
+            // HoYoLAB 의 보유 목록은 0.2초면 온다. 연동된 계정이면 그 목록만으로 먼저 만들어 건네고, mihomo 가 오면
+            // 쇼케이스 캐릭터를 더 풍부한 값으로 갈아끼운 최종 결과를 돌려준다. mihomo 가 이미 와 있으면 건너뛴다.
+            if (hoyoD != null && onPartial != null) {
+                val hoyo = hoyoD.await()
+                setD.await()                          // 세트 효과 계산이 메타를 읽는다
+                if (!mihomoD.isCompleted) {
+                    hsrResult(null, hoyo, linked).takeIf { it.profile != null }?.let(onPartial)
+                }
+            }
             setD.await()                              // 파싱이 메타를 읽으므로 여기서 완료를 보장한다
             mihomoD.await() to hoyoD?.await()
         }
-        val mihomoErr = errorFor(res.code)
+        return hsrResult(res, hoyoData, linked)
+    }
+
+    /**
+     * mihomo 응답([res]) + HoYoLAB 보유 목록([hoyoData]) → 결과. **[res] 가 null 이면 mihomo 없이** 만든다
+     * (아직 안 왔거나 못 받았거나 — 연동된 계정이면 HoYoLAB 목록만으로 선다. 닉네임 · 레벨은 mihomo 에만 있어 빈다).
+     */
+    internal fun hsrResult(res: NetResult?, hoyoData: JSONObject?, linked: Boolean): EnkaResult {
+        val mihomoErr = if (res == null) "아직 받지 못했어요" else errorFor(res.code)
         // mihomo(HSR 파싱 API)가 죽어도(예: 500 장애) 연동돼 있으면 HoYoLAB 로스터로 폴백 → '조회 실패' 대신 목록 유지.
         // 미연동이면 쇼케이스 소스가 mihomo 뿐이라 폴백 불가 → 원래 에러 노출.
         if (mihomoErr != null && !linked) return EnkaResult(null, mihomoErr)
@@ -256,7 +283,7 @@ object EnkaApi {
         if (mihomoErr != null && (hoyoList == null || hoyoList.length() == 0)) return EnkaResult(null, mihomoErr)
         val propMap = hsrPropMap(hoyoData?.optJSONObject("property_info")) // property_type → KR 스탯명
         return runCatching {
-            val json = if (mihomoErr == null) JSONObject(res.body) else null
+            val json = if (mihomoErr == null && res != null) JSONObject(res.body) else null
             val player = json?.optJSONObject("player")
             val list = json?.optJSONArray("characters") ?: JSONArray()
             // mihomo 쇼케이스 캐릭터(풍부한 KR 파싱) — id 색인

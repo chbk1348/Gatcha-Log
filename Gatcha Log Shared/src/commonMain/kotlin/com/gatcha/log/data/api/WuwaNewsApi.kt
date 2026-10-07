@@ -1,5 +1,6 @@
 package com.gatcha.log.data.api
 
+import kotlinx.coroutines.sync.withLock
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.util.currentTimeMillis
@@ -105,12 +106,23 @@ internal object WuwaNewsApi {
         )
     }
 
-    /** 공지 원본. 네트워크·파싱 실패면 null. */
-    private suspend fun fetchNotice(): JSONObject? {
+    /**
+     * 공지 원본. 네트워크·파싱 실패면 null.
+     *
+     * **공지([notices])와 일정([events])이 같은 파일을 쓴다** — 새로고침 한 번에 둘이 동시에 불러 같은 주소를 두 번 받았다.
+     * 한 번에 하나만 받게 줄을 세우고(뒤에 온 쪽은 앞의 결과를 그대로 쓴다), 받은 것을 [MEMO_MS] 동안 다시 쓴다(27.51.1).
+     * 실패는 붙들지 않는다 — 다음 호출이 다시 받는다.
+     */
+    private suspend fun fetchNotice(): JSONObject? = noticeLock.withLock {
+        noticeMemo?.let { (at, root) -> if (currentTimeMillis() - at < MEMO_MS) return@withLock root }
         val res = Net.get(NOTICE_URL)
-        if (!res.isOk) return null
-        return runCatching { JSONObject(res.body) }.getOrNull()
+        if (!res.isOk) return@withLock null
+        runCatching { JSONObject(res.body) }.getOrNull()?.also { noticeMemo = currentTimeMillis() to it }
     }
+
+    private val noticeLock = kotlinx.coroutines.sync.Mutex()
+    private var noticeMemo: Pair<Long, JSONObject>? = null
+    private const val MEMO_MS = 10_000L
 
     private fun parse(o: JSONObject?): NewsItem? {
         if (o == null) return null

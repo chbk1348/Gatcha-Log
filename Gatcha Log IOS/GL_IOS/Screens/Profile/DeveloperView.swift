@@ -134,9 +134,14 @@ struct DeveloperView: View {
             }
             SetDivider()
             // 화면이 비었을 때 앱 탓인지 상류 탓인지 — 앱이 부르는 곳에 한 번씩 닿아 보고 왕복 시간을 잰다(ApiPing).
-            devRow("dot.radiowaves.left.and.right", .teal, "API Ping 조회", "외부 API 18곳에 닿는지 · 왕복 시간") {
-                show("API Ping", ["재는 중… (최대 8초)"])
+            devRow("dot.radiowaves.left.and.right", .teal, "API Ping 조회", "외부 API 18곳에 닿는지 · 왕복 시간 · 연결 재사용") {
+                show("API Ping", ["재는 중… (최대 16초)"])
                 store.debugPingApis { show("API Ping", $0) }
+            }
+            SetDivider()
+            // 잰 결과는 기기에 최근 20회가 남는다 — 와이파이 · LTE 를 오가며 견주거나, 늘 느린 출처를 가릴 때 본다.
+            devRow("list.bullet.rectangle", .teal, "Ping 기록 보기", "최근 20회 · 출처별 평균과 회차별 요약") {
+                show("Ping 기록", store.debugPingHistory())
             }
             SetDivider()
             devRow("arrow.triangle.2.circlepath", .slate, "캐시 무시하고 전체 재조회", "게임 정보·일정·소식을 강제로 다시 받는다") {
