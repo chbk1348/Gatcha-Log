@@ -180,11 +180,17 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         // 화면이 비었을 때 앱 탓인지 상류 탓인지 — 앱이 부르는 곳에 한 번씩 닿아 보고 왕복 시간을 잰다(ApiPing).
                         DevRow(
                             Icons.Default.NetworkCheck, Tint.teal, "API Ping 조회",
-                            "외부 API 18곳에 닿는지 · 왕복 시간",
+                            "외부 API 18곳에 닿는지 · 왕복 시간 · 연결 재사용",
                         ) {
-                            report = "API Ping" to listOf("재는 중… (최대 8초)")
+                            report = "API Ping" to listOf("재는 중… (최대 16초)")
                             viewModel.debugPingApis { report = "API Ping" to it }
                         }
+                        DevHair()
+                        // 잰 결과는 기기에 최근 20회가 남는다 — 와이파이 · LTE 를 오가며 견주거나, 늘 느린 출처를 가릴 때 본다.
+                        DevRow(
+                            Icons.Default.ListAlt, Tint.teal, "Ping 기록 보기",
+                            "최근 20회 · 출처별 평균과 회차별 요약",
+                        ) { report = "Ping 기록" to viewModel.debugPingHistory() }
                         DevHair()
                         DevRow(
                             Icons.Default.CloudSync, Tint.slate, "캐시 무시하고 전체 재조회",

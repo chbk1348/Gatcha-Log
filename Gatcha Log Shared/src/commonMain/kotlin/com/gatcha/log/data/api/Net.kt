@@ -2,6 +2,7 @@ package com.gatcha.log.data.api
 
 import kotlin.coroutines.cancellation.CancellationException
 import com.gatcha.log.data.ErrorBus
+import com.gatcha.log.util.currentTimeMillis
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpTimeout
@@ -40,6 +41,9 @@ object Net {
      * 다 기다린 뒤에야 실패했다. 연결만 되면 응답은 느려도 괜찮으니 전체 상한은 그대로 둔다.
      */
     private const val CONNECT_TIMEOUT_MS = 5_000L
+
+    /** 첫 시도가 이 시간 안에 실패했을 때만 한 번 더 보낸다([get]) — 그보다 오래 끌다 실패한 서버는 다시 불러도 느리다. */
+    private const val RETRY_ONLY_IF_FAILED_WITHIN_MS = 3_000L
 
     /**
      * 호스트를 사용자에게 보일 이름으로 바꾼다 — 오류 안내에 도메인을 그대로 노출하지 않는다.
@@ -105,8 +109,12 @@ object Net {
      * 다음 갱신(30초)까지 기다리던 것을 줄인다. HoYoLAB 은 재시도하지 않는다([retryableHost]).
      */
     suspend fun get(url: String, headers: Map<String, String> = emptyMap(), timeoutMs: Int = TIMEOUT_MS.toInt()): NetResult {
+        val startedAt = currentTimeMillis()
         val first = request(HttpMethod.Get, url, headers, null, timeoutMs.toLong())
         if (!first.retryable() || !retryableHost(url)) return first
+        // **오래 걸려 실패한 것은 다시 보내지 않는다**(27.51.1). 재시도는 연결이 잠깐 끊긴 것 같은 「바로 난 실패」를 위한 것이다.
+        // 12초를 다 채우고 끊긴 요청을 또 보내면 같은 서버에 12초를 한 번 더 건다 — 느린 출처 하나가 새로고침을 24초 붙잡았다.
+        if (currentTimeMillis() - startedAt > RETRY_ONLY_IF_FAILED_WITHIN_MS) return first
         kotlinx.coroutines.delay(300)
         return request(HttpMethod.Get, url, headers, null, timeoutMs.toLong())
     }

@@ -261,6 +261,16 @@ class AppSettings {
         get() = prefs.getString(KEY_HOYOLAND_PAST, "") ?: ""
         set(v) { prefs.putString(KEY_HOYOLAND_PAST, v) }
 
+    /** 마지막으로 받아 온 운영 공지 원문(JSON) — 첫 프레임에 공지 배너가 바로 서게 남긴다(AppNoticeApi). */
+    var appNoticesRaw: String
+        get() = prefs.getString(KEY_APP_NOTICES, "") ?: ""
+        set(v) { prefs.putString(KEY_APP_NOTICES, v) }
+
+    /** 개발자 메뉴 「API Ping 조회」의 최근 기록 — 한 회차가 한 줄(ApiPing.encode). */
+    var pingLog: String
+        get() = prefs.getString(KEY_PING_LOG, "") ?: ""
+        set(v) { prefs.putString(KEY_PING_LOG, v) }
+
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
     fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
     fun setLastNotified(tag: String, value: String) { prefs.putString("notif_last_$tag", value) }
@@ -272,6 +282,8 @@ class AppSettings {
         private const val KEY_HOYOLAND_EDITION = "hoyoland_edition"
         private const val KEY_HOYOLAND_CONFIG = "hoyoland_config_raw"
         private const val KEY_HOYOLAND_PAST = "hoyoland_past_raw"
+        private const val KEY_APP_NOTICES = "app_notices_raw"
+        private const val KEY_PING_LOG = "dev_ping_log"
         private const val KEY_AUTO_CHECKIN = "auto_checkin"
         private const val KEY_NOTIFY_RESIN = "notify_resin"
         private const val KEY_NOTIFY_ATTEND = "notify_attendance"

@@ -55,6 +55,7 @@ import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.util.won
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
@@ -1219,6 +1220,17 @@ class SpendingViewModel : ViewModel() {
             _combatClearsLoading.value = true
             try {
                 val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid).filterValues { it.isNotBlank() }
+                // 캐릭터 이름 메타(yatta)는 편성 결과와 무관하다 — **편성과 같이 쏜다**(27.51.1). 예전엔 편성을 다 받은 뒤에야
+                // 나가서 한 왕복이 더 붙었다. 편성을 못 받아 일찍 빠져나가면 아래에서 끊는다.
+                val metaNamesDeferred = async {
+                    runCatching {
+                        coroutineScope {
+                            val gi = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = false) }
+                            val hsr = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = true) }
+                            mapOf(Game.GENSHIN.key to gi.await(), Game.HSR.key to hsr.await())
+                        }
+                    }.getOrDefault(emptyMap())
+                }
                 // 게임별로 받는다 — null 은 실패. 예전엔 실패를 빈 목록으로 뭉개서 '기록 없음'으로 보였고,
                 // 한 게임만 실패해도 다른 게임 결과만으로 통째로 갈아끼워 그 게임 편성이 사라졌다.
                 val perGame = coroutineScope {
@@ -1229,20 +1241,14 @@ class SpendingViewModel : ViewModel() {
                 val loadedGames = uids.keys.zip(perGame).filter { it.second != null }
                     .map { GameData.byName(it.first).displayName }.toSet()
                 _combatClearsFailed.value = uids.isNotEmpty() && loadedGames.isEmpty()
-                if (loadedGames.isEmpty()) return@launch
+                if (loadedGames.isEmpty()) { metaNamesDeferred.cancel(); return@launch }
                 val fetched = perGame.filterNotNull().flatten()
                 // 이름 출처는 두 겹이다. ①전체 캐릭터 메타(yatta) — 쇼케이스에 없는 캐릭터까지 덮는다.
                 // ②보유 캐릭터 캐시 — 메타에 아직 없는 신규 캐릭터를 보완한다(우선순위가 더 높다).
                 //
                 // ⚠️ 두 겹 모두 **게임별로** 유지한다. 캐릭터 id 공간이 게임마다 독립이라
                 // 하나로 합치면 스타레일 1xxx 와 젠레스 1xxx 가 충돌한다(달리아 → 이블린 사고).
-                val metaNames = runCatching {
-                    coroutineScope {
-                        val gi = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = false) }
-                        val hsr = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = true) }
-                        mapOf(Game.GENSHIN.key to gi.await(), Game.HSR.key to hsr.await())
-                    }
-                }.getOrDefault(emptyMap())
+                val metaNames = metaNamesDeferred.await()
                 val ownedNames = characterNamesByGame()
                 // 게임별로 메타 위에 보유 캐시를 덮는다(신규 캐릭터가 메타보다 먼저 들어온다).
                 val namesByGame = (metaNames.keys + ownedNames.keys).associateWith { key ->
@@ -1677,9 +1683,29 @@ class SpendingViewModel : ViewModel() {
     /** 외부 API 에 한 번씩 닿아 보고 왕복 시간을 잰다(개발자 화면 「API Ping 조회」) — 결과는 [onResult] 로(메인에서 호출). */
     fun debugPingApis(onResult: (List<String>) -> Unit) {
         viewModelScope.launch {
-            onResult(withContext(Dispatchers.IO) { com.gatcha.log.data.api.ApiPing.run() })
+            // Enka · Mihomo 는 UID 가 든 경로만 있다 — 연동된 내 UID 로 잰다(없으면 ApiPing 이 없는 UID 로 부른다).
+            val gi = _enkaGiUid.value
+            val hsr = _enkaHsrUid.value
+            onResult(withContext(Dispatchers.IO) { com.gatcha.log.data.api.ApiPing.run(gi, hsr) })
         }
     }
+
+    /** 개발자 전용 실행 인자(`gl_ping` · `-glPing`)가 부른다 — [times] 회 잇달아 재고 로그 · 기록에 남긴다. */
+    fun debugPingRepeat(times: Int) {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(4_000)   // 앱이 뜨며 나가는 요청들이 지나간 뒤에 잰다
+            repeat(times.coerceIn(1, 10)) { i ->
+                val gi = _enkaGiUid.value
+                val hsr = _enkaHsrUid.value
+                withContext(Dispatchers.IO) { com.gatcha.log.data.api.ApiPing.run(gi, hsr) }
+                println("GatchaPing: == run ${i + 1}/$times done")
+                kotlinx.coroutines.delay(1_500)
+            }
+        }
+    }
+
+    /** 기기에 남은 Ping 기록(개발자 화면 「Ping 기록 보기」) — 출처별 평균과 회차별 요약. */
+    fun debugPingHistory(): List<String> = com.gatcha.log.data.api.ApiPing.history { DateUtil.shortDateTime(it) }
 
     /** 로딩 게이트 상태 — "왜 스켈레톤이 안 걷히나"를 볼 때. */
     fun debugReadyStates(): String =
@@ -1920,9 +1946,13 @@ class SpendingViewModel : ViewModel() {
      */
     fun autoLoadEnkaSection(games: List<String>, force: Boolean = false, ttlMs: Long = enkaTtlMs) {
         viewModelScope.launch {
-            ensureEnkaUids() // 연동됐는데 UID 비면 1회 동기화
+            // 연동됐는데 UID 가 비어 있으면 1회 동기화한다. **UID 가 이미 있는 게임은 그것을 기다리지 않는다**(27.51.1) —
+            // 예전엔 세 게임 중 하나만 UID 가 비어도(그 게임을 안 하는 사용자) 실행할 때마다 HoYoLAB 1~2건을 먼저 받고 나서야
+            // 나머지 게임의 캐릭터 목록 요청이 나갔다. 빈 게임만 동기화가 끝나기를 기다린다.
+            val uidSync = async(start = CoroutineStart.LAZY) { ensureEnkaUids() }
             games.map { game ->
                 async {
+                    if (enkaUidFor(game).isBlank()) uidSync.await()
                     val uid = enkaUidFor(game)
                     if (uid.isBlank()) {
                         _enkaResults.update { it + (game to EnkaResult(profile = null, error = null)) }
@@ -1942,7 +1972,15 @@ class SpendingViewModel : ViewModel() {
                     if (!enkaInFlight.add(key)) return@async   // 같은 조회가 이미 진행 중
                     try {
                     val cfg = _hoyolabConfig.value
-                    val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                    // 보여 줄 캐시가 없을 때만 **먼저 온 부분 결과**를 받는다(스타레일 — 느린 mihomo 를 기다리지 않고 HoYoLAB 목록으로
+                    // 먼저 그린다). 캐시가 있으면 이미 그려져 있고, 부분 결과로 갈아끼우면 닉네임 · 쇼케이스 값이 잠깐 빠진다.
+                    val onPartial: ((EnkaResult) -> Unit)? = if (cached != null) null else { partial ->
+                        if (enkaUidFor(game) == uid) {
+                            _enkaResults.update { it + (game to partial) }
+                            _enkaLoadingGames.update { it - game }
+                        }
+                    }
+                    val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
                     if (enkaUidFor(game) != uid) return@async   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
                     if (r.profile != null) {
                         enkaCache[key] = currentTimeMillis() to r
@@ -1957,6 +1995,7 @@ class SpendingViewModel : ViewModel() {
                     }
                 }
             }.awaitAll()
+            uidSync.cancel()   // 아무도 기다리지 않았으면 시작도 안 했다 — 남겨 두면 이 코루틴이 끝나지 않는다
             persistEnkaCache()   // 갱신된 캐시 디스크 영속(1회)
         }
     }
@@ -2199,6 +2238,8 @@ class SpendingViewModel : ViewModel() {
     private var lastGameInfoLoadAt = 0L
     /** 이번 회차에 실시간 노트가 **일시적으로** 실패했는가 — 신선도를 짧게 잡아 곧 다시 받는다. */
     private var noteRetry = false
+    /** 직전 전체 갱신에서 빠진 것이 있었는가 — 있으면 다음 진입은 「행동력만」 지름길을 타지 않고 전체를 다시 받는다. */
+    private var lastGameInfoPartial = false
     private val gameInfoFreshMs = 5 * 60 * 1000L
     /** 일부 게임이 실패한 회차의 캐시 수명 — 짧게 잡아 다음 진입에 곧바로 다시 받는다(연타 폭주는 막는다). */
     private val gameInfoRetryMs = 30 * 1000L
@@ -2504,7 +2545,18 @@ class SpendingViewModel : ViewModel() {
             }
             return
         }
-        if (!force && _gameInfoReady.value && currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
+        if (!force && _gameInfoReady.value) {
+            val age = currentTimeMillis() - lastGameInfoLoadAt
+            if (age < gameInfoFreshMs) return
+            // **5분은 넘었지만 30분은 안 된 재진입은 행동력만 다시 받는다**(27.51.1). 일정 · 소식 · 원장 · 전투는 몇 분 만에
+            // 바뀌지 않는데, 탭에 다시 들어올 때마다 20여 건을 통째로 다시 불렀다(iPhone 게임 정보 탭은 들어올 때마다 이 길이다).
+            // 앱 복귀([onAppForeground])가 이미 쓰는 기준과 같다 — 전체는 [GAME_INFO_MAX_AGE_MS], 행동력은 [LIVE_NOTE_MAX_AGE_MS].
+            // 직전 회차가 일부 실패했으면(짧게 잡은 신선도) 이 지름길을 타지 않고 전체를 다시 받는다.
+            if (!lastGameInfoPartial && age < GAME_INFO_MAX_AGE_MS) {
+                if (currentTimeMillis() - lastLiveNoteAt >= LIVE_NOTE_MAX_AGE_MS) refreshLiveNotesQuiet()
+                return
+            }
+        }
         val gen = ++gameInfoGen
         gameInfoSpinning = !silent
         gameInfoJob = viewModelScope.launch {
@@ -2621,48 +2673,55 @@ class SpendingViewModel : ViewModel() {
                     // 캘린더 · 공지 · 원장/전투는 **서로 기다리지 않는다** — 각자 도착하는 대로 싣는다. 예전엔 한 줄로
                     // 수확해서, 느린 ennead 캘린더 하나가 공지와 원장까지 붙잡았다(타임아웃이면 12초).
                     launch {
-                        // 응답을 받은 게임만 새 값으로 갈아끼운다([mergeByGame]) — 실패한 게임은 직전 값 유지.
-                        // 예전엔 성공분만 모아 통째로 대입해서, 한 게임이 타임아웃 나면 그 게임 정보가 사라졌다.
-                        val calendarLoaded = mutableSetOf<String>()
-                        val banners = mutableListOf<GachaBanner>()
-                        val events = mutableListOf<GameEvent>()
-                        val challenges = mutableListOf<GameChallenge>()
-                        calendarGames.forEachIndexed { i, game ->
-                            val r = enneadDeferred[i].await()
-                            if (r == null) { partial = true; return@forEachIndexed }
-                            calendarLoaded += game.displayName
-                            banners += r.banners
-                            events += r.events
-                            challenges += r.challenges
-                        }
-                        val zzz = zzzDeferred.await()
-                        if (zzz == null) partial = true else {
-                            calendarLoaded += Game.ZZZ.displayName
-                            banners += zzz.banners; events += zzz.events; challenges += zzz.challenges
-                        }
-                        // 명조는 이벤트만 있다(픽업·정기 콘텐츠를 주는 소스가 없다). 그래도 실패와
-                        // 빈 목록은 갈라야 한다 — 실패면 calendarLoaded 에 넣지 않아 직전 값이 남는다.
-                        val wuwaEvents = wuwaEventsDeferred.await()
-                        if (wuwaEvents == null) partial = true else {
-                            calendarLoaded += Game.WUWA.displayName
-                            events += wuwaEvents
-                        }
-                        if (calendarLoaded.isNotEmpty()) {
+                        // **출처마다 도착하는 대로 싣는다**(27.51.1). 예전엔 원신 · 스타레일 · 젠레스 · 명조 네 출처를 차례로
+                        // await 한 뒤 한 번에 대입해서, 느린 출처 하나(다른 CDN 의 명조 · 타임아웃 난 ennead)가 나머지 셋의
+                        // 일정까지 붙잡았다. 노트 수확과 같은 꼴로 바꾼다 — 받은 게임만 갈아끼우고([mergeByGame]), 실패한
+                        // 게임은 직전 값을 유지한다. 여러 코루틴이 같은 흐름을 고치므로 대입이 아니라 `update`(원자적)다.
+                        var anyLoaded = false
+                        fun apply(game: String, banners: List<GachaBanner>, events: List<GameEvent>, challenges: List<GameChallenge>) {
+                            val loaded = setOf(game)
                             // 종료 미정(end_time 미공지)은 임박도를 알 수 없으니 맨 뒤로 — dDay 가 큰 음수라 앞으로 튄다.
-                            _activeBanners.value = mergeByGame(_activeBanners.value, banners, calendarLoaded) { it.game }
-                                .filter { it.game in SCHEDULE_GAMES }
-                                .sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
-                            // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
-                            withContext(Dispatchers.IO) { runCatching { repo.saveActiveBanners(_activeBanners.value) } }
-                            _gameEvents.value = mergeByGame(_gameEvents.value, events, calendarLoaded) { it.game }
-                                .filter { it.game in SCHEDULE_GAMES }
-                                .sortedBy { it.endMillis }
-                            _challenges.value = mergeByGame(_challenges.value, challenges, calendarLoaded) { it.game }
-                                .filter { it.game in SCHEDULE_GAMES }
-                                .sortedBy { it.endMillis }
-                            // 다음 실행 때 홈 '이번주 일정'을 네트워크 없이 바로 그리기 위한 캐시(배너와 동일).
+                            _activeBanners.update { prev ->
+                                mergeByGame(prev, banners, loaded) { it.game }
+                                    .filter { it.game in SCHEDULE_GAMES }
+                                    .sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
+                            }
+                            _gameEvents.update { prev ->
+                                mergeByGame(prev, events, loaded) { it.game }.filter { it.game in SCHEDULE_GAMES }.sortedBy { it.endMillis }
+                            }
+                            _challenges.update { prev ->
+                                mergeByGame(prev, challenges, loaded) { it.game }.filter { it.game in SCHEDULE_GAMES }.sortedBy { it.endMillis }
+                            }
+                            anyLoaded = true
+                            // 첫 출처가 곧 「이번 주 일정」의 준비 완료다 — 나머지는 도착하는 대로 끼어든다.
+                            _scheduleReady.value = true
+                        }
+                        coroutineScope {
+                            calendarGames.forEachIndexed { i, game ->
+                                launch {
+                                    val r = enneadDeferred[i].await()
+                                    if (r == null) partial = true else apply(game.displayName, r.banners, r.events, r.challenges)
+                                }
+                            }
+                            launch {
+                                val zzz = zzzDeferred.await()
+                                if (zzz == null) partial = true else apply(Game.ZZZ.displayName, zzz.banners, zzz.events, zzz.challenges)
+                            }
+                            launch {
+                                // 명조는 이벤트만 있다(픽업·정기 콘텐츠를 주는 소스가 없다). 실패와 빈 목록은 갈라야 한다 —
+                                // 실패면 싣지 않아 직전 값이 남는다.
+                                val wuwaEvents = wuwaEventsDeferred.await()
+                                if (wuwaEvents == null) partial = true else apply(Game.WUWA.displayName, emptyList(), wuwaEvents, emptyList())
+                            }
+                        }
+                        if (anyLoaded) {
+                            // 로컬 캐시는 다 모인 뒤 **한 번만** 쓴다 — 백그라운드 픽업 마감 알림 점검과, 다음 실행 때
+                            // 홈 「이번 주 일정」을 네트워크 없이 바로 그리는 데 쓴다.
                             withContext(Dispatchers.IO) {
-                                runCatching { repo.saveGameEvents(_gameEvents.value); repo.saveChallenges(_challenges.value) }
+                                runCatching {
+                                    repo.saveActiveBanners(_activeBanners.value)
+                                    repo.saveGameEvents(_gameEvents.value); repo.saveChallenges(_challenges.value)
+                                }
                             }
                         }
                         // 전부 실패해 값이 없더라도 스켈레톤은 걷는다 — 안 그러면 영원히 로딩처럼 보인다.
@@ -2675,19 +2734,27 @@ class SpendingViewModel : ViewModel() {
 
                     launch {
                         // 게임 공지·뉴스(공개 API·인증 불필요) — 위에서 이미 쏴 둔 요청을 여기서 수확한다.
-                        val newsLoaded = mutableSetOf<String>()
-                        val news = mutableListOf<NewsItem>()
-                        newsGames.forEachIndexed { i, game ->
-                            // 실패(null)한 게임은 직전 공지를 유지한다 — 빈 목록으로 합쳐지면 '공지 없음'처럼 보인다.
-                            val list = newsDeferred[i].await()
-                            if (list == null) { partial = true; return@forEachIndexed }
-                            newsLoaded += game.displayName
-                            news += list
+                        // **게임마다 도착하는 대로 싣는다**(27.51.1) — 예전엔 다섯 게임을 차례로 await 한 뒤 한 번에 대입해서,
+                        // 느린 출처 하나(280KB 짜리 엔드필드 · 명조)가 ennead 세 게임의 소식까지 붙잡았다.
+                        var anyLoaded = false
+                        coroutineScope {
+                            newsGames.forEachIndexed { i, game ->
+                                launch {
+                                    // 실패(null)한 게임은 직전 공지를 유지한다 — 빈 목록으로 합쳐지면 '공지 없음'처럼 보인다.
+                                    val list = newsDeferred[i].await()
+                                    if (list == null) { partial = true; return@launch }
+                                    _gameNews.update { prev ->
+                                        mergeByGame(prev, list, setOf(game.displayName)) { it.game }
+                                            .sortedByDescending { it.createdAtMillis }
+                                    }
+                                    anyLoaded = true
+                                    _newsFailed.value = false
+                                    _newsReady.value = true
+                                }
+                            }
                         }
-                        _newsFailed.value = newsLoaded.isEmpty()
-                        if (newsLoaded.isNotEmpty()) {
-                            _gameNews.value = mergeByGame(_gameNews.value, news, newsLoaded) { it.game }
-                                .sortedByDescending { it.createdAtMillis }
+                        _newsFailed.value = !anyLoaded
+                        if (anyLoaded) {
                             // 다음 실행 때 홈 '게임 소식'을 바로 그리기 위한 캐시(최신 N건·요약 절단 — 저장부 참고).
                             withContext(Dispatchers.IO) { runCatching { repo.saveGameNews(_gameNews.value) } }
                         }
@@ -2695,24 +2762,43 @@ class SpendingViewModel : ViewModel() {
                     }
 
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(위에서 이미 쏴 둔 요청)
-                    if (uids.isNotEmpty()) launch {
-                        val ledgers = ledgerDeferred.mapNotNull { it.await() }
-                        val combats = combatDeferred.flatMap { it.await() }
-                        if (ledgers.isNotEmpty()) {
-                            _ledgers.value = mergeByGame(_ledgers.value, ledgers, ledgers.map { it.game }.toSet()) { it.game }
-                                .sortedByGameOrder { it.game }
+                    // **원장과 전투는 서로 기다리지 않고, 게임마다 도착하는 대로 싣는다**(27.51.1). 예전엔 원장 3건을 다 받고
+                    // 전투 3게임(게임 안에서 2~3건을 차례로 부른다)까지 다 받은 뒤에야 둘을 같이 대입했다 — 한 번이면 오는
+                    // 원장이 제일 느린 전투 묶음만큼 늦게 떴다.
+                    if (uids.isNotEmpty()) {
+                        ledgerDeferred.forEach { d ->
+                            launch {
+                                val ledger = d.await() ?: return@launch
+                                _ledgers.update { prev ->
+                                    mergeByGame(prev, listOf(ledger), setOf(ledger.game)) { it.game }.sortedByGameOrder { it.game }
+                                }
+                            }
                         }
-                        if (combats.isNotEmpty()) {
-                            _combat.value = mergeByGame(_combat.value, combats, combats.map { it.game }.toSet()) { it.game }
-                                .sortedByGameOrder { it.game }
-                            // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴).
-                            val modes = _combat.value
-                            withContext(Dispatchers.IO) { runCatching { repo.saveCombatModes(modes) } }
+                        launch {
+                            var anyCombat = false
+                            coroutineScope {
+                                combatDeferred.forEach { d ->
+                                    launch {
+                                        val combats = d.await()
+                                        if (combats.isEmpty()) return@launch
+                                        _combat.update { prev ->
+                                            mergeByGame(prev, combats, combats.map { it.game }.toSet()) { it.game }.sortedByGameOrder { it.game }
+                                        }
+                                        anyCombat = true
+                                    }
+                                }
+                            }
+                            if (anyCombat) {
+                                // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴) — 다 모인 뒤 한 번.
+                                val modes = _combat.value
+                                withContext(Dispatchers.IO) { runCatching { repo.saveCombatModes(modes) } }
+                            }
                         }
                     }
                 }
                 // 전부 성공했을 때만 5분간 재요청을 생략한다. 일부라도 빠졌으면 짧게 잡아 다음 진입에 다시 받는다 —
                 // 예전엔 실패해도 5분을 캐시해서, 빠진 정보가 그 시간 동안 수동 새로고침 전까지 안 채워졌다.
+                lastGameInfoPartial = partial || noteRetry
                 lastGameInfoLoadAt = currentTimeMillis() -
                     if (partial || noteRetry) gameInfoFreshMs - gameInfoRetryMs else 0L
             } finally {

@@ -96,8 +96,8 @@ object GiftCodeApi {
      */
     private suspend fun loadOverrides(): GiftCodeOverrides {
         val now = currentTimeMillis()
-        return LiveConfig.get(CONFIG_DOC)?.let { parseOverrides(it, now) }
-            ?: Net.get("$OVERRIDES_URL?t=$now").takeIf { it.isOk }?.body?.let { parseOverrides(it, now) }
+        return LiveConfig.getOrRaw(CONFIG_DOC, OVERRIDES_URL) { parseOverrides(it, now) != null }
+            ?.let { parseOverrides(it, now) }
             ?: GiftCodeOverrides()
     }
 

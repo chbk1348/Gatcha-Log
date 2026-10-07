@@ -3,6 +3,7 @@ package com.gatcha.log.data.work
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeUnit
  */
 object AndroidWorkScheduler {
     private const val PERIODIC = "gatcha_periodic_work"
+    private const val RUN_NOW = "gatcha_run_now"
 
     // 알림 점검은 로컬 데이터(예산 등)도 다루므로 네트워크를 요구하지 않는다.
     // 네트워크가 필요한 작업(자동출석·재화 note)은 워커 내부에서 실패 시 graceful 하게 스킵된다.
@@ -47,6 +49,8 @@ object AndroidWorkScheduler {
         val req = OneTimeWorkRequestBuilder<GatchaWorker>()
             .setConstraints(noNetworkConstraint)
             .build()
-        WorkManager.getInstance(context).enqueue(req)
+        // **이미 줄 서 있거나 도는 중이면 또 넣지 않는다**(27.51.1). 그날 첫 실행에는 액티비티와 뷰모델이 둘 다 이 함수를 불러
+        // 같은 점검(출석 · 노트 3건 · 공지 5건 · 버전)이 두 벌 돌았다 — 화면이 처음 그려질 때의 요청들과 경쟁한다.
+        WorkManager.getInstance(context).enqueueUniqueWork(RUN_NOW, ExistingWorkPolicy.KEEP, req)
     }
 }

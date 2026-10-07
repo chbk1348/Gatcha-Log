@@ -58,7 +58,21 @@ object AppNoticeApi {
      * 종료 시각을 넘겨도 공지가 남는다.
      */
     val current: List<AppNotice>
-        get() = cachedBody?.let { parse(it, currentTimeMillis(), platformKey()) } ?: emptyList()
+        get() = (cachedBody ?: restored())?.let { parse(it, currentTimeMillis(), platformKey()) } ?: emptyList()
+
+    /**
+     * 디스크에 남은 마지막 공지 본문(27.51.1) — 첫 프레임에 배너가 **없다가 잠시 뒤 생기는** 것을 없앤다.
+     * [HoyolandApi] 의 디스크 보관과 같은 이유 · 같은 방식이다. 신선도는 주지 않는다([cachedAtMillis] = 0) —
+     * 다음 [load] 가 바로 원격을 다시 훑는다. 끝난 공지는 [current] 가 부를 때마다 지금 시각으로 걸러 낸다.
+     */
+    private val settings by lazy { com.gatcha.log.data.AppSettings() }
+    private var restoreTried = false
+    private fun restored(): String? {
+        if (restoreTried) return null
+        restoreTried = true
+        val raw = runCatching { settings.appNoticesRaw }.getOrNull().orEmpty()
+        return raw.takeIf { it.isNotBlank() && isReadable(it) }?.also { cachedBody = it }
+    }
 
     /**
      * 라이브 → 정본 순으로 받아 지금 띄울 공지를 돌려준다. 실패하면 직전 값([current]).
@@ -68,17 +82,16 @@ object AppNoticeApi {
      */
     suspend fun load(force: Boolean = false): List<AppNotice> {
         if (!force && cachedBody != null && currentTimeMillis() - cachedAtMillis < FRESH_MS) return current
-        val body = LiveConfig.get(CONFIG_DOC)?.takeIf { isReadable(it) } ?: fetchRaw()?.takeIf { isReadable(it) }
+        // 라이브가 늦으면 정본을 같이 받는다([LiveConfig.getOrRaw]).
+        val body = LiveConfig.getOrRaw(CONFIG_DOC, URL, ::isReadable)
         if (body != null) {
             cachedBody = body
             cachedAtMillis = currentTimeMillis()
+            // 다음 실행의 첫 프레임이 이 공지로 서도록 남긴다.
+            runCatching { settings.appNoticesRaw = body }
         }
         return current
     }
-
-    // ?t= 로 CDN(raw.githubusercontent) 캐시 우회 → JSON 수정 즉시 반영
-    private suspend fun fetchRaw(): String? =
-        Net.get("$URL?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
 
     private fun isReadable(body: String): Boolean = parse(body, 0L, "") != null
 
