@@ -254,7 +254,9 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
         Text("호요랜드", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         Text(
             "전체 보기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TicketSubText,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onOpen(HoyolandSub.None) }
+            // 누르는 자리(좌우 6 · 위아래 4)가 글자를 안쪽으로 밀지 않게 6 을 민다 — 글자 끝이 섹션 콘텐츠 끝(좌우 20)에 닿는다.
+            // iPhone 과 같은 자리이고, 「공지·뉴스」 머리의 「더보기」도 여기에 맞춘다(10/7).
+            modifier = Modifier.offset(x = 6.dp).clip(RoundedCornerShape(8.dp)).clickable { onOpen(HoyolandSub.None) }
                 .padding(horizontal = 6.dp, vertical = 4.dp),
         )
     }

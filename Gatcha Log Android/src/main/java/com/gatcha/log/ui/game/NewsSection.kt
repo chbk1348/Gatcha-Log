@@ -2,6 +2,7 @@ package com.gatcha.log.ui.game
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -97,9 +98,12 @@ fun NewsSection(
         Spacer(Modifier.weight(1f))
         if (news.size > max) {
             Row(
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable { onSeeAll() }
+                // **호요랜드 머리의 「전체 보기」와 같은 자리**(10/7) — 보이는 오른쪽 끝이 섹션 콘텐츠 끝(좌우 20)에 닿는다.
+                // 누르는 자리(위아래 4 · 왼쪽 10)는 그대로 두고, 그 여백이 글자를 안쪽으로 밀지 않게 통째로 6 을 민다.
+                // 화살표 아이콘은 16 칸 안에서 오른쪽이 5 쯤 비어 있어, 끝 여백을 1 로 줄여 화살표 끝을 글자 끝 자리에 맞춘다.
+                modifier = Modifier.offset(x = 6.dp).clip(RoundedCornerShape(999.dp)).clickable { onSeeAll() }
                     // 글자만 두면 손가락이 닿는 자리가 너무 작다.
-                    .padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                    .padding(start = 10.dp, end = 1.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("더보기 (${news.size})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
