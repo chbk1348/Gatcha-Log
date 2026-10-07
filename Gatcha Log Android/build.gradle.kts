@@ -50,11 +50,24 @@ if (file("google-services.json").exists()) {
     }
 }
 
-// 산출물 APK 파일명을 모듈명(GL_Android)과 분리해 'app'으로 고정.
-//   → 기본값은 모듈명 기반(GL_Android-release.apk)이라, 인앱 업데이트가 참조하는
-//     version.json 의 app-release.apk URL 이 깨지지 않도록 명시 고정한다.
+// 산출물의 기본 이름 — 모듈명(GL_Android)과 분리해 'app' 으로 둔다(AAB · 매핑 파일 등).
+// **APK 파일명은 아래 androidComponents 가 「앱 이름-버전」으로 정한다**(27.51.0~):
+//   release  Gatcha-Log-27.51.0.apk      ← 릴리즈에 올리는 이름. iOS 의 Gatcha-Log-27.51.0.ipa 와 같은 꼴이다.
+//   그 밖     Gatcha-Log-27.51.0-debug.apk
+// 인앱 업데이트는 version.json 의 apkUrl 을 그대로 받으므로, 릴리즈할 때 apkUrl 을 이 파일의 주소
+// (releases/download/v{버전}/Gatcha-Log-{버전}.apk)로 적는다. 27.50.6 까지는 app-release.apk 였다.
 base {
     archivesName.set("app")
+}
+
+androidComponents {
+    onVariants { v ->
+        val suffix = if (v.buildType == "release") "" else "-${v.buildType}"
+        v.outputs.forEach { out ->
+            (out as? com.android.build.api.variant.impl.VariantOutputImpl)
+                ?.outputFileName?.set(out.versionName.map { "Gatcha-Log-$it$suffix.apk" })
+        }
+    }
 }
 
 android {
