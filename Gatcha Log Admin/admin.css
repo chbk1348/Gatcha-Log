@@ -311,7 +311,12 @@ a.badge { text-decoration: none; cursor: pointer; }
  * 좁은 화면(1180 미만)에서는 섹션들 아래로 내려간다. */
 .sec > .hint { margin: 0 0 14px; font-size: 13px; color: var(--muted); max-width: 86ch; }
 .sec-title > .pill { margin-left: 2px; }
-.with-preview { display: grid; grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+/* 미리보기 열은 **본문과 3 : 2 로 나눠 갖는다**(10/7 — 예전엔 380 고정으로 화면 맨 오른쪽에 붙어 있었다).
+ * 본문이 화면 폭을 다 쓰게 된 뒤로(10/6) 넓은 모니터에서는 미리보기가 저 끝에 작게 서서, 고친 값을 확인하려면
+ * 시선이 화면을 가로질러야 했다. 열을 비율로 나누면 미리보기가 본문 바로 옆에서 시작한다.
+ * 틀은 560 까지만 자란다 — 앱 화면을 흉내 낸 것이라 그보다 넓으면 줄이 폰과 다르게 접힌다. 열 안에서는 왼쪽(본문 쪽)에 붙는다. */
+.with-preview { display: grid; grid-template-columns: minmax(0, 3fr) minmax(380px, 2fr); align-items: start; }
+.app-preview > .ap-k, .app-preview > .ap-frame, .app-preview > .ap-note { max-width: 560px; }
 .with-preview > * { grid-column: 1; }
 #main > .with-preview > .app-preview.app-preview {
   grid-column: 2; grid-row: 1 / span 40; position: sticky; top: 76px;
