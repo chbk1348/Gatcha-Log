@@ -325,13 +325,16 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
             val viewport = maxHeight
             Box(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
                 when (s) {
+                    // **온보딩은 구글 로그인부터 한다 — 첫 사용자도, 쓰던 사용자도 같은 한 갈래다**(10/7). 예전엔 「시작하기」(끝에서 로그인)와
+                    // 「구글 로그인 하기」(먼저 로그인) 두 갈래라, 갈래마다 계정 값을 채울지 · 덮을지 · 끊겼을 때 어디로 갈지가 달랐다.
                     0 -> WelcomeStep(
+                        // 이미 로그인돼 있으면(로그인한 뒤 끊겨 다시 시작한 경우) 다시 묻지 않고 ② 로 간다.
+                        loggedIn = afterLogin,
                         onStart = { leave ->
                             if (!busy) { busy = true; scope.launch { leave(); busy = false; settled = false; restored = false; go(1) } }
                         },
-                        // 「구글 로그인 하기」 — 구글 로그인부터 한다(기존 사용자 복원). 성공하면 위 LaunchedEffect 가 ② 게임 선택으로 넘긴다.
-                        // 이미 로그인돼 있으면(로그인한 뒤 끊겨 다시 시작한 경우) 다시 묻지 않고 ② 로 간다.
-                        onRestore = { if (afterLogin) { settled = false; restored = false; go(1) } else { loginRequested = true; viewModel.signIn() } },
+                        // 성공하면 위 LaunchedEffect 가 ② 게임 선택으로 넘긴다. 취소하면 이 화면에 남는다.
+                        onLogin = { loginRequested = true; viewModel.signIn() },
                     )
                     1 -> GamesStep(games, viewport, stagger = !settled, note = accountNote, noteLoading = accountSyncing, onToggle = { k -> gamesTouched = true; gamesRaw = (if (k in games) games - k else games + k).joinToString(",") }) {
                         settled = true; go(2)
@@ -434,7 +437,7 @@ private val TILES = listOf(
 // ── ① 환영 ─────────────────────────────────────────────────────────────────
 
 @Composable
-private fun WelcomeStep(onStart: (leave: suspend () -> Unit) -> Unit, onRestore: () -> Unit) {
+private fun WelcomeStep(loggedIn: Boolean, onStart: (leave: suspend () -> Unit) -> Unit, onLogin: () -> Unit) {
     // 타일마다 등장(위에서 떨어짐) · 퇴장(위로 흩어짐) 진행도
     val drops = remember { List(TILES.size) { Animatable(0f) } }
     val leaves = remember { List(TILES.size) { Animatable(0f) } }
@@ -502,14 +505,21 @@ private fun WelcomeStep(onStart: (leave: suspend () -> Unit) -> Unit, onRestore:
             Spacer(Modifier.height(12.dp))
             Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요", fontSize = 12.sp, color = Sub, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
-        GldsButton("시작하기", size = GldsSize.L, modifier = Modifier.cta(true), onClick = {
-            onStart {
-                // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
-                leaves.forEachIndexed { i, a -> scope.launch { delay(i * 30L); a.animateTo(1f, tween(300)) } }
-                delay(320)
+        if (loggedIn) {
+            // 이미 로그인된 채 다시 시작한 경우 — 로그인을 다시 묻지 않는다.
+            GldsButton("시작하기", size = GldsSize.L, modifier = Modifier.cta(true), onClick = {
+                onStart {
+                    // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
+                    leaves.forEachIndexed { i, a -> scope.launch { delay(i * 30L); a.animateTo(1f, tween(300)) } }
+                    delay(320)
+                }
+            })
+        } else {
+            // 구글 로그인이 곧 시작이다 — ⑥ 완료 화면에 있던 버튼 · 문구 그대로다.
+            Box(Modifier.enterUp(140).padding(horizontal = 8.dp)) {
+                GoogleSignInButton("Google로 로그인하고 시작하기", onClick = onLogin)
             }
-        })
-        GldsButton("구글 로그인 하기", onRestore, Modifier.cta(false), variant = GldsVariant.Secondary)
+        }
         Spacer(Modifier.height(16.dp))
     }
 }
