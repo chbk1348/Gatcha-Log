@@ -3039,10 +3039,21 @@ function rowsSection(sec, opts = {}) {
 
   const bar = [];
   let search = null;
+  let clear = null;
+  /** 검색어를 바꾼다 — 글이 있을 때만 지우기(✕)가 선다. */
+  const setQ = (v, typed) => {
+    state.q[stateKey] = v;
+    if (!typed) search.value = v;
+    clear.hidden = !v;
+  };
   if (sec.search) {
-    search = glText({ value: q(), placeholder: sec.search, onInput: (v) => { state.q[stateKey] = v; paint(); } });
+    search = glText({ value: q(), placeholder: sec.search, onInput: (v) => { setQ(v, true); paint(); } });
     search.setAttribute('aria-label', '검색');
-    bar.push(el('div', { class: 'rows-search' }, [search, navIcon('search')]));
+    // 지우기는 시안에 없다(10/7 지시로 되살렸다) — 줄 도구와 같은 ✕ 를 칸 오른쪽 안에 둔다.
+    clear = ico('x', '검색 지우기', () => { setQ(''); paint(); search.focus(); });
+    clear.classList.add('rows-search-x');
+    clear.hidden = !q();
+    bar.push(el('div', { class: 'rows-search' }, [search, navIcon('search'), clear]));
   }
   if (sec.selectable || (pasteBtn && !opts.pasteInTitle)) bar.push(el('span', { style: 'flex:1' }));
   if (sec.selectable) {
@@ -3069,7 +3080,7 @@ function rowsSection(sec, opts = {}) {
   const add = el('button', { type: 'button', class: 'btn btn-sm btn-secondary', onclick: () => {
     addRows([blank()]);
     // 새 줄은 비어 있어 검색에 걸리지 않는다 — 걸러낸 채로 두면 더한 줄이 안 보인다.
-    if (search && q()) { state.q[stateKey] = ''; search.value = ''; }
+    if (search && q()) setQ('');
     changed();
   } }, [sec.addLabel || '+ 추가']);
 
