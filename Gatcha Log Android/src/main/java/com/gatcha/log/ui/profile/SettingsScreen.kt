@@ -95,6 +95,9 @@ import com.gatcha.log.util.won
 /** 프로젝트 저장소 홈. 업데이트 체크(UpdateChecker)·OTA 는 같은 저장소의 raw/releases 경로를 쓴다. */
 private const val GITHUB_REPO_URL = "https://github.com/chbk1348/Gatcha-Log"
 
+/** 개발자 홈페이지(앱 소개 · 설치 안내). Firebase Hosting 의 yuki-develop 사이트. */
+private const val DEVELOPER_HOME_URL = "https://yuki-develop.web.app"
+
 @Composable
 fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
@@ -357,6 +360,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 SettingsNavRow(Icons.Default.Copyright, Tint.slate, "출처 · 저작권", null) { showCredits.value = true }
                 SetHair()
                 SettingsNavRow(ImageVector.vectorResource(R.drawable.ic_github), Tint.navy, "GitHub", null) { openExternalLink(ctx, GITHUB_REPO_URL) }
+                SetHair()
+                SettingsNavRow(Icons.Default.Language, Tint.purple, "개발자 홈페이지", null) { openExternalLink(ctx, DEVELOPER_HOME_URL) }
                 SetHair()
                 SettingsNavRow(Icons.Default.Info, Tint.slate, "앱 버전", "v$versionName", trailing = { BuildVariantChip() }, chevron = false) {}
             }
