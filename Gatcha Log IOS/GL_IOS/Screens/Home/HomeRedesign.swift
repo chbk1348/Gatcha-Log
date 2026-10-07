@@ -57,7 +57,10 @@ struct MonthSpendSection: View {
     }
 }
 
-/// 홈 목록의 게임 태그 — 11 Black · 좌우 7 · 위아래 2 · 반경 6(홈 3.0 목업). 색은 게임색 · 바탕은 14%.
+/// 홈 목록의 게임 태그 — 11 Black · 폭 38 · 위아래 2 · 반경 6. 색은 게임색 · 바탕은 14%.
+///
+/// **폭은 고정이다**(10/7). 예전엔 글자에 좌우 7 을 붙여 약칭 길이만큼 자랐다 — 「GI」 와 「HSR」 의 태그 폭이 달라
+/// 줄마다 제목이 시작하는 자리가 어긋났다. 38 은 세 글자 약칭(HSR · ZZZ · NTE)에 좌우 7 을 준 폭이다. Android `HomeGameTag` 와 같은 값.
 struct HomeGameTag: View {
     let game: String
     var body: some View {
@@ -65,7 +68,8 @@ struct HomeGameTag: View {
         let color = Color(argb64: g?.color ?? GameData.shared.colorFor(name: game))
         Text(g?.abbr ?? String(game.prefix(2)))
             .font(.pretendard(size: 11, weight: .black)).foregroundStyle(color).lineLimit(1)
-            .padding(.horizontal, 7).padding(.vertical, 2)
+            .padding(.vertical, 2)
+            .frame(width: 38)
             .background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }

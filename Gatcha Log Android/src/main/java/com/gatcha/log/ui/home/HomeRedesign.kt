@@ -69,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.AnnotatedString
@@ -263,14 +264,20 @@ fun MonthSpendSection(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudge
 /** 예산 막대 트랙(홈 3.0 목업 #EDEFF3). */
 private val MonthTrack = Color(0xFFEDEFF3)
 
-/** 홈 목록의 게임 태그 — 11 Black · 좌우 7 · 위아래 2 · 반경 6(홈 3.0 목업). 색은 게임색 · 바탕은 14%. */
+/**
+ * 홈 목록의 게임 태그 — 11 Black · 폭 38 · 위아래 2 · 반경 6. 색은 게임색 · 바탕은 14%.
+ *
+ * **폭은 고정이다**(10/7). 예전엔 글자에 좌우 7 을 붙여 약칭 길이만큼 자랐다 — 「GI」 와 「HSR」 의 태그 폭이 달라
+ * 줄마다 제목이 시작하는 자리가 어긋났다. 38 은 세 글자 약칭(HSR · ZZZ · NTE)에 좌우 7 을 준 폭이다. iOS `HomeGameTag` 와 같은 값.
+ */
 @Composable
 private fun HomeGameTag(game: String) {
     val g = GameData.byNameOrNull(game)
     val color = GameData.colorFor(game).toColor()
     Text(
         g?.abbr ?: game.take(2), fontSize = 11.sp, fontWeight = FontWeight.Black, color = color, maxLines = 1,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.14f)).padding(horizontal = 7.dp, vertical = 2.dp),
+        textAlign = TextAlign.Center,
+        modifier = Modifier.width(38.dp).clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.14f)).padding(vertical = 2.dp),
     )
 }
 
