@@ -144,6 +144,18 @@ class AppSettings {
      * 온보딩을 마친 유저는 [onboardingDone] 에 true 가 명시 저장되므로 영향받지 않는다.
      * 진짜 신규 설치는 hasUsedAppBefore()=false 라 아무것도 쓰지 않고 정상적으로 온보딩을 탄다.
      */
+    /**
+     * 온보딩이 **화면에 섰을 때** 부른다 — 「아직 안 마쳤다」를 파일에 적어 둔다(키가 없을 때만).
+     *
+     * 적어 두지 않으면 [onboardingDone] 의 기본값([hasUsedAppBefore])이 온보딩 **도중에** 뒤집힌다: 첫 화면에서 바로
+     * 구글 로그인을 했거나(계정이 저장된다) ⑤ 에서 알림 권한을 물은 뒤에 앱을 닫으면, 다음 실행에서 「써 본 적 있는 사람」으로
+     * 판정돼 온보딩을 건너뛰고 홈으로 갔다(2026-10-07 제보). 이 키가 생기기 전부터 쓰던 사람은 앱 시작 때
+     * [freezeOnboardingVerdict] 가 먼저 true 로 굳히므로, 여기까지 와서 키가 없다면 진짜 처음 켠 사람이다.
+     */
+    fun markOnboardingStarted() {
+        if (!prefs.contains(KEY_ONBOARDING_DONE)) prefs.putBoolean(KEY_ONBOARDING_DONE, false)
+    }
+
     fun freezeOnboardingVerdict() {
         // 키가 **아예 없을 때만**(이 키가 생기기 전 버전에서 업데이트한 경우) 굳힌다. 예전엔 저장된 false 도
         // 덮어써서, 개발자 메뉴 「온보딩 초기화」가 로그인된 기기에서는 재시작하는 순간 되돌려졌다.
