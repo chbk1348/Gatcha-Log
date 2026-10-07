@@ -40,6 +40,8 @@ const cloud = {
   pull: async (_doc) => null,
   push: async (_doc, _json) => { throw new Error('클라우드가 설정되지 않았습니다.'); },
   pushMany: async (_entries) => { throw new Error('클라우드가 설정되지 않았습니다.'); },
+  accountGet: async () => null,
+  accountSet: async (_patch) => { throw new Error('클라우드가 설정되지 않았습니다.'); },
 };
 window.cloud = cloud;
 
@@ -159,6 +161,24 @@ async function boot() {
       cloud.historyDisabled = true;
       return null;
     }
+  };
+
+  /*
+   * 운영자 개인 설정 — `operators/{uid}`. 지금은 GitHub 연결(토큰) 하나를 둔다.
+   *
+   * 본인 문서만, 운영자만 읽고 쓴다(firestore.rules). 앱이 읽는 `config/` 와 **다른 경로**다 —
+   * 그쪽은 전세계 공개 읽기라 비밀 값을 넣으면 안 된다.
+   * 문서가 없으면 null — "아직 계정에 묶은 적이 없다" 와 "묶었다가 끊었다(빈 값)" 를 가르는 데 쓴다.
+   */
+  const mine = () => storeMod.doc(db, 'operators', cloud.user.uid);
+  cloud.accountGet = async () => {
+    if (!cloud.user) return null;
+    const snap = await storeMod.getDoc(mine());
+    return snap.exists() ? snap.data() : null;
+  };
+  cloud.accountSet = async (patch) => {
+    if (!cloud.user) throw new Error('로그인이 필요합니다.');
+    await storeMod.setDoc(mine(), { ...patch, updatedAt: Date.now() }, { merge: true });
   };
 
   authMod.onAuthStateChanged(auth, (u) => {
