@@ -208,6 +208,8 @@ td .gl-num-b { width: 22px; }
  * touch-action 을 끈다. 끄는 줄은 흐려지고, 놓일 자리에 강조색 2 줄이 선다(표의 줄은 칸마다 그어 이어 보이게 한다). */
 .gl-grip { width: 28px; min-width: 28px; padding: 0; cursor: grab; touch-action: none; color: var(--muted); }
 .gl-grip[disabled] { cursor: default; }
+/* 줄 끝 도구 자리의 손잡이 — 그 줄의 아이콘 단추(.row-ico 32 · 면 없음)와 같은 꼴이다. */
+.row-ico.gl-grip { width: 32px; min-width: 32px; }
 body.gl-dragging, body.gl-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .drag-src { opacity: .4; }
 .drop-before:not(tr) { box-shadow: 0 -2px 0 var(--accent); }
