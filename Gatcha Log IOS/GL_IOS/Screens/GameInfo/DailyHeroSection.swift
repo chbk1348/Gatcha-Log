@@ -782,23 +782,31 @@ struct FlowLayout: Layout {
 
 /// 3게임 모두 행동력이 가득일 때만 뜨는 비상벨 — 흔들고 쉬고를 반복한다.
 ///
-/// 계속 떠는 대신 **울림 0.6초 + 정지 1.8초** 로 끊는 건, 상시 진동이 시선을 붙잡아
-/// 정작 아래 숫자를 못 읽게 만들기 때문이다. Android `AlarmBell()` 과 같은 리듬.
+/// 계속 떠는 대신 **울림 0.56초 + 정지 1.84초** 로 끊는 건, 상시 진동이 시선을 붙잡아
+/// 정작 아래 숫자를 못 읽게 만들기 때문이다. Android `AlarmBell()` 과 **같은 키프레임**이다
+/// (0 → -15 → 15 → -12 → 12 → -7 → 7 → 0, 70 · 150 · 230 · 310 · 390 · 470 · 560ms, 이후 2.4초까지 정지).
+///
+/// 예전엔 `PhaseAnimator` 로 「각도 + 그 각도까지 가는 시간」을 나열했는데, 정지 구간(1.84초)을
+/// 마지막 각도 0 에 붙여 둔 탓에 **마지막 흔들림에서 가운데로 돌아오는 데 1.84초가 걸렸다** — 종이 천천히
+/// 미끄러지듯 멈췄다(2026-10-07 지적). 키프레임으로 바꿔 0.09초에 돌아오고, 그 뒤에 따로 멈춰 있는다.
 private struct AlarmBell: View {
-    /// (각도, 그 각도까지 가는 시간) — 마지막 항이 정지 구간이다.
-    private static let phases: [(angle: Double, duration: Double)] = [
-        (0, 0.07), (-15, 0.08), (15, 0.08), (-12, 0.08),
-        (12, 0.08), (-7, 0.08), (7, 0.09), (0, 1.84),
-    ]
-
     var body: some View {
-        PhaseAnimator(Array(Self.phases.indices)) { i in
+        KeyframeAnimator(initialValue: 0.0, repeating: true) { angle in
             Image(systemName: "bell.badge.fill")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color(hex: 0xFFD0021B))
-                .rotationEffect(.degrees(Self.phases[i].angle), anchor: .top)
-        } animation: { i in
-            .easeInOut(duration: Self.phases[i].duration)
+                .rotationEffect(.degrees(angle), anchor: .top)
+        } keyframes: { _ in
+            KeyframeTrack {
+                LinearKeyframe(-15.0, duration: 0.07)
+                LinearKeyframe(15.0, duration: 0.08)
+                LinearKeyframe(-12.0, duration: 0.08)
+                LinearKeyframe(12.0, duration: 0.08)
+                LinearKeyframe(-7.0, duration: 0.08)
+                LinearKeyframe(7.0, duration: 0.08)
+                LinearKeyframe(0.0, duration: 0.09)   // 가운데로 — Android 와 같이 바로 돌아온다
+                LinearKeyframe(0.0, duration: 1.84)   // 나머지는 정지
+            }
         }
         .accessibilityLabel("3게임 모두 행동력이 가득 찼어요")
     }
