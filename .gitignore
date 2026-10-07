@@ -91,3 +91,7 @@ MEMORY-*.md
 GLOBAL-MEMORY.md
 CONTINUATION.md
 .memory/
+
+# 운영 어드민 — 운영자 혼자 쓰는 도구라 비공개 저장소(chbk1348/Gatcha-Log-Admin)로 떼어 냈다(2026-10-07).
+# 이 자리에 그 저장소를 클론해 쓴다. 공개 저장소에는 올리지 않는다.
+/Gatcha Log Admin/

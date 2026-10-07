@@ -57,7 +57,7 @@ Google Apps Script 웹앱에서 출발해, **Kotlin Multiplatform** 공유 로�
 - **굿즈샵** — 게임별 목록 · **품목별 사진과 크게 보기** · 구매 제한 · 장바구니로 예상 지출 합계 · 굿즈존 이용 안내
 - **부스 체험 · 푸드존 · 맵스** — 무료/유료 체험존 · 파트너사 · DIY 탭 · 게임별 메뉴판과 메뉴 사진 · 행사장 배치도(가로 보기)
 - **지난 행사** — 2026 · 2025 · 2024 회차의 기록을 상세로 열어 봄(시간표 · 굿즈 · 부스 · 푸드)
-- **라이브 갱신** — 행사 정보는 앱 업데이트 없이 바로 반영(운영 어드민 → 라이브 설정) · 개막/예매 오픈 알림
+- **라이브 갱신** — 행사 정보는 앱 업데이트 없이 바로 반영 · 개막/예매 오픈 알림
 
 ### 🗓 배너 · 일정
 - **게임 일정** — 게임당 한 줄 요약 카드로 진입 → 상세는 **마감 날짜 타임라인**(픽업 종료·이벤트·정기 콘텐츠를 날짜순으로 한 줄기에). '주년' 탭 포함
@@ -94,7 +94,6 @@ Google Apps Script 웹앱에서 출발해, **Kotlin Multiplatform** 공유 로�
 | 공유 코드 (KMP) | Kotlin 2.3.21 · kotlinx-{coroutines, serialization, datetime} · Ktor · SKIE(Swift 연동) — 데이터 · 비즈니스 로직 · ViewModel |
 | Android | Jetpack Compose(Material 3) · AGP 9.4.1 · compileSdk 37 / minSdk 31 · WorkManager · Credential Manager |
 | iOS | SwiftUI(네이티브 탭바·리퀴드 글래스) · Swift 6 언어 모드 · BGTaskScheduler · GoogleSignIn SDK · Xcode 27.1(iOS 27.1 SDK) / iOS 18+ · iPhone · iPhone Duo · iPad |
-| 운영 어드민 | 빌드 없는 정적 웹(HTML · JS) · Firebase Hosting · Firestore 라이브 설정 · GitHub API(정본 커밋) |
 | 클라우드 | Firebase Auth + Cloud Firestore (Android: Firebase SDK / iOS: GitLive KMP + Firebase iOS SDK) |
 | 로컬 저장 | Android: SharedPreferences(토큰은 EncryptedSharedPreferences) / iOS: UserDefaults(토큰은 Keychain) |
 | 빌드 | Gradle 9.7.1 · XcodeGen |
@@ -107,7 +106,6 @@ Google Apps Script 웹앱에서 출발해, **Kotlin Multiplatform** 공유 로�
 Gatcha Log Android/  Android 앱 (프로덕션 · Jetpack Compose) · baselineprofile/ (Baseline Profile 생성 모듈)
 Gatcha Log Shared/   KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
 Gatcha Log IOS/      iOS 앱 — SwiftUI 화면(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
-Gatcha Log Admin/    운영 어드민 — 호요랜드 · ZZZ 배너 · 공지 · 리딤코드 · 앱 배포를 고쳐 라이브에 반영하는 정적 웹(README 참고)
 config/              앱이 원격으로 읽는 정본 JSON(호요랜드 · ZZZ 배너 · 공지 · 리딤코드) — 경로 고정 · 사진은 goods/{연도}/ · food/{연도}/ · partner/
 config/hoyoland/     호요랜드 회차 목록 · 보관본(editions.json · editions/{연도}.json) · 지난 행사(past.json)
 version.json         업데이트 매니페스트(최신 버전 · 강제 업데이트 기준 · APK 주소와 해시) — 경로 고정
@@ -181,7 +179,7 @@ iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https:/
 
 ## 🎨 디자인
 
-화면은 자체 디자인 규격 **GLDS 2.0** 을 따릅니다 — Android · iOS · 운영 어드민이 같은 값 · 같은 구성입니다.
+화면은 자체 디자인 규격 **GLDS 2.0** 을 따릅니다 — Android · iOS 가 같은 값 · 같은 구성입니다.
 
 - **카드로 감싸지 않는다** — 바탕은 흰색 하나. 섹션 사이는 옅은 띠, 줄 사이는 헤어라인으로 나눈다
 - **면은 뜻이 있을 때만** — 객체 하나를 담는 타일, 색이 정보를 싣는 히어로 · 배너, 모달 · 시트, 버튼 · 입력필드
