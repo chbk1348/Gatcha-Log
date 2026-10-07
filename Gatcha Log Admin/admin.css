@@ -376,6 +376,96 @@ a.badge { text-decoration: none; cursor: pointer; }
 .fact-row { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; gap: 8px; align-items: start; }
 .fact-row > .row-tools { padding-top: 6px; }
 
+/* ── 「현장」 5탭 개편(시안 「현장 개편」, 10/7) ───────────────
+ * 줄 단위 편집에 더한 것 — 줄 고르기 · 도구 줄(검색 · 값 채우기 · 표 붙여넣기) · 글 칸 안내 · 지표 타일 · 날짜 탭. */
+.row-sel { flex: none; padding-top: 29px; }
+.rows-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 4px; }
+.rows-bar-n { font-size: 13px; font-weight: 700; color: var(--accent-deep); }
+.rows-search { position: relative; flex: 1 1 260px; max-width: 420px; }
+.rows-search input[type=text] { height: 40px; padding: 0 14px 0 40px; border-radius: 12px; font-size: 14px; }
+.rows-search .nav-ic { position: absolute; left: 13px; top: 12px; width: 16px; height: 16px; stroke-width: 2.2; pointer-events: none; }
+.rows-bar ~ .list-fill, .rows-bar ~ .list-paste { margin-top: 8px; }
+/* 글 칸 안내 — 줄바꿈을 받는 칸 아래 한 줄(12 회색, 치는 글자만 본문색). */
+.md-hint { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.md-hint b { color: var(--text); }
+/* 칸 아래 한 줄 — 그 줄의 값이 앱에서 어떻게 갈리나(굿즈 비고). */
+.field-under { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+/* 지표 타일 — 객체 하나를 담는 타일이라 안쪽 1 테두리를 둔다. 라벨 12 위 · 값 17 Bold 아래. */
+.stat-tiles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.stat-tile { flex: 1 1 140px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--chip-line); padding: 12px 14px; }
+.stat-tile .k { font-size: 12px; color: var(--muted); }
+.stat-tile .v { margin-top: 2px; font-size: 17px; font-weight: 700; }
+.stat-tile.warn .v { color: var(--warn); }
+/* 줄 안의 사진 칸 — 폼 크기(M 48 · 16)로 선다. 미리보기 48 · 반경 10, 「올리기」는 S(36). */
+.row-item .img-cell-thumb { width: 48px; height: 48px; border-radius: 10px; }
+.row-item .img-cell-thumb:not(.broken) { box-shadow: inset 0 0 0 1px var(--chip-line); }
+.row-item .img-cell textarea.gl-auto { min-height: 48px; height: 48px; padding: 13px 14px; border-radius: 14px; font-size: 16px; line-height: 22px; }
+.row-item .img-cell .img-up { height: 36px; padding: 0 14px; border-radius: 12px; font-size: 13px; }
+/* 무대 시간표 「일자」 — 날짜 탭(GLDS 탭 · 보조 줄은 슬롯 수) 아래에 고른 날짜와 날짜 도구. */
+.day-tabs { max-width: 640px; }
+.day-ctl { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 16px; }
+.day-ctl > .field { width: 200px; }
+.day-ctl > .grow { flex: 1; }
+/* 앱 미리보기 — 「현장」 */
+.game-chip.sm { font-size: 9.5px; font-weight: 900; padding: 3px 6px; }
+.pill.hot { background: color-mix(in srgb, #C2410C 14%, transparent); color: #C2410C; }
+.ap-rich { font-size: 12.5px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.ap-rich.lg { font-size: 13px; }
+.ap-rich.xl { font-size: 13.5px; }
+.ap-rich.dim { margin-top: 3px; color: #8A9491; }
+.ap-rich > .li { display: flex; }
+.ap-rich > .li::before { content: ''; flex: none; width: 5px; height: 5px; margin: .55em 7px 0 0; border-radius: 50%; background: currentColor; }
+.ap-rich > .gap { height: 1.5em; }
+.ap-days { display: flex; padding: 3px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--chip-line); }
+.ap-day { flex: 1; min-width: 0; padding: 6px 0; border-radius: 11px; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.ap-day > div { font-size: 10px; font-weight: 500; }
+.ap-day.on { background: var(--accent); color: #fff; }
+.ap-slot { display: flex; align-items: center; }
+.ap-slot-t { flex: none; width: 58px; text-align: center; font-size: 12px; color: var(--muted); }
+.ap-slot-t strong { display: block; font-weight: 700; }
+.ap-slot-t .game-chip { margin-top: 4px; padding: 2.5px 5px; }
+.ap-slot-bar { flex: none; width: 1px; height: 36px; margin: 0 12px; background: var(--line); }
+.ap-slot-b { flex: 1; min-width: 0; }
+.ap-slot-b > strong { display: block; font-size: 13px; }
+.ap-slot-b > .ap-rich { margin-top: 2px; }
+.ap-cast { margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--c); }
+.ap-range { font-size: 13px; color: var(--muted); }
+.ap-goods { display: flex; align-items: center; gap: 12px; }
+.ap-goods-b { flex: 1; min-width: 0; }
+.ap-thumb { flex: none; width: 48px; height: 48px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--chip-line); }
+.ap-thumb.lg { width: 52px; height: 52px; background: var(--panel); }
+.ap-name { font-size: 14px; font-weight: 700; }
+.ap-val { margin-top: 2px; font-size: 15px; font-weight: 700; }
+.ap-goods-b > .ap-sub { margin-top: 2px; }
+.ap-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ap-add { flex: none; display: flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); font-size: 12px; font-weight: 700; }
+.ap-shop { display: flex; align-items: center; gap: 7px; margin-top: 2px; font-size: 13px; font-weight: 700; }
+.ap-shop::before { content: ''; flex: none; width: 3px; height: 13px; border-radius: 2px; background: var(--c); }
+.ap-menu { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; }
+.ap-menu > span:first-child { flex: 1; min-width: 0; }
+.ap-menu > span:last-child { flex: none; color: var(--c); }
+.ap-booth { display: flex; flex-direction: column; gap: 10px; padding: 2px 0; }
+.ap-booth-t { flex: 1; min-width: 0; font-size: 15px; }
+.ap-booth-p { flex: none; font-size: 15px; color: var(--accent-deep); }
+/* 받는 것 — 색이 뜻을 싣는 면(옅은 노랑)이라 남긴다. */
+.ap-reward { display: flex; gap: 7px; padding: 10px 12px; border-radius: 12px; background: var(--warn-bg); color: #9A5B00; font-weight: 700; }
+.ap-reward .nav-ic { width: 16px; height: 16px; margin-top: 2px; stroke: currentColor; }
+.ap-reward .ap-rich { flex: 1; min-width: 0; font-size: 13px; color: inherit; }
+.ap-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.ap-tab { flex: none; display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--chip-line); font-size: 13px; font-weight: 700; }
+.ap-tab.on { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-deep); }
+/* 폰 폭 — 줄의 칸을 한 줄에 하나씩 쌓는다(예전 표도 세로로 쌓였다). 앞 꼬리표 · 줄 도구는 칸 위 한 줄에 선다. */
+@media (max-width: 720px) {
+  .row-item { flex-wrap: wrap; align-items: center; }
+  .row-item > .grid { order: 1; flex: 1 1 100%; grid-template-columns: minmax(0, 1fr) !important; }
+  .row-item > .grid > * { grid-column: 1 / -1 !important; }
+  .row-lead, .row-sel, .row-tools { padding-top: 0; }
+  .row-tools { margin-left: auto; }
+  .rows.two-col { display: block; }
+  .day-ctl > .field { width: 100%; }
+  .day-ctl > .grow { display: none; }
+}
+
 /* ── 줄 목록 — 헤어라인으로 나눈 한 줄들(시안) ─────── */
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 12px 0; }
 .rows > .row + .row { border-top: 1px solid var(--line); }
@@ -637,8 +727,6 @@ td.sel, th.sel { text-align: center; }
 .diff-where { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 .diff-path { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 
-/* 안내 글 도구 줄 — 입력 칸 바로 위에 붙는다. */
-.guide-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 2px; }
 
 /* 굿즈존 안내 미리보기 — 앱 시트(묶음 · [이름 | 값] 줄 · 부연)의 축소판이라 앱의 면을 그대로 둔다.
    치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게.
