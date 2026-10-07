@@ -3999,7 +3999,7 @@ function renderPublish(sec) {
     steps.push(canonFollowsLive(res)
       ? step(files.length > 1 ? `정본 두 파일을 ${g.branch} 에 같이 커밋합니다` : `정본을 ${g.branch} 에 같이 커밋합니다`,
           `${files.join(' · ')} — GitHub 연결됨${ghState.login ? ' · @' + ghState.login : ''}.`,
-          el('button', { class: 'btn btn-sm', onclick: () => { g.token = ''; ghState.status = 'idle'; render(); } }, ['연결 끊기']))
+          el('button', { class: 'btn btn-sm', onclick: disconnectGithub }, ['연결 끊기']))
       : step('정본은 그대로 둡니다', 'GitHub 가 연결돼 있지 않습니다 — 「정본 내보내기」에서 한 번 연결하면 반영할 때 같이 올라갑니다.'));
     if (g && g.token && ghState.status === 'idle') checkGithub();   // 계정 이름을 받아 온다(끝나도 이 화면은 다시 안 그린다 — 다음 진입에 보인다)
     two.push(el('div', { class: 'rows inset' }, steps));
@@ -5040,6 +5040,78 @@ function renderExport(sec) {
  * PR 을 병합하는 한 번의 눈이 그 문이다.
  * ═════════════════════════════════════════════════════════════ */
 
+/**
+ * GitHub 연결을 **계정에 묶는다**(10/7) — 한 번 연결하면 다른 기기에서 로그인해도 다시 넣지 않는다.
+ *
+ * 토큰은 로그인한 운영자의 계정 문서(Firestore `operators/{uid}`)에 둔다. 브라우저의 localStorage 는
+ * 그 사본이다 — 둘이 다르면 **계정이 이긴다**.
+ *
+ *   계정 문서에 토큰이 있다        → 그것을 쓴다(이 브라우저의 것을 덮는다)
+ *   계정 문서가 빈 값으로 있다      → 다른 기기에서 연결을 끊었다. 이 브라우저의 것도 지운다
+ *   계정 문서가 아예 없다           → 묶은 적이 없다. 이 브라우저에 연결이 있으면 그것을 계정에 올린다
+ *
+ * 마지막 줄이 "예전에 브라우저에만 넣어 둔 연결" 을 한 번 로그인하는 것으로 계정에 옮기는 길이다.
+ */
+function githubAccountPlan(doc, local) {
+  if (doc && typeof doc.githubToken === 'string') return doc.githubToken ? 'use-account' : (local ? 'clear-local' : 'none');
+  return local ? 'upload-local' : 'none';
+}
+const ghAccount = {
+  uid: '',        // 이 계정으로는 이미 맞췄다(로그인 상태 콜백이 여러 번 온다)
+  bound: false,   // 계정 문서에 토큰이 있다 — 화면이 「계정에 저장됨」을 적는다
+  saved: '',      // 계정에 마지막으로 올린 토큰 — 같은 값을 또 쓰지 않는다
+  error: '',
+};
+async function syncGithubAccount() {
+  const c = window.cloud;
+  const g = window.gh;
+  if (!c || !c.available || !g || !isOperator(c.user)) return;
+  if (ghAccount.uid === c.user.uid) return;
+  ghAccount.uid = c.user.uid;
+  try {
+    const doc = await c.accountGet();
+    const plan = githubAccountPlan(doc, g.token);
+    if (plan === 'use-account') {
+      if (doc.githubToken !== g.token) { g.token = doc.githubToken; ghState.status = 'idle'; }
+      Object.assign(ghAccount, { bound: true, saved: doc.githubToken, error: '' });
+    } else if (plan === 'clear-local') {
+      g.token = '';
+      Object.assign(ghState, { status: 'idle', login: '' });
+      Object.assign(ghAccount, { bound: false, saved: '', error: '' });
+    } else if (plan === 'upload-local') {
+      await c.accountSet({ githubToken: g.token });
+      Object.assign(ghAccount, { bound: true, saved: g.token, error: '' });
+    } else {
+      Object.assign(ghAccount, { bound: false, saved: '', error: '' });
+    }
+  } catch (e) {
+    // 규칙이 아직 배포되지 않았거나 네트워크가 끊겼다 — 이 브라우저의 연결로 계속 쓴다. 다음 로그인 콜백에 다시 해 본다.
+    Object.assign(ghAccount, { uid: '', error: e.message || String(e) });
+  }
+  if (g.token && ghState.status === 'idle') checkGithub();
+  if (['export', 'publish', 'live'].includes(state.active)) render();
+}
+/** 확인된 토큰을 계정에 올린다 — 잘못 붙여넣은 토큰을 계정에 남기지 않으려고 **확인이 끝난 뒤**에만 부른다. */
+async function bindGithubAccount() {
+  const c = window.cloud;
+  const g = window.gh;
+  if (!c || !c.available || !g || !g.token || !isOperator(c.user) || ghAccount.saved === g.token) return;
+  try {
+    await c.accountSet({ githubToken: g.token });
+    Object.assign(ghAccount, { bound: true, saved: g.token, error: '' });
+  } catch (e) { Object.assign(ghAccount, { bound: false, error: e.message || String(e) }); }
+}
+/** 연결 끊기 — 이 브라우저와 계정 양쪽에서 지운다. 계정에는 **빈 값**을 남겨 다른 기기도 다음 로그인에 끊긴다. */
+function disconnectGithub() {
+  const c = window.cloud;
+  const g = window.gh;
+  if (g) g.token = '';
+  Object.assign(ghState, { status: 'idle', login: '' });
+  Object.assign(ghAccount, { bound: false, saved: '' });
+  if (c && c.available && isOperator(c.user)) c.accountSet({ githubToken: '' }).catch((e) => { ghAccount.error = e.message || String(e); toast('계정에 남은 연결을 지우지 못했습니다 — ' + ghAccount.error); });
+  render();
+}
+
 /** GitHub 연결 상태 — 토큰 자체는 github.js 가 localStorage 에 둔다. 여기는 화면에 필요한 것만. */
 const ghState = {
   status: 'idle',   // idle(아직 확인 안 함) · checking · ok · error
@@ -5073,6 +5145,7 @@ async function checkGithub() {
   try {
     const r = await g.check();
     Object.assign(ghState, { status: 'ok', login: r.login, canPush: r.canPush, error: '' });
+    await bindGithubAccount();   // 확인된 토큰만 계정에 묶는다
   } catch (e) {
     Object.assign(ghState, { status: 'error', error: e.message });
   }
@@ -5100,16 +5173,20 @@ function renderGitCard(res, json) {
       el('div', { class: 'git-row' }, [input, el('button', { class: 'btn btn-primary', onclick: connect }, ['연결'])]),
       el('p', { class: 'note', style: 'margin-top:10px',
         text: `GitHub ▸ Settings ▸ Developer settings ▸ Fine-grained tokens 에서 ${g.owner}/${g.repo} 하나만 고르고 `
-          + 'Contents · Pull requests 를 Read and write 로 준 토큰을 만드세요. 토큰은 이 브라우저에만 저장되고 저장소 · Firestore 로 나가지 않습니다.' }),
+          + 'Contents · Pull requests 를 Read and write 로 준 토큰을 만드세요. 한 번 연결하면 로그인한 운영자 계정에 묶여, 다른 기기에서는 로그인만 하면 됩니다. '
+          + '토큰은 이 브라우저와 본인만 읽는 계정 문서에 저장되고, 저장소나 앱이 읽는 문서로는 나가지 않습니다.' }),
     ]);
   }
 
   if (ghState.status === 'idle') checkGithub();   // 끝나면 이 화면을 다시 그린다
 
-  const disconnect = el('button', { class: 'btn btn-sm', onclick: () => { g.token = ''; ghState.status = 'idle'; render(); } }, ['연결 끊기']);
+  const disconnect = el('button', { class: 'btn btn-sm', onclick: disconnectGithub }, ['연결 끊기']);
   const status = ghState.status === 'ok'
     ? [el('span', { class: 'pill ' + (ghState.canPush ? 'ok' : 'err'),
-        text: ghState.canPush ? `연결됨${ghState.login ? ' · @' + ghState.login : ''}` : '이 계정은 저장소에 쓸 수 없습니다' })]
+        text: ghState.canPush ? `연결됨${ghState.login ? ' · @' + ghState.login : ''}` : '이 계정은 저장소에 쓸 수 없습니다' }),
+      // 계정에 묶였는지 — 묶였으면 다른 기기에서 다시 넣지 않아도 된다.
+      el('span', { class: 'muted', text: ghAccount.bound ? '계정에 저장됨 — 다른 기기에서는 로그인만 하면 됩니다'
+        : ghAccount.error ? `이 브라우저에만 저장됨 — 계정에 올리지 못했습니다(${ghAccount.error})` : '이 브라우저에만 저장됨' })]
     : ghState.status === 'error'
       ? [el('span', { class: 'pill err', text: '연결 실패' }), el('span', { class: 'muted', text: ghState.error })]
       : [el('span', { class: 'pill', text: '확인하는 중…' })];
@@ -6357,6 +6434,10 @@ function selftest() {
   });
   check('GitHub 브릿지가 앱이 읽는 가지에 쓴다', () => {
     assert(window.gh && typeof window.gh.commit === 'function', 'github.js 가 로드되지 않았다');
+    // GitHub 연결은 계정에 묶인다 — 계정 문서가 이긴다. 문서가 없을 때만 이 브라우저의 연결을 올린다.
+    assert(githubAccountPlan({ githubToken: 'A' }, '') === 'use-account' && githubAccountPlan({ githubToken: 'A' }, 'B') === 'use-account', '계정의 토큰을 쓰지 않는다');
+    assert(githubAccountPlan({ githubToken: '' }, 'B') === 'clear-local' && githubAccountPlan({ githubToken: '' }, '') === 'none', '다른 기기에서 끊은 연결이 이 브라우저에 남는다');
+    assert(githubAccountPlan(null, 'B') === 'upload-local' && githubAccountPlan({}, 'B') === 'upload-local' && githubAccountPlan(null, '') === 'none', '묶은 적 없는 계정에 이 브라우저의 연결을 올리지 않는다');
     assert(REPO_RAW.endsWith(`/${window.gh.owner}/${window.gh.repo}/${window.gh.branch}/`), 'REPO_RAW 와 다른 저장소 · 가지에 쓴다');
   });
 
@@ -6682,6 +6763,9 @@ function init() {
     if (c.available && editions.from !== 'live' && !editionsAsked) { editionsAsked = true; loadEditions(); }
     if (isOperator(c.user)) syncAll();
     else liveSynced = false;   // 로그아웃하면 다음 로그인에 다시 맞춘다
+    // GitHub 연결은 계정에 묶여 있다 — 로그인하면 계정의 것을 받아 온다(없으면 이 브라우저의 것을 올린다).
+    if (isOperator(c.user)) syncGithubAccount();
+    else ghAccount.uid = '';
   };
 
   const saved = loadDraft();
