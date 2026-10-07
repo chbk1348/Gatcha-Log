@@ -133,6 +133,12 @@ struct DeveloperView: View {
                 store.debugProbeZzzCombat { show("젠레스 전투 API", $0) }
             }
             SetDivider()
+            // 화면이 비었을 때 앱 탓인지 상류 탓인지 — 앱이 부르는 곳에 한 번씩 닿아 보고 왕복 시간을 잰다(ApiPing).
+            devRow("dot.radiowaves.left.and.right", .teal, "API Ping 조회", "외부 API 18곳에 닿는지 · 왕복 시간") {
+                show("API Ping", ["재는 중… (최대 8초)"])
+                store.debugPingApis { show("API Ping", $0) }
+            }
+            SetDivider()
             devRow("arrow.triangle.2.circlepath", .slate, "캐시 무시하고 전체 재조회", "게임 정보·일정·소식을 강제로 다시 받는다") {
                 store.refreshGameInfo(force: true)
             }

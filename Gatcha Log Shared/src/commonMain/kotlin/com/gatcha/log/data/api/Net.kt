@@ -114,12 +114,20 @@ object Net {
     suspend fun post(url: String, headers: Map<String, String> = emptyMap(), body: String = "{}", timeoutMs: Int = TIMEOUT_MS.toInt()): NetResult =
         request(HttpMethod.Post, url, headers, body, timeoutMs.toLong())
 
+    /**
+     * 닿는지만 본다 — **재시도도, 오류 안내도 없다**([ApiPing] 전용). 한 번 보내 걸린 시간을 재는 용도라
+     * 재시도가 끼면 시간이 부풀고, 일부러 찔러 본 실패가 사용자에게 「연결하지 못했어요」로 뜨면 안 된다.
+     */
+    internal suspend fun ping(url: String, timeoutMs: Long): NetResult =
+        request(HttpMethod.Get, url, emptyMap(), null, timeoutMs, quiet = true)
+
     private suspend fun request(
         method: HttpMethod,
         url: String,
         headers: Map<String, String>,
         body: String?,
         timeoutMs: Long,
+        quiet: Boolean = false,
     ): NetResult = try {
         val response = (if (headers.keys.any { it.equals("Cookie", ignoreCase = true) }) cookieClient else client).request(url) {
             this.method = method
@@ -141,7 +149,7 @@ object Net {
             // 흔하게 찔러 본다(신규 캐릭터 메타·아이콘·아직 안 올라온 일정). 그걸 전부
             // "서버가 응답하지 않아요" 로 띄우면 정상 동작 중에도 토스트가 계속 뜬다.
             // 로그에는 남기므로 진단은 그대로 된다.
-            if (result.code != 404) {
+            if (result.code != 404 && !quiet) {
                 ErrorBus.report(ErrorBus.Kind.SERVER, sourceOf(url), "HTTP ${result.code}")
             }
         }
@@ -158,6 +166,7 @@ object Net {
         // 진단용: 예외(타임아웃·연결 실패 등)는 항상 로깅
         println("GatchaNet: ${method.value} ${url.substringBefore("?")} → 예외 ${e::class.simpleName}: ${e.message}")
         when {
+            quiet -> Unit   // 닿는지 보려고 찔러 본 요청([ping]) — 실패도 결과다
             // **취소가 다른 예외에 싸여 오는 경우.** 위 catch 는 최상위 타입만 잡는데, 엔진에 따라
             // IOException 안에 CancellationException 이 원인으로 들어온다. 그것까지 걸러야
             // 화면을 벗어날 때마다 "연결하지 못했어요" 가 뜨는 일이 없다.
