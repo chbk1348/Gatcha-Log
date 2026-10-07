@@ -35,13 +35,14 @@ internal fun parseUpdateManifest(body: String, current: Long): UpdateInfo? = run
     if (latest <= current) return null
     val notesArr = o.optJSONArray("notes")
     val notes = if (notesArr != null) (0 until notesArr.length()).map { notesArr.getString(it) } else emptyList()
-    // apkUrl 미지정 시 최신 릴리스 에셋(고정 경로)으로 폴백
+    // apkUrl 미지정 시 그 버전 릴리스의 에셋으로 폴백한다. 파일명은 「앱 이름-버전」이다(27.51.0~, 그 전에는 app-release.apk).
+    val versionName = o.optString("versionName", "").trim()
     val apkUrl = o.optString("apkUrl", "").ifBlank {
-        "https://github.com/chbk1348/Gatcha-Log/releases/latest/download/app-release.apk"
+        "https://github.com/chbk1348/Gatcha-Log/releases/download/v$versionName/Gatcha-Log-$versionName.apk"
     }
     UpdateInfo(
         versionCode = latest,
-        versionName = o.optString("versionName", ""),
+        versionName = versionName,
         url = o.optString("url", ""),
         apkUrl = apkUrl,
         notes = notes,
