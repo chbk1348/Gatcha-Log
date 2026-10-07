@@ -538,6 +538,11 @@ data class HoyolandEvent(
      * 공개된다(2025 기준). 그때까지 화면은 날짜 탭만 세우고 "공개 전"이라고 말한다.
      */
     val days: List<HoyolandDay>,
+    /**
+     * 지난 행사(최신순). 회차 문서의 것이 아니라 **따로 둔 문서**(`config/hoyolandPast`)의 목록이 얹힌다
+     * ([com.gatcha.log.data.api.HoyolandApi.withPast], 2026-10-07) — 어드민이 회차와 무관하게 한 곳에서 관리한다.
+     * 그 문서를 못 받았거나 비어 있을 때만 회차 문서의 `past`, 그것도 비면 번들 기본값이다.
+     */
     val past: List<HoyolandPastEvent>,
     /**
      * 굿즈 품목. **비어 있는 게 정상인 기간이 있다** — 판매 목록은 시간표만큼 늦게 나온다.

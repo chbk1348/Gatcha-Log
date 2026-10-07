@@ -37,6 +37,34 @@ class HoyolandArchiveTest {
         assertEquals(null, HoyolandApi.parseArchiveIndex("""{"published":"2027"}"""))
     }
 
+    /** 지난 행사는 회차 문서와 따로 둔 문서에서 온다 — 제목이 빈 줄은 버리고, 순서는 문서 그대로다. */
+    @Test
+    fun `지난 행사 문서를 읽는다`() {
+        val body = """{"_comment":"x","past":[
+            {"title":"호요랜드 2026","facts":[{"label":"기간","value":"2026.10.2 ~ 10.5"}]},
+            {"title":" ","facts":[]},
+            {"title":"호요랜드 2025"}]}"""
+        val list = HoyolandApi.parsePastDoc(body)!!
+        assertEquals(listOf("호요랜드 2026", "호요랜드 2025"), list.map { it.title })
+        assertEquals("2026.10.2 ~ 10.5", list.first().facts.single().value)
+        assertEquals(0, list.last().facts.size)
+    }
+
+    /** 비었거나 못 읽는 문서는 null — 회차 문서의 `past`(그것도 비면 번들 기본값)로 내려간다. */
+    @Test
+    fun `지난 행사 문서가 비면 회차 문서의 것을 쓴다`() {
+        assertEquals(null, HoyolandApi.parsePastDoc("""{"past":[]}"""))
+        assertEquals(null, HoyolandApi.parsePastDoc("""{"edition":"호요랜드 2027"}"""))
+        assertEquals(null, HoyolandApi.parsePastDoc("{깨진 JSON"))
+        val event = HoyolandDefaults.event
+        assertEquals(event.past, HoyolandApi.withPast(event, null).past)
+        assertEquals(event.past, HoyolandApi.withPast(event, emptyList()).past)
+        // 단독 문서가 있으면 그것이 이긴다 — 일정 미정 안내의 회차 이름도 거기서 온다.
+        val moved = HoyolandApi.withPast(event, listOf(past("호요랜드 2030")))
+        assertEquals(listOf("호요랜드 2030"), moved.past.map { it.title })
+        assertEquals(true, moved.nextEditionNotice.startsWith("호요랜드 2030 "))
+    }
+
     /** 원격 목록을 받기 전에도 2026(어드민 보관본) · 2025 · 2024(앱 내장)는 상세로 이어진다. 그 밖의 회차는 아니다. */
     @Test
     fun `내장값의 지난 행사는 모두 상세 키가 선다`() {

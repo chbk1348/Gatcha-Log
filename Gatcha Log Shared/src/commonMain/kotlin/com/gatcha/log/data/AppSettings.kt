@@ -253,6 +253,14 @@ class AppSettings {
         get() = prefs.getString(KEY_HOYOLAND_CONFIG, "") ?: ""
         set(v) { prefs.putString(KEY_HOYOLAND_CONFIG, v) }
 
+    /**
+     * 마지막으로 받아 온 호요랜드 「지난 행사」 문서 원문(JSON) — 회차 문서와 따로 둔 문서다(HoyolandApi).
+     * [hoyolandConfigRaw] 와 같은 이유로 남긴다: 첫 프레임과 오프라인에서도 마지막으로 본 목록이 선다.
+     */
+    var hoyolandPastRaw: String
+        get() = prefs.getString(KEY_HOYOLAND_PAST, "") ?: ""
+        set(v) { prefs.putString(KEY_HOYOLAND_PAST, v) }
+
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
     fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
     fun setLastNotified(tag: String, value: String) { prefs.putString("notif_last_$tag", value) }
@@ -263,6 +271,7 @@ class AppSettings {
         private const val KEY_HOYOLAND_ENTRY = "hoyoland_entry"
         private const val KEY_HOYOLAND_EDITION = "hoyoland_edition"
         private const val KEY_HOYOLAND_CONFIG = "hoyoland_config_raw"
+        private const val KEY_HOYOLAND_PAST = "hoyoland_past_raw"
         private const val KEY_AUTO_CHECKIN = "auto_checkin"
         private const val KEY_NOTIFY_RESIN = "notify_resin"
         private const val KEY_NOTIFY_ATTEND = "notify_attendance"

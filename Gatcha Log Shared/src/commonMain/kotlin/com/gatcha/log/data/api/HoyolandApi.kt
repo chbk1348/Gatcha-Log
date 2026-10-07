@@ -21,6 +21,8 @@ import com.gatcha.log.data.HoyolandTicketStatus
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.data.HoyolandArchives
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 /**
  * 호요랜드 정보 원격 갱신.
@@ -35,6 +37,8 @@ import com.gatcha.log.data.HoyolandArchives
  *     행사 당일 현장에서 시간표가 바뀌는 상황을 위한 것이다.
  *  2. raw `config/hoyoland_v2.json` — git 에 남는 정본. Firestore 가 비었거나 못 읽으면 여기로 내려온다.
  *  3. 번들 [HoyolandDefaults] — 둘 다 실패했을 때.
+ *
+ * 「지난 행사」만은 회차 문서가 아니라 **따로 둔 문서**(`config/hoyolandPast`)에서 온다 — 아래 「지난 행사 — 단독 문서」.
  *
  * **이름에 V2 가 붙은 이유 — 옛 자리(`config/hoyoland` · `hoyoland.json`)는 구버전이 읽는다.**
  * 27.50.x 이하는 빈 날짜를 [HoyolandPhase.TBA] 가 아니라 '개막 전' 으로 읽는다. 폐막 다음 날
@@ -119,7 +123,7 @@ object HoyolandApi {
         if (raw.isBlank()) return null
         // cachedAtMillis 는 0 으로 둔다 — 디스크 값은 '지금 받은 값' 이 아니므로 다음 load() 에서
         // 바로 원격을 다시 훑어야 한다. 여기서 신선도를 주면 15초 캐시가 낡은 값을 붙든다.
-        return parseOrNull(raw)?.also { cached = it }
+        return parseOrNull(raw)?.let { withPast(it, pastList ?: restoredPast()) }?.also { cached = it }
     }
 
     /**
@@ -203,8 +207,12 @@ object HoyolandApi {
         cached?.let { if (!force && currentTimeMillis() - cachedAtMillis < FRESH_MS) return it }
         // 라이브 → 정본 순으로 내려온다. 앞 단계가 깨진 JSON 이어도 다음 단계로 넘어간다 —
         // 어드민이 잘못 쓴 문서 하나로 화면이 비어 버리면 안 된다.
-        val body = fetchLive()?.takeIf { parseOrNull(it) != null } ?: fetchRaw()
-        val parsed = body?.let(::parseOrNull)
+        // 지난 행사는 따로 둔 문서에서 온다([loadPast]) — 회차 문서와 나란히 받아 기다리는 시간을 늘리지 않는다.
+        val (body, past) = coroutineScope {
+            val pastJob = async { loadPast() }
+            (fetchLive()?.takeIf { parseOrNull(it) != null } ?: fetchRaw()) to pastJob.await()
+        }
+        val parsed = body?.let(::parseOrNull)?.let { withPast(it, past) }
         if (parsed != null) {
             cached = parsed
             cachedAtMillis = currentTimeMillis()
@@ -213,6 +221,51 @@ object HoyolandApi {
             runCatching { settings.hoyolandConfigRaw = body }
         }
         return parsed ?: current
+    }
+
+    // ----------------------------------------------------------------- 지난 행사 — 단독 문서
+    //
+    // 「지난 행사」는 회차마다 따로 적던 목록이었다(회차 문서의 `past`). 회차가 넘어가도 같은 목록이라
+    // 어드민이 **한 곳**에서만 고치도록 문서를 뗐다(2026-10-07):
+    //   라이브  config/hoyolandPast        정본  config/hoyoland/past.json     { "past": [ { title, facts } ] }
+    // 앱은 지금 회차에 이 목록을 얹는다([withPast]). 못 받았거나 비어 있으면 회차 문서의 `past`,
+    // 그것도 비면 번들 기본값 — 예전 규칙 그대로다. 이 문서를 모르는 빌드를 위해 어드민이 회차 문서의
+    // `past` 에도 같은 목록을 같이 써 둔다.
+
+    private const val PAST_DOC = "hoyolandPast"
+    private const val PAST_URL =
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland/past.json"
+
+    /** 마지막으로 받은 지난 행사 목록. null 이면 아직 받지 못했다. */
+    private var pastList: List<HoyolandPastEvent>? = null
+    private var pastRestoreTried = false
+
+    /** 지난 행사 문서 → 목록. 못 읽거나 **비어 있으면 null** — 회차 문서의 것으로 내려가라는 뜻이다. */
+    internal fun parsePastDoc(body: String): List<HoyolandPastEvent>? = runCatching {
+        JSONObject(body).optJSONArray("past")?.let { parsePast(it) }?.takeIf { it.isNotEmpty() }
+    }.getOrNull()
+
+    /** [e] 에 단독 문서의 지난 행사를 얹는다. 목록이 없으면 회차 문서가 들고 온 것 그대로다. */
+    internal fun withPast(e: HoyolandEvent, past: List<HoyolandPastEvent>?): HoyolandEvent =
+        if (past.isNullOrEmpty()) e else e.copy(past = past)
+
+    /** 라이브 → 정본 → 직전에 받은 값(메모리 · 디스크) 순. 끝내 없으면 null. */
+    private suspend fun loadPast(): List<HoyolandPastEvent>? {
+        val body = LiveConfig.get(PAST_DOC)?.takeIf { parsePastDoc(it) != null }
+            ?: Net.get("$PAST_URL?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
+        body?.let(::parsePastDoc)?.let {
+            pastList = it
+            runCatching { settings.hoyolandPastRaw = body }
+        }
+        return pastList ?: restoredPast()
+    }
+
+    /** 디스크에 남은 마지막 지난 행사 목록 — 첫 프레임과 오프라인용. 한 번만 파싱한다. */
+    private fun restoredPast(): List<HoyolandPastEvent>? {
+        if (pastRestoreTried) return pastList
+        pastRestoreTried = true
+        val raw = runCatching { settings.hoyolandPastRaw }.getOrNull().orEmpty()
+        return raw.takeIf { it.isNotBlank() }?.let(::parsePastDoc)?.also { pastList = it }
     }
 
     internal fun parseOrNull(body: String): HoyolandEvent? =
