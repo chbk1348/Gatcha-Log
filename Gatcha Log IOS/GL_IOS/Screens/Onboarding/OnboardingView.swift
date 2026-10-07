@@ -269,23 +269,28 @@ struct OnboardingView: View {
                 Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요")
                     .font(.pretendard(size: 12)).foregroundStyle(OB.sub).padding(.top, 12)
             }
-            GldsButton(title: "시작하기", size: .l) {
-                guard !busy, !leaving else { return }
-                // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
-                leaving = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
-                    settled = false; restored = false
-                    go(1)
-                    leaving = false
+            // **온보딩은 구글 로그인부터 한다 — 첫 사용자도, 쓰던 사용자도 같은 한 갈래다**(10/7). 예전엔 「시작하기」(끝에서 로그인)와
+            // 「구글 로그인 하기」(먼저 로그인) 두 갈래라, 갈래마다 계정 값을 채울지 · 덮을지 · 끊겼을 때 어디로 갈지가 달랐다.
+            if afterLogin {
+                // 이미 로그인된 채 다시 시작한 경우 — 로그인을 다시 묻지 않는다.
+                GldsButton(title: "시작하기", size: .l) {
+                    guard !busy, !leaving else { return }
+                    // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
+                    leaving = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+                        settled = false; restored = false
+                        syncFromAccount()
+                        go(1)
+                        leaving = false
+                    }
                 }
+                .cta(primary: true)
+            } else {
+                // 구글 로그인이 곧 시작이다 — ⑥ 완료 화면에 있던 버튼 · 문구 그대로다.
+                // 성공하면 onChange 가 ② 게임 선택으로 넘긴다. 취소하면 이 화면에 남는다.
+                GoogleSignInButton(title: "Google로 로그인하고 시작하기") { loginRequested = true; store.signIn() }
+                    .padding(.horizontal, 8).enterUp(delay: 0.14)
             }
-            .cta(primary: true)
-            // 「구글 로그인 하기」 — 구글 로그인부터 한다(기존 사용자 복원). 성공하면 onChange 가 ② 게임 선택으로 넘긴다.
-            // 이미 로그인돼 있으면(로그인한 뒤 끊겨 다시 시작한 경우) 다시 묻지 않고 ② 로 간다.
-            GldsButton(title: "구글 로그인 하기", variant: .secondary) {
-                if afterLogin { settled = false; restored = false; syncFromAccount(); go(1) }
-                else { loginRequested = true; store.signIn() }
-            }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
