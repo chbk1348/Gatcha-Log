@@ -1674,6 +1674,13 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
+    /** 외부 API 에 한 번씩 닿아 보고 왕복 시간을 잰다(개발자 화면 「API Ping 조회」) — 결과는 [onResult] 로(메인에서 호출). */
+    fun debugPingApis(onResult: (List<String>) -> Unit) {
+        viewModelScope.launch {
+            onResult(withContext(Dispatchers.IO) { com.gatcha.log.data.api.ApiPing.run() })
+        }
+    }
+
     /** 로딩 게이트 상태 — "왜 스켈레톤이 안 걷히나"를 볼 때. */
     fun debugReadyStates(): String =
         "게임정보 ${_gameInfoReady.value.mark()} · 일정 ${_scheduleReady.value.mark()} · " +
