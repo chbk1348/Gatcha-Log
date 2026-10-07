@@ -5130,10 +5130,20 @@ async function syncAll() {
   const pulled = [];
   const kept = [];
   const failed = [];
+  const rebased = [];
 
   for (const res of DOC_RESOURCES) {
     const d = docs[res.id];
-    if (isDirty(res.id)) { kept.push(res.label); continue; }
+    if (isDirty(res.id)) {
+      // 편집 중인 초안은 덮지 않는다. 다만 **바탕이 그사이 원격에서 바뀌었으면** 손대지 않은 칸은 새 값으로 따라간다(rebaseDraft).
+      try {
+        const { raw, label } = await pullResource(res);
+        if (rebaseDraft(res, d, raw)) { d.source = label; rebased.push(res.label); }
+      } catch (e) { /* 못 받으면 초안 그대로 */ }
+      if (isDirty(res.id)) kept.push(res.label);
+      else if (!rebased.includes(res.label)) pulled.push(res.label);
+      continue;
+    }
     try {
       const { raw, label } = await pullResource(res);
       d.original = JSON.parse(JSON.stringify(raw));
@@ -5149,9 +5159,47 @@ async function syncAll() {
   render();
 
   const tail = (kept.length ? ` (편집 중인 ${kept.join(' · ')} 은 그대로 뒀습니다)` : '')
+    + (rebased.length ? ` · ${rebased.join(' · ')} 은 원격이 바뀌어, 손대지 않은 칸을 새 값으로 맞췄습니다` : '')
     + (failed.length ? ` · ${failed.join(' · ')} 은 받지 못했습니다` : '');
   if (pulled.length) toast(`앱이 지금 보는 값으로 맞췄습니다 — ${pulled.join(' · ')}${tail}`);
-  else if (kept.length || failed.length) toast(`값을 맞추지 않았습니다${tail}`);
+  else if (kept.length || failed.length || rebased.length) toast(`값을 맞추지 않았습니다${tail}`);
+}
+
+/**
+ * 편집 중인 초안의 **바탕을 새 원격 값으로 갈아 낀다** — 원격이 바뀌지 않았으면 false.
+ *
+ * 초안은 「불러온 원본 + 내가 고친 것」이다. 원본이 낡으면(다른 곳에서 반영 · 릴리즈가 있었다) 내가 건드리지 않은 칸까지
+ * 옛 값으로 남아, 고친 칸과 어긋난다 — 앱 배포 탭에서 최소 지원 버전만 275100 으로 올려 둔 초안이, 그사이 27.51.0 이
+ * 나갔는데도 배포 버전을 275060 으로 들고 있어 「최소 지원 버전이 배포 버전보다 높습니다」 오류를 냈다(2026-10-07).
+ *
+ * 규칙(세 갈래 맞춤): 칸마다 초안이 옛 원본과 **같으면** 손대지 않은 것이라 새 원격 값을 따르고, **다르면** 내가 고친 것이라
+ * 그대로 둔다. 객체는 한 겹씩 내려가며 같은 규칙을 쓰고, 목록은 통째로 한 칸이다(줄에 ID 가 없어 줄 단위로는 못 맞춘다).
+ * 그 결과 고친 것이 하나도 안 남으면 초안은 원격과 같아져 「변경 없음」이 된다.
+ */
+function rebaseDraft(res, d, raw) {
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
+  const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  const base = res.normalize(clone(d.original || {}));
+  const next = res.normalize(clone(raw));
+  if (same(base, next)) return false;
+  const merge = (mine, was, now) => {
+    if (same(mine, was)) return clone(now);                 // 손대지 않았다 — 새 값
+    if (!isObj(mine) || !isObj(was) || !isObj(now)) return mine;   // 내가 고쳤다(목록 · 값) — 그대로
+    const out = {};
+    for (const k of new Set([...Object.keys(now), ...Object.keys(mine)])) {
+      // 내 쪽에만 있는 칸은 내가 더한 것, 원격에서 사라진 칸을 내가 그대로 들고 있으면 사라진 것을 따른다.
+      if (!(k in mine)) { if (!(k in was)) out[k] = clone(now[k]); continue; }
+      if (!(k in now) && same(mine[k], was[k])) continue;
+      out[k] = merge(mine[k], was[k], now[k]);
+    }
+    return out;
+  };
+  d.draft = res.normalize(merge(d.draft, base, next));
+  d.original = clone(raw);
+  d.result = null;
+  Object.assign(d, { undo: [], redo: [], snap: JSON.stringify(d.draft) });
+  return true;
 }
 
 async function refreshLive() {
@@ -6854,6 +6902,32 @@ function selftest() {
       // 원본과 편집본을 같은 잣대로 직렬화하므로 이것만으로 「저장 안 됨」이 켜지지 않는다.
       assert(jsonOfDoc({ draft: doc, original }, HOYOLAND) === jsonOfDoc({ draft: HOYOLAND.normalize(original), original }, HOYOLAND), '손대지 않았는데 편집 중으로 본다');
     } finally { d.original = keep; }
+  });
+  check('낡은 바탕의 초안 — 손대지 않은 칸은 새 원격 값을 따른다', () => {
+    const mk = (original, edit) => { const d = { original, draft: VERSION.normalize(JSON.parse(JSON.stringify(original))), undo: [], redo: [] }; edit(d.draft); return d; };
+    const old = { versionCode: 275060, versionName: '27.50.6', minVersionCode: 275000, url: 'https://x', apkUrl: 'https://old', sha256: 'a'.repeat(64), notes: ['옛 줄'] };
+    const now = { versionCode: 275100, versionName: '27.51.0', minVersionCode: 275100, url: 'https://x', apkUrl: 'https://new', sha256: 'b'.repeat(64), notes: ['새 줄'] };
+    // 최소 지원 버전만 올려 둔 초안 — 그사이 새 버전이 나갔다. 배포 버전 · 주소 · 해시 · 노트가 따라와 오류가 사라진다.
+    const d = mk(old, (x) => { x.minVersionCode = 275100; });
+    assert(has(VERSION.validate(d.draft), 'error', /배포 버전/), '낡은 초안이 오류를 내지 않는다(전제)');
+    assert(rebaseDraft(VERSION, d, now) === true, '원격이 바뀌었는데 맞추지 않았다');
+    assert(d.draft.versionCode === 275100 && d.draft.apkUrl === 'https://new' && d.draft.notes[0] === '새 줄', '손대지 않은 칸이 옛 값이다');
+    assert(!has(VERSION.validate(d.draft), 'error', /배포 버전/), '맞춘 뒤에도 오류가 남았다');
+    assert(jsonOfDoc(d, VERSION) === jsonOfDoc({ draft: VERSION.normalize(d.original), original: d.original }, VERSION), '고친 것이 원격과 같은데 편집 중으로 남았다');
+    // 내가 고친 칸은 원격이 바뀌어도 지킨다. 목록은 통째로 한 칸이다.
+    const mine = mk(old, (x) => { x.notes = ['내가 쓴 줄']; x.versionName = '27.60.0'; });
+    rebaseDraft(VERSION, mine, now);
+    assert(mine.draft.notes[0] === '내가 쓴 줄' && mine.draft.versionName === '27.60.0' && mine.draft.versionCode === 275100, '고친 칸을 덮었거나 안 고친 칸을 안 맞췄다');
+    // 원격이 그대로면 아무것도 하지 않는다.
+    const still = mk(old, (x) => { x.minVersionCode = 275050; });
+    assert(rebaseDraft(VERSION, still, old) === false && still.draft.minVersionCode === 275050, '바뀌지 않은 원격에 초안을 건드렸다');
+    // 객체는 한 겹 아래까지 — 예매 상태만 고친 초안에 원격의 예매 주소 변경이 들어온다.
+    const h0 = { edition: '호요랜드 2027', ticket: { status: 'undecided', url: '' }, lineup: [{ game: '원신' }] };
+    const h1 = { edition: '호요랜드 2027', ticket: { status: 'undecided', url: 'https://t' }, lineup: [{ game: '원신' }, { game: '붕괴3rd' }] };
+    const hd = { original: h0, draft: HOYOLAND.normalize(JSON.parse(JSON.stringify(h0))), undo: [], redo: [] };
+    hd.draft.ticket.status = 'on_sale';
+    rebaseDraft(editionRes('2020'), hd, h1);
+    assert(hd.draft.ticket.status === 'on_sale' && hd.draft.ticket.url === 'https://t' && hd.draft.lineup.length === 2, '한 겹 아래를 못 맞췄다: ' + JSON.stringify(hd.draft.ticket));
   });
   check('설정 — 화면마다 흩어져 있던 것을 한 화면에 모은다', () => {
     for (const r of DOC_RESOURCES) {
