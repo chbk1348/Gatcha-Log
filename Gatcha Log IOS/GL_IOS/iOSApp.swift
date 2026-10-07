@@ -212,6 +212,7 @@ struct iOSApp: App {
 
     var body: some Scene {
         WindowGroup {
+            Group {
             #if DEBUG
             // 개발자 전용 — 속성 연출 콘택트 시트(실행 인자 `-fxPreview 번개:1`). 앱 대신 이 화면만 띄운다.
             if let spec = UserDefaults.standard.string(forKey: "fxPreview") {
@@ -232,6 +233,9 @@ struct iOSApp: App {
             #else
             ContentView()
             #endif
+            }
+            // 기기의 글자 설정(글자 크기 · 굵은 텍스트)을 앱 안으로 들이지 않는다 — 아래 [glgFixedTypography].
+            .glgFixedTypography()
         }
     }
 }
