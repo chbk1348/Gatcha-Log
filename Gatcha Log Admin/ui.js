@@ -807,10 +807,17 @@ const GRIP_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentC
   + '<circle cx="8" cy="5" r="2"/><circle cx="16" cy="5" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/>'
   + '<circle cx="8" cy="19" r="2"/><circle cx="16" cy="19" r="2"/></svg>';
 
-/** 포인터 높이 [y] 가 가리키는 끼워 넣을 자리(0 … 줄 수) — 줄의 가운데를 넘으면 그 줄 아래다. */
-function glDropSlot(rects, y) {
+/**
+ * 포인터 [y](· [x])가 가리키는 끼워 넣을 자리(0 … 줄 수) — 줄의 가운데를 넘으면 그 줄 아래다.
+ * 줄이 **두 열로 나란히** 놓인 목록(입장 조)은 읽는 순서로 센다: 윗줄은 통째로 앞이고, 같은 줄에서는 칸의 가로 가운데를 넘어야 뒤다.
+ */
+function glDropSlot(rects, y, x) {
+  const sideBySide = x !== undefined && rects.some((r, i) => i > 0 && Math.abs(r.top - rects[i - 1].top) < 2);
   let slot = 0;
-  for (const r of rects) if (y > r.top + r.height / 2) slot += 1;
+  for (const r of rects) {
+    if (!sideBySide) { if (y > r.top + r.height / 2) slot += 1; continue; }
+    if (y > r.top + r.height || (y >= r.top && x > r.left + r.width / 2)) slot += 1;
+  }
   return slot;
 }
 
@@ -822,7 +829,8 @@ function glDropIndex(from, slot) {
 
 function glDragHandle(cfg) {
   const b = el('button', {
-    type: 'button', class: 'btn btn-sm gl-grip', disabled: !!cfg.disabled, html: GRIP_SVG,
+    // cls — 줄 끝 도구 자리(.row-tools)에서는 XS 버튼이 아니라 그 줄의 아이콘 단추 꼴(.row-ico)로 선다.
+    type: 'button', class: (cfg.cls || 'btn btn-sm') + ' gl-grip', disabled: !!cfg.disabled, html: GRIP_SVG,
     title: cfg.title || '끌어서 순서 바꾸기 — 초점을 두고 ↑ ↓ 키로도 옮깁니다', 'aria-label': '순서 바꾸기',
     'data-drag': cfg.group ? `${cfg.group}:${cfg.index}` : null,
   });
@@ -850,11 +858,12 @@ function glDragHandle(cfg) {
     const src = items[cfg.index];
     if (!src) return;
     let y = e.clientY;
+    let x = e.clientX;
     let slot = cfg.index;
     let raf = 0;
     const clear = () => { for (const n of items) n.classList.remove('drop-before', 'drop-after'); };
     const mark = () => {
-      slot = glDropSlot(items.map((n) => n.getBoundingClientRect()), y);
+      slot = glDropSlot(items.map((n) => n.getBoundingClientRect()), y, x);
       clear();
       if (glDropIndex(cfg.index, slot) < 0) return;
       if (slot < items.length) items[slot].classList.add('drop-before');
@@ -881,7 +890,7 @@ function glDragHandle(cfg) {
       const to = drop ? glDropIndex(cfg.index, slot) : -1;
       if (to >= 0) cfg.onMove(cfg.index, to);
     };
-    const onMove = (ev) => { y = ev.clientY; mark(); };
+    const onMove = (ev) => { y = ev.clientY; x = ev.clientX; mark(); };
     const onUp = () => end(true);
     const onCancel = () => end(false);
     const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(false); } };
