@@ -1591,8 +1591,9 @@ class SpendingViewModel : ViewModel() {
      *
      * @param games 내 게임(설정 ▸ 내 게임)
      * @param budget 월 예산(설정 ▸ 예산). -1 = 「예산 없이」 — 건드리지 않는다.
-     *   게스트(로그인 전)면 보관했다가 로그인 직후 [applyPendingOnboardingBudget] 가 적용한다.
-     *   이미 로그인돼 있으면(개발자 메뉴로 다시 본 경우) 바로 적용 — 단 계정 예산이 비어 있을 때만.
+     *   게스트(로그인 전)면 보관했다가 로그인 직후 [applyPendingOnboarding] 이 적용한다.
+     *   이미 로그인돼 있으면(먼저 로그인한 경로) 바로 적용한다 — 그 경로는 예산 칸을 계정 값으로 미리 채워 보여 주므로,
+     *   고친 값이 곧 새 예산이다(10/7. 예전엔 계정 예산이 비어 있을 때만 적용해 고친 값이 버려졌다).
      * @param alerts 「알림 켜고 시작하기」면 true — 네 항목을 스위치 값 그대로 쓰고 방해 금지를 켠다.
      *   false(「알림 없이 시작」)면 알림 설정은 건드리지 않는다.
      */
@@ -1610,7 +1611,7 @@ class SpendingViewModel : ViewModel() {
         appSettings.pendingOnboardingGames = if (account.value.isGuest) games.toSet() else emptySet()
         if (budget >= 0) {
             if (account.value.isGuest) appSettings.pendingOnboardingBudget = budget
-            else if (_budget.value <= 0L) setBudgets(budget, _gameBudgets.value)
+            else if (_budget.value != budget) setBudgets(budget, _gameBudgets.value)
         } else appSettings.pendingOnboardingBudget = -1L
         if (alerts) {
             // 세터를 네 번 부르면 워커 재등록이 네 번 돈다 — 값만 쓰고 반영은 한 번([enableAllNotifyItems] 와 같은 이유).
@@ -1624,19 +1625,23 @@ class SpendingViewModel : ViewModel() {
     }
 
     /**
-     * 로그인 · 클라우드 복원 직후 — 온보딩에서 고른 예산 · 내 게임을 계정 값이 비어 있을 때만 적용하고 비운다.
-     * 다른 기기에서 이미 정한 계정 값이 있으면 그쪽이 이긴다.
+     * 로그인 · 클라우드 복원 직후 — 로그인 **전에** 온보딩에서 고른 예산 · 내 게임을 계정에 적용하고 비운다.
+     *
+     * **고른 값이 계정의 이전 값을 대신한다**(2026-10-07 결정). 이전 설정을 불러오는 길은 「먼저 구글 로그인」 하나다 —
+     * 그 길은 계정 값을 미리 채워 보여 주고 고친 것만 바뀐다. 로그인 없이 온보딩을 밟은 사람은 처음 쓰는 사람과 같고,
+     * 끝에서 로그인한 계정이 기존 계정이더라도 방금 고른 것이 새 설정이다. (예전엔 계정 값이 비어 있을 때만 적용해서,
+     * 고른 것이 말없이 버려졌다.) 「예산 없이」는 아무것도 적지 않으므로 계정의 예산이 그대로 남는다.
      */
     private fun applyPendingOnboarding() {
         val pending = appSettings.pendingOnboardingBudget
         if (pending >= 0) {
             appSettings.pendingOnboardingBudget = -1L
-            if (_budget.value <= 0L) setBudgets(pending, _gameBudgets.value)
+            if (_budget.value != pending) setBudgets(pending, _gameBudgets.value)
         }
         val games = appSettings.pendingOnboardingGames
         if (games.isNotEmpty()) {
             appSettings.pendingOnboardingGames = emptySet()
-            if (_myGames.value.isEmpty()) setMyGames(games)
+            if (_myGames.value != games) setMyGames(games)
         }
     }
 

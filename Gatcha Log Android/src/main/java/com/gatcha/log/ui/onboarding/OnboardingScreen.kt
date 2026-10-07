@@ -61,6 +61,7 @@ import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
@@ -90,6 +91,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.R
 import com.gatcha.log.data.GameData
@@ -123,6 +128,12 @@ private val Ground = Color(0xFFF5F8F8)
 private val Warn = Color(0xFFC2410C)
 
 private const val HOYO_KEYS = "genshin,hsr,zzz"
+
+/** 이 프로세스의 표식 — 저장된 온보딩 상태가 죽기 전 프로세스의 것인지 가린다(값 자체는 뜻이 없다). */
+private val ONBOARDING_PROCESS: String = System.nanoTime().toString()
+
+/** 온보딩을 띄운 채 이만큼 떠나 있었으면 돌아왔을 때 처음부터 다시 시작한다. */
+private const val ONBOARDING_TIMEOUT_MS = 10L * 60 * 1000
 private val PRESETS = listOf(50_000L to "5만원", 100_000L to "10만원", 150_000L to "15만원", 300_000L to "30만원")
 private const val WARN_BUDGET = 500_000L
 
@@ -170,7 +181,83 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
     LaunchedEffect(account.isGuest) {
         // 첫 화면 「구글 로그인 하기」(복원)는 ⑤ 알림 단계를 건너뛰므로, 끝날 때 OS 알림 권한을 묻는다(10/6 —
         // 로그인부터 하면 권한 창이 끝내 안 떴다). ⑤를 거친 경로는 이미 물었으니 다시 묻지 않는다.
-        if (!account.isGuest && (step == 5 || loginRequested) && !finished) { finished = true; onFinish(loginRequested, false) }
+        if (!account.isGuest && (step == 5 || loginRequested) && !finished) {
+            // 첫 화면에서 **바로 로그인한 경우에도 ② 게임 선택부터 첫 사용자와 같은 순서를 밟는다**(10/7) —
+            // 게임 → 예산 → HoYoLAB → 알림 → 완료. 예전엔 로그인하자마자 홈으로 갔는데, HoYoLAB 토큰은 기기에만 두고
+            // 클라우드에 올리지 않아 연동은 기기마다 한 번 해야 하고, 알림 권한도 이 흐름에서 묻는다.
+            // 계정에서 복원된 값(내 게임 · 예산)은 아래에서 미리 채워 둔다. ⑥ 완료 화면은 이미 로그인돼 있으니 바로 홈으로 간다.
+            if (loginRequested && step == 0) { settled = false; restored = false; forward = true; step = 1 }
+            else { finished = true; onFinish(loginRequested, false) }
+        }
+    }
+    /**
+     * 이미 로그인된 채로 밟는 온보딩인가 — 첫 화면에서 바로 로그인했거나, 로그인한 뒤 중간에 끊겨 다시 시작한 경우다.
+     * 계정 값(내 게임 · 예산)을 미리 채우고, 끝에서 로그인을 다시 묻지 않는다.
+     */
+    val afterLogin = !loginOnly && !account.isGuest
+    // 계정에서 복원된 「내 게임」 · 예산을 미리 골라 둔다 — 클라우드 복원은 로그인 뒤 조금 있다 오므로 도착하는 대로,
+    // 직접 고르기 전까지만 따라간다. (예산은 [applyOnboarding] 이 계정 값이 비었을 때만 쓰지만, 화면에 보이는 값도 맞춘다.)
+    val accountGames by viewModel.myGames.collectAsStateWithLifecycle()
+    val accountBudget by viewModel.budget.collectAsStateWithLifecycle()
+    var gamesTouched by rememberSaveable { mutableStateOf(false) }
+    var budgetTouched by rememberSaveable { mutableStateOf(false) }
+    // ② 에 적는 한 줄 — 고르지도 않은 게임이 골라져 있는 까닭을 밝힌다(10/7). 계정에 저장된 것이 없으면(새 계정) 적지 않는다.
+    val accountSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
+    val accountNote = when {
+        !afterLogin -> null
+        accountSyncing -> "이전 설정을 불러오는 중이에요…"
+        accountGames.any { k -> GameData.onboardingGames.any { it.key == k } } -> "이전 설정을 불러왔어요"
+        else -> null
+    }
+    LaunchedEffect(afterLogin, accountGames) {
+        if (afterLogin && !gamesTouched && step <= 1) {
+            val mine = accountGames.filter { k -> GameData.onboardingGames.any { it.key == k } }
+            if (mine.isNotEmpty()) gamesRaw = mine.joinToString(",")
+        }
+    }
+    LaunchedEffect(afterLogin, accountBudget) {
+        if (afterLogin && !budgetTouched && step <= 2 && accountBudget > 0L) {
+            budget = accountBudget
+            custom = PRESETS.none { it.first == accountBudget }
+        }
+    }
+
+    // ── 중간에 끊기면 처음부터 다시 시작한다(10/7) ──
+    // 앱이 닫혔다 다시 켜졌거나(시스템이 백그라운드에서 정리한 경우 포함), 온보딩을 띄운 채 오래 떠나 있었으면
+    // 하다 만 단계로 돌아오지 않고 ① 부터 다시 밟는다. 이미 저장된 것(로그인 · HoYoLAB 연동)은 그대로 남고,
+    // 로그인돼 있으면 위 [afterLogin] 이 계정 값을 다시 채운다. 로그인 화면만 띄운 경우(loginOnly)는 해당 없다.
+    fun restart() {
+        step = 0; forward = false; restored = false; settled = false; applied = false; loginRequested = false
+        gamesTouched = false; budgetTouched = false
+        gamesRaw = viewModel.myGames.value.filter { k -> GameData.onboardingGames.any { it.key == k } }.joinToString(",")
+        budget = 150_000L; custom = false
+        attend = true; resin = true; pickup = true; budgetAlert = false; alerts = true
+    }
+    // 저장된 화면 상태가 **다른 프로세스의 것**이면(회전 같은 재구성이 아니라 앱이 죽었다 살아난 것) 버린다.
+    var session by rememberSaveable { mutableStateOf(ONBOARDING_PROCESS) }
+    var leftAt by rememberSaveable { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        if (loginOnly) return@LaunchedEffect
+        // 「아직 안 마쳤다」를 적어 둔다 — 안 적으면 도중에 로그인한 사용자가 다음 실행에서 홈으로 건너뛴다.
+        runCatching { AppSettings().markOnboardingStarted() }
+        if (session != ONBOARDING_PROCESS) { session = ONBOARDING_PROCESS; leftAt = 0L; restart() }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (loginOnly) return@LifecycleEventObserver
+            when (event) {
+                Lifecycle.Event.ON_STOP -> leftAt = System.currentTimeMillis()
+                Lifecycle.Event.ON_START -> {
+                    val away = if (leftAt > 0L) System.currentTimeMillis() - leftAt else 0L
+                    leftAt = 0L
+                    if (away >= ONBOARDING_TIMEOUT_MS && !finished) restart()
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val scope = rememberCoroutineScope()
 
@@ -242,13 +329,14 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
                         onStart = { leave ->
                             if (!busy) { busy = true; scope.launch { leave(); busy = false; settled = false; restored = false; go(1) } }
                         },
-                        // 「구글 로그인 하기」 — 설정 단계 없이 바로 구글 로그인(기존 사용자 복원). 성공하면 아래 LaunchedEffect 가 마친다.
-                        onRestore = { loginRequested = true; viewModel.signIn() },
+                        // 「구글 로그인 하기」 — 구글 로그인부터 한다(기존 사용자 복원). 성공하면 위 LaunchedEffect 가 ② 게임 선택으로 넘긴다.
+                        // 이미 로그인돼 있으면(로그인한 뒤 끊겨 다시 시작한 경우) 다시 묻지 않고 ② 로 간다.
+                        onRestore = { if (afterLogin) { settled = false; restored = false; go(1) } else { loginRequested = true; viewModel.signIn() } },
                     )
-                    1 -> GamesStep(games, viewport, stagger = !settled, onToggle = { k -> gamesRaw = (if (k in games) games - k else games + k).joinToString(",") }) {
+                    1 -> GamesStep(games, viewport, stagger = !settled, note = accountNote, noteLoading = accountSyncing, onToggle = { k -> gamesTouched = true; gamesRaw = (if (k in games) games - k else games + k).joinToString(",") }) {
                         settled = true; go(2)
                     }
-                    2 -> BudgetStep(budget, custom, onBudget = { v, c -> budget = v; custom = c }, onNext = { go(3) }, onSkip = { budget = -1L; go(3) })
+                    2 -> BudgetStep(budget, custom, onBudget = { v, c -> budgetTouched = true; budget = v; custom = c }, onNext = { go(3) }, onSkip = { budgetTouched = true; budget = -1L; go(3) })
                     3 -> HoyolabStep(viewModel, hoyo, games, viewport, onNext = { go(4) })
                     4 -> NotifyStep(
                         noHoyo, attend, resin, pickup, budgetAlert, dndStart, dndEnd, viewport,
@@ -282,9 +370,12 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
                         if (!restored && !applied) {
                             applied = true
                             // 호요버스 게임이 없으면 숨긴 두 알림은 켜지 않는다(쓸 데가 없다).
+                            // 먼저 로그인한 경로에서 **손대지 않은 칸은 계정 값을 그대로 둔다** — 복원이 늦게 와서 화면에 기본값이
+                            // 보였더라도, 고르지 않은 기본값이 계정의 이전 설정을 덮지 않게 한다. 고친 칸은 고친 값이 새 설정이다.
+                            val mine = accountGames.filter { k -> GameData.onboardingGames.any { it.key == k } }
                             viewModel.applyOnboarding(
-                                games = games.toList(),
-                                budget = if (budget > 0) budget else -1L,
+                                games = if (afterLogin && !gamesTouched && mine.isNotEmpty()) mine else games.toList(),
+                                budget = if (afterLogin && !budgetTouched && accountBudget > 0L) -1L else if (budget > 0) budget else -1L,
                                 alerts = alerts,
                                 attendance = !noHoyo && attend,
                                 resin = !noHoyo && resin,
@@ -426,12 +517,30 @@ private fun WelcomeStep(onStart: (leave: suspend () -> Unit) -> Unit, onRestore:
 // ── ② 게임 ─────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GamesStep(games: Set<String>, viewport: Dp, stagger: Boolean, onToggle: (String) -> Unit, onNext: () -> Unit) {
+private fun GamesStep(
+    games: Set<String>, viewport: Dp, stagger: Boolean,
+    /** 바로 로그인해서 온 경우의 안내 한 줄(없으면 null). [noteLoading] 이면 앞에 로딩 원이 돈다. */
+    note: String? = null, noteLoading: Boolean = false,
+    onToggle: (String) -> Unit, onNext: () -> Unit,
+) {
     Column(Modifier.fillMaxSize()) {
         Column(if (stagger) Modifier.enterUp(40, 16.dp) else Modifier) {
             Title("어떤 게임을 하세요?", "고른 게임이 지출 입력 맨 위에 오고, 출석도 고른 게임만 챙겨요.")
         }
         Spacer(Modifier.height(if (viewport < 640.dp) 16.dp else 24.dp))
+        // 바로 로그인해서 온 경우 — 골라져 있는 것이 계정에서 불러온 이전 설정이라는 한 줄(④ 의 「연결됐어요」 줄과 같은 모양).
+        // 불러오는 동안에는 로딩 원이 돌고, 끝나면 「이전 설정을 불러왔어요」로 바뀐다(10/7).
+        AnimatedVisibility(note != null, enter = fadeIn() + slideInVertically { it / 3 }) {
+            Row(
+                Modifier.padding(bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TealTint).padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (noteLoading) CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp, color = Teal)
+                else Icon(Icons.Filled.Check, null, tint = Teal, modifier = Modifier.size(16.dp))
+                Text(note.orEmpty(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Teal)
+            }
+        }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GameData.onboardingGames.forEachIndexed { i, g ->
                 val on = g.key in games

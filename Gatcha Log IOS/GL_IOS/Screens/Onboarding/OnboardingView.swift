@@ -85,6 +85,10 @@ struct OnboardingView: View {
     @State private var applied = false   // 완료 버튼을 다시 눌러도(로그인 재시도) 설정은 한 번만 쓴다
 
     private var noHoyo: Bool { games.isDisjoint(with: OB.hoyoKeys) }
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var leftAt: Date? = nil     // 백그라운드로 내려간 시각 — 오래 떠나 있었는지 잰다
+    @State private var gamesTouched = false    // 직접 고르기 시작하면 계정 값을 더는 따라가지 않는다
+    @State private var budgetTouched = false
     private var total: Int { noHoyo ? 3 : 4 }
     private var shown: Int { noHoyo && step == 4 ? 3 : step }
 
@@ -114,15 +118,80 @@ struct OnboardingView: View {
         .onAppear {
             games = store.myGames.intersection(Set(OB.games.map { $0.key }))
             if loginOnly { step = 5; restored = true }
+            // 「아직 안 마쳤다」를 적어 둔다 — 안 적으면 도중에 로그인한 사용자가 다음 실행에서 홈으로 건너뛴다.
+            else { AppSettings().markOnboardingStarted() }
+        }
+        // 온보딩을 띄운 채 오래 떠나 있었으면 돌아왔을 때 처음부터 다시 시작한다.
+        .onChange(of: scenePhase) { _, phase in
+            guard !loginOnly else { return }
+            if phase == .background { leftAt = Date() }
+            else if phase == .active, let t = leftAt {
+                leftAt = nil
+                if Date().timeIntervalSince(t) >= Self.timeout && !exiting { restart() }
+            }
         }
         // 완료 화면에서 띄운 구글 로그인이 끝나면 온보딩을 마친다(로그인 화면을 거치지 않는다).
         .onChange(of: store.needsLogin) { _, needs in
             if !needs && (step == 5 || loginRequested) && !exiting {
+                // 첫 화면에서 **바로 로그인한 경우에도 ② 게임 선택부터 첫 사용자와 같은 순서를 밟는다**(10/7) —
+                // 게임 → 예산 → HoYoLAB → 알림 → 완료. 예전엔 로그인하자마자 홈으로 갔는데, HoYoLAB 토큰은 기기에만 두고
+                // 클라우드에 올리지 않아 연동은 기기마다 한 번 해야 하고, 알림 권한도 이 흐름에서 묻는다.
+                // 계정에서 복원된 값(내 게임 · 예산)은 아래 onChange 가 미리 채운다. ⑥ 완료 화면은 이미 로그인돼 있으니 바로 홈으로 간다.
+                if loginRequested && step == 0 {
+                    settled = false
+                    restored = false
+                    syncFromAccount()
+                    go(1)
+                    return
+                }
                 exiting = true
                 // 첫 화면 「구글 로그인 하기」(복원)는 ⑤ 알림 단계를 건너뛰므로, 끝날 때 OS 알림 권한을 묻는다(10/6 —
                 // 로그인부터 하면 권한 창이 끝내 안 떴다). ⑤를 거친 경로는 이미 물었으니 다시 묻지 않는다.
                 onFinish(loginRequested, false)
             }
+        }
+        // 계정에서 복원된 「내 게임」 · 예산을 미리 골라 둔다 — 클라우드 복원은 로그인 뒤 조금 있다 오므로 도착하는 대로,
+        // 직접 고르기 전까지만 따라간다.
+        .onChange(of: store.myGames) { _, _ in syncFromAccount() }
+        .onChange(of: store.budget) { _, _ in syncFromAccount() }
+    }
+
+    /// 이미 로그인된 채로 밟는 온보딩인가 — 첫 화면에서 바로 로그인했거나, 로그인한 뒤 중간에 끊겨 다시 시작한 경우다.
+    /// 계정 값(내 게임 · 예산)을 미리 채우고, 끝에서 로그인을 다시 묻지 않는다.
+    private var afterLogin: Bool { !loginOnly && !store.needsLogin }
+
+    /// 온보딩을 띄운 채 이만큼 떠나 있었으면 돌아왔을 때 처음부터 다시 시작한다(Android 와 같은 값).
+    private static let timeout: TimeInterval = 10 * 60
+
+    /// 중간에 끊기면 처음부터 다시 시작한다(10/7) — 하다 만 단계로 돌아오지 않고 ① 부터 다시 밟는다.
+    /// 이미 저장된 것(로그인 · HoYoLAB 연동)은 그대로 남고, 로그인돼 있으면 계정 값을 다시 채운다.
+    /// (앱이 닫혔다 다시 켜진 경우는 화면 상태가 남지 않아 저절로 ① 부터다.)
+    private func restart() {
+        forward = false
+        withAnimation(.easeOut(duration: 0.3)) { step = 0 }
+        restored = false; settled = false; applied = false; loginRequested = false; leaving = false
+        gamesTouched = false; budgetTouched = false
+        games = store.myGames.intersection(Set(OB.games.map { $0.key }))
+        budget = 150_000; custom = false
+        attend = true; resin = true; pickup = true; budgetAlert = false; alerts = true
+    }
+
+    /// ② 에 적는 한 줄 — 고르지도 않은 게임이 골라져 있는 까닭을 밝힌다(10/7). 계정에 저장된 것이 없으면(새 계정) 적지 않는다.
+    private var accountNote: String? {
+        guard afterLogin else { return nil }
+        if store.initialSyncing { return "이전 설정을 불러오는 중이에요…" }
+        return store.myGames.isDisjoint(with: Set(OB.games.map { $0.key })) ? nil : "이전 설정을 불러왔어요"
+    }
+
+    private func syncFromAccount() {
+        guard afterLogin else { return }
+        if !gamesTouched && step <= 1 {
+            let mine = store.myGames.intersection(Set(OB.games.map { $0.key }))
+            if !mine.isEmpty { games = mine }
+        }
+        if !budgetTouched && step <= 2 && store.budget > 0 {
+            budget = store.budget
+            custom = !OB.presets.contains { $0.0 == store.budget }
         }
     }
 
@@ -165,7 +234,11 @@ struct OnboardingView: View {
         switch s {
         case 0: welcome
         case 1: gamesPage
-        case 2: BudgetPage(budget: $budget, custom: $custom, onNext: { go(3) }, onSkip: { budget = -1; go(3) })
+        // 예산 칸은 **사용자가 고친 것만** 「손댔다」로 센다 — 계정 값을 미리 채우는 쪽(syncFromAccount)은 budget 을 직접 쓴다.
+        case 2: BudgetPage(
+            budget: Binding(get: { budget }, set: { budget = $0; budgetTouched = true }),
+            custom: Binding(get: { custom }, set: { custom = $0; budgetTouched = true }),
+            onNext: { go(3) }, onSkip: { budgetTouched = true; budget = -1; go(3) })
         case 3: HoyolabPage(store: store, games: games, onNext: { go(4) })
         case 4: notifyPage
         default: donePage
@@ -207,8 +280,12 @@ struct OnboardingView: View {
                 }
             }
             .cta(primary: true)
-            // 「구글 로그인 하기」 — 설정 단계 없이 바로 구글 로그인(기존 사용자 복원). 성공하면 onChange 가 마친다.
-            GldsButton(title: "구글 로그인 하기", variant: .secondary) { loginRequested = true; store.signIn() }.cta(primary: false)
+            // 「구글 로그인 하기」 — 구글 로그인부터 한다(기존 사용자 복원). 성공하면 onChange 가 ② 게임 선택으로 넘긴다.
+            // 이미 로그인돼 있으면(로그인한 뒤 끊겨 다시 시작한 경우) 다시 묻지 않고 ② 로 간다.
+            GldsButton(title: "구글 로그인 하기", variant: .secondary) {
+                if afterLogin { settled = false; restored = false; syncFromAccount(); go(1) }
+                else { loginRequested = true; store.signIn() }
+            }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
@@ -219,11 +296,28 @@ struct OnboardingView: View {
             StepBody { h in
                 PageTitle(title: "어떤 게임을 하세요?", sub: "고른 게임이 지출 입력 맨 위에 오고, 출석도 고른 게임만 챙겨요.")
                     .enterUp(delay: settled ? nil : 0.04)
+                // 바로 로그인해서 온 경우 — 골라져 있는 것이 계정에서 불러온 이전 설정이라는 한 줄(④ 의 「연결됐어요」 줄과 같은 모양).
+                // 불러오는 동안에는 로딩 원이 돌고, 끝나면 「이전 설정을 불러왔어요」로 바뀐다(10/7).
+                // 아래 목록이 제 위 여백을 갖고 있어 여기서는 제목과의 사이만 띈다(목록과의 사이는 12 가 되게 뺀다).
+                if let note = accountNote {
+                    HStack(spacing: 8) {
+                        if store.initialSyncing { GldsSpinner(size: 15, lineWidth: 2, color: OB.teal) }
+                        else { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(OB.teal) }
+                        Text(note).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.teal)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .background(OB.tealTint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.top, h < 520 ? 16 : 24)
+                    .padding(.bottom, 12 - (h < 520 ? 16 : 24))
+                    .transition(.opacity.combined(with: .offset(y: 8)))
+                }
                 VStack(spacing: 8) {
                     ForEach(Array(OB.games.enumerated()), id: \.element.key) { i, g in
                         let on = games.contains(g.key)
                         Button {
                             withAnimation(.easeOut(duration: 0.18)) {
+                                gamesTouched = true
                                 if on { games.remove(g.key) } else { games.insert(g.key) }
                             }
                         } label: {
@@ -353,8 +447,13 @@ struct OnboardingView: View {
         if !restored && !applied {
             applied = true
             // 호요버스 게임이 없으면 숨긴 두 알림은 켜지 않는다(쓸 데가 없다).
+            // 먼저 로그인한 경로에서 **손대지 않은 칸은 계정 값을 그대로 둔다** — 복원이 늦게 와서 화면에 기본값이
+            // 보였더라도, 고르지 않은 기본값이 계정의 이전 설정을 덮지 않게 한다. 고친 칸은 고친 값이 새 설정이다.
+            let mine = store.myGames.intersection(Set(OB.games.map { $0.key }))
+            let finalGames = (afterLogin && !gamesTouched && !mine.isEmpty) ? mine : games
+            let finalBudget: Int64 = (afterLogin && !budgetTouched && store.budget > 0) ? -1 : (budget > 0 ? budget : -1)
             store.applyOnboarding(
-                games: games, budget: budget > 0 ? budget : -1, alerts: alerts,
+                games: finalGames, budget: finalBudget, alerts: alerts,
                 attendance: !noHoyo && attend, resin: !noHoyo && resin, pickup: pickup, budgetAlert: budgetAlert
             )
         }
