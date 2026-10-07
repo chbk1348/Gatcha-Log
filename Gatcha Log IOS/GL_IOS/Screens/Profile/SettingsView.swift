@@ -243,7 +243,10 @@ struct SettingsView: View {
     @ViewBuilder
     private var infoSection: some View {
         SetSection(title: "앱 정보", caption: "v\(version)", bottom: 20) { // 페이지 맨 아래 — 안전 영역 위로 숨 쉴 여백을 남긴다
-            // iOS 앱은 업데이트 확인 기능 제거(IPA 사이드로드 배포 — 원격 버전 확인 부적합). 업데이트 로그만 유지.
+            // 업데이트 확인(27.51.1 — Android 와 같은 항목). 새 버전이 있으면 앱 루트의 업데이트 창이 뜨고(ContentView),
+            // 최신이면 「이미 최신 버전이에요」 토스트가 뜬다. IPA 사이드로드 배포라 설치는 GitHub 릴리즈 페이지에서 한다.
+            SetNavRow(symbol: "arrow.down.circle", tint: .teal, title: "업데이트 확인") { store.checkForUpdate(manual: true) }
+            SetDivider()
             SetNavRow(symbol: "sparkles", tint: .blue, title: "업데이트 로그") { showUplog = true }
             SetDivider()
             SetNavRow(symbol: "c.circle", tint: .slate, title: "출처 · 저작권") { showCredits = true }

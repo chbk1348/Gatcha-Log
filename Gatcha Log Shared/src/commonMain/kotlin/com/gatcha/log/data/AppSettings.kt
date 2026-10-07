@@ -61,8 +61,8 @@ class AppSettings {
         set(v) { prefs.putBoolean(KEY_NOTIFY_COMBAT, v) }
 
     /**
-     * 새 앱 버전 알림(Android 전용 — [NotificationCatalog.appUpdateAlertsActive]).
-     * 기본 ON — APK 직접 배포라 스토어 자동 업데이트가 없다. 알림이 없으면 앱을 열기 전까지 새 버전을 모른다.
+     * 새 앱 버전 알림([NotificationCatalog.appUpdateAlertsActive] — 27.51.1 부터 iOS 도).
+     * 기본 ON — APK · IPA 직접 배포라 스토어 자동 업데이트가 없다. 알림이 없으면 앱을 열기 전까지 새 버전을 모른다.
      */
     var notifyAppUpdate: Boolean
         get() = prefs.getBoolean(KEY_NOTIFY_APP_UPDATE, true)

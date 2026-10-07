@@ -266,7 +266,8 @@ object NotificationChecker {
             }
         }
 
-        // ⑧ 새 앱 버전(Android) — **버전당 1회.** 앱을 열어야만 알 수 있던 것을 백그라운드 점검에 얹었다.
+        // ⑧ 새 앱 버전 — **버전당 1회.** 앱을 열어야만 알 수 있던 것을 백그라운드 점검에 얹었다(27.51.1 부터 iOS 도).
+        // 누르면 업데이트 창이 뜬다 — Android 는 받아 설치, iOS 는 GitHub 릴리즈 페이지로 간다.
         if (settings.notifyAppUpdate && NotificationCatalog.appUpdateAlertsActive) {
             // 실패 · 최신이면 null — 조용히 건너뛴다.
             val info = UpdateChecker.check()
@@ -289,12 +290,14 @@ object NotificationChecker {
      * 새 버전 알림 문구(제목, 본문). 지금 버전([current])이 최소 지원 버전 아래면 필수 업데이트로 알린다.
      * 본문은 변경 사항 첫 줄 — 없으면 눌렀을 때 일어나는 일을 적는다.
      */
-    internal fun appUpdateAlert(info: UpdateInfo, current: Long): Pair<String, String> {
+    internal fun appUpdateAlert(
+        info: UpdateInfo, current: Long, installsInApp: Boolean = UpdateChecker.installsInApp,
+    ): Pair<String, String> {
         val ver = if (info.versionName.isNotBlank()) " (v${info.versionName})" else ""
         val title = if (current < info.minVersionCode) "필수 업데이트가 있어요$ver" else "새 버전이 나왔어요$ver"
         val first = info.notes.firstOrNull { it.isNotBlank() }
         val text = when {
-            first == null -> "눌러서 바로 받아 설치할 수 있어요"
+            first == null -> if (installsInApp) "눌러서 바로 받아 설치할 수 있어요" else "눌러서 릴리즈 페이지에서 받을 수 있어요"
             info.notes.size > 1 -> "$first 외 ${info.notes.size - 1}건"
             else -> first
         }

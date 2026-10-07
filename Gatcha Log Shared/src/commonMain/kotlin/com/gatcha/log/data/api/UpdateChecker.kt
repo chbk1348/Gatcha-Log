@@ -71,9 +71,15 @@ expect object UpdateChecker {
     suspend fun check(): UpdateInfo?
 
     /**
-     * 새 버전을 **알림으로** 알릴 플랫폼인가 — 앱에서 바로 받아 설치하는 Android 만 true.
-     * iOS 는 사이드로딩이라 알림을 눌러도 할 수 있는 일이 없고, 선택 업데이트를 띄우는 화면도 없다
-     * (강제 업데이트만 막는다). 알림 항목 노출([com.gatcha.log.data.NotificationCatalog])과 점검이 이 값을 본다.
+     * 새 버전을 **알림으로** 알릴 플랫폼인가 — 두 플랫폼 모두 true(27.51.1 부터 iOS 도).
+     * 알림 항목 노출([com.gatcha.log.data.NotificationCatalog])과 백그라운드 점검이 이 값을 본다.
      */
     val notifiesNewVersion: Boolean
+
+    /**
+     * 새 버전을 **앱 안에서 받아 설치**하는가 — Android 만 true.
+     * iOS 는 사이드로딩 배포라 앱이 설치까지 할 수 없다. 업데이트 창 · 알림을 누르면 GitHub 릴리즈 페이지로 보낸다
+     * (IPA 를 받아 직접 재서명 · 설치). 안내 문구가 이 값으로 갈린다.
+     */
+    val installsInApp: Boolean
 }
