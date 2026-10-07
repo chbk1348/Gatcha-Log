@@ -96,11 +96,15 @@ struct NewsSection: View {
                                 Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold))
                             }
                             .foregroundStyle(accent.primary)
-                            // 글자만 두면 손가락이 닿는 자리가 너무 작다.
-                            .padding(.leading, 10).padding(.trailing, 6)
-                            .padding(.vertical, 4)
+                            // 글자만 두면 손가락이 닿는 자리가 너무 작다 — 왼쪽 · 위아래로 누르는 자리를 넓힌다.
+                            // **호요랜드 머리의 「전체 보기」와 같은 자리**(10/7): 오른쪽에는 여백을 두지 않아 화살표 끝이
+                            // 섹션 콘텐츠 끝(좌우 20)에 닿고, 위아래 여백은 아래에서 도로 빼 머리 줄 높이를 키우지 않는다.
+                            .padding(.leading, 10)
+                            .padding(.vertical, 6)
                             .contentShape(Rectangle())
-                        }.buttonStyle(.plain)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, -6)
                     }
                 }
                 // 카드는 걷었다(10/1) — 줄 사이 헤어라인만.
