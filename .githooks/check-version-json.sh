@@ -5,9 +5,16 @@
 # gitCommitIdPrefix · assemblyVersion 같은 남의 키를 자동완성으로 밀어넣은 적이 있다
 # (2026-09-14, 값이 비어 JSON 자체가 깨진 채였다). 이 파일은 OTA 소스라 깨진 채 푸시되면
 # 전 Android 사용자의 업데이트가 멈춘다 — 27.37.0 · 27.42.0 롤백이 같은 자리에서 났다.
-git diff --cached --name-only --diff-filter=ACM | grep -qx 'version.json' || exit 0
+#
+# CI 에서는 `--file version.json` 으로 부른다 — 저장소에 있는 파일을 그대로 검사한다(27.51.1).
+# 훅은 이 PC 에서만 돌아서, 어드민이 API 로 올린 커밋이나 훅을 걸지 않은 클론의 커밋은 아무도 보지 않았다.
+FILE=""
+[ "$1" = "--file" ] && FILE="${2:-version.json}"
+if [ -z "$FILE" ]; then
+  git diff --cached --name-only --diff-filter=ACM | grep -qx 'version.json' || exit 0
+fi
 
-git show :version.json | python3 -c '
+{ if [ -n "$FILE" ]; then cat "$FILE"; else git show :version.json; fi; } | python3 -c '
 import json, re, sys
 
 KEYS = ["versionCode", "versionName", "minVersionCode", "url", "apkUrl", "sha256", "notes"]
@@ -43,6 +50,14 @@ if isinstance(mn, int) and isinstance(code, int) and mn > code:
 sha = str(d.get("sha256", ""))
 if not re.fullmatch(r"[0-9a-f]{64}", sha):
     err.append("sha256 이 소문자 16진수 64자리가 아닙니다 — 설치 직전 무결성 검증이 실패합니다.")
+
+# 주소는 이 저장소의 릴리즈만 — 앱도 같은 규칙으로 거른다(SafeUrl). 다른 곳을 가리키면 앱은 그 값을 버린다.
+REPO = "https://github.com/chbk1348/Gatcha-Log/"
+url, apk = str(d.get("url", "")), str(d.get("apkUrl", ""))
+if not url.startswith(REPO):
+    err.append("url 이 이 저장소 주소가 아닙니다 — " + REPO + " 로 시작해야 합니다.")
+if not apk.startswith(REPO + "releases/download/v" + name.strip() + "/"):
+    err.append("apkUrl 이 이 버전의 릴리즈 에셋이 아닙니다 — " + REPO + "releases/download/v" + name.strip() + "/… 여야 합니다.")
 
 notes = d.get("notes")
 if not isinstance(notes, list) or not all(isinstance(x, str) for x in notes):

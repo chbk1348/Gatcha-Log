@@ -13,6 +13,10 @@ name: Build iOS IPA
 on:
   workflow_dispatch:
 
+# 저장소를 읽기만 한다 — 토큰 권한을 기본값에 맡기지 않는다(27.51.1). 액션은 커밋 해시로 고정한다.
+permissions:
+  contents: read
+
 jobs:
   build-ipa:
     # macos-latest(= macOS 26 arm64)의 최신 Xcode 는 26.6 이라 iOS 27 SDK 가 없다.
@@ -23,8 +27,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
-
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       # iPhone Duo 대응(iOSApp.swift)이 toolbarVerticalCompressionBehavior 를 쓰는데 이 심볼은
       # iOS 27.1 SDK 에만 있다(#available 로 감싸도 컴파일에는 심볼이 필요).
       # 러너 이미지에 27.1 SDK 가 없으면 30분짜리 Kotlin 빌드를 돌린 뒤에야 깨지므로
@@ -48,7 +51,7 @@ jobs:
 
       # Kotlin 프레임워크(embedAndSignAppleFrameworkForXcode) 빌드용 JDK
       - name: Set up JDK 17
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '17'
@@ -63,7 +66,7 @@ jobs:
 
       # Gradle 의존성 + Kotlin/Native(konan) 툴체인 캐시 — 재빌드 시간 단축
       - name: Cache Gradle & Kotlin/Native
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
             ~/.gradle/caches
@@ -78,7 +81,7 @@ jobs:
         run: bash build-ipa.sh
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: Gatcha-Log-IPA
           path: "Gatcha Log IOS/build/*.ipa"

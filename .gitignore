@@ -99,3 +99,6 @@ CONTINUATION.md
 # 개발자 홈페이지 — 비공개 저장소(chbk1348/Gatcha-Log-Home)로 떼어 냈다(2026-10-08).
 # 로컬에서는 이 자리가 그 저장소의 클론이다.
 /Yuki Home/
+
+# 로컬 시험 자료(Ping 로그 · 조사 메모) — 예전엔 이 PC 의 .git/info/exclude 로만 빼서 다른 클론에서는 `git add -A` 에 딸려 갈 수 있었다.
+/testdata/
