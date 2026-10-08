@@ -1,0 +1,11 @@
+#!/bin/sh
+# 이 저장소 전용 pre-push.
+#
+# core.hooksPath 를 여기(.githooks)로 돌리면 **전역 훅이 안 돈다.** 전역 pre-push 에는 개인/회사 계정
+# 교차 오염을 막는 가드가 있어 빠지면 안 되므로 그대로 넘긴다(pre-commit 과 같은 방식).
+globals=$(git config --global core.hooksPath 2>/dev/null || true)
+if [ -n "$globals" ]; then
+  case "$globals" in "~"*) globals="$HOME${globals#\~}" ;; esac
+  if [ -x "$globals/pre-push" ]; then exec "$globals/pre-push" "$@"; fi
+fi
+exit 0
