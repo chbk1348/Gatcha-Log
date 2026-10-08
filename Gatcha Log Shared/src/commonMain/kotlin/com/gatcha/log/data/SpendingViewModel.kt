@@ -3410,16 +3410,21 @@ class SpendingViewModel : ViewModel() {
     }
 
     /**
-     * 게스트 상태에서 연동해둔 HoYoLAB 정보를 계정으로 승계.
-     * 신규 계정(클라우드 비어 있음 + 계정에 연동 없음)일 때만, 게스트 연동이 있으면 채운다.
-     * 기존 계정 데이터를 덮어쓰지 않으므로 안전. enka 프로필 UID 도 함께 승계.
+     * 게스트 상태에서 연동해둔 HoYoLAB 정보를 계정으로 **옮긴다.**
+     * 계정에 연동이 없을 때만 채우고(기존 계정 데이터를 덮어쓰지 않는다), enka 프로필 UID 도 함께 옮긴다.
+     *
+     * **게스트 쪽은 반드시 비운다**(27.51.1). 예전엔 복사만 하고 남겨 둬서, 같은 기기에서 다른 구글 계정으로
+     * 로그인하면 그 계정이 첫 사용자의 HoYoLAB 세션을 물려받았고, 연동을 해제해도 다음 동기화 때 되살아났다.
+     * 계정에 이미 연동이 있어 옮길 필요가 없을 때도 남은 게스트 토큰은 지운다.
      */
     private fun carryOverGuestHoyolab() {
-        if (repo.loadHoyolab().isLinked) return
+        if (account.value.isGuest) return   // 게스트 자신에게서 자신으로 — 옮길 것도 비울 것도 없다
         val guest = GatchaRepository(Account.GUEST.id)
         val guestCfg = guest.loadHoyolab()
         if (!guestCfg.isLinked) return
-        repo.saveHoyolab(guestCfg)
+        if (repo.loadHoyolab().isLinked) { guest.saveHoyolab(HoyolabConfig()); return }
+        if (!repo.saveHoyolab(guestCfg)) return          // 계정 쪽 저장이 실패했으면 게스트 것을 남겨 다음에 다시 시도한다
+        guest.saveHoyolab(HoyolabConfig())
         _hoyolabConfig.value = guestCfg
         val gi = guest.loadEnkaGiUid()
         val hsr = guest.loadEnkaHsrUid()

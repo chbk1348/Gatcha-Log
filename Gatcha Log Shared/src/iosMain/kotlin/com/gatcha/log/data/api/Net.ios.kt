@@ -24,6 +24,9 @@ internal actual fun createHttpClient(config: HttpClientConfig<*>.() -> Unit): Ht
             configureSession {
                 setHTTPCookieStorage(null)
                 setHTTPShouldSetCookies(false)
+                // 응답 캐시도 끈다(27.51.1) — 기본 세션은 공유 URLCache 에 **요청 헤더째** 적을 수 있어,
+                // 수동으로 붙인 HoYoLAB Cookie 가 Library/Caches 에 평문으로 남을 수 있다. 이미지 캐시는 URLSession.shared 쪽이라 무관하다.
+                setURLCache(null)
             }
         }
     }

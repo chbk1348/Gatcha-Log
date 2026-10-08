@@ -2,6 +2,7 @@ package com.gatcha.log.data.api
 
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.platformName
+import com.gatcha.log.util.SafeUrl
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -139,7 +140,7 @@ object AppNoticeApi {
                 },
                 title = title,
                 body = o.optString("body").trim(),
-                url = o.optString("url").trim(),
+                url = SafeUrl.https(o.optString("url")),   // https 가 아니면 버린다 — 배너의 「자세히」가 사라질 뿐이다
                 cta = o.optString("cta").trim().ifEmpty { "자세히" },
             )
         }

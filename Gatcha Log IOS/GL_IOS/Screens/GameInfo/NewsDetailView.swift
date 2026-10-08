@@ -123,7 +123,7 @@ struct NewsDetailView: View {
                 }
             }
             // 링크에 `lang=ko-kr` 을 붙인다 — 안 붙이면 받는 쪽에서 그 사람 기본 언어(대개 영문)로 열린다.
-            if let u = URL(string: NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {
+            if let u = glgSafeURL(NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     // ⚠️ **공유 대상은 URL 이어야 한다.** 제목까지 담으려고 String 을 넘겼더니
                     // `public.plain-text` 로 나가서 카카오톡이 "공유할 수 없는 형식"으로 거부했다.

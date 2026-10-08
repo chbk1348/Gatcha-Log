@@ -45,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.URL
+import com.gatcha.log.util.SafeUrl
 
 // ════════════════════════════════════════════════════════════════════════════
 // 이미지 뷰어 — 공지 본문 이미지를 탭하면 전체화면으로 크게 보고, 갤러리에 저장한다.
@@ -143,6 +144,8 @@ private fun ViewerButton(icon: ImageVector, desc: String, onClick: () -> Unit) {
  */
 private suspend fun saveImageToGallery(context: Context, url: String): Boolean = withContext(Dispatchers.IO) {
     runCatching {
+        // 뉴스 본문의 이미지 주소는 남의 서버가 준 값이다 — `file:` 같은 주소로 앱 안의 파일을 갤러리에 꺼내지 못하게 https 만 받는다(27.51.1).
+        require(SafeUrl.isHttps(url)) { "not https" }
         val bytes = URL(url).openStream().use { it.readBytes() }
         val name = "gatchalog_${System.currentTimeMillis()}.png"
 

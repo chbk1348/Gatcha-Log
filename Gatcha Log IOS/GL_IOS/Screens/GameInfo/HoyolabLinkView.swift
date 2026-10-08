@@ -61,8 +61,8 @@ struct HoyolabLinkView: View {
                         sectionTitle("계정 토큰", "직접 입력해도 돼요")
                         VStack(spacing: 10) {
                             field("ltuid", $ltuid)
-                            field("ltoken", $ltoken)
-                            field("cookie_token (리딤코드 교환용·선택)", $cookieToken)
+                            field("ltoken", $ltoken, secure: true)
+                            field("cookie_token (리딤코드 교환용·선택)", $cookieToken, secure: true)
                         }
                     }
                     GiBand()
@@ -177,9 +177,29 @@ struct HoyolabLinkView: View {
         .padding(.bottom, 12)
     }
 
-    private func field(_ label: String, _ text: Binding<String>) -> some View {
-        GldsTextField(label: label, placeholder: "", text: text)
+    /// [secure] — 토큰은 점으로 가린다(27.51.1). 저장된 값이 칸에 채워지는 화면이라, 스크린샷 한 장으로 세션이 넘어가지 않게 한다.
+    private func field(_ label: String, _ text: Binding<String>, secure: Bool = false) -> some View {
+        GldsTextField(label: label, placeholder: "", text: text, secure: secure)
             .autocapitalization(.none).disableAutocorrection(true)
+    }
+}
+
+/// 예전 버전이 디스크에 남긴 HoYoLAB 로그인 흔적을 **한 번** 지운다(27.51.1 보안 점검).
+///
+/// 27.51.0 까지 로그인 창은 기본(디스크) 웹 저장소를 썼고, 네트워크 세션은 공유 URLCache 에 요청을 적을 수 있었다.
+/// 지금은 둘 다 막았지만(비저장 세션 · 캐시 끔) 이미 남은 파일은 그대로라, 업데이트한 기기에서 한 번 비운다.
+/// 이 앱의 웹뷰는 로그인 창 하나뿐이라 통째로 지워도 다른 것이 딸려 나가지 않는다. 이미지 캐시는 다시 채워진다.
+enum HoyolabWebSession {
+    private static let flag = "glg_web_session_purged_275110"
+
+    @MainActor
+    static func purgeLegacyOnce() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: flag) else { return }
+        defaults.set(true, forKey: flag)
+        WKWebsiteDataStore.default().removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+                                                modifiedSince: .distantPast) {}
+        URLCache.shared.removeAllCachedResponses()
     }
 }
 
@@ -192,15 +212,14 @@ struct HoyolabLoginWebView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        // **디스크에 남기지 않는 세션**을 쓴다(27.51.1). 기본 저장소는 로그인 쿠키를 앱 컨테이너에 평문으로 남겨,
+        // 토큰을 Keychain 으로 옮긴 뒤에도 — 연동을 해제한 뒤에도 — HoYoLAB 세션이 그대로 살아 있었다.
+        // 창을 닫으면 세션이 사라지므로 "항상 새로 로그인"도 따로 지울 것 없이 성립한다.
+        config.websiteDataStore = .nonPersistent()
         let web = WKWebView(frame: .zero, configuration: config)
         web.navigationDelegate = context.coordinator
         context.coordinator.cookieStore = config.websiteDataStore.httpCookieStore
-        // 재연동: 기존 쿠키 제거 후 로드 → 항상 새로 로그인
-        let store = WKWebsiteDataStore.default().httpCookieStore
-        store.getAllCookies { cookies in
-            for c in cookies { store.delete(c) }
-            if let url = URL(string: "https://www.hoyolab.com/home") { web.load(URLRequest(url: url)) }
-        }
+        if let url = URL(string: "https://www.hoyolab.com/home") { web.load(URLRequest(url: url)) }
         context.coordinator.startPolling()
         return web
     }
@@ -223,6 +242,16 @@ struct HoyolabLoginWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { collect(onlyIfChanged: false) }
 
+        /// 본 프레임 이동은 **호요버스 도메인만** 허용한다(27.51.1). 이 창은 주소 표시줄이 없어, 밖으로 나가면
+        /// 사용자가 알 길이 없다 — 닮은 로그인 페이지에 비밀번호를 넣게 된다. 캡차 같은 하위 프레임은 막지 않는다.
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
+            guard navigationAction.targetFrame?.isMainFrame ?? true else { decisionHandler(.allow); return }
+            let host = SafeUrl.shared.host(raw: navigationAction.request.url?.absoluteString)
+            let ok = ["hoyolab.com", "hoyoverse.com", "mihoyo.com"].contains { SafeUrl.shared.hostIn(host: host, domain: $0) }
+            decisionHandler(ok ? .allow : .cancel)
+        }
+
         func startPolling() {
             timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
                 // scheduledTimer 는 현재(메인) 런루프에 등록된다 — 컴파일러에 그 사실을 알린다.
@@ -243,9 +272,8 @@ struct HoyolabLoginWebView: UIViewRepresentable {
                 var order: [String] = []
                 for c in cookies {
                     let dom = c.domain.hasPrefix(".") ? String(c.domain.dropFirst()) : c.domain
-                    let matches = self.hosts.contains { host in
-                        host.hasSuffix(dom) || dom.hasSuffix(self.hostAfterDot(host))
-                    }
+                    // 점 경계로 견준다 — 예전 접미사 비교는 `evilhoyolab.com` 도 통과시켰다(27.51.1).
+                    let matches = SafeUrl.shared.hostIn(host: dom, domain: "hoyolab.com")
                     if matches && !c.value.isEmpty && merged[c.name] == nil {
                         merged[c.name] = c.value; order.append(c.name)
                     }

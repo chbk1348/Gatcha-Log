@@ -54,6 +54,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotifi
         URLCache.shared = URLCache(memoryCapacity: 8 * 1024 * 1024,
                                    diskCapacity: 128 * 1024 * 1024)
 
+        // 2-3. 예전 버전이 디스크에 남긴 HoYoLAB 로그인 흔적(웹뷰 쿠키 · 요청 캐시)을 한 번 지운다(27.51.1).
+        //      첫 프레임 뒤로 미룬다 — WebKit 을 깨우는 일이라 런치에 얹지 않는다.
+        DispatchQueue.main.async { HoyolabWebSession.purgeLegacyOnce() }
+
         // 3. 알림 델리게이트 — 이게 없으면 앱이 포그라운드일 때 발생한 로컬 알림
         //    (예산 초과·출석 완료·재화 넛지)이 배너로 표시되지 않고 무음으로 사라진다.
         UNUserNotificationCenter.current().delegate = self
