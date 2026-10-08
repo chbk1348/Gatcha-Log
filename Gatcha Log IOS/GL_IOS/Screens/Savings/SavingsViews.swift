@@ -61,6 +61,8 @@ struct SavingsChallengeView: View {
                     .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 20)
             }
+            // 넓은 창(iPad)에서는 가운데 640 폭으로 모은다 — 설정 · 마이페이지와 같은 규칙.
+            .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         .background(Color.white)

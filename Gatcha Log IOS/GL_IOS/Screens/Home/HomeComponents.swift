@@ -204,6 +204,8 @@ struct NotificationDetailView: View {
                         }
                     }
                     .padding(.top, 10).padding(.bottom, 8)
+                    // 넓은 창(iPad)에서는 가운데 640 폭으로 모은다 — 설정 · 마이페이지와 같은 규칙.
+                    .glgReadableWidth(640)
                 }
             }
         }

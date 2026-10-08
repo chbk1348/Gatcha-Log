@@ -75,6 +75,8 @@ struct HoyolabLinkView: View {
                         }
                     }
                 }
+                // 넓은 창(iPad)에서는 가운데 640 폭으로 모은다 — 설정 · 마이페이지와 같은 규칙.
+                .glgReadableWidth(640)
             }
             // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정). Android 는 하단 고정 GLDS 버튼.
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }

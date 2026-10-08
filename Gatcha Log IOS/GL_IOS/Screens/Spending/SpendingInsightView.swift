@@ -76,6 +76,8 @@ struct SpendingInsightView: View {
                     }
                 }
             }
+            // 넓은 창(iPad)에서는 가운데 640 폭으로 모은다 — 설정 · 마이페이지와 같은 규칙.
+            .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         // 카드 없이 흰 바탕 — 섹션 사이는 10 띠(마이페이지 · 지출 상세와 같은 규격, Android 와 같다).

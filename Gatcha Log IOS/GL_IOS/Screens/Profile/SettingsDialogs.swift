@@ -109,6 +109,8 @@ struct UpdateLogPage: View {
                     }
                 } header: { filterBar }
             }
+            // 넓은 창(iPad)에서는 가운데 640 폭으로 모은다 — 설정 · 마이페이지와 같은 규칙. 고정되는 분류 바도 같은 폭이다.
+            .glgReadableWidth(640)
             // 맨 아래 여백은 마지막 섹션(아래 20)이 가진다 — 예전 카드 12 + 여기 40 = 52 로 떠 보였다(10/1).
         }
         .background(Color.white)
