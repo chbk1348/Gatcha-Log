@@ -1887,14 +1887,25 @@ class SpendingViewModel : ViewModel() {
             if (cached == null) _enkaLoadingGames.update { it + game }   // 보여줄 게 없을 때만 스피너
             try {
                 val cfg = _hoyolabConfig.value
-                val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                // 보여 줄 캐시가 없을 때만 **먼저 온 목록**을 받는다(27.51.1) — 섹션 쪽(autoLoadEnkaSection)과 같은 규칙이다.
+                var partialShown = false
+                val onPartial: ((EnkaResult) -> Unit)? = if (cached != null) null else { partial ->
+                    if (enkaUidFor(game) == uid) {
+                        // IO 스레드에서 불린다 — 상태 흐름만 건드린다(진영 미리 받기는 최종 결과에서 한다).
+                        partialShown = true
+                        _enkaResult.value = partial
+                        _enkaResults.update { it + (game to partial) }
+                        _enkaLoadingGames.update { it - game }
+                    }
+                }
+                val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
                 if (enkaUidFor(game) != uid) return@launch   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
                 when {
                     r.profile != null -> {
                         enkaCache[key] = currentTimeMillis() to r; persistEnkaCache(); publishEnka(game, r)
                     }
-                    // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지. 캐시 없을 때만 에러 표시.
-                    cached == null -> publishEnka(game, r)
+                    // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지. 캐시도 먼저 그린 목록도 없을 때만 에러 표시.
+                    cached == null && !partialShown -> publishEnka(game, r)
                 }
             } finally {
                 enkaInFlight.remove(key)
@@ -1976,10 +1987,13 @@ class SpendingViewModel : ViewModel() {
                     if (!enkaInFlight.add(key)) return@async   // 같은 조회가 이미 진행 중
                     try {
                     val cfg = _hoyolabConfig.value
-                    // 보여 줄 캐시가 없을 때만 **먼저 온 부분 결과**를 받는다(스타레일 — 느린 mihomo 를 기다리지 않고 HoYoLAB 목록으로
-                    // 먼저 그린다). 캐시가 있으면 이미 그려져 있고, 부분 결과로 갈아끼우면 닉네임 · 쇼케이스 값이 잠깐 빠진다.
+                    // 보여 줄 캐시가 없을 때만 **먼저 온 부분 결과**를 받는다 — 스타레일은 느린 mihomo 를, 원신은 전원 상세를,
+                    // 젠레스는 1명당 1요청인 상세를 기다리지 않고 HoYoLAB 보유 목록으로 먼저 그린다.
+                    // 캐시가 있으면 이미 그려져 있고, 부분 결과로 갈아끼우면 닉네임 · 스탯이 잠깐 빠진다.
+                    var partialShown = false
                     val onPartial: ((EnkaResult) -> Unit)? = if (cached != null) null else { partial ->
                         if (enkaUidFor(game) == uid) {
+                            partialShown = true
                             _enkaResults.update { it + (game to partial) }
                             _enkaLoadingGames.update { it - game }
                         }
@@ -1990,8 +2004,9 @@ class SpendingViewModel : ViewModel() {
                         enkaCache[key] = currentTimeMillis() to r
                         _enkaResults.update { it + (game to r) }   // 갱신분 반영
                         prefetchCharCamps(game, r.profile?.chars.orEmpty())
-                    } else if (cached == null) {
-                        _enkaResults.update { it + (game to r) }   // 캐시 없고 실패 → 에러 표시(캐시 있으면 기존 유지)
+                    } else if (cached == null && !partialShown) {
+                        // 캐시도 먼저 그린 목록도 없고 실패 → 에러 표시. 먼저 그린 목록이 있으면 그대로 둔다(상세만 못 받은 것이다).
+                        _enkaResults.update { it + (game to r) }
                     }
                     } finally {
                         enkaInFlight.remove(key)
