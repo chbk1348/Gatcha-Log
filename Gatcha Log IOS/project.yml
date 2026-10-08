@@ -163,8 +163,19 @@ targets:
           # 경로에 공백이 있어 Xcode 가 링커로 넘길 때 쪼개진다. 값 안에 따옴표를 심어야 살아남는다.
           - '"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"'
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: CCTT9CBG38
+        # **테스트 번들은 자동 서명을 쓰지 않는다**(2026-10-08).
+        #
+        # 무료 개인 팀은 앱 ID 를 **7일에 10개**까지만 만들 수 있다. 자동 서명이 켜져 있으면 Xcode 가 프로젝트를 열거나
+        # 서명을 갱신할 때 이 번들 ID 에도 앱 ID · 프로파일을 따로 만들어, 앱 하나를 갱신하는데 슬롯이 2~3개씩 나갔다
+        # (9/10 에 한도로 갱신이 막혔고, 10/8 갱신 때도 uitests 프로파일이 같이 생겼다).
+        # 수동 서명 + 팀 없음으로 두면 Xcode 가 이 타깃을 위해 Apple 에 아무것도 요청하지 않는다.
+        # 시뮬레이터 테스트는 프로비저닝이 필요 없어 그대로 돈다. **실기기에서 테스트를 돌려야 할 때만** 아래 다섯 줄을
+        # `CODE_SIGN_STYLE: Automatic` · `DEVELOPMENT_TEAM: CCTT9CBG38` 로 되돌리고, 끝나면 다시 이렇게 둔다.
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_IDENTITY: "-"
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        "CODE_SIGNING_ALLOWED[sdk=iphoneos*]": "NO"
 
   GL_IOSUITests:
     type: bundle.ui-testing
@@ -180,9 +191,20 @@ targets:
         # 앱 타깃은 Info.plist 파일을 직접 두지만(위 info:), 테스트 번들은 관리할 내용이 없다.
         # 이걸 켜지 않으면 "target does not have an Info.plist file" 로 코드 서명이 실패한다.
         GENERATE_INFOPLIST_FILE: "YES"
-        # 앱 타깃과 같은 개인 팀으로 서명 — 러너 앱도 기기에 설치돼야 한다.
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: CCTT9CBG38
+        # **테스트 번들은 자동 서명을 쓰지 않는다**(2026-10-08) — 이유는 위 GL_IOSTests 와 같다.
+        # (예전엔 러너 앱을 기기에 깔려고 앱과 같은 팀으로 자동 서명했다.)
+        #
+        # 무료 개인 팀은 앱 ID 를 **7일에 10개**까지만 만들 수 있다. 자동 서명이 켜져 있으면 Xcode 가 프로젝트를 열거나
+        # 서명을 갱신할 때 이 번들 ID 에도 앱 ID · 프로파일을 따로 만들어, 앱 하나를 갱신하는데 슬롯이 2~3개씩 나갔다
+        # (9/10 에 한도로 갱신이 막혔고, 10/8 갱신 때도 uitests 프로파일이 같이 생겼다).
+        # 수동 서명 + 팀 없음으로 두면 Xcode 가 이 타깃을 위해 Apple 에 아무것도 요청하지 않는다.
+        # 시뮬레이터 테스트는 프로비저닝이 필요 없어 그대로 돈다. **실기기에서 테스트를 돌려야 할 때만** 아래 다섯 줄을
+        # `CODE_SIGN_STYLE: Automatic` · `DEVELOPMENT_TEAM: CCTT9CBG38` 로 되돌리고, 끝나면 다시 이렇게 둔다.
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_IDENTITY: "-"
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        "CODE_SIGNING_ALLOWED[sdk=iphoneos*]": "NO"
 
 # 공유 스킴 — `xcodebuild -scheme Gatcha_LOG_iOS` / 아카이브(build-ipa.sh) 용. xcodegen 재생성 후에도 유지.
 schemes:
