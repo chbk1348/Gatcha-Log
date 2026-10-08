@@ -5,6 +5,7 @@ import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.GldsBand
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
+import android.annotation.SuppressLint
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -102,6 +103,9 @@ import com.gatcha.log.util.num
  */
 private data class SpendingEditorTarget(val spending: Spending?)
 
+// Scaffold 의 안쪽 여백(paddingValues)은 일부러 쓰지 않는다 — 전 화면 edge-to-edge 라 각 화면이 자기 인셋을 갖고,
+// 하단바는 콘텐츠 위에 떠 있다. 마지막 쓰임(홈 히어로 높이)은 10/1 흰 바탕 개편 때 사라졌다.
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     var selectedTab by remember { mutableIntStateOf(0) }
