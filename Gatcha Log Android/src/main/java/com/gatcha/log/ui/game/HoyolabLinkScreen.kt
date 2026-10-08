@@ -40,6 +40,7 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.GldsTextField
+import com.gatcha.log.ui.components.SecureWindow
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -49,6 +50,8 @@ import com.gatcha.log.ui.theme.TextSecondary
  */
 @Composable
 fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, onBack: () -> Unit) {
+    // 저장된 토큰이 칸에 채워지는 화면이다 — 스크린샷 한 장으로 세션이 넘어가지 않게 캡처를 막고 값은 가린다(27.51.1).
+    SecureWindow()
     val accent = LocalAccent.current
     var ltuid by remember { mutableStateOf(config.ltuid) }
     var ltoken by remember { mutableStateOf(config.ltoken) }
@@ -107,8 +110,8 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     GldsTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
-                    GldsTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
-                    GldsTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
+                    GldsTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth(), secure = true)
+                    GldsTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth(), secure = true)
                 }
             }
             GiBand()

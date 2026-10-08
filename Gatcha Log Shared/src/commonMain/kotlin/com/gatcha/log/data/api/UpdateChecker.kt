@@ -1,18 +1,19 @@
 package com.gatcha.log.data.api
 
 import com.gatcha.log.json.JSONObject
+import com.gatcha.log.util.SafeUrl
 import com.gatcha.log.util.currentTimeMillis
 
 /** 원격 버전 매니페스트(version.json) 정보. */
 data class UpdateInfo(
     val versionCode: Long,
     val versionName: String,
-    /** 릴리스 페이지(웹). 인앱 설치 실패 시 폴백용. */
+    /** 릴리스 페이지(웹). 인앱 설치 실패 시 폴백용 · iOS 는 이 주소를 연다. 이 저장소 안의 주소만 들어온다([SafeUrl.releasePage]). */
     val url: String,
     /** 직접 다운로드용 APK URL(인앱 다운로드·설치). */
     val apkUrl: String,
     val notes: List<String>,
-    /** APK SHA-256(소문자 hex). 설치 직전 무결성 검증용(Android). 미지정 시 빈 문자열. */
+    /** APK SHA-256(hex 64자). 설치 직전 무결성 검증용(Android) — 비어 있거나 모양이 틀리면 인앱 설치를 하지 않는다. */
     val sha256: String = "",
     /**
      * 강제 업데이트 최소 지원 버전코드. 현재 앱이 이 값 미만이면 반드시 업데이트해야 한다
@@ -37,13 +38,14 @@ internal fun parseUpdateManifest(body: String, current: Long): UpdateInfo? = run
     val notes = if (notesArr != null) (0 until notesArr.length()).map { notesArr.getString(it) } else emptyList()
     // apkUrl 미지정 시 그 버전 릴리스의 에셋으로 폴백한다. 파일명은 「앱 이름-버전」이다(27.51.0~, 그 전에는 app-release.apk).
     val versionName = o.optString("versionName", "").trim()
-    val apkUrl = o.optString("apkUrl", "").ifBlank {
-        "https://github.com/chbk1348/Gatcha-Log/releases/download/v$versionName/Gatcha-Log-$versionName.apk"
-    }
+    // 주소는 **이 저장소의 릴리즈만** 받는다(27.51.1). 매니페스트가 다른 곳을 가리키면 그 값은 버리고
+    // 버전에서 유도한 기본 주소로 돌아간다 — 저장소가 뚫려도 받는 곳까지 남의 서버로 돌리지 못한다.
+    val apkUrl = o.optString("apkUrl", "").trim().takeIf { SafeUrl.isReleaseApk(it) }
+        ?: "https://github.com/chbk1348/Gatcha-Log/releases/download/v$versionName/Gatcha-Log-$versionName.apk"
     UpdateInfo(
         versionCode = latest,
         versionName = versionName,
-        url = o.optString("url", ""),
+        url = SafeUrl.releasePage(o.optString("url", "")),
         apkUrl = apkUrl,
         notes = notes,
         sha256 = o.optString("sha256", "").trim(),

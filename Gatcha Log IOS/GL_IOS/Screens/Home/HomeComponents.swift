@@ -119,7 +119,7 @@ struct AppNoticeBanner: View {
         HomeTopBanner(icon: notice.level == .info ? "info.circle.fill" : "exclamationmark.triangle.fill", tint: tint,
                       title: notice.title, message: notice.body,
                       cta: notice.url.isEmpty ? nil : notice.cta,
-                      action: { if let url = URL(string: notice.url) { openURL(url) } })
+                      action: { if let url = glgSafeURL(notice.url) { openURL(url) } })
     }
 }
 

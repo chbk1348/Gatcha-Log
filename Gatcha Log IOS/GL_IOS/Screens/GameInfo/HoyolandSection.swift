@@ -7,8 +7,19 @@ import Shared
 // 이 파일에는 표시 규격만 둔다. Android 대응 = HoyolandSection.kt.
 
 /// 네이버 지도가 안 열릴 때 폴백 — 문자열이 URL 로 안 서면 이 값도 nil 이라 링크를 아예 안 만든다.
-private func hoyoURL(_ raw: String) -> URL? {
-    raw.isEmpty ? nil : URL(string: raw)
+private func hoyoURL(_ raw: String) -> URL? { glgSafeURL(raw) }
+
+/// 예매 앱을 바로 여는 주소 — 공유 코드가 **아는 스킴만** 남긴다(`SafeUrl.appScheme`). 그 밖의 값은 nil 이라 웹 주소로 간다.
+private func hoyoAppURL(_ raw: String) -> URL? {
+    let s = SafeUrl.shared.appScheme(raw: raw)
+    return s.isEmpty ? nil : URL(string: s)
+}
+
+/// 원격에서 온 주소(운영 공지 · 호요랜드 · 뉴스)를 열 때 쓰는 문 — **https 만** 통과시킨다(27.51.1).
+/// `tel:` · `itms-services:` · 남의 앱 딥링크가 설정 한 줄로 열리지 않게 한다. 판정은 Android 와 같은 공유 코드다.
+func glgSafeURL(_ raw: String) -> URL? {
+    let s = SafeUrl.shared.https(raw: raw)
+    return s.isEmpty ? nil : URL(string: s)
 }
 
 /**
@@ -266,7 +277,7 @@ struct HoyolandSection: View {
     /// 예매처 열기 — 상세 `ticketSection` 의 「예매하기」와 같은 순서(앱 스킴 → 실패 시 웹). 주소가 없으면 상세로.
     private func openTicket(_ e: HoyolandEvent) {
         guard let url = hoyoURL(e.ticket.url) else { onOpen(.none); return }
-        if let app = hoyoURL(e.ticket.appScheme) {
+        if let app = hoyoAppURL(e.ticket.appScheme) {
             openURL(app) { accepted in if !accepted { openURL(url) } }
         } else {
             openURL(url)
@@ -1242,7 +1253,7 @@ struct HoyolandDetailView: View {
     /// 예매는 분 단위 경쟁이라 앱이 있으면 그리로 먼저 보낸다. 스킴이 비어 있으면 그냥 웹이다.
     private func openTicketVendor(_ e: HoyolandEvent) {
         guard let url = hoyoURL(e.ticket.url) else { return }
-        if let app = hoyoURL(e.ticket.appScheme) {
+        if let app = hoyoAppURL(e.ticket.appScheme) {
             openURL(app) { accepted in if !accepted { openURL(url) } }
         } else {
             openURL(url)

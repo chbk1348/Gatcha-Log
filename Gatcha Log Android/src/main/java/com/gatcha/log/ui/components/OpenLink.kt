@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import com.gatcha.log.util.SafeUrl
 
 /**
  * 외부 링크 열기 — Compose 의 `LocalUriHandler.openUri` 대체.
@@ -38,6 +39,8 @@ fun openExternalLink(
 }
 
 private fun tryOpen(ctx: Context, url: String, pkg: String? = null): Boolean = try {
+    // 원격 설정 · 뉴스에서 온 주소도 이 길로 열린다 — https 가 아니면(tel: · 남의 앱 딥링크 등) 열지 않는다(27.51.1).
+    if (!SafeUrl.isHttps(url)) throw ActivityNotFoundException("not https")
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).newTaskIfNeeded(ctx)
     if (pkg != null) intent.setPackage(pkg)
     ctx.startActivity(intent)

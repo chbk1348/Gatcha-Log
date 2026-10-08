@@ -50,6 +50,31 @@ if (file("google-services.json").exists()) {
     }
 }
 
+// 릴리스 키 없이는 **배포용 APK/AAB 를 굽지 못하게** 한다(27.51.1).
+//
+// 예전엔 키가 없으면 경고 한 줄만 찍고 debug 키로 서명해 `assembleRelease` 가 그대로 성공했다.
+// debug.keystore 는 전 세계 공통 · 비밀번호 공개라, 그렇게 나간 설치본에는 누구든 "업데이트"를 만들어 덮을 수 있다.
+// google-services.json 누락과 같은 이유로 막는다 — 조용히 반쪽이 되는 것보다 못 굽는 게 낫다.
+// 로컬 성능 검증처럼 debug 키 릴리즈가 정말 필요하면 `-PallowDebugSignedRelease` 로 명시한다.
+// (`nonMinifiedRelease` · `benchmarkRelease` 는 태스크 이름이 달라 걸리지 않는다 — 그쪽은 원래 로컬 전용이다.)
+gradle.taskGraph.whenReady {
+    val packagingTasks = setOf("packageRelease", "packageReleaseBundle")
+    val unsigned = releaseProp("RELEASE_STORE_FILE") == null && !project.hasProperty("allowDebugSignedRelease")
+    if (unsigned && allTasks.any { it.project.path == ":Gatcha Log Android" && it.name in packagingTasks }) {
+        throw GradleException(
+            """
+            |릴리스 서명 키가 없어 배포용 빌드를 만들 수 없습니다.
+            |
+            |  local.properties 또는 환경 변수에 RELEASE_STORE_FILE · RELEASE_STORE_PASSWORD ·
+            |  RELEASE_KEY_ALIAS · RELEASE_KEY_PASSWORD 를 넣으세요.
+            |
+            |debug 키로 서명한 릴리즈는 배포하면 안 됩니다. 로컬 검증용으로 꼭 필요하면
+            |-PallowDebugSignedRelease 를 붙여 다시 실행하세요.
+            """.trimMargin()
+        )
+    }
+}
+
 // 산출물의 기본 이름 — 모듈명(GL_Android)과 분리해 'app' 으로 둔다(AAB · 매핑 파일 등).
 // **APK 파일명은 아래 androidComponents 가 「앱 이름-버전」으로 정한다**(27.51.0~):
 //   release  Gatcha-Log-27.51.0.apk      ← 릴리즈에 올리는 이름. iOS 의 Gatcha-Log-27.51.0.ipa 와 같은 꼴이다.

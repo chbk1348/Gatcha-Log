@@ -12,5 +12,5 @@ internal actual fun platformStartInAppUpdate(
     onProgress: (Float?) -> Unit,
     onStatus: (String) -> Unit,
 ) {
-    openUrl(info.url)
+    openUrl(com.gatcha.log.util.SafeUrl.releasePage(info.url))   // 파서가 이미 걸렀지만 여는 자리에서도 이 저장소 주소만
 }

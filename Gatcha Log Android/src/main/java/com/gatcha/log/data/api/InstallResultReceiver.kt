@@ -41,23 +41,19 @@ class InstallResultReceiver : BroadcastReceiver() {
             else -> {
                 val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                // 서명 키 변경(보안 릴리스) → 기존 설치본 위에 덮어쓰기 불가. 삭제 후 재설치 안내.
+                // 서명이 다른 APK — 시스템이 설치를 막았다. **삭제를 권하지 않는다**(27.51.1):
+                // 이 거부가 가짜 APK 를 막는 마지막 장치인데, 예전 문구는 "보안 업데이트라 서명이 바뀌었다"며
+                // 삭제 화면까지 띄워 사용자가 그 장치를 스스로 풀게 했다. 서명을 실제로 바꾸는 릴리즈라면
+                // 릴리즈 노트에서 재설치를 안내한다.
                 val signatureConflict = status == PackageInstaller.STATUS_FAILURE_CONFLICT ||
                     msg?.contains("INCOMPATIBLE", ignoreCase = true) == true ||
                     msg?.contains("signature", ignoreCase = true) == true
                 if (signatureConflict) {
                     Toast.makeText(
                         context,
-                        "보안 업데이트로 서명이 변경되어 덮어쓸 수 없습니다. 기존 Gatcha LOG 를 삭제한 뒤 새로 설치해주세요. (가챠·지출 데이터는 로그인 시 클라우드에서 복원됩니다)",
+                        "서명이 달라 설치를 중단했어요. 공식 릴리즈 페이지의 안내를 확인해 주세요.",
                         Toast.LENGTH_LONG,
                     ).show()
-                    // 삭제 화면을 바로 띄워 재설치를 돕는다.
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${context.packageName}"))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
                 } else {
                     Toast.makeText(context, "설치 실패" + (msg?.let { " ($it)" } ?: ""), Toast.LENGTH_SHORT).show()
                 }

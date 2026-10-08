@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import com.gatcha.log.util.SafeUrl
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -22,8 +23,12 @@ object AppUpdater {
     /**
      * [apkUrl] 다운로드(진행률 0~1 콜백) 후 설치 세션 커밋. 실패 시 예외를 던진다.
      *
-     * [expectedSha256] 가 비어있지 않으면 설치 직전 다운로드 APK 의 SHA-256 을 대조해
-     * 불일치 시 설치를 중단한다(전송 구간 변조 방어 — 서명 검증에 더해 한 겹 더).
+     * 설치 직전 다운로드 APK 의 SHA-256 을 [expectedSha256] 과 대조해 불일치 시 설치를 중단한다
+     * (전송 구간 변조 방어 — 서명 검증에 더해 한 겹 더).
+     *
+     * **해시가 없으면 설치하지 않는다**(27.51.1). 예전엔 비어 있으면 검사를 건너뛰었다 — 매니페스트에서
+     * 한 줄만 지우면 꺼지는 검사였다. 주소도 이 저장소의 릴리즈 에셋만 받고, 리다이렉트는 GitHub 과
+     * 그 에셋 CDN 으로만 따라간다([SafeUrl]).
      */
     fun downloadAndInstall(
         context: Context,
@@ -34,13 +39,13 @@ object AppUpdater {
         val ctx = context.applicationContext
         val tmp = File(ctx.cacheDir, "update.apk")
         try {
+            require(SafeUrl.isReleaseApk(apkUrl)) { "업데이트 주소가 공식 릴리즈가 아니에요" }
+            require(SafeUrl.isSha256(expectedSha256)) { "무결성 값(SHA-256)이 없어 설치를 중단했어요" }
             downloadTo(apkUrl, tmp, onProgress)
 
-            if (expectedSha256.isNotBlank()) {
-                val actual = sha256Of(tmp)
-                require(actual.equals(expectedSha256, ignoreCase = true)) {
-                    "APK 무결성 검증 실패(SHA-256 불일치)"
-                }
+            val actual = sha256Of(tmp)
+            require(actual.equals(expectedSha256.trim(), ignoreCase = true)) {
+                "APK 무결성 검증 실패(SHA-256 불일치)"
             }
 
             val installer = ctx.packageManager.packageInstaller
@@ -84,6 +89,7 @@ object AppUpdater {
                 val loc = conn.getHeaderField("Location")
                 conn.disconnect()
                 require(!loc.isNullOrBlank()) { "리다이렉트 위치 없음" }
+                require(SafeUrl.isReleaseDownloadHost(loc)) { "허용되지 않은 다운로드 경로" }
                 current = loc
                 redirects++
                 continue

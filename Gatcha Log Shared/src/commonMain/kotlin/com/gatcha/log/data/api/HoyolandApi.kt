@@ -1,5 +1,6 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.util.SafeUrl
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.HoyolandDefaults
@@ -376,9 +377,10 @@ object HoyolandApi {
             venueName = o.optString("venueName", d.venueName),
             venueHall = o.optString("venueHall", d.venueHall),
             venueAddress = o.optString("venueAddress", d.venueAddress),
-            mapUrl = o.optString("mapUrl", d.mapUrl),
-            mapFallbackUrl = o.optString("mapFallbackUrl", d.mapFallbackUrl),
-            officialUrl = o.optString("officialUrl", d.officialUrl),
+            // 여는 주소는 https 만 — 아니면 비워서 그 버튼이 서지 않게 한다(27.51.1).
+            mapUrl = SafeUrl.https(o.optString("mapUrl", d.mapUrl)),
+            mapFallbackUrl = SafeUrl.https(o.optString("mapFallbackUrl", d.mapFallbackUrl)),
+            officialUrl = SafeUrl.https(o.optString("officialUrl", d.officialUrl)),
             keyImage = o.optString("keyImage", d.keyImage),
             announceYmd = o.optString("announceYmd", d.announceYmd),
             ticket = o.optJSONObject("ticket")?.let { parseTicket(it) } ?: d.ticket,
@@ -455,9 +457,10 @@ object HoyolandApi {
         openYmd = o.optString("openYmd"),
         openHour = o.optInt("openHour", 0),
         priceLabel = o.optString("priceLabel"),
-        appPackage = o.optString("appPackage").trim(),
-        appScheme = o.optString("appScheme").trim(),
-        url = o.optString("url"),
+        // 패키지 이름은 그 모양일 때만, 앱 스킴은 아는 것만, 주소는 https 만 받는다(27.51.1).
+        appPackage = o.optString("appPackage").trim().takeIf { p -> p.isNotEmpty() && p.all { it.isLetterOrDigit() || it == '.' || it == '_' } }.orEmpty(),
+        appScheme = SafeUrl.appScheme(o.optString("appScheme")),
+        url = SafeUrl.https(o.optString("url")),
         note = HoyolandText.normalize(o.optString("note")),
     )
 
@@ -481,7 +484,7 @@ object HoyolandApi {
                 // 색은 "0xFF30C6E8" 같은 16진 문자열로 적는다 — JSON 숫자로 두면 부호 있는 정수
                 // 범위를 넘어가는 값(0xFFxxxxxx)이 파서·에디터마다 다르게 읽힌다.
                 colorArgb = parseArgb(o.optString("colorArgb")),
-                url = o.optString("url").trim(),
+                url = SafeUrl.https(o.optString("url")),
             )
         }
 

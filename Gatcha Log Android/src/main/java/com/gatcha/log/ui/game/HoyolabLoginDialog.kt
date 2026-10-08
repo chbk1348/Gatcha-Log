@@ -1,8 +1,12 @@
 package com.gatcha.log.ui.game
 
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
+import com.gatcha.log.ui.components.SecureWindow
+import com.gatcha.log.util.SafeUrl
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
@@ -39,6 +43,7 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
     val collectedCb = rememberUpdatedState(onCollected)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         LightSystemBarsInWindow()
+        SecureWindow()   // 로그인 화면은 캡처 · 최근 앱 미리보기에 남기지 않는다
         Column(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -66,6 +71,13 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
                         var collected = false
                         var ctRetries = 0
                         webViewClient = object : WebViewClient() {
+                            // 이 창은 주소 표시줄이 없다 — 호요버스 밖으로 나가면 사용자는 그걸 알 길이 없어
+                            // 닮은 로그인 페이지에 비밀번호를 넣게 된다. 본 프레임 이동은 호요버스 도메인만 허용한다(27.51.1).
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                if (request == null || !request.isForMainFrame) return false
+                                return !isHoyoverseHost(SafeUrl.host(request.url?.toString()))
+                            }
+
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 if (collected) return
                                 // cdkey 교환(webExchangeCdkey)은 cookie_token_v2 로 인증한다. 이 값은 ltoken_v2 보다
@@ -92,14 +104,31 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
                                     // 병합된 전체 쿠키 문자열(account_mid_v2·cookie_token_v2 등 포함) → 교환 인증에 그대로 사용
                                     val raw = merged.entries.joinToString("; ") { "${it.key}=${it.value}" }
                                     collectedCb.value(ltuid, ltoken, cookieToken, raw)
+                                    // 토큰은 이제 암호화 저장소에 있다 — 웹뷰 쪽 세션은 지운다(평문 쿠키 파일에 남지 않게).
+                                    clearHoyolabWebSession()
                                 }
                             }
                         }
                         loadUrl("https://www.hoyolab.com/home")
                     }
                 },
-                onRelease = { it.destroy() },
+                onRelease = { it.destroy(); clearHoyolabWebSession() },
             )
         }
+    }
+}
+
+/** 로그인 창이 본 프레임으로 가도 되는 곳 — 호요버스 계열 도메인과 그 하위. */
+private fun isHoyoverseHost(host: String): Boolean =
+    listOf("hoyolab.com", "hoyoverse.com", "mihoyo.com").any { SafeUrl.hostIn(host, it) }
+
+/**
+ * 웹뷰에 남은 HoYoLAB 세션(쿠키 · 웹 저장소)을 지운다.
+ * 이 앱에서 웹뷰는 이 로그인 창 하나뿐이라 통째로 비워도 다른 것이 딸려 나가지 않는다.
+ */
+internal fun clearHoyolabWebSession() {
+    runCatching {
+        CookieManager.getInstance().apply { removeAllCookies(null); flush() }
+        WebStorage.getInstance().deleteAllData()
     }
 }

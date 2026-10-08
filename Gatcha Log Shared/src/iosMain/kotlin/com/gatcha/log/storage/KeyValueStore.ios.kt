@@ -24,9 +24,11 @@ import platform.Foundation.dataUsingEncoding
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
 import platform.Security.SecItemDelete
+import platform.Security.SecItemUpdate
+import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
-import platform.Security.kSecAttrAccessibleAfterFirstUnlock
+import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 import platform.Security.kSecAttrAccount
 import platform.Security.kSecAttrService
 import platform.Security.kSecClass
@@ -134,7 +136,9 @@ actual class SecureKeyValueStore actual constructor(private val name: String) {
         CFDictionaryAddValue(query, kSecAttrService, serviceRef)
         CFDictionaryAddValue(query, kSecAttrAccount, accountRef)
         CFDictionaryAddValue(query, kSecValueData, dataRef)
-        CFDictionaryAddValue(query, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlock)
+        // **이 기기에만** 둔다(27.51.1) — ThisDeviceOnly 가 아니면 암호화 백업 · 기기 이전에 토큰이 실려 나간다.
+        // 잠금 해제 후에는 백그라운드(자동 출석)에서도 읽을 수 있어야 해서 AfterFirstUnlock 은 그대로다.
+        CFDictionaryAddValue(query, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
 
         lastAddStatus = SecItemAdd(query, null)
         val ok = lastAddStatus == errSecSuccess
@@ -186,6 +190,7 @@ private var keychainInstallChecked = false
 fun purgeKeychainIfFreshInstall() {
     if (keychainInstallChecked) return
     keychainInstallChecked = true
+    pinKeychainToThisDevice()
     val std = NSUserDefaults.standardUserDefaults
     if (std.boolForKey(KEYCHAIN_OWNED)) return
     if (std.persistentDomainForName("gatcha_settings") == null) {
@@ -211,6 +216,51 @@ fun purgeKeychainIfFreshInstall() {
 }
 
 private const val KEYCHAIN_OWNED = "glg_keychain_owned"
+private const val KEYCHAIN_DEVICE_ONLY = "glg_keychain_device_only"
+
+/**
+ * 예전 버전이 넣어 둔 항목을 **이 기기 전용**으로 바꾼다 — 한 번만(27.51.1).
+ * 새로 쓰는 값은 [SecureKeyValueStore.putString] 이 처음부터 그렇게 넣지만, 이미 들어 있는 토큰은
+ * 다시 저장하기 전까지 옛 속성(백업 · 기기 이전에 실림)으로 남는다. 실패하면 표시를 남기지 않아 다음 실행에 다시 한다.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun pinKeychainToThisDevice() {
+    val std = NSUserDefaults.standardUserDefaults
+    if (std.boolForKey(KEYCHAIN_DEVICE_ONLY)) return
+    var allOk = true
+    ourKeychainServices().forEach { service ->
+        val query = CFDictionaryCreateMutable(null, 2, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+        val attrs = CFDictionaryCreateMutable(null, 1, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+        val serviceRef = CFBridgingRetain(service as NSString)
+        CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
+        CFDictionaryAddValue(query, kSecAttrService, serviceRef)
+        CFDictionaryAddValue(attrs, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
+        val status = SecItemUpdate(query, attrs)
+        if (status != errSecSuccess && status != errSecItemNotFound) allOk = false
+        CFRelease(query)
+        CFRelease(attrs)
+        CFRelease(serviceRef)
+    }
+    if (allOk) std.setBool(true, KEYCHAIN_DEVICE_ONLY)
+}
+
+/** Keychain 에 있는 우리 서비스 이름들(`gatcha_sec_*`). */
+@OptIn(ExperimentalForeignApi::class)
+private fun ourKeychainServices(): Set<String> = memScoped {
+    val query = CFDictionaryCreateMutable(null, 3, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+    CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
+    CFDictionaryAddValue(query, kSecReturnAttributes, kCFBooleanTrue)
+    CFDictionaryAddValue(query, kSecMatchLimit, kSecMatchLimitAll)
+    val result = alloc<CFTypeRefVar>()
+    val status = SecItemCopyMatching(query, result.ptr)
+    CFRelease(query)
+    if (status != errSecSuccess) return@memScoped emptySet()
+    val serviceKey = CFBridgingRelease(CFRetain(kSecAttrService))  // 상수는 빌린 참조 — 하나 올려서 넘긴다
+    (CFBridgingRelease(result.value) as? List<*>).orEmpty()
+        .mapNotNull { (it as? Map<*, *>)?.get(serviceKey) as? String }
+        .filter { it.startsWith("gatcha_sec_") }
+        .toSet()
+}
 
 @OptIn(ExperimentalForeignApi::class)
 private fun deleteKeychainService(service: String) {

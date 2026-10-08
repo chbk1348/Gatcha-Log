@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -171,6 +174,7 @@ private val GldsFieldPlaceholder = Color(0xFFA7B1AE)
 /**
  * GLDS 입력필드 — 채운 면(#F5F8F8), 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
  * [suffix] 는 값 뒤에 붙는 단위(「원」), [trailingIcon] 은 오른쪽 끝 아이콘, [onClick] 을 주면 누르는 필드(날짜 등).
+ * [secure] 면 값을 점으로 가린다(토큰) — iOS `GldsTextField(secure:)` 와 같다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -191,6 +195,7 @@ fun GldsTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     enabled: Boolean = true,
     readOnly: Boolean = false,
+    secure: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
     val accent = LocalAccent.current
@@ -242,7 +247,9 @@ fun GldsTextField(
                     enabled = enabled,
                     readOnly = readOnly,
                     singleLine = singleLine,
-                    keyboardOptions = keyboardOptions,
+                    // 가리는 칸은 키보드도 비밀번호용으로 — 자동 완성 · 학습에 값이 남지 않게 한다.
+                    keyboardOptions = if (secure) keyboardOptions.copy(keyboardType = KeyboardType.Password, autoCorrectEnabled = false) else keyboardOptions,
+                    visualTransformation = if (secure) PasswordVisualTransformation() else VisualTransformation.None,
                     textStyle = style,
                     cursorBrush = SolidColor(accent),
                     interactionSource = interaction,
@@ -321,6 +328,23 @@ private val GldsChipLine = Color(0xFFE3E5EA)
  * 다이얼로그 · 바텀시트 창에서도 상단 · 하단 시스템 바 아이콘을 어둡게(9/30) — 별도 창은 액티비티 설정을 물려받지 않아
  * 다이얼로그가 뜨면 상단바 아이콘이 흰색으로 바뀌었다. 창 content 안에서 한 번 부른다.
  */
+/**
+ * 이 창을 화면 캡처 · 화면 녹화 · 최근 앱 미리보기에서 가린다(FLAG_SECURE).
+ * **토큰이 보일 수 있는 화면**(HoYoLAB 연동 · 로그인)에서만 쓴다 — 다이얼로그 안에서 부르면 그 창에,
+ * 아니면 액티비티 창에 걸리고 화면을 떠나면 푼다.
+ */
+@Composable
+fun SecureWindow() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(view) {
+        var ctx = view.context
+        while (ctx is android.content.ContextWrapper && ctx !is android.app.Activity) ctx = ctx.baseContext
+        val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window ?: (ctx as? android.app.Activity)?.window
+        window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE) }
+    }
+}
+
 @Composable
 fun LightSystemBarsInWindow() {
     val view = androidx.compose.ui.platform.LocalView.current
