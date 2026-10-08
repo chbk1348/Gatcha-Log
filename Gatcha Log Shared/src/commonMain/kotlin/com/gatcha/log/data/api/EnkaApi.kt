@@ -146,7 +146,9 @@ object EnkaApi {
      * mihomo 가 비워두는 신규 캐릭터 이름을 보완한다(§5). 미연동이면 빈 문자열 → mihomo 이름 폴백.
      */
     /**
-     * @param onPartial 스타레일 전용 — 느린 mihomo 를 기다리는 동안 **HoYoLAB 것만으로 먼저 만든 목록**을 건넨다(없으면 안 부른다).
+     * @param onPartial 최종 결과보다 **먼저 만들 수 있는 목록**을 건넨다(없으면 안 부른다). 연동된 계정에서만 온다.
+     *   스타레일 — 느린 mihomo 를 기다리지 않고 HoYoLAB 보유 목록으로. 원신 — 전원 상세를 기다리지 않고 보유 목록으로.
+     *   젠레스 — 1명당 1요청인 상세를 기다리지 않고 보유 목록으로(스탯 · 장비는 최종 결과에서 채워진다).
      *   부르는 쪽은 보여 줄 것이 아직 없을 때만 넘긴다. 최종 결과는 예전처럼 반환값으로 온다.
      */
     suspend fun fetchProfile(
@@ -157,13 +159,15 @@ object EnkaApi {
         if (u.isBlank() || u.any { !it.isDigit() }) return EnkaResult(null, "UID는 숫자만 입력하세요")
         return when (game) {
             "hsr", "starrail" -> fetchHsr(u, ltuid, ltoken, onPartial)
-            "zzz" -> fetchZzz(u, ltuid, ltoken)
-            else -> fetchGenshin(u, ltuid, ltoken)
+            "zzz" -> fetchZzz(u, ltuid, ltoken, onPartial)
+            else -> fetchGenshin(u, ltuid, ltoken, onPartial)
         }
     }
 
     // ----------------------------------------------------------------- 원신
-    private suspend fun fetchGenshin(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
+    private suspend fun fetchGenshin(
+        uid: String, ltuid: String = "", ltoken: String = "", onPartial: ((EnkaResult) -> Unit)? = null,
+    ): EnkaResult {
         // Enka(프로필)와 HoYoLAB(보유 전체)은 **서로를 기다릴 이유가 없다** — 예전엔 Enka 응답을 다
         // 받은 뒤에야 HoYoLAB 요청이 나가서 왕복이 그대로 두 배였다. HoYoLAB 쪽은 내부에서 다시
         // list→detail 2연속이라 체인이 실제로는 3단이었다.
@@ -171,13 +175,19 @@ object EnkaApi {
         // 본인 계정 연동 시: HoYoLAB character/detail 로 보유 전체(쇼케이스 밖 포함). 미연동/실패 → Enka 쇼케이스.
         val (res, hoyoData) = coroutineScope {
             val enkaD = async { Net.get("https://enka.network/api/uid/$uid", headers) }
-            val hoyoD = if (linked) async { HoyolabApi.fetchGenshinCharDetail(ltuid, ltoken, uid) } else null
+            // 보유 목록(1단계)이 오면 **상세를 기다리지 않고 먼저 그린다**(27.51.1) — 상세는 전원의 스탯 · 무기 · 성유물이라 무겁다.
+            val hoyoD = if (linked) async {
+                HoyolabApi.fetchGenshinCharDetail(ltuid, ltoken, uid) { list -> onPartial?.let { cb -> giListResult(list)?.let(cb) } }
+            } else null
             enkaD.await() to hoyoD?.await()
         }
-        errorFor(res.code)?.let { return EnkaResult(null, it) }
+        // Enka 가 죽어도(점검 · 429) **HoYoLAB 보유 목록이 왔으면 그것으로 선다**(27.51.1) — 예전엔 Enka 실패 하나로
+        // 이미 받은 전원 상세를 버리고 「조회 실패」를 띄웠다. Enka 에서만 오는 닉네임 · 모험 등급은 빈다.
+        val enkaErr = errorFor(res.code)
+        if (enkaErr != null && hoyoData == null) return EnkaResult(null, enkaErr)
         return runCatching {
-            val json = JSONObject(res.body)
-            val p = json.getJSONObject("playerInfo")
+            val json = if (enkaErr == null) JSONObject(res.body) else JSONObject("{}")
+            val p = if (hoyoData != null) json.optJSONObject("playerInfo") ?: JSONObject("{}") else json.getJSONObject("playerInfo")
             val chars: List<EnkaChar> = if (hoyoData != null) {
                 val propMap = hsrPropMap(hoyoData.optJSONObject("property_map")) // property_type → KR명
                 val gl = hoyoData.optJSONArray("list") ?: JSONArray()
@@ -867,6 +877,17 @@ object EnkaApi {
         }
     }
 
+    /**
+     * 원신 보유 **목록**(character/list)만으로 만든 결과 — 상세가 오기 전에 먼저 그리는 용도.
+     * 이름 · 레벨 · 명좌 · 속성 · 아이콘은 목록에도 있다. 스탯 · 성유물은 없어 `detailed = false` 다(최종 결과가 채운다).
+     */
+    internal fun giListResult(list: JSONArray): EnkaResult? {
+        val chars = (0 until list.length()).mapNotNull { i ->
+            list.optJSONObject(i)?.takeIf { it.optInt("id") != 0 }?.let { giCharFromHoyo(it, emptyMap()).copy(detailed = false) }
+        }
+        return if (chars.isEmpty()) null else EnkaResult(EnkaProfile("", 0, 0, "", chars), null)
+    }
+
     // ---------------- HoYoLAB 원신 character/detail(보유 전체) 파싱 — property_map(type→KR명) 사용 ----------------
     private fun giCharFromHoyo(o: JSONObject, propMap: Map<Int, String>): EnkaChar {
         val base = o.optJSONObject("base") ?: o
@@ -982,12 +1003,22 @@ object EnkaApi {
     }
 
     // ---------------- 젠레스(ZZZ) avatar/info 파싱 — 응답 라벨(property_name) 사용, property_map 없음 ----------------
-    private suspend fun fetchZzz(uid: String, ltuid: String, ltoken: String): EnkaResult {
-        val list = HoyolabApi.fetchZzzAvatars(ltuid, ltoken, uid)
+    private suspend fun fetchZzz(
+        uid: String, ltuid: String, ltoken: String, onPartial: ((EnkaResult) -> Unit)? = null,
+    ): EnkaResult {
+        // 보유 목록이 오면 **에이전트별 상세를 기다리지 않고 먼저 그린다**(27.51.1) — 상세는 1명당 1요청이라
+        // 50명이면 50건(동시 4건)이 다 끝나야 목록이 섰다. 캐릭터 목록이 느리던 가장 큰 원인이다.
+        val list = HoyolabApi.fetchZzzAvatars(ltuid, ltoken, uid) { basic -> onPartial?.let { cb -> zzzListResult(basic)?.let(cb) } }
             ?: return EnkaResult(null, HoyolabApi.zzzLastError ?: "젠레스 정보를 불러오지 못했어요")
         val chars = list.map { zzzChar(it) }
         if (chars.isEmpty()) return EnkaResult(null, "표시할 에이전트가 없어요")
         return EnkaResult(EnkaProfile("", 0, 0, "", chars), null)
+    }
+
+    /** 젠레스 보유 **목록**(avatar/basic)만으로 만든 결과 — 상세가 오기 전에 먼저 그리는 용도. 스탯 · 장비는 최종 결과가 채운다. */
+    internal fun zzzListResult(basic: List<JSONObject>): EnkaResult? {
+        val chars = basic.map { zzzChar(it).copy(detailed = false) }
+        return if (chars.isEmpty()) null else EnkaResult(EnkaProfile("", 0, 0, "", chars), null)
     }
 
     private fun zzzCrit(name: String): Boolean = name.contains("치명") || name.contains("CRIT", ignoreCase = true)

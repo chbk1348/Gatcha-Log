@@ -847,7 +847,13 @@ object HoyolabApi {
         return parts.joinToString(", ")
     }
 
-    suspend fun fetchZzzAvatars(ltuid: String, ltoken: String, uid: String): List<JSONObject>? {
+    /**
+     * @param onBasic 1단계(보유 목록)가 오면 **에이전트별 상세를 기다리지 않고** 그 항목들을 건넨다(27.51.1).
+     *   상세는 서버가 다건 조회를 거부해 1명당 1요청이라, 50명이면 50건이 다 끝나야 했다.
+     */
+    suspend fun fetchZzzAvatars(
+        ltuid: String, ltoken: String, uid: String, onBasic: ((List<JSONObject>) -> Unit)? = null,
+    ): List<JSONObject>? {
         zzzLastError = null
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) {
             zzzLastError = "HoYoLAB 연동이 필요해요"
@@ -865,7 +871,9 @@ object HoyolabApi {
             val j = JSONObject(r.body)
             basicRc = j.optInt("retcode", -999)
             if (basicRc == 0) j.optJSONObject("data")?.optJSONArray("avatar_list")?.let { l ->
-                for (i in 0 until l.length()) l.optJSONObject(i)?.optInt("id")?.let { if (it != 0) ids.add(it) }
+                val items = (0 until l.length()).mapNotNull { l.optJSONObject(it) }.filter { it.optInt("id") != 0 }
+                items.forEach { ids.add(it.optInt("id")) }
+                if (items.isNotEmpty()) runCatching { onBasic?.invoke(items) }
             }
         }
         if (ids.isEmpty()) {
@@ -904,7 +912,13 @@ object HoyolabApi {
      * 원신 보유 전체 캐릭터 상세(HoYoLAB). list 로 id 수집 → detail 로 스탯·무기·성유물.
      * POST 라 DS 서명에 body 포함. 본인 계정 한정. 비연동/실패 시 null → Enka 쇼케이스 폴백.
      */
-    suspend fun fetchGenshinCharDetail(ltuid: String, ltoken: String, uid: String): JSONObject? {
+    /**
+     * @param onList 1단계(보유 목록)가 오면 **상세를 기다리지 않고** 그 배열을 건넨다 — 화면이 목록부터 그리게 한다(27.51.1).
+     *   상세(2단계)는 보유 전원의 스탯 · 무기 · 성유물을 한 번에 받아 훨씬 무겁다.
+     */
+    suspend fun fetchGenshinCharDetail(
+        ltuid: String, ltoken: String, uid: String, onList: ((JSONArray) -> Unit)? = null,
+    ): JSONObject? {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
         val server = inferServer("genshin", uid)
         fun headersFor(body: String) = HoyoHeaders()
@@ -924,6 +938,7 @@ object HoyolabApi {
                     val id = l.optJSONObject(i)?.optInt("id") ?: 0
                     if (id != 0) ids.add(id)
                 }
+                if (ids.isNotEmpty()) runCatching { onList?.invoke(l) }
             }
         }
         if (ids.isEmpty()) return null
