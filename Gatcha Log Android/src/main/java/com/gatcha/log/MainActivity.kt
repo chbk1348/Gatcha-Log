@@ -40,6 +40,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.home.HomeScreen
+import com.gatcha.log.ui.home.UpdateDialog
+import com.gatcha.log.ui.home.UpdateProgressOverlay
 import com.gatcha.log.ui.onboarding.OnboardingScreen
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.GatchaLogTheme
@@ -211,6 +213,23 @@ class MainActivity : ComponentActivity() {
                         AccountLoadingScreen(loading = initialSyncing, onFinished = { viewModel.markAccountSynced(); loadingDone = true })
                     else -> HomeScreen(viewModel)
                 }
+                }
+                // 업데이트 확인 · 창 — 앱 루트에 한 번만(iOS ContentView 와 같은 자리). 홈 안에 있을 때는
+                // 온보딩 · 로그인 · 지출 편집 화면에서 강제 업데이트가 걸리지 않았다.
+                // 받는 동안은 진행 오버레이만 — 강제 업데이트 창은 남아 있다가 실패 · 취소하면 다시 뜬다.
+                LaunchedEffect(Unit) { viewModel.checkForUpdate() }
+                val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+                val forceUpdate by viewModel.forceUpdate.collectAsStateWithLifecycle()
+                val updateProgress by viewModel.updateProgress.collectAsStateWithLifecycle()
+                val progress = updateProgress
+                if (progress != null) UpdateProgressOverlay(progress)
+                else updateInfo?.let { info ->
+                    UpdateDialog(
+                        info = info,
+                        onDownload = { viewModel.startInAppUpdate() },
+                        onDismiss = { viewModel.dismissUpdate() },
+                        force = forceUpdate,
+                    )
                 }
                 // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
                 // 제목이 종류마다 달라서 ErrorAlert 가 제목까지 들고 온다.

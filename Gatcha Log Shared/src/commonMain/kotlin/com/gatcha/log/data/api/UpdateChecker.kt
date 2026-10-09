@@ -53,6 +53,14 @@ internal fun parseUpdateManifest(body: String, current: Long): UpdateInfo? = run
     )
 }.getOrNull()
 
+/**
+ * 강제 업데이트 판정 — 지금 버전([current])이 최소 지원 버전 미만이면 true.
+ * 자기 버전을 못 읽었거나(0) 최소 지원 버전이 배포 버전보다 높은 매니페스트면 걸지 않는다 —
+ * 그대로 걸면 받을 수 있는 최신 버전으로도 기준을 못 넘어 앱을 영영 못 쓴다(소프트 브릭).
+ */
+internal fun mustUpdate(current: Long, info: UpdateInfo): Boolean =
+    current > 0 && current < info.minVersionCode && info.minVersionCode <= info.versionCode
+
 /** 원격 매니페스트를 받아 파싱. (?t= 로 CDN 캐시 우회 → 새 버전 즉시 반영) */
 internal suspend fun fetchUpdateInfo(current: Long): UpdateInfo? {
     val res = Net.get("$MANIFEST_URL?t=${currentTimeMillis()}")

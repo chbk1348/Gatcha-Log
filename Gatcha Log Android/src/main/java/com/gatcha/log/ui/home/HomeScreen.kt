@@ -156,15 +156,11 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         spendingEditor.value = SpendingEditorTarget(target)
     }
 
-    // 앱 시작 시 1회 API 새로고침 (ennead 배너·이벤트 + HoYoLAB 노트) + 업데이트 확인.
+    // 앱 시작 시 1회 API 새로고침 (ennead 배너·이벤트 + HoYoLAB 노트). 업데이트 확인은 앱 루트(MainActivity)가 한다.
     // ViewModel init 에서 호출하면 프로퍼티 초기화 순서 문제로 NPE 가 나므로 UI 에서 트리거.
     LaunchedEffect(Unit) {
         viewModel.refreshGameInfo()
-        viewModel.checkForUpdate()
     }
-    val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
-    val forceUpdate by viewModel.forceUpdate.collectAsStateWithLifecycle()
-    val updateProgress by viewModel.updateProgress.collectAsStateWithLifecycle()
     val signingOut by viewModel.signingOut.collectAsStateWithLifecycle()
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
 
@@ -296,18 +292,6 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                                 3 -> MyPageScreen(viewModel, listState = tabListStates[3], onSubPageChange = { subPageActive = it })
                             }
                         }
-
-                        updateInfo?.let { info ->
-                            UpdateDialog(
-                                info = info,
-                                onDownload = { viewModel.startInAppUpdate() },
-                                onDismiss = { viewModel.dismissUpdate() },
-                                force = forceUpdate,
-                            )
-                        }
-
-                        // 인앱 업데이트 다운로드 진행 오버레이
-                        updateProgress?.let { p -> UpdateProgressOverlay(p) }
 
                         // 로그아웃 진행 오버레이 — 네트워크 대기 동안 피드백이 없던 문제
                         if (signingOut) SignOutOverlay()
