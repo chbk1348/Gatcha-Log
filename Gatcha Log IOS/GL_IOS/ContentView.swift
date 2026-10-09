@@ -161,37 +161,23 @@ struct ContentView: View {
             }
         }
         .animation(GLGMotion.standard(), value: store.signingOut)
-        // 강제 업데이트 — 현재 버전이 최소 지원 버전 미만이면 앱 전체를 덮는 닫히지 않는 화면.
-        // (데이터 꼬임 방지·구버전 유지보수 종료. iOS 는 사이드로딩이라 '지금 업데이트'가 릴리스 페이지를 연다.)
+        // 업데이트 창 — Android UpdateDialog(GlgDialog)와 같은 가운데 카드 · 같은 제목 · 같은 단추 순서.
+        // 실행할 때 · 설정 ▸ 업데이트 확인 · 새 버전 알림을 눌렀을 때 모두 이 창으로 온다.
+        // 강제 업데이트(최소 지원 버전 미만)면 「나중에」가 없고 바깥을 눌러도 닫히지 않는다 — 데이터 꼬임 방지 · 구버전 지원 종료.
+        // iOS 는 앱이 설치까지 할 수 없어 「릴리즈 페이지 열기」가 GitHub 릴리즈 페이지를 연다(거기서 IPA 를 받아 설치).
         .overlay {
-            if store.forceUpdate {
-                ZStack {
-                    Color(.systemBackground).ignoresSafeArea()
-                    VStack(spacing: 16) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 52, weight: .semibold)).foregroundStyle(accent)
-                        Text("필수 업데이트").font(.pretendard(size: 22, weight: .heavy))
-                            .foregroundStyle(GLGColor.textPrimary)
-                        Text("데이터 꼬임을 막기 위해 이전 버전 지원이 종료됐어요.\n계속하려면 업데이트가 필요해요.")
-                            .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
-                            .multilineTextAlignment(.center).lineSpacing(3)
-                        if !store.updateVersionName.isEmpty {
-                            Text("최신 버전 v\(store.updateVersionName)")
-                                .font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(accent)
-                        }
-                        Button { store.startInAppUpdate() } label: {
-                            Text("지금 업데이트").font(.pretendard(size: 16, weight: .bold))
-                                .foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 15)
-                                .background(accent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .padding(.top, 6)
-                    }
-                    .padding(.horizontal, 36)
-                }
+            if store.updateAvailable {
+                UpdateDialog(
+                    force: store.forceUpdate,
+                    versionName: store.updateVersionName,
+                    notes: store.updateNotes,
+                    onUpdate: { store.startInAppUpdate() },
+                    onDismiss: { store.dismissUpdate() }
+                )
                 .transition(.opacity)
             }
         }
-        .animation(GLGMotion.standard(), value: store.forceUpdate)
+        .animation(GLGMotion.standard(), value: store.updateAvailable)
         // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
         .animation(GLGMotion.standard(), value: rootPhase)
         // 홈이 뜨기 전(온보딩 · 로그인 · 불러오기)에는 알림을 붙잡았다가 홈에서 보낸다(9/29).
@@ -235,18 +221,6 @@ struct ContentView: View {
         }
         // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
         .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
-        // 업데이트 창(27.51.1) — 새 버전이 있고 강제가 아닐 때. Android UpdateDialog 와 같은 문구 · 같은 단추 순서다.
-        // iOS 는 앱이 설치까지 할 수 없어 「릴리즈 페이지 열기」가 GitHub 릴리즈 페이지를 연다(거기서 IPA 를 받아 설치).
-        // 실행할 때 · 설정 ▸ 업데이트 확인 · 새 버전 알림을 눌렀을 때 모두 이 창으로 온다. 강제 업데이트는 위의 전체 화면이 맡는다.
-        .alert("업데이트 있어요" + (store.updateVersionName.isEmpty ? "" : " (v\(store.updateVersionName))"), isPresented: Binding(
-            get: { store.updateAvailable && !store.forceUpdate },
-            set: { if !$0 { store.dismissUpdate() } }
-        )) {
-            Button("나중에", role: .cancel) { store.dismissUpdate() }
-            Button("릴리즈 페이지 열기") { store.startInAppUpdate() }.glgAlertTint()
-        } message: {
-            Text((["GitHub 릴리즈 페이지에서 새 버전을 받아 설치할 수 있어요."] + store.updateNotes.map { "· " + $0 }).joined(separator: "\n"))
-        }
         // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
         // 제목이 종류마다 달라 ErrorAlert 가 제목까지 들고 온다(Android MainActivity 파리티).
         .alert(store.errorAlert?.title ?? "", isPresented: Binding(
@@ -667,5 +641,70 @@ private extension Color {
             blue: Double(argb & 0xFF) / 255.0,
             opacity: Double((argb >> 24) & 0xFF) / 255.0
         )
+    }
+}
+
+/// 업데이트 창 — Android `UpdateDialog`(GlgDialog 규격)와 같은 모양.
+/// 딤 + 가운데 흰 카드(모서리 24 · 안쪽 22) · 제목 17 · 본문 14 · 단추 「나중에」(Secondary) : 「릴리즈 페이지 열기」(Primary) = 1 : 1.4.
+/// 강제 업데이트면 단추 하나뿐이고 바깥을 눌러도 닫히지 않는다. 변경 사항이 길면 본문만 스크롤된다.
+private struct UpdateDialog: View {
+    let force: Bool
+    let versionName: String
+    let notes: [String]
+    let onUpdate: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.32).ignoresSafeArea()
+                .onTapGesture { if !force { onDismiss() } }
+            VStack(alignment: .leading, spacing: 0) {
+                Text((force ? "필수 업데이트" : "업데이트 있어요") + (versionName.isEmpty ? "" : " (v\(versionName))"))
+                    .font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    .padding(.bottom, 16)
+                ViewThatFits(in: .vertical) {
+                    message
+                    ScrollView { message }
+                }
+                if force {
+                    GldsButton(title: "릴리즈 페이지 열기") { onUpdate() }
+                        .padding(.top, 20)
+                } else {
+                    GeometryReader { geo in
+                        let w = geo.size.width - 10
+                        HStack(spacing: 10) {
+                            GldsButton(title: "나중에", variant: .secondary) { onDismiss() }
+                                .frame(width: w / 2.4)
+                            GldsButton(title: "릴리즈 페이지 열기") { onUpdate() }
+                                .frame(width: w * 1.4 / 2.4)
+                        }
+                    }
+                    .frame(height: GldsSize.m.height)
+                    .padding(.top, 20)
+                }
+            }
+            .padding(22)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+            .padding(24)
+            .frame(maxWidth: 480)
+        }
+    }
+
+    private var message: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(force ? "데이터 꼬임을 막기 위해 이전 버전 지원이 종료됐어요. 계속하려면 업데이트가 필요해요."
+                       : "GitHub 릴리즈 페이지에서 새 버전을 받아 설치할 수 있어요.")
+            ForEach(Array(notes.enumerated()), id: \.offset) { _, note in
+                HStack(alignment: .top, spacing: 0) {
+                    Text("· ")
+                    Text(note)
+                }
+            }
+        }
+        .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

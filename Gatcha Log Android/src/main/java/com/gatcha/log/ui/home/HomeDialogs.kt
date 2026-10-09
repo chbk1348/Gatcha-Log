@@ -44,15 +44,12 @@ internal fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: (
             Text(
                 if (force) "데이터 꼬임을 막기 위해 이전 버전 지원이 종료됐어요. 계속하려면 업데이트가 필요해요."
                 else "앱에서 바로 받아 설치할 수 있어요. (설치 후 임시 파일은 자동 삭제)",
-                fontSize = 13.sp, color = TextSecondary,
+                fontSize = 14.sp, color = TextSecondary,
             )
-            if (info.notes.isNotEmpty()) {
-                Spacer(Modifier.height(2.dp))
-                info.notes.forEach { n ->
-                    Row {
-                        Text("· ", fontSize = 13.sp, color = TextSecondary)
-                        Text(n, fontSize = 13.sp, color = TextSecondary)
-                    }
+            info.notes.forEach { n ->
+                Row {
+                    Text("· ", fontSize = 14.sp, color = TextSecondary)
+                    Text(n, fontSize = 14.sp, color = TextSecondary)
                 }
             }
         }
@@ -113,7 +110,7 @@ internal fun UpdateProgressOverlay(progress: Float) {
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
                 )
                 Spacer(Modifier.height(10.dp))
-                Text("완료되면 설치 화면이 떠요", fontSize = 11.sp, color = Color.LightGray)
+                Text("완료되면 설치 화면이 떠요", fontSize = 12.sp, color = TextSecondary)
             }
         }
     }
