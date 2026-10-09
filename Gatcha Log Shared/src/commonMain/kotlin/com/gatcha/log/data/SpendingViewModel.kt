@@ -53,6 +53,7 @@ import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.data.api.GiftCodeApi
 import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
+import com.gatcha.log.data.api.mustUpdate
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.util.won
 import kotlinx.coroutines.CoroutineStart
@@ -2494,7 +2495,7 @@ class SpendingViewModel : ViewModel() {
             val info = UpdateChecker.check()
             if (info != null) {
                 _updateInfo.value = info
-                _forceUpdate.value = UpdateChecker.currentVersionCode() < info.minVersionCode
+                _forceUpdate.value = mustUpdate(UpdateChecker.currentVersionCode(), info)
             } else if (manual) emitStatus("이미 최신 버전이에요")
         }
     }
@@ -2512,7 +2513,9 @@ class SpendingViewModel : ViewModel() {
      */
     fun startInAppUpdate() {
         val info = _updateInfo.value ?: return
-        _updateInfo.value = null // 다이얼로그 닫기
+        // 다이얼로그 닫기 — 강제 업데이트면 남긴다. 걷어 버리면 받다 실패하거나 설치 화면에서
+        // 취소했을 때 창이 다시 뜨지 않아 옛 버전을 그대로 쓸 수 있었다. 받는 동안은 화면이 창을 가린다.
+        if (!_forceUpdate.value) _updateInfo.value = null
         platformStartInAppUpdate(
             info,
             onProgress = { _updateProgress.value = it },

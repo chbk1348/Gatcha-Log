@@ -3,8 +3,10 @@ package com.gatcha.log.data.api
 import com.gatcha.log.util.SafeUrl
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** version.json 이 다른 곳을 가리켜도 앱은 이 저장소의 릴리즈만 본다(27.51.1 보안 점검). */
 class UpdateManifestTest {
@@ -34,5 +36,21 @@ class UpdateManifestTest {
     @Test
     fun `같거나 낮은 버전은 업데이트가 아니다`() {
         assertNull(parseUpdateManifest("""{"versionCode":275100,"versionName":"27.51.0"}""", 275100))
+    }
+
+    private fun info(latest: Long, min: Long) =
+        UpdateInfo(versionCode = latest, versionName = "", url = "", apkUrl = "", notes = emptyList(), minVersionCode = min)
+
+    @Test
+    fun `최소 지원 버전 미만만 강제 업데이트다`() {
+        assertTrue(mustUpdate(275060, info(latest = 275110, min = 275100)))
+        assertFalse(mustUpdate(275100, info(latest = 275110, min = 275100)))
+        assertFalse(mustUpdate(275060, info(latest = 275110, min = 0)))
+    }
+
+    @Test
+    fun `버전을 못 읽었거나 기준이 배포 버전보다 높으면 걸지 않는다`() {
+        assertFalse(mustUpdate(0, info(latest = 275110, min = 275100)))
+        assertFalse(mustUpdate(275060, info(latest = 275110, min = 275200)))
     }
 }

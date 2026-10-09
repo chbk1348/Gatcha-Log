@@ -18,6 +18,7 @@ import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
+import com.gatcha.log.data.api.mustUpdate
 import com.gatcha.log.util.currentTimeMillis
 
 /**
@@ -294,7 +295,7 @@ object NotificationChecker {
         info: UpdateInfo, current: Long, installsInApp: Boolean = UpdateChecker.installsInApp,
     ): Pair<String, String> {
         val ver = if (info.versionName.isNotBlank()) " (v${info.versionName})" else ""
-        val title = if (current < info.minVersionCode) "필수 업데이트가 있어요$ver" else "새 버전이 나왔어요$ver"
+        val title = if (mustUpdate(current, info)) "필수 업데이트가 있어요$ver" else "새 버전이 나왔어요$ver"
         val first = info.notes.firstOrNull { it.isNotBlank() }
         val text = when {
             first == null -> if (installsInApp) "눌러서 바로 받아 설치할 수 있어요" else "눌러서 릴리즈 페이지에서 받을 수 있어요"
