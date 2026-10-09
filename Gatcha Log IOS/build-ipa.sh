@@ -107,9 +107,11 @@ if [ $XCODE_EXIT -ne 0 ] || ! grep -q "ARCHIVE SUCCEEDED" "$BUILD_LOG"; then
   echo "❌ 아카이브 실패 (exit=$XCODE_EXIT)"
   grep -E "error:|BUILD FAILED|ARCHIVE FAILED" "$BUILD_LOG" | head -20
   # 컴파일 전에 멈추면(스크립트 단계 · Gradle · 프로젝트 설정) "error:" 줄이 없다 — CI 에서는 로그 파일을
-  # 볼 수 없으니 끝부분을 그대로 보여 준다.
-  echo "── 로그 끝 60줄 ──"
-  tail -60 "$BUILD_LOG"
+  # 볼 수 없으니 Gradle 오류(Compile Kotlin Framework 단계)와 끝부분을 그대로 보여 준다.
+  echo "── Gradle 오류 ──"
+  grep -E "^e: |> Task .* FAILED|What went wrong" -A 12 "$BUILD_LOG" | head -80
+  echo "── 로그 끝 20줄 ──"
+  tail -20 "$BUILD_LOG"
   echo "   전체 로그: $BUILD_LOG"
   exit 1
 fi
