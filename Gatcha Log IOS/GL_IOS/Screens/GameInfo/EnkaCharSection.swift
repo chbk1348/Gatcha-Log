@@ -506,6 +506,10 @@ struct EnkaRosterPage: View {
                              roster: store.enkaResults[game]?.profile?.chars ?? [],
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
+                             refinement: store.weaponRefinement[refinementKey(c)],
+                             onNeedRefinement: { id, lv in
+                                 store.loadWeaponRefinement(game: game, weaponId: id, level: lv)
+                             },
                              camp: store.charCamp["\(game):\(c.id)"],
                              onNeedCamp: { id in store.loadCharCamp(game, id) },
                              elementFxEnabled: store.charElementFx)
@@ -620,6 +624,10 @@ struct EnkaRosterPage: View {
                              roster: store.enkaResults[game]?.profile?.chars ?? [],
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
+                             refinement: store.weaponRefinement[refinementKey(c)],
+                             onNeedRefinement: { id, lv in
+                                 store.loadWeaponRefinement(game: game, weaponId: id, level: lv)
+                             },
                              camp: store.charCamp["\(game):\(c.id)"],
                              onNeedCamp: { id in store.loadCharCamp(game, id) },
                              elementFxEnabled: store.charElementFx)
@@ -632,6 +640,18 @@ struct EnkaRosterPage: View {
     private func distinct(_ xs: [String]) -> [String] {
         var seen = Set<String>()
         return xs.compactMap { $0.isEmpty ? nil : $0 }.filter { seen.insert($0).inserted }
+    }
+
+    /// 정련 캐시 키 — 공유 VM 이 쓰는 "게임키:무기id:정련단계" 그대로(GameInfoView.refinementKey 와 같은 규칙).
+    ///
+    /// 이 화면의 두 진입점(push · iPad 우측 패널)은 `refinement`/`onNeedRefinement` 를 안 넘겨서(27.52.0 수정),
+    /// 「보유 캐릭터 전체」에서 연 스탯에만 무기 정련 효과(장비 특성)가 비어 있었다 — 기본값(nil + 빈 클로저)이
+    /// 들어가 받아 오라는 요청조차 나가지 않았다.
+    /// 문자열은 본문 밖에서 조립한다 — 뷰 빌더 안의 보간은 타입 추론을 터뜨린다(GameInfoView 주석 참고).
+    private func refinementKey(_ c: EnkaChar) -> String {
+        let id: Int32 = c.weapon?.id ?? 0
+        let lv: Int32 = c.weapon?.refinement ?? 0
+        return "\(game):\(id):\(lv)"
     }
 }
 

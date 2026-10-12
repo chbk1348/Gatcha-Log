@@ -9,6 +9,7 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.api.CheckInResult
 import com.gatcha.log.data.api.HoyolabApi
+import com.gatcha.log.util.currentTimeMillis
 
 /**
  * 자동 출석 시도 1회 + 결과 집계. 백그라운드 작업과 UI(토글 ON 즉시)에서 모두 호출한다.
@@ -60,7 +61,8 @@ object AutoCheckInRunner {
         val netFails = mutableListOf<String>()
         val otherFails = mutableListOf<Pair<String, String>>()
 
-        for (game in GameData.trackedAttendanceGames(cfg)) {
+        // 「내 게임」에서 뺀 게임은 대신 출석하지 않는다(27.52.0) — 화면이 세는 게임과 같은 목록이다.
+        for (game in GameData.trackedAttendanceGames(cfg, repo.loadMyGames())) {
             if (game.key in (attendance[today] ?: emptySet())) {
                 alreadyDone += game.shortName
                 continue
@@ -95,51 +97,88 @@ object AutoCheckInRunner {
             authFails.isNotEmpty() -> settings.hoyoTokenExpired = true
             newSuccess.isNotEmpty() -> settings.hoyoTokenExpired = false
         }
-        if (postFailureNotification) {
-            maybeNotifySuccess(settings, outcome, today)
-            maybeNotifyFailure(settings, outcome, today)
-        }
+        if (postFailureNotification) notifyResult(settings, repo, outcome, today)
         return outcome
     }
 
+    /** 성공 알림 · 실패 알림의 하루 1회 표시. 값은 호요 날짜 — 실패가 풀리면 [RESOLVED] 를 붙여 둔다. */
+    private const val OK_TAG = "auto_checkin_ok"
+    private const val FAIL_TAG = "auto_checkin_fail"
+    private const val RESOLVED = ":resolved"
+
     /**
-     * 새로 출석한 게임이 있으면 하루 1회 알림.
+     * 출석 결과를 **한 건**으로 알린다.
      *
-     * 예전엔 **실패했을 때만** 알렸다. 성공하면 아무 흔적이 없으니 "자동 출석이 도는 게 맞나"를
-     * 확인할 방법이 앱을 열어 보는 것뿐이었다(2026-09-08 제보). 매일 챙겨주겠다고 한 기능은
-     * 챙겼다는 사실도 같이 말해야 한다.
+     * 예전엔 성공 알림과 실패 알림을 따로 냈는데 번호가 같아, 일부만 성공한 날은 성공 알림이 뜨자마자 실패 알림으로
+     * 덮였고 재시도로 전부 끝나도 실패 알림만 남았다. 지금은 이렇게 한다(27.52.0).
+     * - 실패가 섞였으면 성공한 게임까지 한 건에 적는다(하루 1회).
+     * - 새로 성공했고 실패가 없으면 성공 알림 — 그날 실패 알림이 나갔다면 그 자리를 이 알림이 바꾼다.
+     * - 새로 한 것도 실패도 없는데(전부 끝남) 그날 실패 알림이 남아 있으면 걷는다.
      *
-     * 출석 알림 토글([AppSettings.notifyAttendance])을 끈 사람에게는 보내지 않는다 —
-     * 그건 "출석 관련 알림을 원하지 않는다"는 뜻이다. 자동 출석 자체는 계속 돈다.
+     * **방해금지 시간에는 울리지 않는다.** 실패는 표시를 남기지 않아 다음 시도가 다시 판정하고, 성공은 해제 시각에
+     * 오도록 예약으로 넘긴다([ScheduledAlerts.deferCheckInSuccess]) — 새벽에 도는 Android 자동 출석이 매일 울렸다.
+     *
+     * 성공 알림은 출석 알림 토글([AppSettings.notifyAttendance])을 끈 사람에게 보내지 않는다 — 그건 "출석 관련 알림을
+     * 원하지 않는다"는 뜻이다. 자동 출석 자체는 계속 돈다. 실패 알림은 토글과 무관하게 보낸다(멈춘 줄 모르면 안 된다).
      */
-    private suspend fun maybeNotifySuccess(settings: AppSettings, o: Outcome, today: String) {
-        if (o.newSuccess.isEmpty()) return
-        if (!settings.notifyAttendance) return
-        if (settings.lastNotified("auto_checkin_ok") == today) return
-        settings.setLastNotified("auto_checkin_ok", today)
-        val games = o.newSuccess.joinToString("·")
-        val body = if (o.hasAnyFail) "$games 완료. 남은 게임은 잠시 후 다시 해 볼게요."
-        else "$games 완료. 오늘 보상 챙기세요."
-        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "출석 대신 해 뒀어요", body)
+    private suspend fun notifyResult(settings: AppSettings, repo: GatchaRepository, o: Outcome, today: String) {
+        val failedToday = settings.lastNotified(FAIL_TAG) == today
+        val now = currentTimeMillis()
+        val quiet = NotificationChecker.isQuietNow(settings, now)
+        when {
+            o.hasAnyFail -> {
+                if (failedToday || quiet) return
+                val (title, body) = failureMessage(o)
+                if (Notifier.notify(Notifier.ID_AUTO_CHECKIN, title, body)) {
+                    settings.setLastNotified(FAIL_TAG, today)
+                    // 성공한 게임도 이 한 건에 적었다 — 같은 날 성공 알림을 따로 또 내지 않는다.
+                    if (o.newSuccess.isNotEmpty()) settings.setLastNotified(OK_TAG, today)
+                }
+            }
+            o.newSuccess.isNotEmpty() -> {
+                // 그날 실패 알림이 나갔다면 이번 성공이 그 뒷이야기다 — 하루 1회 제한을 건너뛰고 그 자리를 바꾼다.
+                if (!failedToday && settings.lastNotified(OK_TAG) == today) return
+                if (!settings.notifyAttendance) {
+                    if (failedToday) resolveFailure(settings, today)
+                    return
+                }
+                val body = "${o.newSuccess.joinToString("·")} 완료. 오늘 보상 챙기세요."
+                if (quiet) {
+                    if (failedToday) resolveFailure(settings, today)
+                    ScheduledAlerts.deferCheckInSuccess(settings, repo, SUCCESS_TITLE, body, now)
+                    settings.setLastNotified(OK_TAG, today)
+                    return
+                }
+                if (Notifier.notify(Notifier.ID_AUTO_CHECKIN, SUCCESS_TITLE, body)) {
+                    settings.setLastNotified(OK_TAG, today)
+                    if (failedToday) settings.setLastNotified(FAIL_TAG, today + RESOLVED)
+                }
+            }
+            // 새로 한 것도 실패도 없다 = 셀 게임이 전부 끝났다. 남아 있는 실패 알림은 이제 틀린 말이다.
+            failedToday -> resolveFailure(settings, today)
+        }
     }
 
-    /** 실패가 있으면 하루 1회 알림. AUTH 가 있으면 재연동 안내, 그 외엔 자동 재시도 안내. */
-    private suspend fun maybeNotifyFailure(settings: AppSettings, o: Outcome, today: String) {
-        if (!o.hasAnyFail) return
-        if (settings.lastNotified("auto_checkin_fail") == today) return
-        settings.setLastNotified("auto_checkin_fail", today)
+    private const val SUCCESS_TITLE = "출석 대신 해 뒀어요"
 
+    private fun resolveFailure(settings: AppSettings, today: String) {
+        Notifier.cancel(Notifier.ID_AUTO_CHECKIN)
+        settings.setLastNotified(FAIL_TAG, today + RESOLVED)
+    }
+
+    /** 실패 알림의 (제목, 본문). AUTH 가 있으면 재연동 안내, 그 외엔 자동 재시도 안내. 성공한 게임이 있으면 첫 줄에 적는다. */
+    internal fun failureMessage(o: Outcome): Pair<String, String> {
+        val done = if (o.newSuccess.isEmpty()) "" else "${o.newSuccess.joinToString("·")} 완료.\n"
         if (o.authFails.isNotEmpty()) {
             val games = (o.authFails + o.netFails + o.otherFails.map { it.first }).joinToString("·")
-            val body = "$games 로그인이 풀렸어요.\n설정 ▸ HoYoLAB 연동에서 다시 연결하면 내일부터 이어서 해 드릴게요."
-            Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석이 멈췄어요", body)
-            return
+            return "자동 출석이 멈췄어요" to
+                "$done$games 로그인이 풀렸어요.\n설정 ▸ HoYoLAB 연동에서 다시 연결하면 내일부터 이어서 해 드릴게요."
         }
         val lines = buildList {
             if (o.netFails.isNotEmpty()) add("${o.netFails.joinToString("·")} — 서버에 닿지 못했어요")
             o.otherFails.forEach { (name, msg) -> add("$name: $msg") }
         }
-        val body = lines.joinToString("\n") + "\n\n잠시 후 다시 해 볼게요. 급하면 앱에서 직접 출석해도 돼요."
-        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "출석 일부를 못 했어요", body)
+        return "출석 일부를 못 했어요" to
+            done + lines.joinToString("\n") + "\n\n잠시 후 다시 해 볼게요. 급하면 앱에서 직접 출석해도 돼요."
     }
 }

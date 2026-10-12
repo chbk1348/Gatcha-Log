@@ -39,6 +39,8 @@ class AlertAlarmReceiver : BroadcastReceiver() {
                 val settings = AppSettings()
                 val repo = GatchaRepository(AppSettings.currentAccountId())
                 runCatching { Notifier.notify(id, title, text, link) }
+                // 배달됐다고 적어 둔다 — 안 적으면 바로 아래 재예약이 「지났는데 안 온 알람」으로 보고 한 번 더 보낸다.
+                AlertScheduler.markDelivered(id)
                 runCatching { ScheduledAlerts.reschedule(settings, repo) }
             } finally {
                 pending.finish()

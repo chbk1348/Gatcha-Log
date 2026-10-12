@@ -211,22 +211,32 @@ object GachaReport {
      */
     private fun walkPools(recs: List<GachaRecord>): List<PoolWalk> =
         recs.groupBy { it.pool }.map { (pool, prs) ->
-            val sorted = prs.map { it to bigId(it.id) }.sortedBy { it.second }
-            var since = 0; var five = 0; var four = 0
+            var five = 0; var four = 0
             val pities = mutableListOf<Int>()
             val fives = mutableListOf<FiveHit>()
-            sorted.forEach { (r, key) ->
-                since++
-                when (r.rarity) {
-                    5 -> {
-                        five++; pities.add(since)
-                        fives.add(FiveHit(r.name, pool, since, r.id, key, r.time))
-                        since = 0
+            // **계정(uid)마다 따로 훑는다**(27.52.0). 천장은 계정마다 따로 쌓이는데 예전엔 풀만 보고 id 순으로
+            // 섞어 훑어서, 두 계정의 기록을 가져오면 한 계정의 5성이 다른 계정의 무5성 구간을 끊고 천장이 80 처럼 찍혔다.
+            var pity = 0
+            var latestKey = ""
+            prs.groupBy { it.uid }.values.forEach { account ->
+                val sorted = account.map { it to bigId(it.id) }.sortedBy { it.second }
+                var since = 0
+                sorted.forEach { (r, key) ->
+                    since++
+                    when (r.rarity) {
+                        5 -> {
+                            five++; pities.add(since)
+                            fives.add(FiveHit(r.name, pool, since, r.id, key, r.time))
+                            since = 0
+                        }
+                        4 -> four++
                     }
-                    4 -> four++
                 }
+                // 「현재 천장」은 가장 최근에 뽑은 계정의 것을 보여 준다.
+                val lastKey = sorted.lastOrNull()?.second.orEmpty()
+                if (lastKey >= latestKey) { latestKey = lastKey; pity = since }
             }
-            PoolWalk(pool, prs.size, five, four, since, pities, fives)
+            PoolWalk(pool, prs.size, five, four, pity, pities, fives)
         }
 
     fun computeStats(records: List<GachaRecord>): GachaStats? {

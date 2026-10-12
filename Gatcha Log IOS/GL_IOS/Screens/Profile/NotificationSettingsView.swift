@@ -41,6 +41,11 @@ struct NotificationSettingsView: View {
         .background(Color.white.ignoresSafeArea())
         .glgPageTitle("알림 설정")
         .navigationBarTitleDisplayMode(.inline)
+        // 권한 조회는 **화면 루트에** 건다(27.52.0). 예전엔 권한 배너(permissionBanner)의 `Group { if … }` 에
+        // 걸려 있었는데, 조건이 거짓이면 Group 이 비어 `onAppear` 가 붙을 뷰가 없다 — 조회가 돌아야 배너가
+        // 뜨는데 배너가 떠야 조회가 도는 꼴이라, 첫 진입에는 권한이 꺼져 있어도 배너가 안 떴다
+        // (앱을 나갔다 오거나 토글을 건드려야 떴다).
+        .onAppear(perform: refreshNotifBlocked)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { refreshNotifBlocked() }
         }
@@ -52,20 +57,10 @@ struct NotificationSettingsView: View {
     // 항목 정의(제목·설명·묶음)는 공유 소스 NotificationCatalog 하나뿐이다
     // (호요랜드는 행사가 끝나면 목록에서 빠진다 — NotificationCatalog.hoyolandAlertsActive).
 
-    /// 지금 켜져 있는 항목.
-    private var notifyState: [NotifyKey: Bool] {
-        [.budget: store.notifyBudget,
-         .resin: store.notifyResin,
-         .attendance: store.notifyAttendance,
-         .pickup: store.notifyPickup,
-         .combat: store.notifyCombat,
-         .news: store.notifyNews,
-         .hoyoland: store.notifyHoyoland,
-         .appUpdate: store.notifyAppUpdate]
-    }
-    private var anyNotifyOn: Bool { notifyState.values.contains(true) }
+    // 항목별 켜짐 상태와 개수는 아래 `SpendingStore.notifyState` · `notifyOnCount` 하나를 설정 메인과 같이 쓴다.
+    private var anyNotifyOn: Bool { store.notifyState.values.contains(true) }
     /// 보이는 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
-    private var onCount: Int { NotificationCatalog.shared.items.filter { notifyState[$0.key] == true }.count }
+    private var onCount: Int { store.notifyOnCount }
 
     private func notifyBinding(_ key: NotifyKey) -> Binding<Bool> {
         switch key {
@@ -128,6 +123,7 @@ struct NotificationSettingsView: View {
     }
 
     /// 토글은 켰는데 시스템 알림 권한이 꺼져 있을 때만 뜨는 안내.
+    /// 권한 조회(refreshNotifBlocked)는 여기 걸지 않는다 — 숨은 동안엔 붙을 뷰가 없어 돌지 않는다(body 참고).
     @ViewBuilder
     private var permissionBanner: some View {
         Group {
@@ -152,7 +148,6 @@ struct NotificationSettingsView: View {
                 }
             }
         }
-        .onAppear(perform: refreshNotifBlocked)
     }
 
     // ── 보내는 방식 — 방해금지(시간대 억제) ──
@@ -199,6 +194,27 @@ struct NotificationSettingsView: View {
             setter(on)
         })
     }
+}
+
+// ── 알림 항목별 켜짐 상태 — 알림 설정 화면과 설정 메인의 「N개 중 M개 켜짐」이 같이 쓴다 ──
+//
+// 예전엔 두 화면이 사전을 따로 들고 있었고, 27.51.1 에 「앱 업데이트」를 넣을 때 설정 메인 쪽만 빠져
+// 같은 설정인데 켜진 개수가 화면마다 달랐다(27.52.0 수정). 항목을 늘릴 때 고칠 곳이 여기 하나가 되게 한다.
+extension SpendingStore {
+    /// 지금 켜져 있는 항목.
+    var notifyState: [NotifyKey: Bool] {
+        [.budget: notifyBudget,
+         .resin: notifyResin,
+         .attendance: notifyAttendance,
+         .pickup: notifyPickup,
+         .combat: notifyCombat,
+         .news: notifyNews,
+         .hoyoland: notifyHoyoland,
+         .appUpdate: notifyAppUpdate]
+    }
+
+    /// 보이는 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
+    var notifyOnCount: Int { NotificationCatalog.shared.items.filter { notifyState[$0.key] == true }.count }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

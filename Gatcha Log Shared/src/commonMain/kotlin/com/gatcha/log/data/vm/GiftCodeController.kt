@@ -66,34 +66,46 @@ internal class GiftCodeController(
     private val codesCache = mutableMapOf<String, Pair<Long, List<GiftCode>>>()
 
     fun loadActiveCodes(gameKey: String, force: Boolean = false) {
+        shownGameKey = gameKey
         // 받아 둔 게 있으면 먼저 보여 준다 — 예전엔 게임을 바꾸면 응답이 올 때까지 **앞 게임의 코드**가 떠 있었다.
         codesCache[gameKey]?.let { (at, list) ->
             _activeCodes.value = list.filterNot { it.code.uppercase() in _unusableCodes.value }
             _codesFailed.value = false
-            if (!force && currentTimeMillis() - at < CODES_FRESH_MS) return
-        } ?: run { _activeCodes.value = emptyList() }
+            if (!force && currentTimeMillis() - at < CODES_FRESH_MS) {
+                _codesLoading.value = false   // 앞 게임 조회가 아직 돌고 있어도 이 게임은 기다릴 것이 없다
+                return
+            }
+        } ?: run { _activeCodes.value = emptyList(); _codesFailed.value = false }
         // 같은 게임 조회가 이미 돌고 있으면 두 번 쏘지 않는다 — 코드 화면은 진입·게임 전환·재구성으로
         // 같은 키가 연달아 들어오는데, 여기엔 신선도 캐시도 진행 중 판정도 없어 그대로 다 나갔다.
+        _codesLoading.value = true
         if (!codesInFlight.add(gameKey)) return
         scope.launch {
-            _codesLoading.value = true
             try {
                 val codes = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
+                // **화면에는 지금 보는 게임의 응답만 싣는다**(27.52.0). 목록 · 실패 · 로딩이 한 벌이라, 예전엔 늦게 온 다른
+                // 게임의 응답이 지금 화면을 덮었다 — 스타레일 탭에 원신 코드가 뜨고, 「모두 교환」이 그 코드를 스타레일로 보냈다.
+                val shown = gameKey == shownGameKey
                 // 실패(null)면 기존 목록을 지우지 않고 실패 상태만 세운다 — 빈 목록으로 위장하지 않는다.
                 if (codes == null) {
-                    _codesFailed.value = true
+                    if (shown) _codesFailed.value = true
                 } else {
-                    _codesFailed.value = false
                     codesCache[gameKey] = currentTimeMillis() to codes
-                    // 수집 목록에는 이미 못 쓰게 된 코드가 계속 섞여 온다 — 받아올 때 걸러낸다.
-                    _activeCodes.value = codes.filterNot { it.code.uppercase() in _unusableCodes.value }
+                    if (shown) {
+                        _codesFailed.value = false
+                        // 수집 목록에는 이미 못 쓰게 된 코드가 계속 섞여 온다 — 받아올 때 걸러낸다.
+                        _activeCodes.value = codes.filterNot { it.code.uppercase() in _unusableCodes.value }
+                    }
                 }
             } finally {
                 codesInFlight.remove(gameKey)
-                _codesLoading.value = false
+                if (gameKey == shownGameKey) _codesLoading.value = false
             }
         }
     }
+
+    /** 화면이 지금 보고 있는 게임 — 마지막으로 [loadActiveCodes] 를 부른 게임이다. */
+    private var shownGameKey = ""
 
     private fun markRedeemed(code: String) {
         val s = _redeemedCodes.value + code.uppercase()
@@ -168,7 +180,10 @@ internal class GiftCodeController(
      * 통째로 영구 차단됐다.
      */
     fun redeemAllCodes(gameKey: String) {
-        val targets = _activeCodes.value.map { it.code }.filter { it !in _redeemedCodes.value }
+        // 대상은 **그 게임의 목록**에서 뽑는다 — 화면 목록이 다른 게임 것이면 받아 둔 캐시를 쓴다.
+        val source = if (gameKey == shownGameKey) _activeCodes.value
+        else codesCache[gameKey]?.second.orEmpty().filterNot { it.code.uppercase() in _unusableCodes.value }
+        val targets = source.map { it.code }.filter { it !in _redeemedCodes.value }
         if (redeemJob?.isActive == true) return
         if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
         redeemJob = scope.launch {

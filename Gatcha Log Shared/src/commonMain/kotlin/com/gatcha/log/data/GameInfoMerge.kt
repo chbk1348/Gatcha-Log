@@ -29,3 +29,23 @@ internal fun <T> mergeByGame(
 /** 게임 정의 순서(원신 → 스타레일 → 젠레스 …)로 정렬 — 병합으로 뒤섞인 순서를 화면 기준으로 되돌린다. */
 internal fun <T> List<T>.sortedByGameOrder(gameOf: (T) -> String): List<T> =
     sortedBy { GameData.byNameOrNull(gameOf(it))?.ordinal ?: Int.MAX_VALUE }
+
+/**
+ * 전투 진행도 병합 — **모드 단위**로 갈아끼운다(27.52.0).
+ *
+ * 모드마다 요청이 따로 나가는데(스타레일 3건) 예전엔 게임 단위([mergeByGame])로 갈았다. 그래서 셋 중 하나만 타임아웃이면
+ * 그 모드 카드가 사라지고 그대로 저장돼, 시즌 마감 알림 판정에서도 빠졌다. 이제 이번에 못 받은 모드는 직전 값을 남긴다.
+ * 다만 **시즌이 이미 끝난** 직전 값은 남기지 않는다 — 없어진 모드가 영원히 남는 반대쪽 버그를 만들지 않는다.
+ *
+ * @param fresh 한 번의 조회로 받은 모드들(한 게임 것). 비어 있으면 그 게임은 통째로 못 받은 것이라 [previous] 그대로다.
+ */
+internal fun mergeCombat(previous: List<CombatMode>, fresh: List<CombatMode>, nowMillis: Long): List<CombatMode> {
+    if (fresh.isEmpty()) return previous
+    val games = fresh.mapTo(HashSet()) { it.game }
+    val freshByMode = fresh.associateBy { it.game to it.name }
+    val kept = previous.mapNotNull { p ->
+        freshByMode[p.game to p.name] ?: p.takeUnless { p.game in games && p.endMillis in 1..nowMillis }
+    }
+    val had = previous.mapTo(HashSet()) { it.game to it.name }
+    return kept + fresh.filter { (it.game to it.name) !in had }
+}

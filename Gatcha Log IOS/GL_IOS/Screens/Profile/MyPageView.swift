@@ -413,8 +413,6 @@ private struct RecordSection: View {
 
 // ── ⑤ 활동 ───────────────────────────────────────────────────────────────────
 
-private enum MyPageAttendLevel { case none, some, all }
-
 private struct ActivitySection: View {
     let history: [String: Set<String>]
     let tracked: [Game]
@@ -424,14 +422,14 @@ private struct ActivitySection: View {
     @Environment(\.glgAccent) private var accent
 
     /// 오래된 날 → 오늘 순 30칸. 출석한 게임 수로 칸 농도를 가른다(전부 = 진하게 · 일부 = 옅게).
-    private var days: [MyPageAttendLevel] {
+    ///
+    /// 판정은 공유 `AttendanceLogic.dayLevel` — 출석 상세의 달력 · 7일 스트립 · 이번 달 누계와 같은 함수다(27.52.0).
+    /// 화면마다 따로 판정하던 때는 같은 날이 여기서는 '일부', 달력에서는 '전체'로 갈릴 수 있었다.
+    private var days: [AttendanceDayLevel] {
         let du = DateUtil.shared
-        let keys = tracked.map { $0.key }
         return (0..<30).reversed().map { ago in
             let done = history[du.hoyoDayKeyAgoKey(daysAgo: Int32(ago))] ?? []
-            if done.isEmpty { return .none }
-            if !keys.isEmpty && keys.allSatisfy({ done.contains($0) }) { return .all }
-            return .some
+            return AttendanceLogic.shared.dayLevel(done: done, games: tracked)
         }
     }
 
@@ -477,9 +475,9 @@ private struct ActivitySection: View {
         }
     }
 
-    private func cell(_ level: MyPageAttendLevel, isToday: Bool) -> some View {
+    private func cell(_ level: AttendanceDayLevel, isToday: Bool) -> some View {
         RoundedRectangle(cornerRadius: 3)
-            .fill(level == .all ? accent.primary : level == .some ? accent.primary.opacity(0.5) : hairColor)
+            .fill(level == .full ? accent.primary : level == .partial ? accent.primary.opacity(0.5) : hairColor)
             .aspectRatio(1, contentMode: .fit)
             .frame(maxWidth: .infinity)
             // 오늘 칸 — 1pt 띄운 2pt 테두리(목업 outline).

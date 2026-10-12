@@ -40,10 +40,10 @@ actual object Notifier {
      * 콜백이 돌기 전에 프로세스가 멈춰 알림이 조용히 유실됐다 — 앱이 살아 있는 포그라운드에서만
      * 보이던 이유다([AlertScheduler] 예약 경로와 같은 결함).
      */
-    actual suspend fun notify(id: Int, title: String, text: String, link: String) {
-        if (NotifyHold.defer(id, title, text, link)) return   // 첫 화면(온보딩 · 로딩) 동안은 홈이 뜰 때까지 붙잡는다
+    actual suspend fun notify(id: Int, title: String, text: String, link: String): Boolean {
+        if (NotifyHold.defer(id, title, text, link)) return true   // 첫 화면(온보딩 · 로딩) 동안은 홈이 뜰 때까지 붙잡는다
         val center = UNUserNotificationCenter.currentNotificationCenter()
-        if (!awaitEnabled(center)) return
+        if (!awaitEnabled(center)) return false
         val content = UNMutableNotificationContent().apply {
             setTitle(title)
             setBody(text)
@@ -56,12 +56,17 @@ actual object Notifier {
             content = content,
             trigger = null,
         )
-        suspendCancellableCoroutine { cont ->
+        return suspendCancellableCoroutine { cont ->
             center.addNotificationRequest(request) { error ->
                 if (error != null) println("[GLG][notify] add failed $id: ${error.localizedDescription}")
-                cont.resume(Unit)
+                cont.resume(error == null)
             }
         }
+    }
+
+    actual fun cancel(id: Int) {
+        UNUserNotificationCenter.currentNotificationCenter()
+            .removeDeliveredNotificationsWithIdentifiers(listOf("gatcha_alert_$id"))
     }
 
     /** 현재 권한 상태(캐시도 갱신) — 조회가 콜백형이라 결과를 받을 때까지 중단한다. */

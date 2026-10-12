@@ -55,7 +55,8 @@ internal object HtmlNews {
         for (m in RE_IMG.findAll(cleaned)) {
             appendText(blocks, cleaned.substring(cursor, m.range.first))
             val src = m.groupValues[1].trim()
-            if (src.isNotEmpty() && !src.startsWith("data:")) blocks += NewsBlock.Image(src)
+            // 주소 속 `&amp;` 는 `&` 로 푼다 — [firstImageSrc] 는 풀고 여기는 안 풀어 `a.png?x=1&amp;y=2` 가 그대로 나갔다.
+            if (src.isNotEmpty() && !src.startsWith("data:")) blocks += NewsBlock.Image(src.replace("&amp;", "&", ignoreCase = true))
             cursor = m.range.last + 1
         }
         appendText(blocks, cleaned.substring(cursor))
@@ -83,8 +84,10 @@ internal object HtmlNews {
 
     private fun decode(s: String): String {
         var out = s
-        for ((k, v) in ENTITIES) if (out.contains(k, ignoreCase = true)) out = out.replace(k, v, ignoreCase = true)
+        // `&amp;` 는 **맨 마지막에** 푼다 — 먼저 풀면 `&amp;lt;` 가 `&lt;` 를 거쳐 `<` 까지 두 번 풀린다(27.52.0).
+        for ((k, v) in ENTITIES) if (k != "&amp;" && out.contains(k, ignoreCase = true)) out = out.replace(k, v, ignoreCase = true)
         out = decodeNumeric(out)
+        out = out.replace("&amp;", "&", ignoreCase = true)
         // nbsp 는 엔티티를 거쳐도 U+00A0 로 남는 경우가 있다 — 그대로 두면 줄바꿈·trim 이 안 먹는다.
         return out.replace('\u00A0', ' ').replace("\uFEFF", "")
     }
@@ -93,7 +96,17 @@ internal object HtmlNews {
         if (!s.contains("&#")) s else RE_NUMERIC.replace(s) { m ->
             val radix = if (m.groupValues[1].isEmpty()) 10 else 16
             m.groupValues[2].toIntOrNull(radix)?.let { code ->
-                if (code in 1..0x10FFFF) code.toChar().toString() else m.value
+                when {
+                    // 짝 없는 서로게이트는 원문 그대로 둔다.
+                    code in 0xD800..0xDFFF -> m.value
+                    code in 1..0xFFFF -> code.toChar().toString()
+                    // U+FFFF 를 넘는 글자(이모지 등)는 서로게이트 쌍으로 — `Int.toChar()` 는 아래 16비트만 남겨 깨진 글자가 됐다.
+                    code in 0x10000..0x10FFFF -> {
+                        val c = code - 0x10000
+                        charArrayOf((0xD800 + (c shr 10)).toChar(), (0xDC00 + (c and 0x3FF)).toChar()).concatToString()
+                    }
+                    else -> m.value
+                }
             } ?: m.value
         }
 }

@@ -41,6 +41,8 @@ import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
@@ -87,7 +89,6 @@ import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
-import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.NoteSkeletonRow
 import com.gatcha.log.ui.components.InfoColumn
 import com.gatcha.log.ui.profile.BudgetScreen
@@ -103,12 +104,38 @@ import com.gatcha.log.util.num
  */
 private data class SpendingEditorTarget(val spending: Spending?)
 
+/** 저장해 둔 에디터 대상 중 「신규 추가」 표식 — 수정은 지출 id 를 그대로 적는다(id 는 비어 있지 않다). */
+private const val EDITOR_SAVED_NEW = ""
+
+/**
+ * 에디터 대상을 재생성 너머로 들고 가는 저장기(27.52.0) — [Spending] 은 번들에 못 넣어 **지출 id** 로 푼다.
+ *
+ * 닫힘은 저장하지 않고(null → 복원 때 초기값 = 닫힘), 「추가」는 빈 문자열, 「수정」은 그 지출의 id 다.
+ * 복원 때 [find] 로 지금 목록에서 다시 찾는다 — 그새 지워졌으면 닫힌 채로 돌아온다(빈 「추가」 폼으로 바뀌지 않게).
+ */
+private fun spendingEditorSaver(find: (String) -> Spending?) =
+    Saver<MutableState<SpendingEditorTarget?>, String>(
+        save = { state -> state.value?.let { it.spending?.id ?: EDITOR_SAVED_NEW } },
+        restore = { saved ->
+            mutableStateOf(
+                if (saved == EDITOR_SAVED_NEW) SpendingEditorTarget(null)
+                else find(saved)?.let { SpendingEditorTarget(it) },
+            )
+        },
+    )
+
 // Scaffold 의 안쪽 여백(paddingValues)은 일부러 쓰지 않는다 — 전 화면 edge-to-edge 라 각 화면이 자기 인셋을 갖고,
 // 하단바는 콘텐츠 위에 떠 있다. 마지막 쓰임(홈 히어로 높이)은 10/1 흰 바탕 개편 때 사라졌다.
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+fun HomeScreen(
+    viewModel: SpendingViewModel = viewModel(),
+    /** 하단 탭 바가 보이는지 — 앱 루트(MainActivity)의 토스트가 바 위(100) · 바 없는 화면(24) 자리를 가르는 데 쓴다. */
+    onTabBarVisibleChange: (Boolean) -> Unit = {},
+) {
+    // 고른 탭 · 열린 에디터는 재생성(시스템이 백그라운드에서 정리 · 화면 설정 변경) 뒤에도 남긴다(27.52.0) —
+    // 예전엔 remember 라 지출을 적다가 다른 앱에 다녀오면 홈 탭으로 돌아가 있고 적던 화면도 닫혀 있었다.
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     /**
      * 지출 추가/수정 에디터 — **표시 여부와 대상을 한 상태로 합쳤다**(null = 닫힘).
@@ -118,7 +145,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
      * spendingToEdit 를 읽어 **'수정'에서 '추가'로 뒤바뀌며 빈 폼이 번쩍였다**.
      * 대상을 AnimatedContent 의 targetState 로 올리면, 나가는 페이지는 자기 대상(수정)을 그대로 들고 나간다.
      */
-    val spendingEditor = remember { mutableStateOf<SpendingEditorTarget?>(null) }
+    val spendingEditor = rememberSaveable(
+        saver = spendingEditorSaver { id -> viewModel.spendings.value.firstOrNull { it.id == id } },
+    ) { mutableStateOf<SpendingEditorTarget?>(null) }
     val accent = LocalAccent.current
 
     // 알림 딥링크 — VM 이 요청한 탭으로 이동(예: 공지 알림 탭 → 게임 정보). 상세 진입은 그 탭이 이어받는다.
@@ -130,6 +159,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     // 풀스크린 하위 페이지(알림 상세·연간 리포트·지출 상세·HoYoLAB 연동·설정)가 열렸는지.
     // 열려 있으면 하단바와 FAB를 숨긴다. 각 탭 콘텐츠가 자신의 하위 페이지 상태를 보고한다.
     var subPageActive by remember { mutableStateOf(false) }
+    // 탭 바가 보이는 때 = 에디터가 닫혀 있고 하위 페이지도 아닐 때(아래 bottomBar 의 표시 조건과 같다).
+    val tabBarVisible = spendingEditor.value == null && !subPageActive
+    LaunchedEffect(tabBarVisible) { onTabBarVisibleChange(tabBarVisible) }
 
     // 탭별 스크롤 상태를 끌어올려, 하단바 탭 클릭 시 해당 페이지를 최상단으로 이동.
     val tabListStates = listOf(
@@ -162,7 +194,6 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         viewModel.refreshGameInfo()
     }
     val signingOut by viewModel.signingOut.collectAsStateWithLifecycle()
-    val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
 
     // 루트 뒤로가기 방어 로직 (시스템/제스처 back):
     //  ① 하위 페이지(알림·연간리포트·지출상세)는 각자의 BackHandler 가 더 깊게 구성돼 먼저 처리
@@ -296,16 +327,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                         // 로그아웃 진행 오버레이 — 네트워크 대기 동안 피드백이 없던 문제
                         if (signingOut) SignOutOverlay()
 
-                        // 전역 커스텀 토스트 (모든 탭 위에 표시)
-                        // 하단바가 있을 땐 바 높이(100dp)만큼 띄우고, 하단바 없는 하위 페이지에선 24dp만 띄움
-                        GlgStatusToast(
-                            message = statusMessage,
-                            onConsumed = { viewModel.clearStatus() },
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .navigationBarsPadding()
-                                .padding(bottom = if (subPageActive) 24.dp else 100.dp),
-                        )
+                        // 전역 토스트는 앱 루트(MainActivity)로 올렸다(27.52.0) — 여기 있을 때는 홈 밖
+                        // (온보딩 · 로그인 · 지출 편집)에서 뷰모델의 안내가 보이지 않았다.
                     }
                 }
             }
@@ -821,7 +844,11 @@ private fun rememberAppNotices(): List<AppNotice> {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(resumeTick) { notices = AppNoticeApi.load() }
+    LaunchedEffect(resumeTick) {
+        notices = AppNoticeApi.load()
+        // 라이브 문서가 늦어 정본으로 섰으면 잠시 뒤 한 번 더 읽는다 — 라이브에만 올린 긴급 공지를 놓치지 않게.
+        AppNoticeApi.reloadIfLiveWasLate()?.let { notices = it }
+    }
     return notices
 }
 

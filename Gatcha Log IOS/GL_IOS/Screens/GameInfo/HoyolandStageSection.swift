@@ -42,6 +42,13 @@ struct HoyolandStageView: View {
     @State private var stageFilter: String? = nil
     /// NOW LIVE 점 깜빡임 — onAppear 에서 켠다(그래야 repeatForever 가 붙는다).
     @State private var livePulse = false
+    /// 「지금」 — 화면이 떠 있는 동안 1분마다 갱신한다(27.52.0, body 의 `.task`).
+    ///
+    /// 예전엔 그릴 때마다 `nowMs()` 를 읽었는데, 다시 그리게 만드는 것이 없었다. 현장에서 시간표를 열어 둔 채
+    /// 들고 있으면 무대가 끝나도 LIVE 카드가 그 무대에 멈춰 있고, 다음 무대로는 화면을 나갔다 와야 넘어갔다.
+    @State private var now: Int64 = nowMs()
+    /// 잠갔다 켜거나 다른 앱에 다녀오면 그 자리에서 시계를 맞춘다 — 잠든 동안엔 1분 타이머가 멈춰 있다.
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         // ── 날짜 탭은 **스크롤 바깥**이다(굿즈 목록의 게임 탭과 같은 짜임).
@@ -85,6 +92,17 @@ struct HoyolandStageView: View {
         }
         // 진입할 때도 한 번 — 상세에서 받은 값이 캐시 나이에 걸려 오래됐을 수 있다.
         .loadHoyoland(into: $event, enabled: !readOnly)
+        // 「지금 무대」 시계 — 화면이 떠 있는 동안만 돈다(사라지면 `.task` 가 끊는다). 무대 시각이 분 단위라 1분이면 된다.
+        // 다시 나타나면(탭 복귀 · 뒤로 돌아옴) 처음부터 다시 돌아 그 자리에서 한 번 맞춘다.
+        .task {
+            while !Task.isCancelled {
+                now = nowMs()
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { now = nowMs() }
+        }
     }
 
     // ── 일자별 시간표 — 현장에서 손에 들고 보는 자리.
@@ -95,14 +113,14 @@ struct HoyolandStageView: View {
         let ymds = e.dayYmds
         if !ymds.isEmpty {
             let ymd = ymds[min(selectedDay, ymds.count - 1)]
-            let stage = e.stageSlots(ymd: ymd, nowMillis: nowMs())
+            let stage = e.stageSlots(ymd: ymd, nowMillis: now)
             let games = e.stageGames(ymd: ymd)
             let live = stage.first { $0.state == .live }
             let next = stage.first { $0.state == .upcoming }
             let shown = stage.filter { stageFilter == nil || $0.slot.game == stageFilter }
             // 내 입장 시각(분) — 「내 입장권」에서 그날 조를 정했을 때만 0 보다 크다.
             let entryMin = e.entryMinutesOn(ymd: ymd, entry: entry)
-            let entryNote = e.entryStageNote(ymd: ymd, entry: entry, nowMillis: nowMs())
+            let entryNote = e.entryStageNote(ymd: ymd, entry: entry, nowMillis: now)
 
             // 제목 · 부제 · 날짜 탭은 여기 없다 — 제목은 네비게이션 바가, 탭은 스크롤 바깥이 맡는다.
             // ── 그날 내 입장 시각 — 고른 날에만 선다.

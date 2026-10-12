@@ -106,6 +106,7 @@ import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.gatcha.log.data.HoyolandBooth
 import com.gatcha.log.data.HoyolandGoods
@@ -205,13 +206,26 @@ private fun rememberHoyolandEvent(): HoyolandEvent {
  *
  * `force` 로 읽으므로 캐시 나이와 무관하게 라이브(어드민)부터 다시 훑는다.
  * 개발자 목업이 얹혀 있었다면 여기서 걷힌다.
+ *
+ * 상세의 **본문도 이 값을 쓴다**(27.52.0). 예전엔 본문이 [rememberHoyolandEvent] 로 값을 따로 들고 있어서,
+ * 당겨서 새로고침해도 히어로 · 예매 · 둘러보기는 옛 값 그대로였다(헤더와 하위 페이지만 바뀌었다).
+ * 그래서 본문이 하던 ON_RESUME 다시 읽기도 여기서 한다 — 빼면 화면에 돌아왔을 때 본문이 안 갱신된다.
  */
 @Composable
 private fun rememberHoyolandRefresher(): Triple<HoyolandEvent, Boolean, () -> Unit> {
     var event by remember { mutableStateOf(HoyolandApi.current) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { event = HoyolandApi.load() }
+    var resumeTick by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) resumeTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resumeTick) { event = HoyolandApi.load() }
     val refresh: () -> Unit = {
         if (!refreshing) {
             refreshing = true
@@ -728,7 +742,8 @@ fun HoyolandDetailPage(
                 ) {
                     HoyolandDetailContent(
                         onOpenSub = goSub, entry = entry, cart = cart,
-                        event = archive,
+                        // 지금 회차도 페이지가 들고 있는 값을 넘긴다(27.52.0) — 본문이 따로 읽으면 당겨서 새로고침이 본문에 닿지 않는다.
+                        event = e, archived = readOnly,
                         // 지난 회차 안에서 또 지난 회차로 들어가지는 않는다 — 한 단계만.
                         onOpenArchive = if (readOnly) null else { key -> archiveKey = key; goSub(HoyolandSub.Archive) },
                     )
@@ -796,8 +811,10 @@ fun HoyolandDetailContent(
     entry: HoyolandEntry = HoyolandEntry(),
     /** 굿즈 장바구니 — 「현장에서」 굿즈 칸이 담은 종수·금액을 답한다. */
     cart: HoyolandCart = HoyolandCart(),
-    /** 그릴 회차 — 지난 회차 보관본. null 이면 지금 회차(원격에서 읽는다). */
+    /** 그릴 회차 — 페이지가 들고 있는 값(지금 회차 · 지난 회차 보관본). null 이면 지금 회차를 여기서 읽는다. */
     event: HoyolandEvent? = null,
+    /** 지난 회차(보관본)인가 — 자료가 있는 칸만 세우고 「지난 행사」를 뺀다. [event] 로 지금 회차도 넘기게 되어 따로 받는다. */
+    archived: Boolean = false,
     /** 「지난 행사 ▸ 상세 보기」 — 회차 키를 넘긴다. null 이면 진입 줄을 세우지 않는다(지난 회차 화면 안). */
     onOpenArchive: ((String) -> Unit)? = null,
 ) {
@@ -959,7 +976,6 @@ fun HoyolandDetailContent(
     //
     // **지난 회차(보관본)는 자료가 있는 칸만 세운다**(10/6) — 끝난 행사에 「공개 전」 칸이 서면 틀린 말이다.
     // 지금 회차는 예전 그대로다(시간표 · 굿즈 · 부스는 비어도 「공개 전」으로 선다).
-    val archived = event != null
     val tiles = buildList {
         if (!archived || e.hasTimetable) add(HoyolandSub.Stage)
         if (!archived || e.visibleGoods.isNotEmpty()) add(HoyolandSub.Goods)
@@ -1018,7 +1034,7 @@ fun HoyolandDetailContent(
         if (e.lineup.isNotEmpty()) sections += lineupSection
         // 일정 미정(TBA)은 채울 게 없으면 둘러보기째 뺀다(빈 「공개되면…」 칸 넷만 남는다).
         // 지난 회차(보관본)도 자료가 하나도 없으면 섹션째 뺀다.
-        if ((phase != HoyolandPhase.TBA && event == null) || e.hasOnsiteContent) sections += onsiteSection
+        if ((phase != HoyolandPhase.TBA && !archived) || e.hasOnsiteContent) sections += onsiteSection
         // 종료 · 일정 미정이면 예매는 지나갔거나 아직 없다 — 「예매 안내 전체 보기」까지 섹션째 뺀다.
         if (!phase.isOffSeason) sections += ticketSection
     }
@@ -1117,7 +1133,7 @@ fun HoyolandDetailContent(
     }
     // 지난 회차 화면(보관본)에는 「지난 행사」를 세우지 않는다(10/6) — 그 목록에서 골라 들어온 화면이라
     // 같은 목록이 또 나오면 어디에 있는지 헷갈린다.
-    if (event == null) sections += pastSection
+    if (!archived) sections += pastSection
 
     sections.forEachIndexed { i, section ->
         if (i > 0) GiBand()
@@ -1153,6 +1169,24 @@ fun HoyolandDetailContent(
  */
 
 /**
+ * 시간표용 현재 시각 — **분이 바뀔 때마다** 갱신한다(일정 탭 `rememberScheduleNow` 와 같은 방식).
+ *
+ * 무대 시각이 분 단위라 연 시점부터 60초씩 세지 않고 다음 분 경계에 맞춰 깬다 — 60초 주기로 두면
+ * 「지금 무대」가 최대 1분 늦게 넘어간다. 화면을 벗어나면 코루틴이 취소되므로 백그라운드에서는 돌지 않는다.
+ */
+@Composable
+private fun rememberStageNow(): Long {
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L - System.currentTimeMillis() % 60_000L)
+            now = System.currentTimeMillis()
+        }
+    }
+    return now
+}
+
+/**
  * 일자별 시간표 — 날짜 탭 + 그날 프로그램.
  *
  * 기본 선택은 **행사 중이면 오늘**이다([HoyolandEvent.defaultDayIndex]). 현장에서 꺼냈을 때
@@ -1173,7 +1207,9 @@ fun HoyolandTimetableSection(
     if (ymds.isEmpty()) return
     // 원격 갱신으로 기간이 줄면 인덱스가 범위를 벗어날 수 있다 — 첫날로 떨어뜨린다.
     val ymd = ymds.getOrElse(selectedDay) { ymds.first() }
-    val stage = e.stageSlots(ymd)
+    // 「지금 무대」는 시각으로 갈린다 — 분마다 갱신되는 now 로 다시 계산한다(27.52.0). 예전엔 화면이 다시 그려질
+    // 때만 계산해서, 시간표를 열어 둔 채로는 다음 무대로 넘어가지 않았다.
+    val stage = e.stageSlots(ymd, rememberStageNow())
     val games = e.stageGames(ymd)
     // 게임 필터 — 날짜를 바꾸면 푼다(그날 없는 게임이 걸린 채 빈 목록이 되지 않게).
     var gameFilter by remember(ymd) { mutableStateOf<String?>(null) }

@@ -1,7 +1,13 @@
 package com.gatcha.log
 
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import com.gatcha.log.ui.components.dismissKeyboardOnTap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
@@ -39,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.home.HomeScreen
 import com.gatcha.log.ui.home.UpdateDialog
 import com.gatcha.log.ui.home.UpdateProgressOverlay
@@ -102,7 +109,7 @@ class MainActivity : ComponentActivity() {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today].orEmpty()
                 // 출석을 세는 게임만 본다 — UID 없는 게임이 남은 걸로 치면 실행마다 워커를 헛돌린다.
-                val games = GameData.trackedAttendanceGames(repo.loadHoyolab())
+                val games = GameData.trackedAttendanceGames(repo.loadHoyolab(), repo.loadMyGames())
                 if (games.any { it.key !in done }) {
                     AndroidWorkScheduler.runNow(ctx)
                 }
@@ -157,6 +164,9 @@ class MainActivity : ComponentActivity() {
             val account by viewModel.account.collectAsStateWithLifecycle()
             val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
             val errorAlert by viewModel.errorAlert.collectAsStateWithLifecycle()
+            val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
+            // 홈의 하단 탭 바가 보이는지(홈이 알려 준다) — 토스트를 바 위에 띄울지 가른다.
+            var homeTabBarVisible by remember { mutableStateOf(true) }
             // 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 진입 — 동기화는 백그라운드.
             // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
             // 로딩 게이트는 "이 기기에서 이 계정을 한 번이라도 동기화했는가"로 가른다(needsSyncGate, 9/29).
@@ -211,8 +221,23 @@ class MainActivity : ComponentActivity() {
                     // 로그인 유저 → 계정 데이터 불러오는 중(게이지 링 0~100%)
                     !account.isGuest && !loadingDone && viewModel.needsSyncGate ->
                         AccountLoadingScreen(loading = initialSyncing, onFinished = { viewModel.markAccountSynced(); loadingDone = true })
-                    else -> HomeScreen(viewModel)
+                    else -> HomeScreen(viewModel, onTabBarVisibleChange = { homeTabBarVisible = it })
                 }
+                }
+                // 전역 토스트 — 앱 루트에 한 번만(27.52.0, iOS ContentView 와 같은 자리). 홈 안에 있을 때는
+                // 온보딩 · 로그인 · 지출 편집 화면에서 뷰모델의 안내(statusMessage)가 보이지 않았다.
+                // 자리는 홈에 있을 때와 같다 — 탭 바가 보이면 바 높이(100)만큼, 탭 바 없는 화면에서는 24 만 띄운다.
+                // 루트 전환(AnimatedContent) 밖이라 키보드 여백을 여기서 따로 준다(안에 있을 때는 루트의 imePadding 을 탔다).
+                Box(Modifier.fillMaxSize()) {
+                    GlgStatusToast(
+                        message = statusMessage,
+                        onConsumed = { viewModel.clearStatus() },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .imePadding()
+                            .navigationBarsPadding()
+                            .padding(bottom = if (homeShown && homeTabBarVisible) 100.dp else 24.dp),
+                    )
                 }
                 // 업데이트 확인 · 창 — 앱 루트에 한 번만(iOS ContentView 와 같은 자리). 홈 안에 있을 때는
                 // 온보딩 · 로그인 · 지출 편집 화면에서 강제 업데이트가 걸리지 않았다.

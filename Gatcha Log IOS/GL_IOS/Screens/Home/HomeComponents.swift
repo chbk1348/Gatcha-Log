@@ -173,6 +173,8 @@ struct AppNoticeAutoLoad: ViewModifier {
 
     private func reload() async {
         if let fresh = try? await AppNoticeApi.shared.load(force: false) { notices = fresh }
+        // 라이브 문서가 늦어 정본으로 섰으면 잠시 뒤 한 번 더 읽는다 — 라이브에만 올린 긴급 공지를 놓치지 않게(Android 와 같다).
+        if let later = try? await AppNoticeApi.shared.reloadIfLiveWasLate() { notices = later }
     }
 }
 

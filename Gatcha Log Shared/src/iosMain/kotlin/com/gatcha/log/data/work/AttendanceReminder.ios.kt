@@ -37,8 +37,10 @@ import platform.UserNotifications.UNUserNotificationCenter
  * 동작: 다음 베이징 18:00(로컬 시각 환산) 1회 예약(repeats=false).
  *  - 오늘 아직 미출석 & 베이징 18시 전 → 오늘 18:00
  *  - 이미 전부 출석했거나 18시 지남 → 내일 18:00
- *  예약한 날짜의 "attend" dedup 키를 미리 찍어 BGTask 즉시 알림과 중복되지 않게 한다.
- *  재예약은 [reschedule] 호출 시점(앱 시작·토글 변경·BGTask 실행)마다 갱신된다.
+ *  예약한 날짜는 [NotificationChecker.ATTEND_SCHEDULED_TAG] 에 적어 BGTask 즉시 알림과 겹치지 않게 한다.
+ *  예전엔 즉시 알림과 **같은 키("attend")** 를 썼다. 그러면 18시 뒤에는 예약이 내일 날짜로, 점검이 오늘 날짜로
+ *  번갈아 덮어써서 점검이 돌 때마다 리마인더가 다시 울렸다 — 키를 갈랐다(27.52.0).
+ *  재예약은 [ScheduledAlerts.reschedule] 이 돌 때마다 함께 돈다(앱 시작 · 출석 · 토글 · 연동 · 계정 변경 · BGTask).
  */
 @OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
 object AttendanceReminder {
@@ -48,13 +50,22 @@ object AttendanceReminder {
     suspend fun reschedule(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
         val center = UNUserNotificationCenter.currentNotificationCenter()
         center.removePendingNotificationRequestsWithIdentifiers(listOf(ID))
-        if (!settings.notifyAttendance || !cfg.isLinked) return
 
         val nowInstant = Instant.fromEpochMilliseconds(currentTimeMillis())
         val nowBeijing = nowInstant.toLocalDateTime(beijingTz)
         val today = "${nowBeijing.year}-${pad2(nowBeijing.month.number)}-${pad2(nowBeijing.day)}"
+        // 오늘 몫으로 걸어 둔 예약이 있었고 18시가 지났다 = 이미 울렸다. 점검이 같은 날 또 보내지 않게 넘겨 적는다.
+        if (settings.lastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG) == today && nowBeijing.hour >= 18) {
+            settings.setLastNotified("attend", today)
+        }
+        if (!settings.notifyAttendance || !cfg.isLinked) {
+            settings.setLastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG, "")
+            return
+        }
+
         val done = repo.loadAttendance()[today] ?: emptySet()
-        val allDoneToday = GameData.attendanceGames.all { it.key in done }
+        // 출석을 세는 게임만 본다 — 세 게임 전부를 기준으로 하면 원신 · 스타레일만 하는 계정은 둘 다 출석해도 매일 울린다.
+        val allDoneToday = GameData.trackedAttendanceGames(cfg, repo.loadMyGames()).all { it.key in done }
 
         // 오늘 미완료 & 18시 전이면 오늘, 아니면 내일.
         val dayOffset = if (!allDoneToday && nowBeijing.hour < 18) 0 else 1
@@ -91,8 +102,8 @@ object AttendanceReminder {
             }
         }
 
-        // 예약한 날짜는 BGTask 즉시 알림과 겹치지 않도록 dedup 키를 선점.
-        settings.setLastNotified("attend", targetKey)
+        // 예약한 날짜는 BGTask 즉시 알림과 겹치지 않도록 따로 적어 둔다(즉시 알림의 "attend" 는 건드리지 않는다).
+        settings.setLastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG, targetKey)
     }
 
     private fun pad2(n: Int): String = if (n < 10) "0$n" else "$n"
@@ -109,8 +120,7 @@ fun rescheduleAttendanceReminder() {
     // 여기는 포그라운드(앱 시작)라 앱이 서스펜드되지 않으므로 결과를 기다릴 필요는 없다
     // — 기다려야 하는 쪽은 BGTask(NativeScheduler.ios) 다.
     CoroutineScope(Dispatchers.Default).launch {
-        runCatching { AttendanceReminder.reschedule(settings, repo, repo.loadHoyolab()) }
-        // 앱 시작 시점에 확정 시각 알림도 함께 갱신 — 예약이 비어 있거나 낡았을 수 있다.
+        // 확정 시각 알림을 갱신한다 — 예약이 비어 있거나 낡았을 수 있다. 출석 리마인더도 이 안에서 함께 걸린다.
         runCatching { ScheduledAlerts.reschedule(settings, repo) }
     }
 }

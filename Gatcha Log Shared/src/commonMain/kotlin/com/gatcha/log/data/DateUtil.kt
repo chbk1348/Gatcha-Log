@@ -89,10 +89,10 @@ object DateUtil {
 
     /**
      * 로컬 오늘로부터 [daysAgo]일 전의 로컬 날짜 키 "yyyy-MM-dd" — 무지출 스트릭(지출은 로컬 기준) 계산용.
-     * (한국(KST) 등 DST 없는 TZ 기준. millis 산술.)
+     * 날짜로 뺀다([startOfDayPlus]) — 24시간을 빼면 서머타임 전환 다음 날 새벽에 하루를 건너뛴다.
      */
     fun localDayKeyAgo(daysAgo: Int, nowMillis: Long = currentTimeMillis()): String =
-        dayKey(nowMillis - daysAgo * 86_400_000L)
+        dayKey(startOfDayPlus(nowMillis, -daysAgo))
 
     /**
      * 출석 기준일에서 [daysAgo]일 전의 날짜 키 — 연속 출석(streak) 계산용.
@@ -156,6 +156,30 @@ object DateUtil {
     fun startOfDay(millis: Long): Long = localTimeOnDay(millis, 0)
 
     /**
+     * [millis] 가 속한 날에서 [days] 일 뒤(음수면 앞)의 **로컬 자정**.
+     *
+     * 날짜로 더한다 — 24시간을 더하면 서머타임이 바뀌는 주에는 하루가 23 · 25시간이라 주간 보드의 칸이
+     * 겹치거나 건너뛴다(27.52.0). 서머타임이 없는 한국에서는 결과가 같다.
+     */
+    fun startOfDayPlus(millis: Long, days: Int): Long {
+        val d = local(millis).date.plus(days, DateTimeUnit.DAY)
+        return LocalDateTime(d.year, d.month, d.day, 0, 0).toInstant(localTz).toEpochMilliseconds()
+    }
+
+    /**
+     * [targetMillis] 까지 남은 **달력 날 수**(기기 시간대) — 오늘이면 0, 내일이면 1, **이미 지났으면 음수**.
+     *
+     * D-day 는 예전에 "남은 시간을 24시간으로 나눠 올림"이었고 같은 식이 일곱 군데에 있었다(27.52.0).
+     * 그러면 오늘 18시 마감이 아침 10시에 D-1 로 나와 알림이 "내일"이라고 말했고, 끝난 지 한 시간 된 것은
+     * `ceil(-0.04) = 0` 이라 하루 동안 D-DAY 로 남아 「임박」 목록에 계속 올랐다. 사람이 읽는 D-day 는 날짜 차이다.
+     */
+    fun daysLeft(targetMillis: Long, nowMillis: Long = currentTimeMillis()): Int {
+        val days = local(nowMillis).date.daysUntil(local(targetMillis).date)
+        // 같은 날이라도 시각이 이미 지났으면 끝난 것이다.
+        return if (targetMillis < nowMillis) minOf(days, -1) else days
+    }
+
+    /**
      * 그 주 **일요일 자정**(로컬)의 epoch millis — 달력과 같은 일~토 주 배열의 시작.
      *
      * 게임 리셋 기준 주([gameWeekKey])와는 다른 축이다. 이쪽은 사람이 보는 달력의 주다.
@@ -163,7 +187,7 @@ object DateUtil {
     fun startOfWeek(millis: Long): Long {
         val dow = local(millis).dayOfWeek
         val backDays = dow.sundayBasedIndex
-        return startOfDay(millis) - backDays * 86_400_000L
+        return startOfDayPlus(millis, -backDays)
     }
 
     /** 로컬 시(0~23) — 예약 알림 트리거 구성용. */

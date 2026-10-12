@@ -89,13 +89,12 @@ struct SettingsView: View {
         .background(Color.white.ignoresSafeArea())
         .glgPageTitle("설정")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            // 홈 만료 배너 CTA → 설정 → HoYoLAB 연동 자동 진입
-            if store.pendingOpenHoyolabLink {
-                showHoyolab = true
-                store.consumePendingOpenHoyolabLink()
-            }
-        }
+        // 홈 만료 배너 CTA → 설정 → HoYoLAB 연동 자동 진입
+        .onAppear { openPendingHoyolabLink() }
+        // 설정이 **이미 열려 있을 때** 들어온 요청도 받는다(27.52.0, Android LaunchedEffect(pendingOpenHoyolab) 와 같다).
+        // onAppear 로만 소비하면 설정을 열어 둔 채 홈의 「재연동」을 눌렀을 때 연동 화면이 안 열리고,
+        // 요청이 남아 있다가 나중에 설정에 다시 들어온 순간 엉뚱하게 튀어나왔다.
+        .onChange(of: store.pendingOpenHoyolabLink) { _, _ in openPendingHoyolabLink() }
         // 예산 관리 — 팝업에서 페이지로(아티팩트 S3).
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
@@ -129,6 +128,13 @@ struct SettingsView: View {
             DeveloperView(store: store)
         }
         #endif
+    }
+
+    /// 대기 중인 「HoYoLAB 연동 열기」 요청이 있으면 연동 화면을 열고 요청을 소비한다(1회성).
+    private func openPendingHoyolabLink() {
+        guard store.pendingOpenHoyolabLink else { return }
+        showHoyolab = true
+        store.consumePendingOpenHoyolabLink()
     }
 
     #if DEBUG
@@ -226,12 +232,11 @@ struct SettingsView: View {
     }
 
     /// 보이는 알림 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
-    private var notifyOnCount: Int {
-        let on: [NotifyKey: Bool] = [.budget: store.notifyBudget, .resin: store.notifyResin, .attendance: store.notifyAttendance,
-                                      .pickup: store.notifyPickup, .combat: store.notifyCombat, .news: store.notifyNews,
-                                      .hoyoland: store.notifyHoyoland]
-        return NotificationCatalog.shared.items.filter { on[$0.key] == true }.count
-    }
+    ///
+    /// 알림 설정 화면과 **같은 매핑**을 쓴다(`SpendingStore.notifyOnCount` — NotificationSettingsView.swift).
+    /// 예전엔 여기 따로 둔 사전에 「앱 업데이트」가 빠져, 전부 켜 둬도 알림 설정 화면보다
+    /// 하나 적게 「N개 켜짐」으로 나왔다(27.52.0 수정).
+    private var notifyOnCount: Int { store.notifyOnCount }
 
     // ── 데이터 관리 — 백업·복원/내보내기/위험 구역을 모은 하위 페이지로 진입 ──
     @ViewBuilder

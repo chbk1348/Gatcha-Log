@@ -1,6 +1,7 @@
 package com.gatcha.log.data.api
 
 import com.gatcha.log.util.fixed
+import kotlin.math.ceil
 
 /**
  * 유물/성유물/드라이브 디스크 평가 — 순수 함수·오프라인.
@@ -90,7 +91,7 @@ object ArtifactScoring {
     private val HSR_MAX_ROLL: Map<StatTok, Double> = mapOf(
         StatTok.HP to 42.34, StatTok.ATK to 21.17, StatTok.DEF to 21.17,
         StatTok.HP_PCT to 4.32, StatTok.ATK_PCT to 4.32, StatTok.DEF_PCT to 5.40,
-        StatTok.SPD to 2.6, StatTok.BREAK to 5.83,
+        StatTok.SPD to 2.6, StatTok.BREAK to 6.48,
         StatTok.EHR to 4.32, StatTok.RES to 4.32,
         StatTok.CRIT_RATE to 3.24, StatTok.CRIT_DMG to 6.48,
     )
@@ -283,7 +284,8 @@ object ArtifactScoring {
         val p = excellenceProgress(score.average, score.metric)
         val total = "${score.metric.label} ${scoreLabel(score.total)}"
         return if (p >= 1.0) "$total · 최상 달성"
-        else "$total · 최상까지 ${((1.0 - p) * 100).toInt()}%"
+        // 남은 만큼은 올림한다 — 99.5% 에서 "최상까지 0%" 가 나오면 달성한 것처럼 읽힌다.
+        else "$total · 최상까지 ${ceil((1.0 - p) * 100).toInt().coerceAtLeast(1)}%"
     }
 
     /** 소수 1자리 표기 — "5.4". 양 플랫폼이 같은 표기를 쓰도록 공유 [fixed] 를 재사용한다. */

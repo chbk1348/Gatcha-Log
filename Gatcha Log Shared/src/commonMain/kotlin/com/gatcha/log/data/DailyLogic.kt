@@ -73,7 +73,7 @@ object DailyLogic {
 
             // ① 행동력 — 유일하게 시각이 정확한 항목
             if (note != null && note.maxResin > 0) {
-                val full = note.currentResin >= note.maxResin
+                val full = note.resinNow(nowMillis) >= note.maxResin
                 val fullAt = note.resinFullAtMillis
                 val soon = !full && fullAt > 0 && fullAt - nowMillis <= RESIN_SOON_HOURS * HOUR_MS
                 if (full || soon) {
@@ -218,12 +218,12 @@ object DailyLogic {
             gameKey = game.key,
             gameShort = game.shortName,
             colorArgb = game.color,
-            resin = if (note != null && note.maxResin > 0) "${note.resinLabel} ${note.currentResin}/${note.maxResin}" else "",
-            resinValue = if (note != null && note.maxResin > 0) "${note.currentResin}/${note.maxResin}" else "",
+            resin = if (note != null && note.maxResin > 0) "${note.resinLabel} ${note.resinNow()}/${note.maxResin}" else "",
+            resinValue = if (note != null && note.maxResin > 0) "${note.resinNow()}/${note.maxResin}" else "",
             resinLabel = resinLabelOf(game),
             resinRecovery = note?.resinRecoveryTime.orEmpty(),
             resinRatio = note?.resinRatio ?: 0f,
-            resinFull = note != null && note.maxResin > 0 && note.currentResin >= note.maxResin,
+            resinFull = note != null && note.maxResin > 0 && note.resinNow() >= note.maxResin,
             pendingCount = mine.size,
             checkedIn = game.key in attendanceToday,
             hasNote = note != null && note.maxResin > 0,

@@ -189,14 +189,24 @@ struct SpendingView: View {
         // 버튼이 각각 독립된 원형으로 떨어진다. (iOS 25 이하는 원래 묶이지 않아 스페이서가 불필요)
         .toolbar {
             if !selectionMode {
+                // 두 하위 화면은 뜨고 사라질 때 `store.spendingSubpageOpen` 을 세운다(27.52.0) — iOS 18 의 탭바 위 '+' 가
+                // 그동안 숨는다. 뷰 기반 링크라 ContentView 의 경로(spendingPath)로는 열렸는지 알 수 없다.
                 ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink { CalendarView(store: store) } label: { Image(systemName: "calendar") }
+                    NavigationLink {
+                        CalendarView(store: store)
+                            .onAppear { store.spendingSubpageOpen = true }
+                            .onDisappear { store.spendingSubpageOpen = false }
+                    } label: { Image(systemName: "calendar") }
                 }
                 if #available(iOS 26.0, *) {
                     ToolbarSpacer(.fixed, placement: .topBarLeading)
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink { SpendingInsightView(store: store) } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
+                    NavigationLink {
+                        SpendingInsightView(store: store)
+                            .onAppear { store.spendingSubpageOpen = true }
+                            .onDisappear { store.spendingSubpageOpen = false }
+                    } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
                 }
             }
 

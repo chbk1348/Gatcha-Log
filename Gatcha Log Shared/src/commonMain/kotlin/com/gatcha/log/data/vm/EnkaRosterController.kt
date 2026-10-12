@@ -5,6 +5,7 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.EnkaResult
+import com.gatcha.log.data.api.mergePartialRoster
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -158,11 +159,12 @@ internal class EnkaRosterController(
                         _enkaLoadingGames.update { it - game }
                     }
                 }
-                val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
+                val got = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
                 if (enkaUidFor(game) != uid) return@launch   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
+                val r = settle(game, cached?.second, got, partialShown)
                 when {
                     r.profile != null -> {
-                        enkaCache[key] = currentTimeMillis() to r; persistEnkaCache(); publishEnka(game, r)
+                        enkaCache[key] = cacheStamp(r) to r; persistEnkaCache(); publishEnka(game, r)
                     }
                     // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지. 캐시도 먼저 그린 목록도 없을 때만 에러 표시.
                     cached == null && !partialShown -> publishEnka(game, r)
@@ -174,6 +176,17 @@ internal class EnkaRosterController(
             }
         }
     }
+
+    /**
+     * 덜 받은 결과([EnkaResult.partial])는 **가진 목록 위에 얹는다**(27.52.0) — 캐시가 있으면 캐시, 없으면 방금 먼저 그린 목록.
+     * HoYoLAB 이 잠깐 실패한 한 번으로 전체 로스터가 쇼케이스 8~12명으로 줄고 캐시까지 덮이던 일을 막는다.
+     */
+    private fun settle(game: String, cached: EnkaResult?, got: EnkaResult, partialShown: Boolean): EnkaResult =
+        mergePartialRoster(cached ?: _enkaResults.value[game].takeIf { partialShown }, got)
+
+    /** 캐시에 적을 시각. 덜 받은 결과는 [PARTIAL_RETRY_MS] 뒤면 낡은 것으로 쳐서 곧 다시 받는다. */
+    private fun cacheStamp(r: EnkaResult): Long =
+        if (r.partial) currentTimeMillis() - enkaTtlMs + PARTIAL_RETRY_MS else currentTimeMillis()
 
     /**
      * Enka 캐시 디스크 저장 — **메인 밖에서.** 3게임 풀스탯이라 수백 KB 를 직렬화하는데, 예전엔 복귀 때마다
@@ -258,10 +271,11 @@ internal class EnkaRosterController(
                             _enkaLoadingGames.update { it - game }
                         }
                     }
-                    val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
+                    val got = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
                     if (enkaUidFor(game) != uid) return@async   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
+                    val r = settle(game, cached?.second, got, partialShown)
                     if (r.profile != null) {
-                        enkaCache[key] = currentTimeMillis() to r
+                        enkaCache[key] = cacheStamp(r) to r
                         _enkaResults.update { it + (game to r) }   // 갱신분 반영
                         prefetchCharCamps(game, r.profile?.chars.orEmpty())
                     } else if (cached == null && !partialShown) {
@@ -300,6 +314,26 @@ internal class EnkaRosterController(
         seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
     }
 
+    /** 게임별 UID 한 벌 — 동기화 앞뒤를 견주는 데 쓴다([reloadAfterSync]). */
+    fun uidSnapshot(): Map<String, String> = ENKA_GAMES.associateWith { enkaUidFor(it) }
+
+    /**
+     * 동기화 뒤 — UID 만 다시 읽고, **UID 가 실제로 바뀐 게임만** 화면 상태를 갈아끼운다(27.52.0).
+     *
+     * 예전엔 동기화가 끝날 때마다 [reload] 로 결과를 통째로 비우고 디스크 캐시가 있는 게임만 다시 채웠다.
+     * 그래서 UID 가 없는 게임의 "게임 UID 가 없어요" 표시와 조회 실패 표시가 지워져, 그 칸이 탭을 나갔다 들어올
+     * 때까지 스켈레톤으로 흘렀다. 방금 받은 로스터도 캐시에 실리기 전이면 함께 지워졌다.
+     */
+    fun reloadAfterSync(before: Map<String, String>) {
+        reloadUids()
+        ENKA_GAMES.forEach { game ->
+            val uid = enkaUidFor(game)
+            if (uid == before[game]) return@forEach
+            val cached = enkaCache["$game:$uid"]?.second
+            _enkaResults.update { if (cached != null) it + (game to cached) else it - game }
+        }
+    }
+
     /** 저장소의 UID 만 다시 읽는다 — 게스트의 연동을 계정으로 옮긴 직후. */
     fun reloadUids() {
         _enkaGiUid.value = repo().loadEnkaGiUid()
@@ -316,6 +350,8 @@ internal class EnkaRosterController(
     companion object {
         /** 로스터 신선도 — Enka 429 방지 위해 5분 내 재요청 생략. */
         const val TTL_MS = 5 * 60 * 1000L
+        /** 덜 받은 로스터([EnkaResult.partial])를 다시 받기까지 — 5분을 다 채우지 않는다. */
+        const val PARTIAL_RETRY_MS = 60 * 1000L
 
         /** Enka 가 보유 캐릭터를 주는 게임 — 나머지는 상류가 주지 않는다. */
         val ENKA_GAMES = listOf("genshin", "hsr", "zzz")

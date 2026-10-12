@@ -452,8 +452,8 @@ struct AttendanceDetailView: View {
                 }
                 GiBand()
                 GiPageSection("최근 7일") {
-                    WeekAttendanceStrip(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
-                    MonthAttendanceCalendar(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
+                    WeekAttendanceStrip(history: store.attendanceHistory, games: store.trackedAttendanceGames)
+                    MonthAttendanceCalendar(history: store.attendanceHistory, games: store.trackedAttendanceGames)
                         .padding(.top, 16)
                 }
             }
@@ -530,17 +530,15 @@ struct AttendanceDetailView: View {
     }
 }
 
-// 출석 완료도 — total 은 출석을 세는 게임 수(store.trackedAttendanceGames)
-enum AttendLevel { case none, partial, full }
-func attendLevel(_ count: Int, total: Int) -> AttendLevel {
-    if count <= 0 { return .none }
-    if count >= total { return .full }
-    return .partial
-}
+// 출석 완료도 — 판정은 공유 `AttendanceLogic.dayLevel` 하나를 쓴다(27.52.0). games 는 출석을 세는 게임(store.trackedAttendanceGames).
+//
+// 예전엔 여기서 "그날 출석한 게임 **수**가 세는 게임 수 이상인가"로 따로 판정했다. 같은 화면의 「이번 달 전체 출석」
+// 누계와 마이페이지 30칸은 "세는 게임이 **전부** 들어 있는가"라, 세는 게임이 바뀐 사용자(젠레스를 「내 게임」에서 뺌)의
+// 지난 날짜가 달력 · 스트립에서는 '전체', 누계에서는 '일부'로 갈렸다. 그리는 모양은 그대로다.
 
 private struct WeekAttendanceStrip: View {
     let history: [String: Set<String>]
-    let total: Int
+    let games: [Game]
     @Environment(\.glgAccent) private var accent
     var body: some View {
         let du = DateUtil.shared
@@ -549,9 +547,9 @@ private struct WeekAttendanceStrip: View {
                 let off = Int32(offset)
                 let dayNum = du.hoyoDayOfMonthAgo(daysAgo: off)
                 let dow = du.hoyoWeekdayKoAgo(daysAgo: off)
-                let count = history[du.hoyoDayKeyAgoKey(daysAgo: off)]?.count ?? 0
+                let done = history[du.hoyoDayKeyAgoKey(daysAgo: off)] ?? []
                 let isToday = idx == 6
-                let level = attendLevel(count, total: total)
+                let level = AttendanceLogic.shared.dayLevel(done: done, games: games)
                 VStack(spacing: 5) {
                     Text(dow).font(.pretendard(size: 12, weight: isToday ? .bold : .regular))
                         .foregroundStyle(isToday ? accent.primary : GLGColor.textSecondary)
@@ -582,7 +580,7 @@ private struct WeekAttendanceStrip: View {
         }
     }
     /// 날짜 숫자 색 — 채움이 진한 '전체 출석'만 흰색.
-    private func dayNumColor(_ l: AttendLevel) -> Color {
+    private func dayNumColor(_ l: AttendanceDayLevel) -> Color {
         switch l {
         case .full: return .white
         case .partial: return accent.primary
@@ -590,7 +588,7 @@ private struct WeekAttendanceStrip: View {
         }
     }
 
-    private func fillColor(_ l: AttendLevel) -> Color {
+    private func fillColor(_ l: AttendanceDayLevel) -> Color {
         switch l {
         case .full: return accent.primary
         case .partial: return accent.primary.opacity(0.30)
@@ -601,7 +599,7 @@ private struct WeekAttendanceStrip: View {
 
 private struct MonthAttendanceCalendar: View {
     let history: [String: Set<String>]
-    let total: Int
+    let games: [Game]
     @Environment(\.glgAccent) private var accent
     @State private var monthOffset: Int32 = 0
     var body: some View {
@@ -632,7 +630,7 @@ private struct MonthAttendanceCalendar: View {
                         if i < week.count, week[i] > 0 {
                             let day = week[i]
                             let key = String(format: "%04d-%02d-%02d", year, monthNum, day)
-                            let level = attendLevel(history[key]?.count ?? 0, total: total)
+                            let level = AttendanceLogic.shared.dayLevel(done: history[key] ?? [], games: games)
                             let isToday = key == todayKey
                             Text("\(day)").font(.pretendard(size: 12, weight: level != .none || isToday ? .bold : .regular))
                                 .foregroundStyle(dayColor(level, isToday))
@@ -657,12 +655,12 @@ private struct MonthAttendanceCalendar: View {
         .padding(14)
         .background(Color(hex: 0xFFF7F8FA), in: RoundedRectangle(cornerRadius: 16))
     }
-    private func dayColor(_ l: AttendLevel, _ today: Bool) -> Color {
+    private func dayColor(_ l: AttendanceDayLevel, _ today: Bool) -> Color {
         if l == .full { return .white }
         if l == .partial || today { return accent.primary }
         return GLGColor.textSecondary
     }
-    private func bgColor(_ l: AttendLevel) -> Color {
+    private func bgColor(_ l: AttendanceDayLevel) -> Color {
         switch l { case .full: return accent.primary; case .partial: return accent.primary.opacity(0.30); case .none: return .clear }
     }
     private func legendDot(_ c: Color, _ label: String) -> some View {

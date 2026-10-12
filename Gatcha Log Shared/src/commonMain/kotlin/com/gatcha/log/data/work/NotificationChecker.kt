@@ -34,6 +34,23 @@ import com.gatcha.log.util.currentTimeMillis
  */
 object NotificationChecker {
 
+    /**
+     * iOS 출석 리마인더(예약형)가 **맡은 날짜**를 적는 표시. 즉시 알림의 `"attend"` 와 따로 둔다 — 같은 키를 쓰면
+     * 예약(내일 날짜)과 점검(오늘 날짜)이 번갈아 덮어써서 리마인더가 점검마다 다시 울린다.
+     */
+    internal const val ATTEND_SCHEDULED_TAG = "attend_scheduled"
+
+    /**
+     * 알림을 보내고, **실제로 게시됐을 때만** 중복 방지 표시를 남긴다(27.52.0).
+     * 예전엔 보내기 전에 적었다 — 권한을 거부한 상태에서 예산을 넘기면, 나중에 권한을 허용해도 그 달 알림은 오지 않았다.
+     */
+    private suspend fun notifyOnce(
+        settings: AppSettings, tag: String, value: String,
+        id: Int, title: String, text: String, link: String = "",
+    ) {
+        if (Notifier.notify(id, title, text, link)) settings.setLastNotified(tag, value)
+    }
+
     suspend fun run(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
         val now = currentTimeMillis()
 
@@ -100,11 +117,12 @@ object NotificationChecker {
                 if (level != null) {
                     val key = "$y-$m:$level"
                     if (settings.lastNotified("budget") != key) {
-                        settings.setLastNotified("budget", key)
-                        if (level == "over") Notifier.notify(
+                        if (level == "over") notifyOnce(
+                            settings, "budget", key,
                             Notifier.ID_BUDGET, "이번 달 예산을 넘었어요",
                             "₩${won(total - budget)} 더 썼어요 (${pct}%)",
-                        ) else Notifier.notify(
+                        ) else notifyOnce(
+                            settings, "budget", key,
                             Notifier.ID_BUDGET, "예산이 얼마 안 남았어요",
                             "이번 달 ${pct}% 사용 · ₩${won(budget - total)} 남았어요",
                         )
@@ -128,12 +146,13 @@ object NotificationChecker {
                     val key = "$y-$m:$level"
                     val tag = "budget_game:$gameKey"
                     if (settings.lastNotified(tag) != key) {
-                        settings.setLastNotified(tag, key)
                         val nid = Notifier.ID_BUDGET_GAME_BASE + game.ordinal
-                        if (level == "over") Notifier.notify(
+                        if (level == "over") notifyOnce(
+                            settings, tag, key,
                             nid, "${game.shortName} 한도를 넘었어요",
                             "₩${won(total - limit)} 더 썼어요 (${pct}%)",
-                        ) else Notifier.notify(
+                        ) else notifyOnce(
+                            settings, tag, key,
                             nid, "${game.shortName} 한도가 얼마 안 남았어요",
                             "${pct}% 사용 · ₩${won(limit - total)} 남았어요",
                         )
@@ -147,10 +166,14 @@ object NotificationChecker {
             if (DateUtil.hoyoHour() >= 18) {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today] ?: emptySet()
-                val pending = GameData.trackedAttendanceGames(cfg).filter { it.key !in done }
-                if (pending.isNotEmpty() && settings.lastNotified("attend") != today) {
-                    settings.setLastNotified("attend", today)
-                    Notifier.notify(
+                // 「내 게임」에서 뺀 게임은 세지 않는다 — 화면 · 자동 출석과 같은 목록이다.
+                val pending = GameData.trackedAttendanceGames(cfg, repo.loadMyGames()).filter { it.key !in done }
+                // 오늘 몫을 예약형 리마인더(iOS)가 맡았으면 그쪽이 울린다 — 여기서 또 보내지 않는다.
+                val handled = settings.lastNotified("attend") == today ||
+                    settings.lastNotified(ATTEND_SCHEDULED_TAG) == today
+                if (pending.isNotEmpty() && !handled) {
+                    notifyOnce(
+                        settings, "attend", today,
                         Notifier.ID_ATTEND, "오늘 출석 아직이에요",
                         "${pending.joinToString("·") { it.shortName }} 남았어요. 1분이면 끝나요",
                     )
@@ -166,8 +189,8 @@ object NotificationChecker {
                 if (note.maxResin <= 0 || note.currentResin < note.maxResin) return@forEach
                 val tag = "resin:${game.key}"
                 if (settings.lastNotified(tag) == today) return@forEach
-                settings.setLastNotified(tag, today)
-                Notifier.notify(
+                notifyOnce(
+                    settings, tag, today,
                     Notifier.ID_RESIN_BASE + game.ordinal,
                     "${game.shortName} ${Josa.subj(note.resinLabel)} 가득 찼어요",
                     "${note.currentResin}/${note.maxResin} 이에요. 지금부터는 더 쌓이지 않아요",
@@ -276,9 +299,11 @@ object NotificationChecker {
                 // 앱을 보고 있으면 쏘지 않고 **표시도 남기지 않는다** — 홈이 뜰 때 업데이트 창이 이미 떴다.
                 // 거기서 「나중에」를 고른 사람에게는 다음 백그라운드 점검이 한 번 알린다(새 공지와 같은 규칙).
                 if (!AppVisibility.isForeground) {
-                    settings.setLastNotified(APP_UPDATE_TAG, info.versionCode.toString())
                     val (title, text) = appUpdateAlert(info, UpdateChecker.currentVersionCode())
-                    Notifier.notify(Notifier.ID_APP_UPDATE, title, text, link = "update")
+                    notifyOnce(
+                        settings, APP_UPDATE_TAG, info.versionCode.toString(),
+                        Notifier.ID_APP_UPDATE, title, text, link = "update",
+                    )
                 }
             }
         }

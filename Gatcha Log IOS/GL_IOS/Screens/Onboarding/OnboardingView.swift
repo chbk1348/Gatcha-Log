@@ -83,6 +83,9 @@ struct OnboardingView: View {
     @State private var exiting = false   // ⑥ → 홈 연타 방지
     @State private var loginRequested = false
     @State private var applied = false   // 완료 버튼을 다시 눌러도(로그인 재시도) 설정은 한 번만 쓴다
+    /// ④ 에서 게임 UID 조회가 **서버에 닿았는가** — 닿았는데 UID 가 없는 것과 못 닿은 것은 안내가 다르다(HoyolabPage).
+    /// 페이지가 단계마다 새로 만들어져서 여기 둔다 — ⑤ 에 갔다 돌아와도 문구가 안 바뀌게.
+    @State private var hoyoUidsChecked = false
 
     private var noHoyo: Bool { games.isDisjoint(with: OB.hoyoKeys) }
     @Environment(\.scenePhase) private var scenePhase
@@ -170,7 +173,7 @@ struct OnboardingView: View {
         forward = false
         withAnimation(.easeOut(duration: 0.3)) { step = 0 }
         restored = false; settled = false; applied = false; loginRequested = false; leaving = false
-        gamesTouched = false; budgetTouched = false
+        gamesTouched = false; budgetTouched = false; hoyoUidsChecked = false
         games = store.myGames.intersection(Set(OB.games.map { $0.key }))
         budget = 150_000; custom = false
         attend = true; resin = true; pickup = true; budgetAlert = false; alerts = true
@@ -239,7 +242,7 @@ struct OnboardingView: View {
             budget: Binding(get: { budget }, set: { budget = $0; budgetTouched = true }),
             custom: Binding(get: { custom }, set: { custom = $0; budgetTouched = true }),
             onNext: { go(3) }, onSkip: { budgetTouched = true; budget = -1; go(3) })
-        case 3: HoyolabPage(store: store, games: games, onNext: { go(4) })
+        case 3: HoyolabPage(store: store, uidsChecked: $hoyoUidsChecked, onNext: { go(4) })
         case 4: notifyPage
         default: donePage
         }
@@ -690,6 +693,8 @@ struct BudgetAmountEditor: View {
     @State private var shake: CGFloat = 0
     @State private var glow = false
     @State private var rollTask: Task<Void, Never>? = nil
+    /// 금액 버튼의 굴림이 도는 중인가 — 그동안은 [pick] 이 `text` 를 쓴다(아래 `.onChange(of: budget)` 가 비켜 선다).
+    @State private var rolling = false
     @FocusState private var focused: Bool
 
     private var value: Int64 { max(budget, 0) }
@@ -713,7 +718,7 @@ struct BudgetAmountEditor: View {
                             let n = Int64(digits) ?? 0
                             let formatted = n > 0 ? obWon(n) : ""
                             if formatted != raw { text = formatted }
-                            rollTask?.cancel()
+                            rollTask?.cancel(); rolling = false
                             budget = n; custom = true
                         }
                     Text("원").font(.pretendard(size: 20, weight: .bold)).foregroundStyle(warn ? OB.warn : OB.ink)
@@ -758,6 +763,14 @@ struct BudgetAmountEditor: View {
         }
         .animation(.easeOut(duration: 0.3), value: warn)
         .onAppear { text = value > 0 ? obWon(value) : "" }
+        // 바깥에서 예산이 바뀌면 큰 숫자도 따라간다(27.52.0, Android `LaunchedEffect(value, typing)` 과 같은 동작).
+        // 예전엔 `text` 가 등장 · 타이핑 · 금액 버튼에서만 바뀌어서, 온보딩 ③을 보는 중에 클라우드 복원이 도착하면
+        // 칩은 새 금액으로 옮겨 가는데 숫자는 옛 금액 그대로여서, 한 카드가 서로 다른 두 금액을 보여 줬다.
+        // 직접 치는 중에는 건드리지 않는다 — 그때는 `text` 가 원본이다. 금액 버튼은 굴림이 끝에서 맞춘다.
+        .onChange(of: budget) { _, _ in
+            guard !focused, !rolling else { return }
+            text = value > 0 ? obWon(value) : ""
+        }
         .onChange(of: warn) { _, w in
             guard w else { glow = false; return }
             // 한 번 흔들림 + 테두리 깜빡임
@@ -777,6 +790,7 @@ struct BudgetAmountEditor: View {
         custom = false
         let from = Double(value)
         let to = Double(target)
+        rolling = true   // budget 을 쓰기 **전에** 세운다 — 바로 뒤의 onChange(of: budget) 가 굴림 첫 프레임을 덮지 않게
         budget = target
         rollTask?.cancel()
         rollTask = Task { @MainActor in
@@ -786,7 +800,12 @@ struct BudgetAmountEditor: View {
                 let e = 1 - pow(1 - p, 3)
                 let v = Int64((from + (to - from) * e) / 100) * 100
                 text = p < 1 ? obWon(v) : obWon(target)
-                if p >= 1 { break }
+                if p >= 1 {
+                    rolling = false
+                    // 굴리는 사이에 바깥에서 값이 또 바뀌었으면(복원 도착) 그 값으로 맞춘다.
+                    if value != target { text = value > 0 ? obWon(value) : "" }
+                    break
+                }
                 try? await Task.sleep(nanoseconds: 16_000_000)
             }
         }
@@ -812,7 +831,8 @@ struct BudgetAmountEditor: View {
 
 private struct HoyolabPage: View {
     var store: SpendingStore
-    let games: Set<String>
+    /// 이 화면에서 한 게임 UID 조회가 서버에 닿았는가(바깥이 들고 있다 — OnboardingView.hoyoUidsChecked).
+    @Binding var uidsChecked: Bool
     let onNext: () -> Void
 
     @State private var showEmailGuide = false
@@ -820,8 +840,21 @@ private struct HoyolabPage: View {
     @State private var working = false
 
     private var linked: Bool { store.hoyolabConfig.isLinked }
-    private var picked: String {
-        OB.games.filter { games.contains($0.key) && OB.hoyoKeys.contains($0.key) }.map { $0.shortName }.joined(separator: " · ")
+    /// **실제로 UID 가 채워진** 게임 이름(27.52.0). 예전엔 ② 에서 고른 게임을 그대로 적어서,
+    /// 계정에 원신밖에 없어도 「원신 · 스타레일 · 젠레스 UID 를 채웠어요」라고 나왔다.
+    private var filled: String {
+        let c = store.hoyolabConfig
+        let uids: [String: String] = ["genshin": c.genshinUid, "hsr": c.hsrUid, "zzz": c.zzzUid]
+        return OB.games.filter { !(uids[$0.key] ?? "").isEmpty }.map { $0.shortName }.joined(separator: " · ")
+    }
+    /// 연결 뒤 한 줄 — 토큰만 받았다고 「UID 를 채웠어요」라고 하지 않는다(27.52.0, Android 와 같은 문구 규칙).
+    ///  · UID 를 하나라도 받음 → 채워진 게임만 적는다.
+    ///  · 조회는 됐는데 하나도 없음 → 이 계정에 게임이 없다.
+    ///  · 조회 실패(또는 이 화면에서 조회한 적 없음) → 나중에 다시 가져온다(공유 VM 이 연결되면 다시 시도한다).
+    private var linkedNote: String {
+        if !filled.isEmpty { return "연결됐어요 · \(filled) UID 를 채웠어요" }
+        return uidsChecked ? "연결됐어요 · 이 계정에서 게임 UID 를 찾지 못했어요"
+                           : "연결됐어요 · 게임 UID 는 연결되면 다시 가져올게요"
     }
 
     private let perks: [(String, String, String)] = [
@@ -881,7 +914,7 @@ private struct HoyolabPage: View {
                 }
                 .padding(.top, 12)
                 if linked {
-                    Text("연결됐어요 · \(picked.isEmpty ? "게임" : picked) UID 를 채웠어요")
+                    Text(linkedNote)
                         .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.teal)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 14).padding(.vertical, 12)
@@ -893,6 +926,7 @@ private struct HoyolabPage: View {
             if linked {
                 GldsButton(title: "다음", size: .l, action: onNext).cta(primary: true)
                 GldsButton(title: "연결 해제", variant: .neutral) {
+                    uidsChecked = false
                     _ = store.updateHoyolabConfig(HoyolabConfig(ltuid: "", ltoken: "", genshinUid: "", hsrUid: "", zzzUid: "", cookieToken: "", webCookie: ""))
                 }
                 .cta(primary: false)
@@ -917,7 +951,11 @@ private struct HoyolabPage: View {
                     showLogin = false
                     working = true
                     Task { @MainActor in
-                        let uids = (try? await HoyolabApi.shared.fetchGameUids(ltuid: u, ltoken: t)) ?? [:]
+                        // nil = 서버에 못 닿음 · 빈 사전 = 계정에 게임 없음. `?? [:]` 로 바로 뭉개면 둘을 가를 수 없어
+                        // 먼저 받아 두고 판정한다(던진 오류도 nil 로 온다 — 못 닿은 것으로 친다).
+                        let fetched = try? await HoyolabApi.shared.fetchGameUids(ltuid: u, ltoken: t)
+                        uidsChecked = fetched != nil
+                        let uids = fetched ?? [:]
                         _ = store.updateHoyolabConfig(HoyolabConfig(
                             ltuid: u, ltoken: t,
                             genshinUid: uids["genshin"] ?? "", hsrUid: uids["hsr"] ?? "", zzzUid: uids["zzz"] ?? "",

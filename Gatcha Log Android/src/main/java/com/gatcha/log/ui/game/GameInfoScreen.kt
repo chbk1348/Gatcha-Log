@@ -117,7 +117,7 @@ fun GameInfoScreen(
     val pity by viewModel.pity.collectAsStateWithLifecycle()
     val checkingIn by viewModel.checkingIn.collectAsStateWithLifecycle()
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
-    // statusMessage 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
+    // statusMessage 토스트는 앱 루트(MainActivity)의 전역 GlgStatusToast 가 처리
     val enkaGiUid by viewModel.enkaGiUid.collectAsStateWithLifecycle()
     val enkaHsrUid by viewModel.enkaHsrUid.collectAsStateWithLifecycle()
     val enkaResult by viewModel.enkaResult.collectAsStateWithLifecycle()
@@ -392,6 +392,7 @@ fun GameInfoScreen(
                 AttendanceDetailContent(
                     summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak, games = attendanceGames),
                     history = attendanceHistory,
+                    games = attendanceGames,
                     checkingIn = checkingIn,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },

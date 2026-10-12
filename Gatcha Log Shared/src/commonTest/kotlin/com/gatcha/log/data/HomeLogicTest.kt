@@ -217,7 +217,8 @@ class HomeLogicTest {
             monthKey = "2026-7", nowMillis = now,
         )
         assertEquals(
-            listOf("budget_over:2026-7", "budget_game_over:원신:2026-7", "banner:한정"),
+            // 배너 키에는 종료 시각이 든다 — 이름뿐이면 한 번 지운 캐릭터의 복각 알림이 다시 뜨지 않았다(27.52.0).
+            listOf("budget_over:2026-7", "budget_game_over:원신:2026-7", "banner:한정:${now + 2 * day}"),
             alerts.map { it.key },
         )
         assertEquals(
@@ -242,7 +243,7 @@ class HomeLogicTest {
     fun buildAlertsOnlyIncludesBannersEndingWithinThreeDays() {
         val banners = listOf(banner("이번", 3), banner("다음", 4), banner("지남", -1))
         val alerts = HomeLogic.buildAlerts(0, 0, emptyList(), banners, GameData.attendanceGames.map { it.key }.toSet(), "2026-7", now)
-        assertEquals(listOf("banner:이번"), alerts.map { it.key })
+        assertEquals(listOf("banner:이번:${now + 3 * day}"), alerts.map { it.key })
         assertEquals("이번 픽업 배너 종료 D-3", alerts.single().message)
     }
 
