@@ -1,6 +1,8 @@
 package com.gatcha.log.data.work
 
+import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.Notifier
 import kotlin.coroutines.resume
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -39,6 +41,10 @@ actual object AlertScheduler {
         if (stale.isNotEmpty()) center.removePendingNotificationRequestsWithIdentifiers(stale)
         alerts.forEach { schedule(center, it) }
         logPending(center)
+    }
+
+    actual suspend fun refreshAttendanceReminder(settings: AppSettings, repo: GatchaRepository) {
+        AttendanceReminder.reschedule(settings, repo, repo.loadHoyolab())
     }
 
     /** 우리가 건 대기 예약만 — 조회는 콜백형이라 결과를 받을 때까지 중단한다. */

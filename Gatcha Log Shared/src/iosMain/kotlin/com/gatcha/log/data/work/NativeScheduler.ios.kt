@@ -28,23 +28,25 @@ private const val TASK_ID = "com.gatcha.log.ios.checkin"
 private const val REFRESH_INTERVAL_SECONDS = 6.0 * 3600.0
 
 /**
- * 자동 출석 + 로컬 알림 점검 1회 — 백그라운드/즉시 실행 공용. HoYoLAB 미연동이면 출석은 내부에서 no-op.
+ * 자동 출석(토글이 켜져 있을 때) + 로컬 알림 점검 1회 — 백그라운드/즉시 실행 공용. HoYoLAB 미연동이면 출석은 내부에서 no-op.
  * 알림 점검([NotificationChecker])은 Android(GatchaWorker)와 동일 로직으로 패리티 유지.
  */
 private suspend fun runCheckIn() {
     val settings = AppSettings()
     val repo = GatchaRepository(AppSettings.currentAccountId())
     val cfg = repo.loadHoyolab()
-    AutoCheckInRunner.run(
-        settings = settings,
-        repo = repo,
-        cfg = cfg,
-        postFailureNotification = true,
-    )
+    // **자동 출석 토글이 켜져 있을 때만** 대신 출석한다(27.52.0). 예전엔 조건이 없어, 토글을 꺼도 HoYoLAB 이 연동돼
+    // 있으면 앱을 열 때와 백그라운드 작업마다 출석했다. Android(GatchaWorker)는 처음부터 토글을 봤다.
+    if (settings.autoCheckIn) runCatching {
+        AutoCheckInRunner.run(
+            settings = settings,
+            repo = repo,
+            cfg = cfg,
+            postFailureNotification = true,
+        )
+    }
     runCatching { NotificationChecker.run(settings, repo, cfg) }
-    // 출석 리마인더 예약형 갱신(다음 18:00) — BGTask 정시 비보장을 보완.
-    runCatching { AttendanceReminder.reschedule(settings, repo, cfg) }
-    // 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 재예약 —
+    // 확정 시각 알림(픽업·시즌 마감·재화 가득참)과 출석 리마인더(다음 18:00) 재예약 —
     // 앱을 오래 안 열어도 OS 가 정시에 쏘도록.
     // 이 호출은 **등록이 끝날 때까지 중단한다**. 호출자(BGTask 핸들러)가 완료 보고를 하는 순간
     // OS 가 앱을 서스펜드하므로, 기다리지 않으면 예약이 걸리기 전에 프로세스가 멈춘다.

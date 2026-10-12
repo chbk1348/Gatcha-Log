@@ -260,12 +260,19 @@ struct AddSpendingView: View {
         // 카드 없이 화면 폭 그대로(좌우 20) — 아래 섹션과 10 띠로 갈린다. 게임색은 알약 · 환산 글자가 맡는다.
         .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 20)
         // 입력 도중 매 글자마다 뜨면 방해가 된다 → 손이 멈춘 뒤에만 평가한다.
-        .task(id: amount) {
+        //
+        // **금액과 게임** 둘 중 하나라도 바뀌면 다시 계산한다(27.52.0, Android `LaunchedEffect(amount, game)` 와 같다).
+        // 예전엔 금액만 봐서, 금액을 적어 둔 채 게임을 바꾸면 앞 게임의 한도 경고가 그대로 남았다
+        // (한도는 게임마다 다르다 — 넘지도 않은 게임에 경고가 붙거나, 넘은 게임에 경고가 안 떴다).
+        .task(id: nudgeKey) {
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard !Task.isCancelled else { return }
             inlineNudge = store.overspendNudge(game: game, amount: Int64(amount) ?? 0, editingId: editing?.id)
         }
     }
+
+    /// 과소비 경고를 다시 계산할 계기 — 금액 · 게임. 본문 밖에서 조립한다(뷰 빌더 안의 보간은 타입 추론이 무겁다).
+    private var nudgeKey: String { "\(gameName)|\(amount)" }
 
     /// "원석 3,280 · 약 20뽑" — 재화 환산은 사는 순간에 보여야 의미가 있다.
     private var currencyLine: String? {
@@ -621,7 +628,15 @@ struct AddSpendingView: View {
             gameName = e.gameName; setAmount(e.amount); dateMillis = e.dateMillis
             paymentMethod = e.paymentMethod.isEmpty ? "카드" : e.paymentMethod
             chargePlatform = e.chargePlatform
-            itemName = e.itemName; memo = e.memo; selectedTags = e.tags
+            itemName = e.itemName; memo = e.memo
+            // 기존 태그는 **추천 목록에 있는 것만** 칩 선택으로, 나머지는 직접 입력 칸으로 가른다(27.52.0, Android 와 같은 규칙).
+            // 예전엔 전부 선택 집합에 담았는데 칩은 추천 태그만 그리고 직접 입력 칸은 비어 시작해서,
+            // 직접 적어 넣었던 태그는 수정 화면에서 보이지도 않고 지울 방법도 없었다(저장하면 그대로 다시 붙었다).
+            // 이어 붙이는 구분자는 저장할 때 이 칸을 쪼개는 것(쉼표 · 공백, doSave)과 같다.
+            // 지문(initialFingerprint)은 이 뒤에 뜨므로 이 초깃값이 「고친 것」으로 잡히지 않는다.
+            let suggested = GameData.shared.suggestedTags
+            selectedTags = e.tags.filter { suggested.contains($0) }
+            customTags = e.tags.filter { !suggested.contains($0) }.joined(separator: ", ")
             // 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수 복원 → 스텝퍼 노출.
             quantity = detectQuantity(e.itemName)
             let base = stripMult(e.itemName)

@@ -1,5 +1,7 @@
 package com.gatcha.log.util
 
+import kotlin.math.roundToLong
+
 // :app 의 Format.kt 와 동일한 API/출력.
 // 단, String.format("%,d") 는 JVM 전용이라 KMP 공통 코드용 순수 Kotlin 구현으로 대체.
 
@@ -46,7 +48,8 @@ fun fixed(value: Double, digits: Int): String {
     val abs = if (negative) -value else value
     var factor = 1L
     repeat(digits) { factor *= 10 }
-    val scaled = kotlin.math.round(abs * factor).toLong()
+    // `kotlin.math.round` 는 동률을 짝수로 보낸다(14.5 → 14) — 위 설명대로 올리려면 roundToLong 이어야 한다.
+    val scaled = (abs * factor).roundToLong()
     val intPart = scaled / factor
     val sign = if (negative && scaled != 0L) "-" else ""
     if (digits == 0) return "$sign$intPart"

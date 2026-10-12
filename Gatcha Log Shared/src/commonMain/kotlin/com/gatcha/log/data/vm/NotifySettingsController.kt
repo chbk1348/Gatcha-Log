@@ -52,9 +52,17 @@ internal class NotifySettingsController(
     fun setNotifyHoyoland(v: Boolean) { settings.notifyHoyoland = v; _notifyHoyoland.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyAppUpdate(v: Boolean) { settings.notifyAppUpdate = v; _notifyAppUpdate.value = v; applyNativeAfterNotifyChange(v) }
 
-    fun setNotifyDndEnabled(v: Boolean) { settings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
-    fun setNotifyDndStartHour(v: Int) { settings.notifyDndStartHour = v; _notifyDndStartHour.value = settings.notifyDndStartHour }
-    fun setNotifyDndEndHour(v: Int) { settings.notifyDndEndHour = v; _notifyDndEndHour.value = settings.notifyDndEndHour }
+    // 방해금지를 켜거나 시간을 바꾸면 **이미 걸린 예약도 다시 건다**(27.52.0) — 예약은 만들 때 조용한 시간을 피해 두는
+    // 방식이라, 안 그러면 22시에 방해금지를 켜도 03시에 걸려 있던 완충 알림이 그대로 울린다.
+    fun setNotifyDndEnabled(v: Boolean) {
+        settings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply(); rescheduleTimedAlerts()
+    }
+    fun setNotifyDndStartHour(v: Int) {
+        settings.notifyDndStartHour = v; _notifyDndStartHour.value = settings.notifyDndStartHour; rescheduleTimedAlerts()
+    }
+    fun setNotifyDndEndHour(v: Int) {
+        settings.notifyDndEndHour = v; _notifyDndEndHour.value = settings.notifyDndEndHour; rescheduleTimedAlerts()
+    }
 
     /**
      * OS 알림 권한을 **처음 허용**했을 때 — 항목별 알림([NotificationCatalog.items])을 전부 한꺼번에 켠다.

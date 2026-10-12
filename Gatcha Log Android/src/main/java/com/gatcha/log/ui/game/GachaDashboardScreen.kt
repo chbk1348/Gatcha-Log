@@ -83,9 +83,9 @@ fun GachaDashboardScreen(
                     modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
-            return
-        }
-
+        } else {
+        // 빈 상태에서 `return` 하지 않는다(27.52.0) — Box · Column 이 인라인이라 함수 전체를 빠져나가,
+        // 맨 아래 헤더 오버레이(뒤로가기)가 그려지지 않았다.
         Column(Modifier.weight(1f).verticalScroll(scrollState)) {
             val gk = selected
             val gameColor = GachaReport.gameInfo[gk]?.third?.toColor() ?: accent
@@ -189,6 +189,7 @@ fun GachaDashboardScreen(
 
             // 제스처 바를 비키는 만큼만 — 마지막 섹션이 아래 20 을 이미 둔다(GLDS 2.0, 10/1).
             Spacer(Modifier.navigationBarsPadding())
+        }
         }
         }
         GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState)

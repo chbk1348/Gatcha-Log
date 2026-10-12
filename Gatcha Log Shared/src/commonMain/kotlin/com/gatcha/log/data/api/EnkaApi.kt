@@ -120,7 +120,31 @@ data class EnkaProfile(
 )
 
 @Serializable
-data class EnkaResult(val profile: EnkaProfile?, val error: String?)
+data class EnkaResult(
+    val profile: EnkaProfile?,
+    val error: String?,
+    /**
+     * **덜 받은 결과**다(27.52.0) — 연동된 계정인데 HoYoLAB 보유 목록을 못 받아 쇼케이스만 왔거나, 일부 캐릭터의
+     * 상세가 빠졌다. 이런 결과로 이미 가진 목록을 통째로 갈면 80명이 8명으로 줄어 캐시까지 덮였다.
+     * 받는 쪽은 [mergePartialRoster] 로 가진 목록 위에 얹고, 곧 다시 받는다.
+     */
+    val partial: Boolean = false,
+)
+
+/**
+ * 덜 받은 결과([EnkaResult.partial])를 **이미 가진 목록 위에 얹는다.** 새로 온 캐릭터는 새 값으로 갈되, 상세가 빠진 채
+ * 온 캐릭터는 가진 상세를 지키고, 이번에 안 온 캐릭터는 그대로 둔다. 온전한 결과면 [r] 그대로다.
+ */
+internal fun mergePartialRoster(base: EnkaResult?, r: EnkaResult): EnkaResult {
+    val fresh = r.profile ?: return r
+    val old = base?.profile?.chars.orEmpty()
+    if (!r.partial || old.isEmpty()) return r
+    val oldIds = old.mapTo(HashSet()) { it.id }
+    val freshById = fresh.chars.associateBy { it.id }
+    val merged = old.map { o -> freshById[o.id]?.let { n -> if (!n.detailed && o.detailed) o else n } ?: o } +
+        fresh.chars.filter { it.id !in oldIds }
+    return r.copy(profile = fresh.copy(chars = merged))
+}
 
 /**
  * Enka.Network 프로필 쇼케이스 직접 조회(서버 프록시 없이).
@@ -243,6 +267,8 @@ object EnkaApi {
                     chars = chars,
                 ),
                 null,
+                // 연동된 계정인데 HoYoLAB 보유 목록이 못 왔다 — 쇼케이스 8~12명뿐이다.
+                partial = linked && hoyoData == null,
             )
         }.getOrElse { EnkaResult(null, "응답을 해석하지 못했어요") }
     }
@@ -344,6 +370,8 @@ object EnkaApi {
                     chars = chars,
                 ),
                 null,
+                // [res] 가 null 이면 먼저 그리는 중간 결과다 — 캐시에 닿지 않으므로 표시하지 않는다.
+                partial = res != null && linked && (hoyoList == null || hoyoList.length() == 0),
             )
         }.getOrElse { EnkaResult(null, "응답을 해석하지 못했어요") }
     }
@@ -769,6 +797,8 @@ object EnkaApi {
     private fun giStats(fp: JSONObject): List<EnkaStatLine> {
         val elemKey = listOf("40", "41", "42", "43", "44", "45", "46", "30")
             .maxByOrNull { fp.optDouble(it, 0.0) } ?: "30"
+        // 보너스가 전부 0 이면 어느 원소라고 말할 근거가 없다 — 예전엔 목록의 첫째라 「불 원소 피해 보너스 0.0%」가 됐다.
+        val elemLabel = if (fp.optDouble(elemKey, 0.0) > 0.0) giElemDmgLabel(elemKey) else "원소 피해 보너스"
         return listOf(
             // HP: 인게임 공식은 "생명력"이나 앱 일관성을 위해 두 게임 모두 "HP"로 통일(문서 §2 결정)
             EnkaStatLine("HP", comma(rnd(fp.optDouble("2000")))),
@@ -778,7 +808,7 @@ object EnkaApi {
             EnkaStatLine("치명타 확률", pctRatio(fp.optDouble("20")), crit = true),
             EnkaStatLine("치명타 피해", pctRatio(fp.optDouble("22")), crit = true),
             EnkaStatLine("원소 충전 효율", pctRatio(fp.optDouble("23"))),
-            EnkaStatLine(giElemDmgLabel(elemKey), pctRatio(fp.optDouble(elemKey))),
+            EnkaStatLine(elemLabel, pctRatio(fp.optDouble(elemKey, 0.0))),
         )
     }
 
@@ -1010,9 +1040,11 @@ object EnkaApi {
         // 50명이면 50건(동시 4건)이 다 끝나야 목록이 섰다. 캐릭터 목록이 느리던 가장 큰 원인이다.
         val list = HoyolabApi.fetchZzzAvatars(ltuid, ltoken, uid) { basic -> onPartial?.let { cb -> zzzListResult(basic)?.let(cb) } }
             ?: return EnkaResult(null, HoyolabApi.zzzLastError ?: "젠레스 정보를 불러오지 못했어요")
-        val chars = list.map { zzzChar(it) }
+        // 상세를 못 받은 에이전트는 보유 목록의 기본 정보로 남아 있다 — 스탯 · 장비가 없다고 표시해 둔다.
+        val missing = HoyolabApi.zzzLastMissing
+        val chars = list.map { o -> zzzChar(o).let { c -> if (c.id in missing) c.copy(detailed = false) else c } }
         if (chars.isEmpty()) return EnkaResult(null, "표시할 에이전트가 없어요")
-        return EnkaResult(EnkaProfile("", 0, 0, "", chars), null)
+        return EnkaResult(EnkaProfile("", 0, 0, "", chars), null, partial = missing.isNotEmpty())
     }
 
     /** 젠레스 보유 **목록**(avatar/basic)만으로 만든 결과 — 상세가 오기 전에 먼저 그리는 용도. 스탯 · 장비는 최종 결과가 채운다. */

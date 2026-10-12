@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.data.AttendanceDayLevel
 import com.gatcha.log.data.AttendanceGameStat
 import com.gatcha.log.data.AttendanceLogic
 import com.gatcha.log.data.AttendanceSummary
@@ -605,6 +606,8 @@ private fun DailyQuickDivider() {
 internal fun AttendanceDetailContent(
     summary: AttendanceSummary,
     history: Map<String, Set<String>>,
+    /** 출석을 세는 게임([summary] 를 만든 것과 같은 목록) — 7일 스트립 · 달력의 「전체 출석」 판정에 쓴다. */
+    games: List<Game>,
     checkingIn: String?,
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
@@ -624,9 +627,9 @@ internal fun AttendanceDetailContent(
         }
         GiBand()
         GiPageSection("최근 7일") {
-            WeekAttendanceStrip(history, summary.todayTotal)
+            WeekAttendanceStrip(history, games)
             Spacer(Modifier.height(16.dp))
-            MonthAttendanceCalendar(history, summary.todayTotal)
+            MonthAttendanceCalendar(history, games)
         }
     }
 }
@@ -712,33 +715,28 @@ private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: B
 // 게임 선택(Segmented) 전용 지면은 없앴다 — 전체/선택 두 갈래로 레이아웃이 갈려 있어
 // 한쪽만 고치는 실수가 반복됐다. 이제 필터는 목록을 줄일 뿐 지면 구조를 바꾸지 않는다.
 
-/** 출석 완료도: 모든 게임 출석=full, 일부=partial, 없음=none */
-private enum class AttendLevel { NONE, PARTIAL, FULL }
-
-// total 은 출석을 세는 게임 수 — 안 하는 게임까지 분모에 넣으면 다 한 날도 '일부'로 칠해진다.
-private fun attendLevel(count: Int, total: Int): AttendLevel = when {
-    count <= 0 -> AttendLevel.NONE
-    count >= total -> AttendLevel.FULL
-    else -> AttendLevel.PARTIAL
-}
+// 출석 완료도(없음 · 일부 · 전체)는 공용 [AttendanceLogic.dayLevel] 이 가른다(27.52.0) — 이번 달 누계 · 마이페이지와 같은 판정.
+// 예전엔 여기서 "그날 출석한 게임 **수**가 세는 게임 수 이상인가"로 따로 판정해서, 세는 게임이 바뀐 사용자의
+// 지난 날짜가 달력에서는 '전체', 같은 화면의 누계에서는 '일부'로 갈렸다.
+// games 는 출석을 세는 게임 — 안 하는 게임까지 넣으면 다 한 날도 '일부'로 칠해진다.
 
 private fun dowKo(cal: java.util.Calendar): String =
     arrayOf("일", "월", "화", "수", "목", "금", "토")[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
 
 /** 최근 7일 출석 스트립 (오늘 = 맨 오른쪽). */
 @Composable
-private fun WeekAttendanceStrip(history: Map<String, Set<String>>, total: Int) {
+private fun WeekAttendanceStrip(history: Map<String, Set<String>>, games: List<Game>) {
     val accent = LocalAccent.current
     val days = remember(history) {
         (6 downTo 0).map { offset ->
             val cal = HoyoCalendar.instance().apply { add(java.util.Calendar.DAY_OF_YEAR, -offset) }
-            Triple(cal.get(java.util.Calendar.DAY_OF_MONTH), dowKo(cal), history[DateUtil.hoyoDayKey(cal.timeInMillis)]?.size ?: 0)
+            Triple(cal.get(java.util.Calendar.DAY_OF_MONTH), dowKo(cal), history[DateUtil.hoyoDayKey(cal.timeInMillis)].orEmpty())
         }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        days.forEachIndexed { i, (dayNum, dow, count) ->
+        days.forEachIndexed { i, (dayNum, dow, done) ->
             val isToday = i == 6
-            val level = attendLevel(count, total)
+            val level = AttendanceLogic.dayLevel(done, games)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(dow, fontSize = 12.sp, color = if (isToday) accent else TextSecondary, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
                 Spacer(Modifier.height(5.dp))
@@ -754,9 +752,9 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>, total: Int) {
                             .clip(CircleShape)
                             .background(
                                 when (level) {
-                                    AttendLevel.FULL -> accent
-                                    AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
-                                    AttendLevel.NONE -> Color(0xFFF0F0F4)
+                                    AttendanceDayLevel.FULL -> accent
+                                    AttendanceDayLevel.PARTIAL -> accent.copy(alpha = 0.30f)
+                                    AttendanceDayLevel.NONE -> Color(0xFFF0F0F4)
                                 },
                             )
                             .then(if (isToday) Modifier.border(2.dp, accent, CircleShape) else Modifier),
@@ -767,13 +765,13 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>, total: Int) {
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = when (level) {
-                                AttendLevel.FULL -> Color.White
-                                AttendLevel.PARTIAL -> accent
-                                AttendLevel.NONE -> TextSecondary
+                                AttendanceDayLevel.FULL -> Color.White
+                                AttendanceDayLevel.PARTIAL -> accent
+                                AttendanceDayLevel.NONE -> TextSecondary
                             },
                         )
                     }
-                    if (level == AttendLevel.FULL) {
+                    if (level == AttendanceDayLevel.FULL) {
                         Box(
                             Modifier.align(Alignment.TopEnd)
                                 .size(14.dp)
@@ -793,7 +791,7 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>, total: Int) {
 
 /** 월간 출석 달력 (인라인). 일자별 출석 완료도 표시 + 이전/이번 달 이동. */
 @Composable
-private fun MonthAttendanceCalendar(history: Map<String, Set<String>>, total: Int) {
+private fun MonthAttendanceCalendar(history: Map<String, Set<String>>, games: List<Game>) {
     val accent = LocalAccent.current
     var monthOffset by remember { mutableIntStateOf(0) } // 0 = 이번 달
     val base = remember(monthOffset) {
@@ -836,7 +834,7 @@ private fun MonthAttendanceCalendar(history: Map<String, Set<String>>, total: In
                         Box(Modifier.weight(1f).padding(2.dp), contentAlignment = Alignment.Center) {
                             if (day != null) {
                                 val key = "%04d-%02d-%02d".format(year, month + 1, day)
-                                val level = attendLevel(history[key]?.size ?: 0, total)
+                                val level = AttendanceLogic.dayLevel(history[key].orEmpty(), games)
                                 val isToday = key == todayKey
                                 Box(
                                     Modifier
@@ -844,9 +842,9 @@ private fun MonthAttendanceCalendar(history: Map<String, Set<String>>, total: In
                                         .clip(CircleShape)
                                         .background(
                                             when (level) {
-                                                AttendLevel.FULL -> accent
-                                                AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
-                                                AttendLevel.NONE -> Color.Transparent
+                                                AttendanceDayLevel.FULL -> accent
+                                                AttendanceDayLevel.PARTIAL -> accent.copy(alpha = 0.30f)
+                                                AttendanceDayLevel.NONE -> Color.Transparent
                                             },
                                         )
                                         .then(if (isToday) Modifier.border(1.5.dp, accent, CircleShape) else Modifier),
@@ -855,10 +853,10 @@ private fun MonthAttendanceCalendar(history: Map<String, Set<String>>, total: In
                                     Text(
                                         "$day",
                                         fontSize = 12.sp,
-                                        fontWeight = if (level != AttendLevel.NONE || isToday) FontWeight.Bold else FontWeight.Normal,
+                                        fontWeight = if (level != AttendanceDayLevel.NONE || isToday) FontWeight.Bold else FontWeight.Normal,
                                         color = when {
-                                            level == AttendLevel.FULL -> Color.White
-                                            level == AttendLevel.PARTIAL -> accent
+                                            level == AttendanceDayLevel.FULL -> Color.White
+                                            level == AttendanceDayLevel.PARTIAL -> accent
                                             isToday -> accent
                                             else -> TextSecondary
                                         },

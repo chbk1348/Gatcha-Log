@@ -6,6 +6,8 @@ import dev.gitlive.firebase.firestore.firestore
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -50,6 +52,18 @@ internal object LiveConfig {
         }?.takeIf { it.isNotBlank() }
     }
 
+    /** 직전 [getOrRaw] 가 **라이브를 기다리다 못해 정본을 돌려준** 문서들. */
+    private val lateLive = MutableStateFlow<Set<String>>(emptySet())
+
+    /**
+     * 직전 [getOrRaw] 가 돌려준 값이 「라이브가 늦어서 대신 준 정본」인가(27.52.0).
+     * 그렇다면 한 판 전 값일 수 있다 — 홈의 운영 공지는 앱에 돌아올 때만 읽으므로, 그대로 두면 라이브에만 올린
+     * 긴급 공지가 다음 복귀까지 뜨지 않는다. 부르는 쪽이 [RETRY_AFTER_LATE_MS] 뒤에 한 번 더 읽는다.
+     */
+    fun liveWasLate(doc: String): Boolean = doc in lateLive.value
+
+    const val RETRY_AFTER_LATE_MS = 30_000L
+
     /** 라이브가 이 시간 안에 답하면 정본은 아예 받지 않는다 — 평소의 길(라이브 응답은 보통 0.1~0.3초다). */
     private const val HEDGE_AFTER_MS = 700L
 
@@ -77,8 +91,11 @@ internal object LiveConfig {
             Net.get("$rawUrl?t=${currentTimeMillis()}").takeIf { it.isOk }?.body?.takeIf(valid)
 
         val live = async { get(doc)?.takeIf(valid) }
+        lateLive.update { it - doc }
         withTimeoutOrNull(HEDGE_AFTER_MS) { live.await() }?.let { return@coroutineScope it }
-        if (live.isCompleted) return@coroutineScope raw()   // 라이브가 금방 끝났는데 쓸 값이 없다 — 정본으로
+        // 라이브가 끝나 있다 — 값이 없으면(문서 없음 · 탈락) 정본으로. 시한이 막 지난 순간에 값이 도착한 경우에는
+        // 그 값을 쓴다(예전엔 끝났다는 것만 보고 정본으로 내려가, 방금 받은 라이브를 버렸다).
+        if (live.isCompleted) return@coroutineScope live.await() ?: raw()
 
         val canon = async { raw() }
         // 먼저 끝난 쪽을 본다(true = 라이브).
@@ -92,7 +109,12 @@ internal object LiveConfig {
         val late = if (left > 0) withTimeoutOrNull(left) { live.await() } else null
         if (late != null) return@coroutineScope late
         val fromCanon = canon.await()
-        if (fromCanon != null) { live.cancel(); return@coroutineScope fromCanon }
+        if (fromCanon != null) {
+            // 라이브를 기다리다 못해 정본을 준다 — 부르는 쪽이 이 값을 오래 붙들지 않게 적어 둔다([liveWasLate]).
+            if (!live.isCompleted) lateLive.update { it + doc }
+            live.cancel()
+            return@coroutineScope fromCanon
+        }
         live.await()   // 정본도 못 받았다 — 라이브를 끝까지 기다린다
     }
 }

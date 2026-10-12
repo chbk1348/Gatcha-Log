@@ -96,6 +96,16 @@ object AppNoticeApi {
 
     private fun isReadable(body: String): Boolean = parse(body, 0L, "") != null
 
+    /**
+     * 직전 [load] 가 「라이브가 늦어 대신 받은 정본」으로 섰으면, **잠시 뒤 한 번 더** 읽어 그 값을 돌려준다(27.52.0).
+     * 제때 온 값이었으면 기다리지 않고 null — 화면은 [load] 뒤에 이것을 한 번 부르고, null 이 아니면 갈아끼운다.
+     */
+    suspend fun reloadIfLiveWasLate(): List<AppNotice>? {
+        if (!LiveConfig.liveWasLate(CONFIG_DOC)) return null
+        kotlinx.coroutines.delay(LiveConfig.RETRY_AFTER_LATE_MS)
+        return load(force = true)
+    }
+
     /** 이 기기의 플랫폼 키 — 공지의 `platform` 과 견준다. */
     private fun platformKey(): String = if (platformName().startsWith("iOS", ignoreCase = true)) "ios" else "android"
 

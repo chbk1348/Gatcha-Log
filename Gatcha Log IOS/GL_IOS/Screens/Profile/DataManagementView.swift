@@ -21,6 +21,13 @@ struct DataManagementView: View {
     @State private var exportCsv = false
     @State private var exportBackup = false
     @State private var importBackup = false
+    /// 내보낼 문자열 — **버튼을 누른 순간에** 만들어 담는다(27.52.0).
+    ///
+    /// 예전엔 `.fileExporter(document: TextDocument(store.buildCsv()))` 처럼 수정자 인자에서 바로 만들었다.
+    /// 수정자 인자는 body 가 평가될 때마다 다시 계산되므로, 이 화면이 그려질 때마다(진입 · 알림창 열고 닫기 ·
+    /// 지출 건수 변화) 전체 백업 스냅샷 JSON 과 CSV 를 메인 스레드에서 통째로 만들고 버렸다.
+    @State private var csvDocument = TextDocument("")
+    @State private var backupDocument = TextDocument("")
 
     /// 위험 구역 강조용 빨강.
     private let dangerRed = Color(hex: 0xFFD32F2F)
@@ -30,14 +37,17 @@ struct DataManagementView: View {
             // 설정 메인과 같은 결 — GLDS 2.0 화면 폭 섹션 + 회색 띠. Android DataManagementScreen 파리티.
             VStack(alignment: .leading, spacing: 0) {
                 SetSection(title: "백업 · 복원", caption: "재설치 · 기기 변경 대비", bottom: 20) {
-                    SetNavRow(symbol: "arrow.up.doc", tint: .teal, title: "백업 파일 내보내기", value: "전체 데이터") { exportBackup = true }
+                    SetNavRow(symbol: "arrow.up.doc", tint: .teal, title: "백업 파일 내보내기", value: "전체 데이터") { startBackupExport() }
                     SetDivider()
                     SetNavRow(symbol: "arrow.down.doc", tint: .blue, title: "백업 파일에서 복원") { confirmImport = true }
                     SetFootnote(text: "구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.")
                 }
                 SetBand()
                 SetSection(title: "내보내기", caption: "CSV") {
-                    SetNavRow(symbol: "square.and.arrow.down", tint: .slate, title: "지출 내역 내보내기", value: "CSV") { exportCsv = true }
+                    SetNavRow(symbol: "square.and.arrow.down", tint: .slate, title: "지출 내역 내보내기", value: "CSV") {
+                        csvDocument = TextDocument(store.buildCsv())
+                        exportCsv = true
+                    }
                 }
                 SetBand()
                 SetSection(title: "위험 구역", caption: "되돌릴 수 없어요", bottom: 20) {
@@ -83,13 +93,25 @@ struct DataManagementView: View {
             Button("취소", role: .cancel) {}.glgAlertTint()
             Button("파일 선택") { importBackup = true }.glgAlertTint()
         } message: { Text("백업 파일을 선택해 복원할까요? 백업에 들어 있는 항목은 현재 데이터를 덮어씁니다.") }
-        .fileExporter(isPresented: $exportCsv, document: TextDocument(store.buildCsv()),
+        // 문서는 누른 순간에 만들어 둔 것을 넘긴다 — 여기서 만들면 body 평가마다 다시 만든다(csvDocument 주석).
+        .fileExporter(isPresented: $exportCsv, document: csvDocument,
                       contentType: .commaSeparatedText, defaultFilename: "gatchalog-spending") { _ in }
-        .fileExporter(isPresented: $exportBackup, document: TextDocument(store.exportBackupContent() ?? ""),
+        .fileExporter(isPresented: $exportBackup, document: backupDocument,
                       contentType: .json, defaultFilename: "gatchalog-backup") { _ in }
         .fileImporter(isPresented: $importBackup, allowedContentTypes: [.json]) { result in
             if case .success(let url) = result { readBackup(url) }
         }
+    }
+
+    /// 백업 파일 내보내기 — 스냅샷을 못 만들면(nil) 빈 파일을 내보내지 않고 알린다.
+    /// 예전엔 `?? ""` 로 0바이트 파일이 저장돼, 백업해 둔 줄 알았다가 복원할 때에야 빈 파일인 걸 알게 됐다.
+    private func startBackupExport() {
+        guard let json = store.exportBackupContent() else {
+            store.showStatus("백업 파일을 만들지 못했어요")
+            return
+        }
+        backupDocument = TextDocument(json)
+        exportBackup = true
     }
 
     private func readBackup(_ url: URL) {

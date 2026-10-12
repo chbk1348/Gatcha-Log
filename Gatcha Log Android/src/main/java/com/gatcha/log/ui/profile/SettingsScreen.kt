@@ -68,6 +68,7 @@ import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsFieldSize
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.GldsTextField
+import com.gatcha.log.ui.components.ThousandsTransformation
 import com.gatcha.log.ui.components.GldsVariant
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -133,7 +134,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         }
     }
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
-    // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
+    // 상태 메시지 토스트는 앱 루트(MainActivity)의 전역 GlgStatusToast 가 처리
 
     // 알림 권한(Android 13+) — 자동 출석 ON 등 알림을 동반하는 토글을 켤 때 요청
     val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -893,7 +894,10 @@ internal fun BudgetScreen(
                             }
                             Spacer(Modifier.width(8.dp))
                             GldsTextField(
-                                value = if (limit > 0) "%,d".format(limit) else "",
+                                // 값은 숫자만 두고 쉼표는 보이는 글자에만 넣는다(27.52.0) — 쉼표 넣은 문자열을 되돌려 넣던 때는
+                                // 자리수가 늘 때 커서가 밀려 숫자가 섞였다(1·2·3·4·5 → 12,354).
+                                value = if (limit > 0) limit.toString() else "",
+                                visualTransformation = ThousandsTransformation,
                                 onValueChange = { raw -> limits[g.key] = raw.filter { it.isDigit() }.take(9).toLongOrNull() ?: 0L },
                                 placeholder = "한도 없음",
                                 size = GldsFieldSize.S,

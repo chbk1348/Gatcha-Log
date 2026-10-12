@@ -107,6 +107,9 @@ object ScheduledAlerts {
                     val game = GameData.byNameOrNull(gameName)
                     val shortName = game?.shortName ?: gameName
                     val names = list.filter { it.endMillis == end }.joinToString(", ") { it.name }
+                    // 이 마감을 누가 알렸는지 적는 표시. 값에 **마감 시각**이 들어간다(27.52.0) — 예전 값은 d1 · d3 뿐이라
+                    // 한 번 찍히면 다음 회차의 같은 단계가 막혔다.
+                    val tag = "pickup:$gameName"
                     var scheduledAny = false
                     LEAD_DAYS.forEach { lead ->
                         val at = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(end - lead * DAY_MS, ALERT_HOUR))
@@ -117,27 +120,31 @@ object ScheduledAlerts {
                                 title = "$shortName 픽업이 곧 끝나요",
                                 text = "$names · D-$lead 남았어요. 뽑을 거면 지금이에요",
                                 whenMillis = at,
+                                // 예약이 이 마감을 맡았다고 적어 둔다 — 안 적으면 마지막 예약이 울린 뒤 다시 계획할 때
+                                // 「예약할 시각이 다 지났다」고 보고 같은 건을 한 번 더 보냈다.
+                                dedupTag = tag,
+                                dedupValue = end.toString(),
                             )
                         }
                     }
-                    // 알림 시각이 전부 지났는데 마감은 남았다 → 예약이 못 담는다. 지금 보낸다.
+                    // 알림 시각이 전부 지났는데 마감은 남았다 → 예약이 못 담는다. 지금(방해금지면 해제 시각에) 보낸다.
                     if (!scheduledAny) {
-                        val minD = list.minOf { it.dDay(nowMillis) }
-                        levelOf(minD)?.let { level ->
-                            val tag = "pickup:$gameName"
-                            if (settings.lastNotified(tag) != level) {
-                                val urgent = list.filter { it.dDay(nowMillis) <= 3 }
-                                    .joinToString(", ") { it.name }
-                                val whenLabel = if (minD <= 1) "오늘·내일까지예요" else "D-$minD 남았어요"
-                                now += ImmediateAlert(
-                                    id = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0),
-                                    title = "$shortName 픽업이 곧 끝나요",
-                                    text = "$urgent · $whenLabel. 뽑을 거면 지금이에요",
-                                    dedupTag = tag,
-                                    dedupValue = level,
-                                )
-                            }
-                        }
+                        val sendAt = lateSendAt(
+                            settings.lastNotified(tag), end, nowMillis, shiftOutOfQuiet(settings, nowMillis),
+                        ) ?: return@forEach
+                        val minD = list.minOf { it.dDay(sendAt) }
+                        if (levelOf(minD) == null) return@forEach
+                        val urgent = list.filter { it.dDay(sendAt) <= 3 }.joinToString(", ") { it.name }
+                        val whenLabel = if (minD <= 1) "오늘·내일까지예요" else "D-$minD 남았어요"
+                        val title = "$shortName 픽업이 곧 끝나요"
+                        val text = "$urgent · $whenLabel. 뽑을 거면 지금이에요"
+                        if (sendAt <= nowMillis) now += ImmediateAlert(
+                            id = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0),
+                            title = title, text = text, dedupTag = tag, dedupValue = end.toString(),
+                        ) else out += ScheduledAlert(
+                            key = "pickup:${game?.key ?: gameName}:late", title = title, text = text,
+                            whenMillis = sendAt, dedupTag = tag, dedupValue = lateValue(end, sendAt),
+                        )
                     }
                 }
         }
@@ -149,6 +156,8 @@ object ScheduledAlerts {
                 .forEach { c ->
                     val game = GameData.byNameOrNull(c.game)
                     val shortName = game?.shortName ?: c.game
+                    // 표시 이름은 [NotificationChecker] ⑥ 과 같다(shortName:모드). 값은 픽업과 같이 마감 시각이다.
+                    val tag = "combat:$shortName:${c.name}"
                     var scheduledAny = false
                     LEAD_DAYS.forEach { lead ->
                         val at = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(c.endMillis - lead * DAY_MS, ALERT_HOUR))
@@ -159,29 +168,31 @@ object ScheduledAlerts {
                                 title = "$shortName ${Josa.subj(c.name)} 곧 끝나요",
                                 text = "${c.stars}/${c.maxStars} 에서 멈춰 있어요. D-$lead 에 끝나면 남은 보상은 사라져요",
                                 whenMillis = at,
+                                dedupTag = tag,
+                                dedupValue = c.endMillis.toString(),
                             )
                         }
                     }
                     if (!scheduledAny) {
-                        val d = c.dDay(nowMillis) ?: return@forEach
-                        levelOf(d)?.let { level ->
-                            // dedup 키 형식은 [NotificationChecker] ⑥ 과 동일하게 맞춘다(shortName:모드).
-                            val tag = "combat:$shortName:${c.name}"
-                            if (settings.lastNotified(tag) != level) {
-                                val whenLabel = when {
-                                    d <= 0 -> "오늘"
-                                    d == 1 -> "내일"
-                                    else -> "D-$d 에"
-                                }
-                                now += ImmediateAlert(
-                                    id = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0),
-                                    title = "$shortName ${Josa.subj(c.name)} 곧 끝나요",
-                                    text = "${c.stars}/${c.maxStars} 에서 멈춰 있어요. $whenLabel 끝나면 남은 보상은 사라져요",
-                                    dedupTag = tag,
-                                    dedupValue = level,
-                                )
-                            }
+                        val sendAt = lateSendAt(
+                            settings.lastNotified(tag), c.endMillis, nowMillis, shiftOutOfQuiet(settings, nowMillis),
+                        ) ?: return@forEach
+                        val d = c.dDay(sendAt) ?: return@forEach
+                        if (levelOf(d) == null) return@forEach
+                        val whenLabel = when {
+                            d <= 0 -> "오늘"
+                            d == 1 -> "내일"
+                            else -> "D-$d 에"
                         }
+                        val title = "$shortName ${Josa.subj(c.name)} 곧 끝나요"
+                        val text = "${c.stars}/${c.maxStars} 에서 멈춰 있어요. $whenLabel 끝나면 남은 보상은 사라져요"
+                        if (sendAt <= nowMillis) now += ImmediateAlert(
+                            id = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0),
+                            title = title, text = text, dedupTag = tag, dedupValue = c.endMillis.toString(),
+                        ) else out += ScheduledAlert(
+                            key = "combat:${game?.key ?: c.game}:${c.name}:late", title = title, text = text,
+                            whenMillis = sendAt, dedupTag = tag, dedupValue = lateValue(c.endMillis, sendAt),
+                        )
                     }
                 }
         }
@@ -240,7 +251,9 @@ object ScheduledAlerts {
                         title = "${event.edition} 예매 1시간 남았어요",
                         text = "${event.ticket.openLabel}${if (event.ticket.vendor.isBlank()) "" else " · ${event.ticket.vendor}"}",
                         whenMillis = hourBefore,
-                        link = event.ticket.url,
+                        // 누르면 게임 정보 탭의 호요랜드 자리로 간다 — 예매 버튼이 거기 있다. 예전엔 예매 주소를 그대로
+                        // 실었는데 앱은 news · update 두 종류만 처리해서 눌러도 앱만 열렸다.
+                        link = HOYOLAND_LINK,
                     )
                 }
             }
@@ -305,8 +318,56 @@ object ScheduledAlerts {
             }
         }
 
+        // ⑥ 방해금지 시간에 끝난 자동 출석의 성공 알림 — 해제 시각에 한 번([deferCheckInSuccess]).
+        deferredCheckIn(settings.lastNotified(CHECKIN_DEFERRED_TAG))?.let { (at, title, text) ->
+            if (at > nowMillis) out += ScheduledAlert(key = "auto_checkin", title = title, text = text, whenMillis = at)
+        }
+
         return AlertPlan(out.sortedBy { it.whenMillis }.take(MAX_PENDING), now)
     }
+
+    /** 호요랜드 알림의 딥링크 — [com.gatcha.log.data.SpendingViewModel.handleNotificationLink] 가 받는다. */
+    const val HOYOLAND_LINK = "hoyoland"
+
+    private const val CHECKIN_DEFERRED_TAG = "auto_checkin_deferred"
+    private const val FIELD_SEP = '\u001F'
+
+    private fun deferredCheckIn(raw: String): Triple<Long, String, String>? {
+        val parts = raw.split(FIELD_SEP)
+        val at = parts.getOrNull(0)?.toLongOrNull() ?: return null
+        return Triple(at, parts.getOrNull(1).orEmpty(), parts.getOrNull(2).orEmpty()).takeIf { it.second.isNotEmpty() }
+    }
+
+    /**
+     * 방해금지 시간에 끝난 자동 출석의 성공 알림을 **해제 시각**으로 넘긴다([AutoCheckInRunner] 가 부른다).
+     * 예약은 [plan] 이 이 표시를 읽어 만든다 — 그래서 그사이 다른 일로 예약을 통째로 갈아도 사라지지 않는다.
+     */
+    suspend fun deferCheckInSuccess(
+        settings: AppSettings, repo: GatchaRepository, title: String, text: String, nowMillis: Long,
+    ) {
+        val at = shiftOutOfQuiet(settings, nowMillis)
+        settings.setLastNotified(CHECKIN_DEFERRED_TAG, "$at$FIELD_SEP$title$FIELD_SEP$text")
+        runCatching { reschedule(settings, repo, nowMillis) }
+    }
+
+    /**
+     * 예약 시각이 다 지난 뒤에야 알게 된 마감을 **언제 보낼지.** null 이면 보내지 않는다.
+     *
+     * [last] 는 그 마감 표시에 적힌 값이다.
+     * - `"<마감>"` — 예약이 맡았거나 이미 보냈다.
+     * - `"<마감>@<시각>"` — 방해금지라 그 시각으로 미뤄 예약해 뒀다([lateValue]). 그 시각이 지났으면 울린 것이다.
+     *
+     * @param quietEnd 지금이 방해금지면 해제 시각, 아니면 [nowMillis] 그대로([shiftOutOfQuiet]).
+     *   해제가 마감보다 늦으면 보내지 않는다 — 끝난 뒤에 오는 마감 알림은 소음이다.
+     */
+    internal fun lateSendAt(last: String, deadline: Long, nowMillis: Long, quietEnd: Long): Long? {
+        if (last == deadline.toString()) return null
+        val deferredTo = last.substringAfter("$deadline@", "").toLongOrNull()
+        if (deferredTo != null && deferredTo <= nowMillis) return null
+        return quietEnd.takeIf { it < deadline }
+    }
+
+    internal fun lateValue(deadline: Long, sendAt: Long): String = "$deadline@$sendAt"
 
     /**
      * 방해금지 시간대에 떨어지는 예약을 해제 시각으로 민다.
@@ -317,7 +378,7 @@ object ScheduledAlerts {
      *
      * 데일리 요약은 사용자가 시각을 직접 고른 것이므로 밀지 않는다(호출부에서 제외).
      */
-    private fun shiftOutOfQuiet(settings: AppSettings, at: Long): Long {
+    internal fun shiftOutOfQuiet(settings: AppSettings, at: Long): Long {
         if (!NotificationChecker.isQuietNow(settings, at)) return at
         val end = DateUtil.localTimeOnDay(at, settings.notifyDndEndHour)
         // 23~8 처럼 자정을 넘기는 설정에서 at 이 23:30 이면 같은 날 08:00 은 이미 지났다 → 다음 날.
@@ -348,6 +409,10 @@ object ScheduledAlerts {
         // 정상 알림을 오히려 막는다. 그쪽은 [NotificationChecker] 가 전담한다.
         if (!AlertScheduler.schedulesAhead) return
 
+        // 출석 리마인더도 여기서 함께 다시 건다(27.52.0) — 출석 · 토글 · 연동 · 계정이 바뀌면 전부 이 함수를 지나므로,
+        // 낮에 걸린 리마인더가 수동 출석이나 토글 끔 뒤에도 그대로 울리던 일이 없어진다. Android 는 할 일이 없다.
+        runCatching { AlertScheduler.refreshAttendanceReminder(settings, repo) }
+
         val plan = runCatching { plan(settings, repo, nowMillis) }.getOrNull() ?: return
         val registered = runCatching { AlertScheduler.replaceAll(plan.scheduled) }.isSuccess
         if (!registered) return
@@ -356,9 +421,10 @@ object ScheduledAlerts {
         plan.scheduled.forEach {
             if (it.dedupTag.isNotEmpty()) settings.setLastNotified(it.dedupTag, it.dedupValue)
         }
+        // 실제로 게시됐을 때만 적는다 — 권한이 꺼져 못 보낸 것을 '보냄'으로 적으면 권한을 켠 뒤에도 오지 않는다.
         plan.immediate.forEach { a ->
-            runCatching { Notifier.notify(a.id, a.title, a.text) }
-            settings.setLastNotified(a.dedupTag, a.dedupValue)
+            val posted = runCatching { Notifier.notify(a.id, a.title, a.text) }.getOrDefault(false)
+            if (posted) settings.setLastNotified(a.dedupTag, a.dedupValue)
         }
     }
 
@@ -398,4 +464,10 @@ expect object AlertScheduler {
      * (앱이 살아 있는 포그라운드에서만 성공 → "앱을 열어야 알림이 온다").
      */
     suspend fun replaceAll(alerts: List<ScheduledAlert>)
+
+    /**
+     * 출석 리마인더(예약형)를 지금 상태로 다시 건다 — iOS 만 쓴다. Android 는 주기 점검([NotificationChecker] ②)이
+     * 그때그때 판정하므로 할 일이 없다.
+     */
+    suspend fun refreshAttendanceReminder(settings: AppSettings, repo: GatchaRepository)
 }

@@ -1,7 +1,7 @@
 package com.gatcha.log.data.api
 
 import com.gatcha.log.util.fixed
-import kotlin.math.roundToInt
+import kotlin.math.ceil
 
 /**
  * 로스터 안에서의 상대 위치 — "이 캐릭터 잘 컸나"에 답하기 위한 순위·백분위.
@@ -91,7 +91,7 @@ object RosterStandings {
         val above = pool.count { it.id != target.id && totalOf(it, gameKey, overrides) > myScore }
         val rank = above + 1
         // 상위 N% — 1위가 0% 로 보이지 않게 올림한다. 100 을 넘지 않는다.
-        val percentile = ((rank.toDouble() / pool.size) * 100).roundToInt().coerceIn(1, 100)
+        val percentile = ceil((rank.toDouble() / pool.size) * 100).toInt().coerceIn(1, 100)
         return RosterStanding(rank, pool.size, percentile, true, detailed)
     }
 

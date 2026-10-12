@@ -355,8 +355,10 @@ fun SpendingScreen(
                 GlgTabHeader(
                     "",
                     leading = {
-                        GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true, solidBackground = true) { nav = SpendingScreenNav.Calendar }
-                        GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true, solidBackground = true) { nav = SpendingScreenNav.Insight }
+                        // 나가기 전에 선택 모드를 푼다(27.52.0) — 켠 채로 나가면 선택 바는 안 보이는데 뒤로가기 첫 번째가
+                        // 그 안 보이는 선택 모드를 푸는 데 먹혀, 두 번 눌러야 목록으로 돌아왔다.
+                        GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Calendar }
+                        GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Insight }
                     },
                 ) {
                     GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true, solidBackground = true) { selectionMode = true; selectedIds = emptySet() }

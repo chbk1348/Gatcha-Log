@@ -609,6 +609,10 @@ object HoyolabApi {
     /** ZZZ 로드 실패 시 사용자 메시지(성공 시 null). 호출부가 그대로 노출. */
     var zzzLastError: String? = null
 
+    /** 직전 [fetchZzzAvatars] 에서 **상세를 못 받아 기본 정보로 남긴** 에이전트 id. 비어 있으면 전원 상세가 왔다. */
+    var zzzLastMissing: Set<Int> = emptySet()
+        private set
+
     /** HoYoLAB retcode/HTTP → 사용자 메시지 분기. */
     private fun zzzMsg(http: Int, rc: Int): String =
         if (http == -1) Err.NETWORK   // 연결 실패를 "연동 · 공개 설정 확인" 으로 돌려 말하면 멀쩡한 설정을 뒤지게 된다
@@ -699,7 +703,7 @@ object HoyolabApi {
                 add(CombatMode(
                     game, "위험 구역", stars = d.optInt("total_star"), maxStars = DEADLY_ASSAULT_MAX_STARS,
                     detail = if (has) "총점 ${thousands(d.optInt("total_score"))}" else "이번 기간 미도전",
-                    endMillis = d.optJSONObject("end_time")?.let { hsrTimeMillis(it) } ?: 0L,
+                    endMillis = d.optJSONObject("end_time")?.let { hsrTimeMillis(it, server) } ?: 0L,
                     hasData = has,
                 ))
             }
@@ -855,6 +859,7 @@ object HoyolabApi {
         ltuid: String, ltoken: String, uid: String, onBasic: ((List<JSONObject>) -> Unit)? = null,
     ): List<JSONObject>? {
         zzzLastError = null
+        zzzLastMissing = emptySet()
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) {
             zzzLastError = "HoYoLAB 연동이 필요해요"
             return null
@@ -862,6 +867,7 @@ object HoyolabApi {
         val server = inferServer("zzz", uid)
         // 1) basic → 보유 에이전트 id (실패 retcode 로 사유 분기)
         val ids = mutableListOf<Int>()
+        val basicById = HashMap<Int, JSONObject>()
         var basicHttp = -1
         var basicRc = -999
         runCatching {
@@ -872,7 +878,7 @@ object HoyolabApi {
             basicRc = j.optInt("retcode", -999)
             if (basicRc == 0) j.optJSONObject("data")?.optJSONArray("avatar_list")?.let { l ->
                 val items = (0 until l.length()).mapNotNull { l.optJSONObject(it) }.filter { it.optInt("id") != 0 }
-                items.forEach { ids.add(it.optInt("id")) }
+                items.forEach { ids.add(it.optInt("id")); basicById[it.optInt("id")] = it }
                 if (items.isNotEmpty()) runCatching { onBasic?.invoke(items) }
             }
         }
@@ -889,13 +895,18 @@ object HoyolabApi {
         //
         // 세마포어로 바꾸면 **끝나는 즉시 다음 것이 들어간다.** 서버가 보는 동시 요청 수는 그대로 4다.
         val gate = Semaphore(4)
-        val agents = coroutineScope {
+        val details = coroutineScope {
             ids.map { id -> async { gate.withPermit { fetchZzzOne(ltuid, ltoken, uid, server, id) } } }.awaitAll()
-        }.filterNotNull()
-        if (agents.isEmpty()) {
+        }
+        if (details.all { it == null }) {
             zzzLastError = "젠레스 상세를 불러오지 못했어요. 잠시 후 다시 시도해주세요"
             return null
         }
+        // **상세를 못 받은 에이전트는 기본 정보로 남긴다**(27.52.0). 예전엔 버렸다 — 50명 중 10건이 실패하면 먼저 그려진
+        // 50명이 40명으로 줄고 그대로 캐시됐다. 누가 빠졌는지는 [zzzLastMissing] 으로 알린다.
+        val missing = HashSet<Int>()
+        val agents = ids.mapIndexedNotNull { i, id -> details[i] ?: basicById[id]?.also { missing += id } }
+        zzzLastMissing = missing
         return agents
     }
 
@@ -1158,9 +1169,9 @@ object HoyolabApi {
                 }
             }
             "hsr" -> buildList {
-                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS)) }
-                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12)) }
-                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS, server)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12, server)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12, server)) }
             }
             else -> emptyList()
         }
@@ -1358,26 +1369,46 @@ object HoyolabApi {
         return "${DateUtil.month(ms)}월 ${if (DateUtil.dayOfMonth(ms) < 16) "상반" else "하반"}"
     }
 
-    private fun hsrMode(game: String, name: String, d: JSONObject, max: Int): CombatMode {
+    private fun hsrMode(game: String, name: String, d: JSONObject, max: Int, server: String): CombatMode {
         val group = d.optJSONArray("groups")?.let { g ->
             val list = (0 until g.length()).mapNotNull { g.optJSONObject(it) }
             list.firstOrNull { it.optString("status") == "Running" } ?: list.firstOrNull()
         }
         val season = group?.optString("name_mi18n").orEmpty()
-        val end = group?.optJSONObject("end_time")?.let { hsrTimeMillis(it) } ?: 0L
+        val end = group?.optJSONObject("end_time")?.let { hsrTimeMillis(it, server) } ?: 0L
         // max_floor 가 시즌명을 이미 포함("연극의 종결•12")하므로 시즌명 중복 표시 안 함
         val detail = d.optString("max_floor").takeIf { it.isNotBlank() }?.let { "최고 $it" }
             ?: season.ifBlank { "기록 없음" }
         return CombatMode(game, name, d.optInt("star_num"), max, detail, end, d.optBoolean("has_data", d.optInt("star_num") > 0))
     }
 
-    /** HSR end_time(연/월/일/시/분 객체) → epoch millis. :app 의 Calendar 구현과 동일 (로컬 타임존 기준). */
+    /**
+     * 스타레일 · 젠레스 위험 구역의 end_time(연/월/일/시/분 객체) → epoch millis.
+     *
+     * **이 객체는 서버 시각이다**(27.52.0). 예전엔 기기 시간대로 읽어서, 한국(UTC+9)에서는 아시아 서버(UTC+8)의
+     * 마감이 1시간 이르게 나왔다. 실제 값으로 확인했다(10/12): 같은 응답 묶음에서 epoch 로 오는 젠레스 시유 방어전은
+     * 04:59 KST 인데, 객체로 오는 위험 구역은 03:59 로 저장돼 있었다 — 두 모드는 같은 시각(서버 04:00)에 바뀐다.
+     */
+    private fun hsrTimeMillis(t: JSONObject, server: String): Long = serverTimeMillis(
+        t.optInt("year"), t.optInt("month"), t.optInt("day"), t.optInt("hour"), t.optInt("minute"), server,
+    )
+
+    /** 서버 시각(연/월/일/시/분) → epoch millis. 못 읽으면 0. */
     @OptIn(kotlin.time.ExperimentalTime::class)
-    private fun hsrTimeMillis(t: JSONObject): Long = runCatching {
-        kotlinx.datetime.LocalDateTime(
-            t.optInt("year"), t.optInt("month"), t.optInt("day"), t.optInt("hour"), t.optInt("minute"),
-        ).toInstant(com.gatcha.log.data.DateUtil.timeZone).toEpochMilliseconds()
+    internal fun serverTimeMillis(year: Int, month: Int, day: Int, hour: Int, minute: Int, server: String): Long = runCatching {
+        kotlinx.datetime.LocalDateTime(year, month, day, hour, minute)
+            .toInstant(kotlinx.datetime.UtcOffset(hours = serverUtcOffsetHours(server))).toEpochMilliseconds()
     }.getOrDefault(0L)
+
+    /**
+     * 서버 키([inferServer]) → 그 서버의 시간대(UTC 기준 시). 아시아 · 대만/홍콩/마카오 +8, 미주 −5, 유럽 +1 —
+     * 게임이 공지하는 서버 시각 그대로다. 아시아는 실제 응답으로 확인했고, 미주 · 유럽은 같은 규칙으로 본 것이다.
+     */
+    internal fun serverUtcOffsetHours(server: String): Int = when {
+        server.endsWith("_usa") || server.endsWith("_us") -> -5
+        server.endsWith("_euro") || server.endsWith("_eu") -> 1
+        else -> 8
+    }
 
     // ----------------------------------------------------------------- 헬퍼
     private fun gameFor(key: String): Game =

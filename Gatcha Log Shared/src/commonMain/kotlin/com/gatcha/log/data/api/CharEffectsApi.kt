@@ -61,9 +61,14 @@ object CharEffectsApi {
                 else -> emptyList()
             }
         }.getOrDefault(emptyList())
-        if (result.isNotEmpty()) cache[key] = result
+        // 영문 미러로 채운 결과는 기억하지 않는다(27.52.0) — 한국어 소스가 잠깐 실패했을 뿐인데 앱을 다시 켤 때까지 영문으로 굳었다.
+        if (result.isNotEmpty() && key !in fallbackKeys) cache[key] = result
+        fallbackKeys.remove(key)
         return result
     }
+
+    /** 이번 조회가 영문 미러(최후 폴백)로 채워진 키 — [fetch] 가 캐시에 넣지 않는다. */
+    private val fallbackKeys = mutableSetOf<String>()
 
     /**
      * Yatta(원신 constellation / 스타레일 eidolons) — data.<field> 는 객체(키 순회).
@@ -106,7 +111,7 @@ object CharEffectsApi {
                 ?.let { if (it.isNotEmpty()) return it }
         }
         parseZzzBody(Net.get("https://cdn.jsdelivr.net/gh/Genshin-Optimizer/zzz-hakushin-data@master/character/$id.json", headers))
-            ?.let { if (it.isNotEmpty()) return it }
+            ?.let { if (it.isNotEmpty()) { fallbackKeys.add("zzz:$id"); return it } }
         return emptyList()
     }
 

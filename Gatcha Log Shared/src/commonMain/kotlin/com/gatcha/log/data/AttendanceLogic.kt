@@ -46,13 +46,32 @@ object AttendanceLogic {
             streak = streak,
             // '기록이 있는 날'이 아니라 **전체 출석한 날**만 센다. 한 게임만 한 날을 출석일로
             // 세면 달력의 진한 원 개수와 숫자가 어긋나 보인다.
-            monthFullDays = monthEntries.count { (_, set) -> stats.all { it.gameKey in set } },
+            monthFullDays = monthEntries.count { (_, set) -> dayLevel(set, games) == AttendanceDayLevel.FULL },
             // 분모는 이번 달 전체가 아니라 **오늘까지** — 아직 오지 않은 날을 못 지킨 날로 세면 안 된다.
             monthElapsedDays = todayKey.takeLast(2).toIntOrNull() ?: 0,
             games = stats,
         )
     }
+
+    /**
+     * 그날의 출석 정도 — **달력 · 7일 스트립 · 마이페이지 30칸 · 이번 달 누계가 전부 이 판정을 쓴다**(27.52.0).
+     *
+     * 예전엔 달력이 "그날 출석한 게임 **수**가 세는 게임 수 이상인가"로, 누계와 마이페이지가 "세는 게임이
+     * **전부** 들어 있는가"로 따로 판정했다. 세는 게임이 바뀐 사용자(젠레스를 「내 게임」에서 뺌)의 지난 날짜가
+     * 달력에서는 '전체', 같은 화면의 누계에서는 '일부'로 갈렸다.
+     *
+     * @param done 그날 출석한 게임 키
+     * @param games 출석을 세는 게임([summary] 와 같은 목록)
+     */
+    fun dayLevel(done: Set<String>, games: List<Game>): AttendanceDayLevel = when {
+        done.isEmpty() -> AttendanceDayLevel.NONE
+        games.isNotEmpty() && games.all { it.key in done } -> AttendanceDayLevel.FULL
+        else -> AttendanceDayLevel.PARTIAL
+    }
 }
+
+/** 하루의 출석 정도 — 기록 없음 · 일부 · 세는 게임 전부. */
+enum class AttendanceDayLevel { NONE, PARTIAL, FULL }
 
 /** 출석 상세 페이지 한 화면분. */
 data class AttendanceSummary(

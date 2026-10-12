@@ -846,7 +846,9 @@ data class HoyolandEvent(
         val starts = slots.map { minutesOfDay(it.time) }
         return slots.mapIndexed { i, slot ->
             val start = starts[i]
-            val nextStart = starts.drop(i + 1).firstOrNull { it != null }
+            // 다음 편 = 이 편보다 **늦게 시작하는 것 중 가장 이른 것**. 예전엔 "목록에서 뒤에 적힌 편"을 다음 편으로 봐서,
+            // 메인 · 서브 무대가 섞여 시각 순이 아니거나 두 편이 같은 시각이면 끝 시각이 시작보다 앞서 시작 전에 「끝남」이 됐다(27.52.0).
+            val nextStart = if (start == null) null else starts.filterNotNull().filter { it > start }.minOrNull()
             val end = when {
                 start == null -> null
                 slot.minutes > 0 -> start + slot.minutes
@@ -989,9 +991,15 @@ data class HoyolandEvent(
 
     /**
      * 회차 식별자 — 장바구니 · 입장권이 **어느 행사 것인지** 적어 두는 값.
-     * 개막일이 회차마다 다르고 어드민이 손으로 고칠 일도 없어 이걸 쓴다. 비면 행사명.
+     * **개최 연도**다 — 개막일에서 읽고, 날짜가 아직 없으면 행사명 속 연도, 그것도 없으면 행사명.
+     *
+     * 예전엔 개막일 전체("2026-10-01")였다. 개막일을 하루 정정하거나 일정 미정(행사명)에서 날짜가 확정되면
+     * 키가 바뀌어 담아 둔 장바구니가 비워졌다(27.52.0). 예전 형식으로 저장된 값은 [sameEdition] 이 받아 준다.
      */
-    val editionKey: String get() = startYmd.ifBlank { edition }
+    val editionKey: String get() = editionKeyOf(startYmd.ifBlank { edition })
+
+    /** 저장된 회차 값이 이 회차를 가리키는가 — 예전 형식(개막일 · 행사명)도 연도로 읽어 견준다. */
+    fun sameEdition(savedEdition: String): Boolean = editionKeyOf(savedEdition) == editionKey
 
     /**
      * 일정 미정 안내 — 직전 회차가 마무리됐으니 다음 행사를 기대해 달라는 말.
@@ -1014,11 +1022,11 @@ data class HoyolandEvent(
 
     /** 저장된 장바구니를 이 회차로 읽는다 — 다른 회차 것이면 비운다(작년 굿즈 이름이 남지 않게). */
     fun cartForEdition(cart: HoyolandCart, savedEdition: String): HoyolandCart =
-        if (savedEdition == editionKey) cart else HoyolandCart()
+        if (sameEdition(savedEdition)) cart else HoyolandCart()
 
     /** 저장된 입장권을 이 회차로 읽는다 — 다른 회차 것이면 **기간 안 날짜만** 남긴다. */
     fun entryForEdition(entry: HoyolandEntry, savedEdition: String): HoyolandEntry {
-        if (savedEdition == editionKey) return entry
+        if (sameEdition(savedEdition)) return entry
         val inRange = dayYmds.toSet()
         return HoyolandEntry(entry.groups.filterKeys { it in inRange })
     }
@@ -1069,10 +1077,13 @@ data class HoyolandEvent(
      * 이 앱이 지출을 다루는 앱이라 "얼마 들고 가야 하나" 가 굿즈 칸이 답할 질문이다.
      */
     fun onsiteGoodsLine(cart: HoyolandCart): String {
-        if (goods.isEmpty()) return "판매 목록 공개 전"
+        // 목록 · 가격대 · 장바구니와 같은 [visibleGoods] 로 센다 — 앱이 다루지 않는 IP 의 굿즈까지 세면
+        // 칸은 "2종" 인데 들어가면 1종만 보였다(27.52.0).
+        val shown = visibleGoods
+        if (shown.isEmpty()) return "판매 목록 공개 전"
         val picked = cartLines(cart)
         // 지난 회차는 담을 수 없다 — 종수만 말한다.
-        if (picked.isEmpty()) return if (archived) "${goods.size}종" else "${goods.size}종 · 아직 안 담았어요"
+        if (picked.isEmpty()) return if (archived) "${shown.size}종" else "${shown.size}종 · 아직 안 담았어요"
         val total = cartTotal(cart)
         val kinds = "담은 ${picked.size}종"
         return if (total > 0) "$kinds · ${wonLabel(total)}" else kinds
@@ -1374,7 +1385,9 @@ data class HoyolandEvent(
      */
     @OptIn(ExperimentalTime::class)
     private fun millisAt(date: LocalDate?, hour: Int): Long =
-        date?.atTime(hour, 0)?.toInstant(DateUtil.timeZone)?.toEpochMilliseconds() ?: 0L
+        // 시(時)가 범위 밖이면 0 — `atTime(24, 0)` 은 예외를 던지고, 그 예외가 예약 알림 계획 전체를 버리게 했다(27.52.0).
+        if (hour !in 0..23) 0L
+        else date?.atTime(hour, 0)?.toInstant(DateUtil.timeZone)?.toEpochMilliseconds() ?: 0L
 
     /** 개막일 [hour] 시의 로컬 시각(밀리초). 날짜를 못 읽으면 0. */
     fun startAtMillis(hour: Int): Long = millisAt(start, hour)
@@ -1438,8 +1451,13 @@ data class HoyolandEvent(
         /** 푸드존 메뉴 글에서 "7,000원" 같은 값을 긁는다 — [foodEntryLine] 의 가격대. */
         private val PriceRegex = Regex("""([\d,]+)원""")
 
-        /** 마감 안내 속 "9.13" — 앞뒤에 숫자 · 점이 붙은 것(1.25배 · 2026.9.13)은 건너뛴다. */
-        private val MonthDayRegex = Regex("""(?<![\d.])(\d{1,2})\.(\d{1,2})(?![\d.])""")
+        /** 마감 안내 속 "9.13" — 앞뒤에 숫자 · 점이 붙은 것(2026.9.13)과 배수 · 비율(1.25배 · 1.5%)은 건너뛴다. */
+        private val MonthDayRegex = Regex("""(?<![\d.])(\d{1,2})\.(\d{1,2})(?![\d.]|\s*[배%])""")
+
+        private val YearRegex = Regex("""20\d{2}""")
+
+        /** 회차 값에서 개최 연도를 읽는다 — "2026-10-01" · "호요랜드 2026" 모두 "2026". 못 읽으면 값 그대로. */
+        internal fun editionKeyOf(raw: String): String = YearRegex.find(raw)?.value ?: raw
 
         /** 홈·일정 탭 노출을 시작하는 시점(개막 D-60). 그 전엔 게임정보 탭에서만 보인다. */
         const val FEATURE_WINDOW_DAYS = 60

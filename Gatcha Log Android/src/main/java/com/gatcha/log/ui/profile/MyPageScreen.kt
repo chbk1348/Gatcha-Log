@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Calendar
+import com.gatcha.log.data.AttendanceDayLevel
+import com.gatcha.log.data.AttendanceLogic
 import com.gatcha.log.data.ChallengeSummary
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
@@ -500,16 +502,9 @@ private fun ActivitySection(
 ) {
     val accent = LocalAccent.current
     // 오래된 날 → 오늘 순 30칸. 출석한 게임 수로 칸 농도를 가른다(전부 = 진하게 · 일부 = 옅게).
+    // 판정은 공용 [AttendanceLogic.dayLevel] — 출석 상세의 달력 · 7일 스트립 · 이번 달 누계와 같은 함수다(27.52.0).
     val days = remember(history, tracked) {
-        val keys = tracked.map { it.key }
-        (29 downTo 0).map { ago ->
-            val done = history[DateUtil.hoyoDayKeyAgo(ago)].orEmpty()
-            when {
-                done.isEmpty() -> AttendLevel.None
-                keys.isNotEmpty() && keys.all { it in done } -> AttendLevel.All
-                else -> AttendLevel.Some
-            }
-        }
+        (29 downTo 0).map { ago -> AttendanceLogic.dayLevel(history[DateUtil.hoyoDayKeyAgo(ago)].orEmpty(), tracked) }
     }
     // 일일 숙제 완주 — 기록이 있는 게임들의 30일 완주율 평균.
     val taskRate = remember(taskStats) {
@@ -543,9 +538,9 @@ private fun ActivitySection(
                             .clip(RoundedCornerShape(3.dp))
                             .background(
                                 when (level) {
-                                    AttendLevel.All -> accent
-                                    AttendLevel.Some -> accent.copy(alpha = 0.5f)
-                                    AttendLevel.None -> HairColor
+                                    AttendanceDayLevel.FULL -> accent
+                                    AttendanceDayLevel.PARTIAL -> accent.copy(alpha = 0.5f)
+                                    AttendanceDayLevel.NONE -> HairColor
                                 },
                             ),
                     )
@@ -576,8 +571,6 @@ private fun ActivitySection(
         }
     }
 }
-
-private enum class AttendLevel { None, Some, All }
 
 /** ⑥ 절약 챌린지 — 섹션 전체가 챌린지 화면 진입. */
 @Composable

@@ -54,14 +54,14 @@ actual object Notifier {
 
     // suspend 는 iOS 콜백을 기다리기 위한 것(expect 문서 참고) — 여기선 중단 지점이 없다.
     @SuppressLint("MissingPermission")
-    actual suspend fun notify(id: Int, title: String, text: String, link: String) {
-        if (NotifyHold.defer(id, title, text, link)) return   // 첫 화면(온보딩 · 로딩) 동안은 홈이 뜰 때까지 붙잡는다
+    actual suspend fun notify(id: Int, title: String, text: String, link: String): Boolean {
+        if (NotifyHold.defer(id, title, text, link)) return true   // 첫 화면(온보딩 · 로딩) 동안은 홈이 뜰 때까지 붙잡는다
         val ctx = AppContext.appContext
         // Android 13+ 는 POST_NOTIFICATIONS 런타임 권한 필요 — 미허용이면 조용히 무시
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
-            return
+            return false
         }
         ensureChannel(ctx)
         // 알림 탭 = 앱 복귀지, 앱 재실행이 아니다.
@@ -72,7 +72,7 @@ actual object Notifier {
         val intent = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
             if (link.isNotBlank()) putExtra(EXTRA_LINK, link)
-        } ?: return
+        } ?: return false
         val pi = PendingIntent.getActivity(
             ctx, id, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -90,7 +90,13 @@ actual object Notifier {
             .setAutoCancel(true)
             .setContentIntent(pi)
             .build()
-        runCatching { NotificationManagerCompat.from(ctx).notify(id, n) }
+        // 앱 알림 자체가 꺼져 있으면 notify 는 조용히 버린다 — 게시됐다고 답하지 않는다.
+        if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return false
+        return runCatching { NotificationManagerCompat.from(ctx).notify(id, n) }.isSuccess
+    }
+
+    actual fun cancel(id: Int) {
+        runCatching { NotificationManagerCompat.from(AppContext.appContext).cancel(id) }
     }
 
     actual fun notificationsEnabled(): Boolean =

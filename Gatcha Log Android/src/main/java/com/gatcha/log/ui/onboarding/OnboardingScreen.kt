@@ -65,6 +65,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.ThousandsTransformation
 import com.gatcha.log.ui.components.GldsVariant
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -175,13 +176,24 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
 
     val noHoyo = games.none { it in HOYO_KEYS.split(',') }
     var applied by rememberSaveable { mutableStateOf(false) }   // 로그인 재시도로 다시 눌러도 설정은 한 번만
+    // ④ 에서 한 게임 UID 조회가 **서버에 닿았는가** — 닿았는데 UID 가 없는 것과 못 닿은 것은 안내가 다르다([HoyolabStep]).
+    // 단계가 바뀌면 그 화면의 상태는 사라지므로 여기 둔다 — ⑤ 에 갔다 돌아와도 문구가 안 바뀌게(iOS hoyoUidsChecked 와 같다).
+    var hoyoUidsChecked by rememberSaveable { mutableStateOf(false) }
     var finished by remember { mutableStateOf(false) }
     var loginRequested by remember { mutableStateOf(false) }
+    // ⑥ 완료 화면의 버튼으로 구글 로그인을 띄웠는가 — 아래 자동 완료의 조건이다. [loginRequested](첫 화면 로그인)와
+    // 따로 둔다: 그쪽은 끝날 때 OS 알림 권한을 묻는 표시이기도 해서, 여기서 같이 켜면 ⑤에서 이미 물은 권한을 또 묻는다.
+    var loginAtDone by remember { mutableStateOf(false) }
     // 완료 화면에서 띄운 구글 로그인이 끝나면 온보딩을 마친다(로그인 화면을 거치지 않는다).
     LaunchedEffect(account.isGuest) {
         // 첫 화면 「구글 로그인 하기」(복원)는 ⑤ 알림 단계를 건너뛰므로, 끝날 때 OS 알림 권한을 묻는다(10/6 —
         // 로그인부터 하면 권한 창이 끝내 안 떴다). ⑤를 거친 경로는 이미 물었으니 다시 묻지 않는다.
-        if (!account.isGuest && (step == 5 || loginRequested) && !finished) {
+        //
+        // **사용자가 이 화면에서 로그인을 요청했을 때만 스스로 마친다**(27.52.0). 예전엔 `step == 5` 만 보아서,
+        // 이미 로그인한 채 ⑥ 에 서 있다가 화면이 다시 만들어지면(step 은 복원되고 이 효과는 첫 컴포지션에 다시 돈다)
+        // 「홈으로 이동하기」를 누르지 않았는데 온보딩이 끝났다 — 고른 설정(applyOnboarding)도 저장되지 않은 채로.
+        val loginAsked = loginRequested || loginAtDone || loginOnly
+        if (!account.isGuest && loginAsked && (step == 5 || loginRequested) && !finished) {
             // 첫 화면에서 **바로 로그인한 경우에도 ② 게임 선택부터 첫 사용자와 같은 순서를 밟는다**(10/7) —
             // 게임 → 예산 → HoYoLAB → 알림 → 완료. 예전엔 로그인하자마자 홈으로 갔는데, HoYoLAB 토큰은 기기에만 두고
             // 클라우드에 올리지 않아 연동은 기기마다 한 번 해야 하고, 알림 권한도 이 흐름에서 묻는다.
@@ -227,8 +239,8 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
     // 하다 만 단계로 돌아오지 않고 ① 부터 다시 밟는다. 이미 저장된 것(로그인 · HoYoLAB 연동)은 그대로 남고,
     // 로그인돼 있으면 위 [afterLogin] 이 계정 값을 다시 채운다. 로그인 화면만 띄운 경우(loginOnly)는 해당 없다.
     fun restart() {
-        step = 0; forward = false; restored = false; settled = false; applied = false; loginRequested = false
-        gamesTouched = false; budgetTouched = false
+        step = 0; forward = false; restored = false; settled = false; applied = false; loginRequested = false; loginAtDone = false
+        gamesTouched = false; budgetTouched = false; hoyoUidsChecked = false
         gamesRaw = viewModel.myGames.value.filter { k -> GameData.onboardingGames.any { it.key == k } }.joinToString(",")
         budget = 150_000L; custom = false
         attend = true; resin = true; pickup = true; budgetAlert = false; alerts = true
@@ -340,7 +352,7 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
                         settled = true; go(2)
                     }
                     2 -> BudgetStep(budget, custom, onBudget = { v, c -> budgetTouched = true; budget = v; custom = c }, onNext = { go(3) }, onSkip = { budgetTouched = true; budget = -1L; go(3) })
-                    3 -> HoyolabStep(viewModel, hoyo, games, viewport, onNext = { go(4) })
+                    3 -> HoyolabStep(viewModel, hoyo, viewport, uidsChecked = hoyoUidsChecked, onUidsChecked = { hoyoUidsChecked = it }, onNext = { go(4) })
                     4 -> NotifyStep(
                         noHoyo, attend, resin, pickup, budgetAlert, dndStart, dndEnd, viewport,
                         onToggle = { k ->
@@ -388,7 +400,7 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
                         }
                         // 로그인 전이면 온보딩을 **띄운 채로** 구글 로그인만 띄운다 — 먼저 끝내면 뒤에 옛 로그인 화면이
                         // 깔려 보였다(9/29). 로그인이 끝나면 아래 LaunchedEffect 가 마친다. 취소하면 이 화면에 남는다.
-                        if (account.isGuest) { viewModel.signIn(); return@DoneStep }
+                        if (account.isGuest) { loginAtDone = true; viewModel.signIn(); return@DoneStep }
                         finished = true
                         // 퇴장 연출은 MainActivity 루트 전환이 맡는다 — 여기서 먼저 지우면 빈 화면이 스쳤다(9/29).
                         onFinish(false, false)   // 알림 권한은 ⑤에서 이미 물었다
@@ -641,7 +653,10 @@ internal fun BudgetAmountEditor(budget: Long, custom: Boolean, onBudget: (Long, 
             Text("월 예산", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = labelColor)
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.Bottom) {
                 BasicTextField(
-                    value = if (shown > 0) won(shown) else "",
+                    // 값은 숫자만 두고 쉼표는 보이는 글자에만 넣는다(27.52.0) — 쉼표 넣은 문자열을 되돌려 넣던 때는
+                    // 자리수가 늘 때 커서가 쉼표만큼 밀려 숫자가 섞였다(1·2·3·4·5 → 12,354).
+                    value = if (shown > 0) shown.toString() else "",
+                    visualTransformation = ThousandsTransformation,
                     onValueChange = { raw ->
                         typing = true
                         val digits = raw.filter { it.isDigit() }.take(9)
@@ -703,13 +718,25 @@ private fun AmountChip(label: String, on: Boolean, modifier: Modifier, icon: Ima
 // ── ④ HoYoLAB ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games: Set<String>, viewport: Dp, onNext: () -> Unit) {
+private fun HoyolabStep(
+    viewModel: SpendingViewModel, hoyo: HoyolabConfig, viewport: Dp,
+    /** 이 화면에서 한 게임 UID 조회가 서버에 닿았는가(바깥이 들고 있다 — OnboardingScreen 의 hoyoUidsChecked). */
+    uidsChecked: Boolean, onUidsChecked: (Boolean) -> Unit,
+    onNext: () -> Unit,
+) {
     val compact = viewport < 750.dp   // 낮은 화면: 히어로 얇게 · 타일 3열 · 설명 생략
     var showLogin by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val linked = hoyo.isLinked
-    val picked = GameData.onboardingGames.filter { it.key in games && it.key in HOYO_KEYS.split(',') }.joinToString(" · ") { it.shortName }
+    // 연결 뒤 한 줄은 **실제로 UID 가 채워진 게임**으로 쓴다(27.52.0, iOS 와 같은 문구 규칙) — 토큰만 받았다고
+    // 「UID 를 채웠어요」라고 하지 않는다. 예전엔 ②에서 고른 게임 이름을 그대로 적어서, UID 조회가 실패했거나
+    // 그 게임이 계정에 없어도 「○○ UID 를 채웠어요」가 나왔다.
+    //  · UID 를 하나라도 받음 → 채워진 게임만 적는다.
+    //  · 조회는 됐는데 하나도 없음 → 이 계정에 게임이 없다.
+    //  · 조회 실패(또는 이 화면에서 조회한 적 없음) → 나중에 다시 가져온다(공유 VM 이 연결되면 다시 시도한다).
+    val uidByKey = mapOf("genshin" to hoyo.genshinUid, "hsr" to hoyo.hsrUid, "zzz" to hoyo.zzzUid)
+    val filled = GameData.onboardingGames.filter { uidByKey[it.key].orEmpty().isNotBlank() }.joinToString(" · ") { it.shortName }
 
     Column(Modifier.fillMaxSize()) {
         Title("HoYoLAB을 연결할까요?", "비밀번호는 저장하지 않아요. 언제든 연결을 끊을 수 있어요.")
@@ -760,14 +787,19 @@ private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games
         }
         AnimatedVisibility(linked, enter = fadeIn() + slideInVertically { it / 3 }) {
             Text(
-                "연결됐어요 · ${picked.ifEmpty { "게임" }} UID 를 채웠어요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Teal,
+                when {
+                    filled.isNotEmpty() -> "연결됐어요 · $filled UID 를 채웠어요"
+                    uidsChecked -> "연결됐어요 · 이 계정에서 게임 UID 를 찾지 못했어요"
+                    else -> "연결됐어요 · 게임 UID 는 연결되면 다시 가져올게요"
+                },
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Teal,
                 modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(TealTint).padding(horizontal = 14.dp, vertical = 12.dp),
             )
         }
         Spacer(Modifier.weight(1f))
         if (linked) {
             GldsButton("다음", onNext, Modifier.cta(true), size = GldsSize.L)
-            GldsButton("연결 해제", { viewModel.updateHoyolabConfig(HoyolabConfig()) }, Modifier.cta(false), variant = GldsVariant.Neutral)
+            GldsButton("연결 해제", { onUidsChecked(false); viewModel.updateHoyolabConfig(HoyolabConfig()) }, Modifier.cta(false), variant = GldsVariant.Neutral)
         } else {
             GldsButton(if (working) "UID 확인 중…" else "HoYoLAB 로그인", { showLogin = true }, Modifier.cta(true), variant = GldsVariant.Inverse, size = GldsSize.L, enabled = !working)
             GldsButton("나중에 연결할게요", onNext, Modifier.cta(false), variant = GldsVariant.Neutral)
@@ -782,7 +814,10 @@ private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games
                 showLogin = false
                 working = true
                 scope.launch {
-                    val uids = withContext(Dispatchers.IO) { HoyolabApi.fetchGameUids(u, t) }.orEmpty()
+                    // null = 조회 실패(서버에 못 닿음) · 빈 맵 = 계정에 게임 없음 — 설정 ▸ HoYoLAB 연동과 같은 구분.
+                    val fetched = withContext(Dispatchers.IO) { HoyolabApi.fetchGameUids(u, t) }
+                    onUidsChecked(fetched != null)
+                    val uids = fetched.orEmpty()
                     viewModel.updateHoyolabConfig(
                         HoyolabConfig(
                             ltuid = u, ltoken = t, cookieToken = c, webCookie = raw,

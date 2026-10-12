@@ -26,8 +26,14 @@ expect object Notifier {
      * **suspend 인 이유**: iOS 는 권한 조회·등록이 전부 콜백형이라 예전엔 요청만 걸고 즉시 반환했다.
      * 그런데 백그라운드(BGTask)는 완료 보고 직후 앱을 서스펜드하므로, 콜백이 돌기 전에 프로세스가
      * 멈춰 **알림이 조용히 유실됐다**. 이제 등록이 끝난 뒤에 반환한다(Android 는 동기라 무비용).
+     *
+     * @return 실제로 게시됐으면(또는 [NotifyHold] 가 붙잡아 곧 보낼 것이면) true. 권한이 꺼져 못 보냈으면 false —
+     *   부르는 쪽은 false 일 때 중복 방지 표시를 남기지 않는다(27.52.0). 안 그러면 나중에 권한을 켜도 그 알림은 오지 않는다.
      */
-    suspend fun notify(id: Int, title: String, text: String, link: String = "")
+    suspend fun notify(id: Int, title: String, text: String, link: String = ""): Boolean
+
+    /** 떠 있는 알림을 걷는다 — 사정이 풀린 실패 알림처럼 더는 맞지 않는 것. 없으면 아무 일도 없다. */
+    fun cancel(id: Int)
 
     /**
      * 시스템 알림이 실제로 표시 가능한 상태인지(권한 허용 + 앱/채널 알림 켜짐).

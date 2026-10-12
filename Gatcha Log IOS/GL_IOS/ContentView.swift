@@ -68,15 +68,19 @@ struct ContentView: View {
             }
         }
     }
-    /// 서브페이지(연간 리포트·알림 상세 등)가 열린 탭 집합 — 해당 탭에서만 탭바 숨김.
-    /// (전역 단일 플래그는 탭 전환 시 상태가 어긋나므로 탭별로 독립 관리)
-    @State private var tabsWithSubPage: Set<Int> = []
+    /// 지출 입력 시트가 떠 있는 동안 들어온 **탭 전환 요청** — 시트가 닫히면 적용한다(27.52.0, [requestTab]).
+    @State private var deferredTab: Int? = nil
 
     /// 지출 탭 스택 경로 — 목록 → 상세 → 수정이 여기 쌓인다.
     @State private var spendingPath: [SpendingRoute] = []
 
     /// 지출 입력(추가·수정)이 열려 있는가 — 이제 **시트**라 경로가 아니라 이 상태를 본다.
     private var spendingEditorOpen: Bool { spendingSheet != nil }
+
+    /// 지출 탭에서 하위 화면이 열려 있는가 — iOS 18(탭바 위 '+' 오버레이)에서 그동안 '추가'를 감춘다.
+    /// 상세는 경로([spendingPath])에 쌓여 여기서 보이지만, 캘린더 · 인사이트는 뷰 기반 `NavigationLink` 라
+    /// 경로에 안 잡힌다 — 그쪽은 화면이 뜨고 사라질 때 `store.spendingSubpageOpen` 을 세운다(SpendingView).
+    private var spendingTabSubpageOpen: Bool { !spendingPath.isEmpty || store.spendingSubpageOpen }
 
     /// 초기 클라우드 동기화 게이트(로딩 화면) 활성 여부 — 게이트 동안 탭바·추가 버튼 숨김
     ///
@@ -216,6 +220,13 @@ struct ContentView: View {
         .onChange(of: store.needsLogin) { _, _ in syncGateActive = MainViewControllerKt.isSyncGateActive() }
         .onReceive(NotificationCenter.default.publisher(for: .glgOpenTab)) { note in
             if let tab = note.object as? Int, !syncGateActive, !needsIntro, !store.needsLogin {
+                requestTab(tab)
+            }
+        }
+        // 보류해 둔 탭 전환 — 지출 입력 시트가 닫히는 순간에 적용한다([requestTab]).
+        .onChange(of: spendingSheet) { _, sheet in
+            if sheet == nil, let tab = deferredTab {
+                deferredTab = nil
                 selectedTab = tab
             }
         }
@@ -259,8 +270,19 @@ struct ContentView: View {
             if let link = note.object as? String { store.handleNotificationLink(link) }
         }
         .onChange(of: store.pendingTab) { _, tab in
-            if let tab { selectedTab = tab; store.consumePendingTab() }
+            if let tab { requestTab(tab); store.consumePendingTab() }
         }
+    }
+
+    /**
+     알림 · 딥링크가 요청한 탭 전환. **지출 입력 시트가 떠 있으면 보류했다가 닫힐 때 적용한다**(27.52.0).
+
+     시트는 「지금 보고 있는 탭」에만 물려 있다([spendingEditorBinding] — `selectedTab == tab` 일 때만 값을 준다).
+     그래서 시트가 뜬 채로 `selectedTab` 이 바뀌면 원래 탭의 시트는 닫히고 새 탭에서 **빈 폼으로 다시 떴다** —
+     지출을 적다가 알림을 누르면 입력이 통째로 날아갔다. 요청은 버리지 않는다(마지막 것 하나만 남긴다).
+     */
+    private func requestTab(_ tab: Int) {
+        if spendingSheet != nil { deferredTab = tab } else { selectedTab = tab }
     }
 
     /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
@@ -439,9 +461,13 @@ struct ContentView: View {
                 // 선택 모드에서는 감춘다 — 선택 하단바('N건 선택 · 삭제 · 일괄 편집')와 자리가 겹쳐
                 // '일괄 편집'이 '+' 에 가려 눌리지 않았다. 같은 이유로 '맨 위로'도 이미 숨긴다.
                 // (지출을 고르는 중에 새 지출을 추가하는 흐름도 아니다)
-                if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab)
-                    && !bottomChromeHidden && !spendingSelectionMode && !store.hidesAddButton
-                    && !(selectedTab == 0 && store.homeSubpageOpen) {
+                //
+                // 하위 화면에서도 감춘다 — 홈은 `homeSubpageOpen`, 지출 탭은 [spendingTabSubpageOpen](27.52.0).
+                // 예전 조건의 `tabsWithSubPage` 는 선언만 있고 넣는 곳이 없어 늘 비어 있었고, 그래서 지출 상세 ·
+                // 캘린더 · 인사이트 위에 '+' 가 그대로 떠 있었다. 선택 모드도 지출 탭의 상태라 그 탭일 때만 본다.
+                if selectedTab <= 1 && !bottomChromeHidden && !store.hidesAddButton
+                    && !(selectedTab == 0 && store.homeSubpageOpen)
+                    && !(selectedTab == 1 && (spendingSelectionMode || spendingTabSubpageOpen)) {
                     legacyAddButton
                         .padding(.trailing, GLGLegacyAddButton.trailingInset)
                         .padding(.bottom, GLGLegacyAddButton.bottomInset)

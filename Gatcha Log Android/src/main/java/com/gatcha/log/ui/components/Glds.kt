@@ -27,8 +27,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -175,6 +178,7 @@ private val GldsFieldPlaceholder = Color(0xFFA7B1AE)
  * GLDS 입력필드 — 채운 면(#F5F8F8), 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
  * [suffix] 는 값 뒤에 붙는 단위(「원」), [trailingIcon] 은 오른쪽 끝 아이콘, [onClick] 을 주면 누르는 필드(날짜 등).
  * [secure] 면 값을 점으로 가린다(토큰) — iOS `GldsTextField(secure:)` 와 같다.
+ * [visualTransformation] 은 값은 그대로 두고 보이는 글자만 바꾼다(금액 쉼표 — [ThousandsTransformation]). [secure] 가 먼저다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -197,6 +201,7 @@ fun GldsTextField(
     readOnly: Boolean = false,
     secure: Boolean = false,
     onClick: (() -> Unit)? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     val accent = LocalAccent.current
     val interaction = remember { MutableInteractionSource() }
@@ -249,7 +254,7 @@ fun GldsTextField(
                     singleLine = singleLine,
                     // 가리는 칸은 키보드도 비밀번호용으로 — 자동 완성 · 학습에 값이 남지 않게 한다.
                     keyboardOptions = if (secure) keyboardOptions.copy(keyboardType = KeyboardType.Password, autoCorrectEnabled = false) else keyboardOptions,
-                    visualTransformation = if (secure) PasswordVisualTransformation() else VisualTransformation.None,
+                    visualTransformation = if (secure) PasswordVisualTransformation() else visualTransformation,
                     textStyle = style,
                     cursorBrush = SolidColor(accent),
                     interactionSource = interaction,
@@ -272,6 +277,34 @@ fun GldsTextField(
 @Composable
 fun GldsFieldLabel(text: String, modifier: Modifier = Modifier) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, modifier = modifier.padding(bottom = 6.dp))
+}
+
+/**
+ * 숫자만 든 금액에 세 자리 쉼표를 **보이는 글자에만** 넣는다 — 값(숫자)은 그대로다.
+ *
+ * 커서 위치도 옮겨 준다. 쉼표가 끼어든 만큼 앞뒤로 밀어야 지우기·중간 입력이 제자리에서 된다.
+ *
+ * 금액 칸은 전부 이것을 쓴다(27.52.0 — 지출 금액 · 온보딩 ③/예산 관리의 월 예산 · 게임별 한도). 쉼표를 넣은
+ * 문자열을 값으로 되돌려 넣으면 자리수가 늘 때 커서가 쉼표만큼 밀려 숫자가 섞였다(1·2·3·4·5 → 12,354).
+ * 값은 **숫자만** 넘겨야 한다.
+ */
+object ThousandsTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digits = text.text
+        val n = digits.length
+        // 원본 i 번째 글자 앞에 쉼표가 붙는가 — 끝에서 세 자리마다.
+        fun commaBefore(i: Int) = i > 0 && (n - i) % 3 == 0
+        val out = StringBuilder()
+        digits.forEachIndexed { i, c -> if (commaBefore(i)) out.append(','); out.append(c) }
+        val mapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                offset + (1 until offset).count { commaBefore(it) }
+            override fun transformedToOriginal(offset: Int): Int =
+                (offset - out.substring(0, offset.coerceAtMost(out.length)).count { it == ',' })
+                    .coerceIn(0, n)
+        }
+        return TransformedText(AnnotatedString(out.toString()), mapping)
+    }
 }
 
 /**

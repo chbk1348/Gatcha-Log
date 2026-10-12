@@ -39,7 +39,7 @@ object NanokaApi {
 
     private var cached: NanokaManifest? = null
     private val manifestLock = Mutex()
-    /** 지금까지 실제로 네트워크를 탄 횟수 — 대기 중에 남이 받아봤는지 판별용([manifest] 참고). */
+    /** 지금까지 **끝난** 네트워크 시도 횟수 — 대기 중에 남이 받아봤는지 판별용([manifest] 참고). */
     private var manifestAttempts = 0L
 
     /**
@@ -61,8 +61,10 @@ object NanokaApi {
         return manifestLock.withLock {
             cached?.let { return@withLock it }
             if (manifestAttempts != seen) return@withLock null   // 기다리는 사이 남이 받아봤고, 실패였다
-            manifestAttempts++
             val res = Net.get("$BASE/manifest.json", headers)
+            // **끝난 뒤에** 센다(27.52.0). 시작할 때 세면 요청이 도는 동안 들어온 대기자는 이미 오른 값을 읽어,
+            // 실패를 나눠 받지 못하고 저마다 다시 받았다 — 위 주석이 막으려던 직렬 타임아웃이 그대로 났다.
+            manifestAttempts++
             if (!res.isOk) null else parseManifest(res.body)?.also { cached = it }
         }
     }
@@ -75,13 +77,22 @@ object NanokaApi {
      * 형상 시네마가 404 로 비었다 — 젠레스가 `live=3.1` 인데 `latest=3.2.2` 이던 시점에 실제로 그랬다.
      * 지난 버전 항목은 두 경로 모두에 있으므로 `latest` 우선이 손해 볼 게 없다.
      */
-    suspend fun entity(game: String, type: String, id: String, lang: String = "ko"): JSONObject? {
-        val m = manifest()?.games?.get(game) ?: return null
+    suspend fun entity(game: String, type: String, id: String, lang: String = "ko"): JSONObject? =
+        entityLookup(game, type, id, lang).first
+
+    /**
+     * [entity] 와 같되, 못 찾은 까닭을 함께 준다 — second 가 true 면 **도감에 없다고 확인된 것**(전 버전 404)이고,
+     * false 면 못 받은 것(오프라인 · 매니페스트 실패 · 서버 오류)이라 다음에 다시 물어야 한다.
+     */
+    private suspend fun entityLookup(game: String, type: String, id: String, lang: String = "ko"): Pair<JSONObject?, Boolean> {
+        val m = manifest()?.games?.get(game) ?: return null to false
+        var allMissing = true
         for (ver in m.versionsToTry) {
             val res = Net.get("$BASE/$game/$ver/$lang/$type/$id.json", headers)
-            if (res.isOk) return runCatching { JSONObject(res.body) }.getOrNull()
+            if (res.isOk) return runCatching { JSONObject(res.body) }.getOrNull().let { it to (it != null) }
+            if (res.code != 404) allMissing = false
         }
-        return null
+        return null to allMissing
     }
 
     /**
@@ -115,7 +126,8 @@ object NanokaApi {
      *   [giRegionKo] 로 옮긴다. 같은 자리에 `native`(야시로 봉행·왕생당)도 있지만 그건 조직이고,
      *   원신에서 캐릭터를 가르는 축은 국가다.
      *
-     * 값이 없는 캐릭터도 있다(스타레일 망귀인) — 그때는 null 이고, 화면은 줄을 그리지 않는다.
+     * 값이 없는 캐릭터도 있다(스타레일 망귀인) — 그때는 **빈 문자열**이고, 화면은 줄을 그리지 않는다.
+     * **null 은 「못 받았다」** 다(오프라인 · 서버 오류) — 부르는 쪽은 기록하지 않고 다음에 다시 묻는다.
      */
     /**
      * 젠레스 뱅부 한국어 이름(id → 이름) — HoYoLAB 전투 기록은 뱅부 이름을 주지 않는다(id · 이미지뿐).
@@ -137,9 +149,13 @@ object NanokaApi {
             "hsr", "starrail" -> "hsr"
             else -> return null   // 젠레스는 응답이 직접 준다
         }
-        val info = entity(nanokaKey, "character", charId.toString())?.optJSONObject("chara_info") ?: return null
-        return if (nanokaKey == "gi") giRegionKo(info.optString("region"), charId)
-        else info.optString("camp").takeIf { it.isNotBlank() }
+        val (entity, known) = entityLookup(nanokaKey, "character", charId.toString())
+        // 못 받았다 — 「없음」으로 적지 않는다. 예전엔 첫 조회 때 오프라인이면 빈 값이 저장돼 그 캐릭터의 소속 배지가
+        // 이 기기에서 다시는 뜨지 않았다(27.52.0).
+        if (entity == null) return if (known) "" else null
+        val info = entity.optJSONObject("chara_info") ?: return ""
+        return if (nanokaKey == "gi") giRegionKo(info.optString("region"), charId).orEmpty()
+        else info.optString("camp")
     }
 
     /**

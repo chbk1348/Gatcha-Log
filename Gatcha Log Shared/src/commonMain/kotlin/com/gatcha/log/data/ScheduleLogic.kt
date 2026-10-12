@@ -1,7 +1,6 @@
 package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
-import kotlin.math.ceil
 
 /**
  * 통합 게임 일정 — 패치(픽업 페이즈)·진행 이벤트·정기 콘텐츠를 하나의 모델로 합쳐 날짜순 정렬.
@@ -31,9 +30,8 @@ data class ScheduleEntry(
     /** 이벤트·콘텐츠 줄의 보상 박스 항목. 비면 [sub] 글자로 보여 준다. 픽업 줄은 늘 빈 목록. */
     val rewardItems: List<RewardItem> = emptyList(),
 ) {
-    /** 남은 일수(올림). 음수면 지남. */
-    fun dDay(nowMillis: Long = currentTimeMillis()): Int =
-        ceil((target - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
+    /** 남은 달력 날 수([DateUtil.daysLeft]). 음수면 지남. */
+    fun dDay(nowMillis: Long = currentTimeMillis()): Int = DateUtil.daysLeft(target, nowMillis)
 }
 
 /**
@@ -189,11 +187,17 @@ object ScheduleLogic {
         banners: List<GachaBanner>,
         entries: List<ScheduleEntry>,
         nowMillis: Long = currentTimeMillis(),
-    ): ScheduleSummary = ScheduleSummary(
-        weekDeadlines = entries.count { it.dDay(nowMillis) in 0..7 },
-        activePickups = banners.size,
-        extras = entries.count { it.kind != "패치" },
-    )
+    ): ScheduleSummary {
+        // 「이번 주」는 주간 보드([buildWeeks])와 같은 일~토 달력 주다. 예전엔 "지금부터 7×24시간"이라 보드에서
+        // 「다음 주」에 있는 항목이 「이번 주 마감」에 들어갔고, 픽업 **시작** 줄까지 마감으로 셌다(27.52.0).
+        val weekEnd = DateUtil.startOfDayPlus(DateUtil.startOfWeek(nowMillis), 7)
+        return ScheduleSummary(
+            weekDeadlines = entries.count { !it.isStart && it.target >= nowMillis && it.target < weekEnd },
+            // 아직 시작하지 않은 픽업은 「진행 중」이 아니다. 시작 시각을 모르면(0) 진행 중으로 본다.
+            activePickups = banners.count { it.startMillis <= nowMillis },
+            extras = entries.count { it.kind != "패치" },
+        )
+    }
 
     // ── 섹션 진입 카드: 게임 한 줄 ──────────────────────────────────────────
 
@@ -259,8 +263,7 @@ object ScheduleLogic {
         )
     }
 
-    private fun dDayOf(target: Long, nowMillis: Long): Int =
-        ceil((target - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
+    private fun dDayOf(target: Long, nowMillis: Long): Int = DateUtil.daysLeft(target, nowMillis)
 
     /**
      * 픽업 배너 — "all"이면 전체, 게임 키를 주면 그 게임만. 종료 임박순.
@@ -519,10 +522,11 @@ fun buildWeeks(
 ): List<ScheduleWeek> {
     val today = DateUtil.startOfDay(nowMillis)
     val first = DateUtil.startOfWeek(nowMillis)
-    val day = 86_400_000L
+    // 주 · 날의 경계는 날짜로 더한다([DateUtil.startOfDayPlus]) — 24시간을 더하면 서머타임 주에 칸이 겹친다.
     return (0 until weeks.coerceAtLeast(1)).map { w ->
-        val ws = first + w * 7 * day
-        val we = ws + 7 * day
+        val ws = DateUtil.startOfDayPlus(first, w * 7)
+        val we = DateUtil.startOfDayPlus(ws, 7)
+        val lastDay = DateUtil.startOfDayPlus(ws, 6)
         val inWeek = entries.filter { it.target in ws until we && it.target >= today }
             .sortedBy { it.target }
         ScheduleWeek(
@@ -532,10 +536,10 @@ fun buildWeeks(
                 else -> "${DateUtil.month(ws)}월 ${DateUtil.dayOfMonth(ws)}일 주"
             },
             rangeLabel = "${DateUtil.month(ws)}/${DateUtil.dayOfMonth(ws)} – " +
-                "${DateUtil.month(we - day)}/${DateUtil.dayOfMonth(we - day)}",
+                "${DateUtil.month(lastDay)}/${DateUtil.dayOfMonth(lastDay)}",
             startMillis = ws,
             days = (0 until 7).map { d ->
-                val dm = ws + d * day
+                val dm = DateUtil.startOfDayPlus(ws, d)
                 val dayEntries = inWeek.filter { DateUtil.dayKey(it.target) == DateUtil.dayKey(dm) }
                 WeekDay(
                     millis = dm,

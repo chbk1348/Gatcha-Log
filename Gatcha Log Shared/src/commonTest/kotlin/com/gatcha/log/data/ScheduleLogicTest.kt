@@ -146,14 +146,15 @@ class ScheduleLogicTest {
     @Test
     fun summarizeCountsWeekDeadlinesPickupsAndExtras() {
         val banners = listOf(banner("A", 5, "6.7"), banner("B", 20, "6.8"))
+        // base 는 금요일이다 — 하루 뒤(토)까지가 주간 보드의 「이번 주」(일~토)다.
         val events = listOf(
-            GameEvent(Game.GENSHIN.displayName, "이번주", base + 3 * day),
+            GameEvent(Game.GENSHIN.displayName, "이번주", base + 1 * day),
             GameEvent(Game.GENSHIN.displayName, "나중", base + 30 * day),
         )
         val s = ScheduleLogic.summarize(
             banners, ScheduleLogic.buildSchedule(banners, events, emptyList()), base,
         )
-        assertEquals(2, s.weekDeadlines)   // 5일 뒤 픽업 종료 + 3일 뒤 이벤트
+        assertEquals(1, s.weekDeadlines)   // 하루 뒤 이벤트만 — 5일 뒤 픽업 종료는 다음 주다
         assertEquals(2, s.activePickups)
         assertEquals(2, s.extras)
     }

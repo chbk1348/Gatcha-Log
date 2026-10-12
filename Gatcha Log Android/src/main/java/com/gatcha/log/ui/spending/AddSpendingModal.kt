@@ -34,6 +34,9 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,10 +54,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,6 +79,7 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GldsTextField
+import com.gatcha.log.ui.components.ThousandsTransformation
 import com.gatcha.log.ui.theme.GlgCardReveal
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.glgShortSpec
@@ -116,42 +116,62 @@ fun AddSpendingModal(
     //
     // 추가 진입이면 **앱이 아는 값으로 시작**한다(추론은 공유 SpendingDefaults 가 한다).
     // 기록이 없으면 추론하지 않고 예전 기본값(원신·카드·빈칸) 그대로 간다.
-    var game by remember(spendingToEdit) {
+    //
+    // 폼 값은 전부 rememberSaveable 이다(27.52.0) — remember 일 때는 적다가 다른 앱에 다녀온 사이 화면이
+    // 다시 만들어지면 입력이 통째로 사라졌다. 번들에 못 넣는 값은 문자열로 풀어 둔다(게임 = 키 · 상품 = 이름).
+    var gameKey by rememberSaveable(spendingToEdit) {
         mutableStateOf(
             // 미선택 상태의 표시는 gameChosen 이 맡는다. 이 값은 고르기 전까지 쓰이지 않는다.
-            GameData.byName(spendingToEdit?.gameName ?: "원신"),
+            (GameData.byNameOrNull(spendingToEdit?.gameName ?: "원신") ?: Game.GENSHIN).key,
         )
     }
-    var amount by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.amount?.takeIf { it > 0 }?.toString() ?: "") }
-    var dateMillis by remember(spendingToEdit) { mutableLongStateOf(spendingToEdit?.dateMillis ?: System.currentTimeMillis()) }
-    var paymentMethod by remember(spendingToEdit) {
+    val game = Game.entries.firstOrNull { it.key == gameKey } ?: Game.GENSHIN
+    // 목록에 없는 게임명의 지출(27.52.0) — 위 game 은 원신으로 떨어져 있다. 예전엔 그대로 저장해서, 금액만 고쳐도
+    // 게임명 · 게임색이 원신으로 덮였다. 사용자가 게임을 **직접 바꾸기 전까지는** 원래 이름 · 색을 들고 간다.
+    val unknownGameName = spendingToEdit?.gameName?.takeIf { GameData.byNameOrNull(it) == null }
+    var gameChanged by rememberSaveable(spendingToEdit) { mutableStateOf(false) }
+    val keepOriginalGame = unknownGameName != null && !gameChanged
+    var amount by rememberSaveable(spendingToEdit) { mutableStateOf(spendingToEdit?.amount?.takeIf { it > 0 }?.toString() ?: "") }
+    var dateMillis by rememberSaveable(spendingToEdit) { mutableLongStateOf(spendingToEdit?.dateMillis ?: System.currentTimeMillis()) }
+    var paymentMethod by rememberSaveable(spendingToEdit) {
         mutableStateOf(
             spendingToEdit?.paymentMethod
                 ?: SpendingDefaults.topPaymentMethod(recentSpendings)
                 ?: "카드",
         )
     }
-    var chargePlatform by remember(spendingToEdit) {
+    var chargePlatform by rememberSaveable(spendingToEdit) {
         // 게임이 정해져야 고를 수 있어 초기엔 비운다 — 게임 선택 시 onGameChange 에서 채운다.
         mutableStateOf(spendingToEdit?.chargePlatform ?: "")
     }
-    var itemName by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.itemName ?: "") }
-    var memo by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.memo ?: "") }
-    var customTags by remember(spendingToEdit) { mutableStateOf("") }
-    val selectedTags = remember(spendingToEdit) {
-        mutableStateListOf<String>().apply { spendingToEdit?.tags?.let { addAll(it) } }
+    var itemName by rememberSaveable(spendingToEdit) { mutableStateOf(spendingToEdit?.itemName ?: "") }
+    var memo by rememberSaveable(spendingToEdit) { mutableStateOf(spendingToEdit?.memo ?: "") }
+    // 수정 진입 시 기존 태그를 둘로 가른다(27.52.0, iOS 와 같은 규칙) — 추천 목록에 있는 것은 칩으로,
+    // **없는 것은 직접 입력 칸에** 채운다. 예전엔 전부 selectedTags 에 담고 칩은 추천 목록만 그려서, 직접 입력했던
+    // 태그는 보이지도 않고 지울 길도 없었다(저장하면 그대로 다시 붙었다). 칸에 있으면 거기서 지우는 것으로 빠진다.
+    // 이어 붙이는 구분자는 저장 때 이 칸을 쪼개는 것과 같다(쉼표 · 공백 — [buildSpending]).
+    val existingTags = spendingToEdit?.tags.orEmpty()
+    var customTags by rememberSaveable(spendingToEdit) {
+        mutableStateOf(existingTags.filter { it.isNotBlank() && it !in GameData.suggestedTags }.joinToString(", "))
     }
+    val selectedTags = rememberSaveable(
+        spendingToEdit,
+        // listSaver 를 쓰지 않는다 — 빈 목록은 저장하지 않아서, 칩을 전부 끈 뒤 복원되면 처음 태그가 되살아난다.
+        saver = Saver<SnapshotStateList<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toMutableStateList() }),
+    ) { existingTags.filter { it in GameData.suggestedTags }.toMutableStateList() }
     // 수정 진입 시 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수를 복원 → 스텝퍼가 그대로 노출.
-    var selectedPackage by remember(spendingToEdit) { mutableStateOf(detectEditPackage(spendingToEdit)) }
+    // 고른 상품은 **이름**으로 들고 있다(상품명은 한 게임 안에서 겹치지 않는다).
+    var selectedPackageName by rememberSaveable(spendingToEdit) { mutableStateOf(detectEditPackage(spendingToEdit)?.name) }
+    val selectedPackage = selectedPackageName?.let { name -> GameData.packagesFor(game).firstOrNull { it.name == name } }
     // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
-    var quantity by remember(spendingToEdit) { mutableIntStateOf(detectEditQuantity(spendingToEdit)) }
+    var quantity by rememberSaveable(spendingToEdit) { mutableIntStateOf(detectEditQuantity(spendingToEdit)) }
     val showDatePicker = remember { mutableStateOf(false) }
     // N6 과소비 넛지 — 저장 직전 경고 메시지(있으면 확인 다이얼로그 노출 후 그래도 추가 시 저장).
     var nudgeMsg by remember { mutableStateOf<String?>(null) }
     /// '자주 사는 것' 아래 전체 상품 그리드를 폈는가.
     var showAllPackages by remember(game) { mutableStateOf(false) }
     // '자세히'(결제·플랫폼·태그·메모·구독) — **수정 진입은 펼친 채 시작**한다(무엇을 고치러 왔는지 모른다).
-    var detailsExpanded by remember(spendingToEdit) { mutableStateOf(editing) }
+    var detailsExpanded by rememberSaveable(spendingToEdit) { mutableStateOf(editing) }
 
     // 사용자가 게임을 **직접 골랐는가.**
     //
@@ -159,7 +179,7 @@ fun AddSpendingModal(
     // 다른 게임을 기록하러 온 사람이 **못 알아채고 엉뚱한 게임에 저장**한다 —
     // 지출은 게임별 집계·예산의 기준이라 그 오기록은 나중에 찾기 어렵다.
     // 결제수단·플랫폼과 달리 게임은 "틀려도 티가 안 나는" 값이 아니다. 수정 진입은 이미 정해져 있다.
-    var gameChosen by remember(spendingToEdit) { mutableStateOf(editing) }
+    var gameChosen by rememberSaveable(spendingToEdit) { mutableStateOf(editing) }
 
     // 히어로에 바로 뜨는 과소비 경고 — 저장을 누른 뒤가 아니라 금액이 정해지는 순간에 알린다.
     // 입력 도중 매 글자마다 뜨면 방해가 되므로 손이 멈춘 뒤에만 평가한다.
@@ -175,7 +195,7 @@ fun AddSpendingModal(
     }
 
     fun applyPackage(pkg: GamePackage) {
-        selectedPackage = pkg
+        selectedPackageName = pkg.name
         quantity = 1
         amount = pkg.price.toString()
         itemName = pkg.name
@@ -199,7 +219,8 @@ fun AddSpendingModal(
             .distinct()
         val base = spendingToEdit ?: Spending(gameName = game.displayName, amount = parsed)
         return base.copy(
-            gameName = game.displayName,
+            // 목록에 없는 게임명은 게임을 직접 바꾸지 않았으면 원래 이름 · 색 그대로 둔다(위 keepOriginalGame).
+            gameName = if (keepOriginalGame) base.gameName else game.displayName,
             amount = parsed,
             dateMillis = dateMillis,
             paymentMethod = paymentMethod,
@@ -207,7 +228,7 @@ fun AddSpendingModal(
             itemName = itemName,
             memo = memo,
             tags = tags,
-            gameColor = game.color,
+            gameColor = if (keepOriginalGame) base.gameColor else game.color,
         )
     }
 
@@ -218,11 +239,14 @@ fun AddSpendingModal(
 
     // 입력 지문 — 처음과 다르면 "고친 게 있다". 뒤로가기 · 취소가 예전엔 묻지 않고 입력을 버렸다(iOS 와 같은 판정).
     // 게임을 고른 것도 입력이다 — 기본값이 원신이라 원신을 고르면 이름만으론 안 바뀐다.
+    // 목록에 없는 게임명은 원래 이름으로 센다 — 거기서 원신을 골라도(game 은 이미 원신이다) 바뀐 것으로 잡히게.
     fun fingerprint() = listOf(
-        gameChosen, game.displayName, amount, dateMillis, paymentMethod, chargePlatform,
+        gameChosen, if (keepOriginalGame) unknownGameName else game.displayName, amount, dateMillis, paymentMethod, chargePlatform,
         itemName, memo, customTags, selectedTags.joinToString(","),
     ).joinToString("|")
-    val initialFingerprint = remember(spendingToEdit) { fingerprint() }
+    // 처음 지문도 같이 저장한다 — 복원된 뒤에 다시 뜨면 고친 값이 「처음」이 되어, 고쳐 놓고도 묻지 않고 닫혔을 것이다.
+    // 수정 진입 때 직접 입력 칸에 채워 둔 기존 태그도 이 처음 값에 들어 있어 「바뀐 것」으로 잡히지 않는다.
+    val initialFingerprint = rememberSaveable(spendingToEdit) { fingerprint() }
     var confirmDiscard by remember { mutableStateOf(false) }
     fun requestDismiss() { if (!saved && fingerprint() != initialFingerprint) confirmDiscard = true else onDismiss() }
 
@@ -261,9 +285,10 @@ fun AddSpendingModal(
                 // 일반 필드로 있었다. 목록·상세·인사이트는 전부 금액이 히어로인데 입력할 때만 아니었다.
                 item {
                     val chooseGame: (Game) -> Unit = { g ->
-                        game = g
+                        gameKey = g.key
                         gameChosen = true
-                        selectedPackage = null
+                        gameChanged = true
+                        selectedPackageName = null
                         quantity = 1
                         itemName = ""
                         if (!editing) chargePlatform = SpendingDefaults.lastPlatform(recentSpendings, g.displayName) ?: ""
@@ -281,13 +306,15 @@ fun AddSpendingModal(
                             // 11자리(999억)까지만 — 더 긴 붙여넣기는 조용히 0 이 됐다. 상한(100억)은 저장할 때 VM 이 막는다.
                             amount = input.filter { it.isDigit() }.take(11)
                             // 금액을 직접 손대면 자동 곱 상태를 해제(스텝퍼 계산과 어긋나지 않게).
-                            selectedPackage = null
+                            selectedPackageName = null
                             quantity = 1
                         },
                         gameChosen = gameChosen,
                         onGameChange = chooseGame,
                         itemName = itemName,
                         nudge = inlineNudge,
+                        unknownGameName = unknownGameName.takeIf { keepOriginalGame },
+                        unknownGameColor = spendingToEdit?.gameColor,
                     )
                 }
 
@@ -311,7 +338,7 @@ fun AddSpendingModal(
                                     item = f,
                                     selected = itemName == f.itemName,
                                 ) {
-                                    selectedPackage = GameData.packagesFor(game).firstOrNull { p -> p.name == f.itemName }
+                                    selectedPackageName = GameData.packagesFor(game).firstOrNull { p -> p.name == f.itemName }?.name
                                     quantity = 1
                                     itemName = f.itemName
                                     amount = f.amount.toString()
@@ -616,8 +643,18 @@ private fun AmountHero(
     gameChosen: Boolean,
     itemName: String,
     nudge: String?,
+    /**
+     * 목록에 없는 게임명의 지출을 고치는 중이면 그 이름(게임을 직접 바꾸기 전까지) — 알약에 [game](원신으로
+     * 떨어진 값) 대신 이 이름 · [unknownGameColor] 를 보여 준다. 아니면 null.
+     */
+    unknownGameName: String? = null,
+    unknownGameColor: Long? = null,
 ) {
-    val gameColor = if (gameChosen) game.color.toColor() else TextSecondary
+    val gameColor = when {
+        !gameChosen -> TextSecondary
+        unknownGameName != null && unknownGameColor != null -> unknownGameColor.toColor()
+        else -> game.color.toColor()
+    }
     var pickGame by remember { mutableStateOf(false) }
     // 카드 없이 화면 폭 그대로(좌우 20) — 아래 섹션과 10 띠로 갈린다. 게임색은 알약 · 환산 글자가 맡는다.
     Column(
@@ -635,7 +672,7 @@ private fun AmountHero(
             ) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(gameColor))
                 Spacer(Modifier.width(6.dp))
-                Text(game.shortName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = gameColor)
+                Text(unknownGameName ?: game.shortName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = gameColor)
                 Spacer(Modifier.width(4.dp))
                 // 화살표는 뒤집지 않고 **돌린다** — 글자를 바꾸면 순간이동처럼 보인다.
                 val arrow by animateFloatAsState(if (pickGame) 180f else 0f, glgStandardSpec(), label = "gamePickArrow")
@@ -649,8 +686,9 @@ private fun AmountHero(
                 pickerOrder.forEach { g ->
                     GlgDropdownItem(
                         text = g.displayName,
-                        selected = g == game,
-                        onClick = { pickGame = false; if (g != game) onGameChange(g) },
+                        // 목록에 없는 게임명이면 고른 것이 없는 상태다 — 원신을 눌러도(game 과 같다) 바꾼 것으로 받는다.
+                        selected = unknownGameName == null && g == game,
+                        onClick = { pickGame = false; if (unknownGameName != null || g != game) onGameChange(g) },
                     )
                 }
             }
@@ -944,29 +982,7 @@ private fun detectEditQuantity(s: Spending?): Int {
 private fun detectEditPackage(s: Spending?): GamePackage? {
     val name = s?.itemName?.trim() ?: return null
     val base = name.replace(Regex("\\s*×\\s*\\d+\\s*$"), "").trim()
-    return GameData.packagesFor(GameData.byName(s.gameName)).firstOrNull { it.name == base }
-}
-
-/**
- * 숫자만 든 금액에 세 자리 쉼표를 **보이는 글자에만** 넣는다 — 값(숫자)은 그대로다.
- *
- * 커서 위치도 옮겨 준다. 쉼표가 끼어든 만큼 앞뒤로 밀어야 지우기·중간 입력이 제자리에서 된다.
- */
-private object ThousandsTransformation : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val digits = text.text
-        val n = digits.length
-        // 원본 i 번째 글자 앞에 쉼표가 붙는가 — 끝에서 세 자리마다.
-        fun commaBefore(i: Int) = i > 0 && (n - i) % 3 == 0
-        val out = StringBuilder()
-        digits.forEachIndexed { i, c -> if (commaBefore(i)) out.append(','); out.append(c) }
-        val mapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int =
-                offset + (1 until offset).count { commaBefore(it) }
-            override fun transformedToOriginal(offset: Int): Int =
-                (offset - out.substring(0, offset.coerceAtMost(out.length)).count { it == ',' })
-                    .coerceIn(0, n)
-        }
-        return TransformedText(AnnotatedString(out.toString()), mapping)
-    }
+    // 목록에 없는 게임명이면 맞춰 볼 상품 목록이 없다 — 원신 상품에 맞추지 않는다.
+    val game = GameData.byNameOrNull(s.gameName) ?: return null
+    return GameData.packagesFor(game).firstOrNull { it.name == base }
 }

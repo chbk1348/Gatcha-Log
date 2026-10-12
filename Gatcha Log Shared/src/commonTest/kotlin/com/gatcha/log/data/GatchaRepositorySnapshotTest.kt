@@ -362,7 +362,10 @@ class GatchaRepositorySnapshotTest {
         r.markSpendingsCleared(3_000)
         r.importBackupJson(backup)
         assertEquals(setOf("a", "b"), r.loadSpendings().map { it.id }.toSet())
-        assertFalse("a" in r.loadDeletedSpendingIds())
+        // 원격에 **시각 없는** 옛 삭제 기록이 남아 있어도 되살린 지출이 다시 지워지지 않는다(27.52.0) —
+        // 예전엔 복원 직후의 올리기 병합에서 그 기록이 다시 합쳐져 "복원했어요" 뒤에 또 사라졌다.
+        r.importSnapshotJson("""{"deleted_spendings":["a"]}""")
+        assertEquals(setOf("a", "b"), r.loadSpendings().map { it.id }.toSet())
     }
 
     @Test

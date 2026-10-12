@@ -1,6 +1,8 @@
 package com.gatcha.log.data.api
 
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import com.gatcha.log.data.ErrorBus
 import com.gatcha.log.util.currentTimeMillis
 import io.ktor.client.HttpClient
@@ -167,12 +169,16 @@ object Net {
         // 정상 흐름인데, `catch (Exception)` 이 이것까지 잡는다. 여기서 걸러내지 않으면
         // 사용자에게 "연결하지 못했어요" 가 뜬다(실측: hoyoland.json 요청 중 JobCancellationException).
         //
-        // 반환값은 기존과 같은 `NetResult(-1)` 로 둔다 — 호출부는 이미 -1 을 네트워크 실패로
-        // 처리하고 있고, 취소된 코루틴은 어차피 그 결과를 쓰지 않는다.
+        // **부른 쪽이 취소된 것이면 다시 던진다**(27.52.0). 예전엔 `NetResult(-1)` 을 돌려줘서, 취소된 요청이
+        // 「실패」 상태를 쓰고 나갔다 — 공지를 열었다 나갔다 곧바로 다시 열면 실패 화면이 비쳤고, 출석 중 취소되면
+        // 「네트워크 오류」가 떴다. 부른 쪽이 살아 있는데 안쪽에서만 접힌 요청(엔진 쪽 취소)은 예전처럼 -1 이다.
+        currentCoroutineContext().ensureActive()
         NetResult(-1, "cancelled")
     } catch (e: Exception) {
         // 진단용: 예외(타임아웃·연결 실패 등)는 항상 로깅
         println("GatchaNet: ${method.value} ${url.substringBefore("?")} → 예외 ${e::class.simpleName}: ${e.message}")
+        // 취소가 다른 예외에 싸여 온 경우에도, 부른 쪽이 취소된 것이면 실패로 답하지 않고 취소를 잇는다.
+        if (e.isCausedByCancellation()) currentCoroutineContext().ensureActive()
         when {
             quiet -> Unit   // 닿는지 보려고 찔러 본 요청([ping]) — 실패도 결과다
             // **취소가 다른 예외에 싸여 오는 경우.** 위 catch 는 최상위 타입만 잡는데, 엔진에 따라

@@ -96,6 +96,9 @@ final class SpendingStore {
     /// 호요랜드의 하위 페이지(굿즈 · 부스 · 배치도 …)는 같은 스택 위에 쌓이므로 홈으로 돌아올 때까지 참이다.
     /// 홈에서 하위 페이지(호요랜드 · 예산 관리)가 열려 있는가 — 그동안 '+' 를 감춘다.
     var homeSubpageOpen: Bool = false
+    /// 지출 탭에서 캘린더 · 인사이트가 열려 있는가 — 위와 같은 까닭으로 그동안 '+' 를 감춘다(27.52.0).
+    /// 둘은 툴바의 뷰 기반 `NavigationLink` 로 열려 ContentView 의 경로(spendingPath)에 안 잡힌다. 상세는 경로로 본다.
+    var spendingSubpageOpen: Bool = false
     /// 캐릭터 상세 속성 연출 — 끄면 움직임 없이 속성 테두리만 남는다.
     private(set) var charElementFx: Bool = true
     private(set) var nudgeThreshold: Int64 = 0
@@ -218,6 +221,25 @@ final class SpendingStore {
         prevMonthTotal = vm.previousMonthTotal.value.int64Value
         monthlyTotalsByGame = vm.currentMonthTotalsByGame.value.mapValues { $0.int64Value }
         recentMonthlyTotals = vm.recentMonthlyTotals.value.map { $0.int64Value }
+        // 홈이 첫 프레임에 읽는 나머지 값도 같은 까닭으로 미리 넣는다(27.52.0). 구독(observeCritical)은 그대로 두고
+        // 시작값만 Kotlin 의 지금 값으로 맞춘다 — 예전엔 기본값으로 시작해서, 콜드 스타트 첫 프레임에 예산이
+        // 「미설정」으로, 준비된 카드가 스켈레톤으로, 읽은 알림이 안 읽은 것으로, 출석한 게임이 미출석으로 한 번 그려졌다.
+        budget = vm.budget.value.int64Value
+        gameBudgets = vm.gameBudgets.value.mapValues { $0.int64Value }
+        gameInfoReady = vm.gameInfoReady.value.boolValue
+        scheduleReady = vm.scheduleReady.value.boolValue
+        newsReady = vm.newsReady.value.boolValue
+        liveNotes = vm.liveNotes.value
+        activeBanners = vm.activeBanners.value
+        gameEvents = vm.gameEvents.value
+        challenges = vm.challenges.value
+        gameNews = vm.gameNews.value
+        combat = vm.combat.value
+        trackedAttendanceGames = vm.trackedAttendanceGames.value
+        attendanceToday = vm.attendanceToday.value
+        readAlerts = vm.readAlerts.value
+        dismissedAlerts = vm.dismissedAlerts.value
+        hoyoTokenExpired = vm.hoyoTokenExpired.value.boolValue
         seedDeferredScalars()
         observe()
     }
@@ -262,6 +284,8 @@ final class SpendingStore {
         charElementFx = vm.charElementFx.value.boolValue
         nudgeThreshold = vm.nudgeThreshold.value.int64Value
         notifyNews = vm.notifyNews.value.boolValue
+        // 혼자 빠져 있었다(27.52.0) — 구독이 닿기 전에 알림 설정을 열면 「앱 업데이트」만 꺼짐으로 한 번 그려졌다.
+        notifyAppUpdate = vm.notifyAppUpdate.value.boolValue
         notifyHoyoland = vm.notifyHoyoland.value.boolValue
         notifyCombat = vm.notifyCombat.value.boolValue
         notifyDndEnabled = vm.notifyDndEnabled.value.boolValue
@@ -440,7 +464,16 @@ final class SpendingStore {
     func setCharElementFx(_ v: Bool) { vm.setCharElementFx(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
     /// 공지 상세 진입 — 본문 로드. 이탈 시 clearNewsArticle() 로 정리한다.
-    func loadNewsArticle(_ item: NewsItem) { vm.loadNewsArticle(item: item) }
+    ///
+    /// 부른 뒤 **미러 셋을 그 자리에서 맞춘다**(27.52.0). Kotlin 은 이 호출 안에서 곧바로 앞 글 본문을 비우고
+    /// 로딩을 켜는데, 구독(bind) 콜백은 한 런루프 뒤에 온다 — 그 사이에 그려지면 새 글 제목 아래에
+    /// 앞 글 본문이 비친다. 공지 상세는 이 호출이 끝난 뒤의 슬롯을 「이 글 것」으로 믿고 그린다(NewsDetailView).
+    func loadNewsArticle(_ item: NewsItem) {
+        vm.loadNewsArticle(item: item)
+        newsArticle = vm.newsArticle.value
+        newsArticleLoading = vm.newsArticleLoading.value.boolValue
+        newsArticleFailed = vm.newsArticleFailed.value.boolValue
+    }
     func clearNewsArticle() { vm.clearNewsArticle() }
 
     func setNotifyBudget(_ v: Bool) { vm.setNotifyBudget(v: v) }

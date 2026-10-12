@@ -4,7 +4,14 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.GatchaRepository
+import com.gatcha.log.data.Notifier
 import com.gatcha.log.storage.AppContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Android 예약형 알림 — **앱 프로세스가 죽어 있어도 정시에 발송한다.**
@@ -55,24 +62,76 @@ actual object AlertScheduler {
      */
     private fun notificationId(key: String): Int = NOTIF_ID_BASE + key.hashCode().mod(1000)
 
-    // suspend 는 iOS 콜백을 기다리기 위한 것(expect 문서 참고) — 여기선 중단 지점이 없다.
-    actual suspend fun replaceAll(alerts: List<ScheduledAlert>) {
+    /**
+     * 걸어 둔 알람의 장부 — **시각은 지났는데 아직 배달되지 않은 알람**을 재예약이 지워 버리지 않게 하려고 둔다(27.52.0).
+     *
+     * 비정확 알람은 몇 분씩 늦는다(도즈에서는 더). 그사이 재예약이 돌면 슬롯을 전부 취소하는데, 계획은 「앞으로 울릴 것」만
+     * 담으므로 방금 지난 그 알람은 다시 걸리지 않고 사라졌다. 이제 지우기 전에 장부를 보고, 지난 지 [LATE_GRACE_MS] 안이면
+     * 여기서 대신 보낸다. 배달된 것은 [markDelivered] 가 장부에서 지워 두 번 가지 않는다.
+     */
+    private const val LEDGER_PREFS = "gatcha_alert_schedule"
+    private const val LEDGER_KEY = "registered"
+    private const val LATE_GRACE_MS = 30 * 60_000L
+
+    private class Registered(val id: Int, val at: Long, val title: String, val text: String, val link: String)
+
+    private val ledgerLock = Mutex()
+
+    private fun ledger(ctx: Context) = ctx.getSharedPreferences(LEDGER_PREFS, Context.MODE_PRIVATE)
+
+    private fun readLedger(ctx: Context): List<Registered> = runCatching {
+        val arr = JSONArray(ledger(ctx).getString(LEDGER_KEY, "[]"))
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            Registered(o.getInt("id"), o.getLong("at"), o.optString("title"), o.optString("text"), o.optString("link"))
+        }
+    }.getOrDefault(emptyList())
+
+    private fun writeLedger(ctx: Context, items: List<Registered>) {
+        val arr = JSONArray()
+        items.forEach {
+            arr.put(JSONObject().put("id", it.id).put("at", it.at).put("title", it.title).put("text", it.text).put("link", it.link))
+        }
+        ledger(ctx).edit().putString(LEDGER_KEY, arr.toString()).apply()
+    }
+
+    /** 알람이 배달됐다 — 수신부([AlertAlarmReceiver])가 알림을 보낸 직후, 재예약 전에 부른다. */
+    fun markDelivered(notificationId: Int) {
         val ctx = AppContext.appContext
-        val am = ctx.getSystemService(AlarmManager::class.java) ?: return
+        val now = System.currentTimeMillis()
+        // 같은 알림의 **다음 회차**(아직 안 지난 것)는 남긴다.
+        runCatching { writeLedger(ctx, readLedger(ctx).filterNot { it.id == notificationId && it.at <= now + 60_000L }) }
+    }
+
+    // suspend 는 iOS 콜백을 기다리기 위한 것(expect 문서 참고) — 여기선 알림 게시 말고 중단 지점이 없다.
+    actual suspend fun replaceAll(alerts: List<ScheduledAlert>) = ledgerLock.withLock {
+        val ctx = AppContext.appContext
+        val am = ctx.getSystemService(AlarmManager::class.java) ?: return@withLock
+
+        val now = System.currentTimeMillis()
+        val overdue = readLedger(ctx).filter { it.at <= now && now - it.at <= LATE_GRACE_MS }
 
         // 슬롯을 전부 비운다 — 픽업이 끝나거나 구독을 지우면 옛 예약이 헛알림이 된다.
         for (slot in 0 until ScheduledAlerts.MAX_PENDING) {
             existingPendingIntent(ctx, slot)?.let { am.cancel(it); it.cancel() }
         }
+        // 방금 취소한 것 가운데 시각이 이미 지난 알람은 이제 아무도 보내지 않는다 — 여기서 보낸다.
+        overdue.forEach { runCatching { Notifier.notify(it.id, it.title, it.text, it.link) } }
 
-        val now = System.currentTimeMillis()
+        val registered = mutableListOf<Registered>()
         alerts.take(ScheduledAlerts.MAX_PENDING).forEachIndexed { slot, a ->
             val at = nextTriggerMillis(a, now) ?: return@forEachIndexed
             val pi = newPendingIntent(ctx, slot, a) ?: return@forEachIndexed
             // 실패해도(제조사 제한 등) 나머지 예약은 계속 건다. 주기 워커가 백업으로 남아 있다.
-            runCatching { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }
+            val set = runCatching { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }.isSuccess
+            if (set) registered += Registered(notificationId(a.key), at, a.title, a.text, a.link)
         }
+        runCatching { writeLedger(ctx, registered) }
+        Unit
     }
+
+    /** 출석 리마인더는 주기 점검([NotificationChecker] ②)이 맡는다 — 예약형은 iOS 만 쓴다. */
+    actual suspend fun refreshAttendanceReminder(settings: AppSettings, repo: GatchaRepository) = Unit
 
     /**
      * 실제로 알람을 걸 시각. 이미 지난 예약은 버린다.
