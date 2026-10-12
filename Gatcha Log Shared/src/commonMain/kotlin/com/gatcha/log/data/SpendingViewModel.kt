@@ -1,6 +1,5 @@
 package com.gatcha.log.data
 
-import com.gatcha.log.data.api.Net
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatcha.log.data.Account
@@ -11,8 +10,6 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
-import com.gatcha.log.data.GachaRecord
-import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.GachaDashboard
@@ -32,14 +29,11 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.data.UserProfile
 import com.gatcha.log.util.fixed
 import kotlin.math.roundToInt
-import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.usesArtifactScore
 import com.gatcha.log.data.api.RosterStanding
 import com.gatcha.log.data.api.metricOf
 import com.gatcha.log.data.api.resolveKeyStats
 import com.gatcha.log.data.api.ArtifactScoring
-import com.gatcha.log.data.api.EnkaChar
-import com.gatcha.log.data.api.NanokaApi
 import com.gatcha.log.data.api.WeaponRefinement
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
@@ -48,15 +42,20 @@ import com.gatcha.log.data.api.NewsArticle
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.data.api.HoyolandApi
 import com.gatcha.log.data.api.HoyolabApi
-import com.gatcha.log.data.api.CodeResult
 import com.gatcha.log.data.api.GiftCode
-import com.gatcha.log.data.api.GiftCodeApi
-import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
-import com.gatcha.log.data.api.mustUpdate
+import com.gatcha.log.data.vm.AppUpdateController
+import com.gatcha.log.data.vm.CharMetaController
+import com.gatcha.log.data.vm.CombatClearsController
+import com.gatcha.log.data.vm.EnkaRosterController
+import com.gatcha.log.data.vm.FeedbackController
+import com.gatcha.log.data.vm.GachaRecordsController
+import com.gatcha.log.data.vm.GiftCodeController
+import com.gatcha.log.data.vm.HoyolandPlanController
+import com.gatcha.log.data.vm.NewsArticleController
+import com.gatcha.log.data.vm.NotifySettingsController
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.util.won
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
@@ -66,7 +65,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,6 +87,9 @@ sealed interface RedeemState {
  * 로그인 계정(AuthManager)별로 분리된 로컬 저장소(GatchaRepository)와 동기화된다.
  */
 class SpendingViewModel : ViewModel() {
+
+    /** 토스트 · 오류 얼럿. 다른 덩어리들이 안내 문구를 여기로 보내므로 **맨 먼저** 만든다. */
+    private val feedback = FeedbackController(viewModelScope)
 
     private val authManager = AuthManager()
     /** 현재 로그인 계정 (게스트 = 비로그인 로컬) */
@@ -195,38 +196,26 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    // 로컬 알림 토글 (예산·출석·재화)
-    private val _notifyBudget = MutableStateFlow(appSettings.notifyBudget)
-    val notifyBudget: StateFlow<Boolean> = _notifyBudget.asStateFlow()
+    // 로컬 알림 토글(예산·출석·재화 …) · 방해금지 — 값을 쓰고 예약을 다시 거는 일은 [NotifySettingsController]
+    private val notify = NotifySettingsController(appSettings) { rescheduleTimedAlerts() }
+    val notifyBudget: StateFlow<Boolean> = notify.notifyBudget
+    val notifyAttendance: StateFlow<Boolean> = notify.notifyAttendance
+    val notifyResin: StateFlow<Boolean> = notify.notifyResin
+    val notifyPickup: StateFlow<Boolean> = notify.notifyPickup
+    val notifyNews: StateFlow<Boolean> = notify.notifyNews
+    val notifyCombat: StateFlow<Boolean> = notify.notifyCombat
+    val notifyHoyoland: StateFlow<Boolean> = notify.notifyHoyoland
+    val notifyAppUpdate: StateFlow<Boolean> = notify.notifyAppUpdate
+    val notifyDndEnabled: StateFlow<Boolean> = notify.notifyDndEnabled
+    val notifyDndStartHour: StateFlow<Int> = notify.notifyDndStartHour
+    val notifyDndEndHour: StateFlow<Int> = notify.notifyDndEndHour
+
     // 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같은 값을 쓴다(비어 있으면 전부). 계정 데이터라 기기 간 동기화된다.
     private val _myGames = MutableStateFlow(repo.loadMyGames())
     val myGames: StateFlow<Set<String>> = _myGames.asStateFlow()
     fun setMyGames(keys: Set<String>) { repo.saveMyGames(keys); _myGames.value = keys }
     /** Swift 용 — SKIE 가 Set 을 NSSet 으로 넘겨 다루기 번거롭다. */
     fun setMyGamesList(keys: List<String>) = setMyGames(keys.toSet())
-
-    private val _notifyAttendance = MutableStateFlow(appSettings.notifyAttendance)
-    val notifyAttendance: StateFlow<Boolean> = _notifyAttendance.asStateFlow()
-    private val _notifyResin = MutableStateFlow(appSettings.notifyResin)
-    val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
-    private val _notifyPickup = MutableStateFlow(appSettings.notifyPickup)
-    val notifyPickup: StateFlow<Boolean> = _notifyPickup.asStateFlow()
-    private val _notifyNews = MutableStateFlow(appSettings.notifyNews)
-    val notifyNews: StateFlow<Boolean> = _notifyNews.asStateFlow()
-    private val _notifyCombat = MutableStateFlow(appSettings.notifyCombat)
-    val notifyCombat: StateFlow<Boolean> = _notifyCombat.asStateFlow()
-    private val _notifyHoyoland = MutableStateFlow(appSettings.notifyHoyoland)
-    val notifyHoyoland: StateFlow<Boolean> = _notifyHoyoland.asStateFlow()
-    private val _notifyAppUpdate = MutableStateFlow(appSettings.notifyAppUpdate)
-    val notifyAppUpdate: StateFlow<Boolean> = _notifyAppUpdate.asStateFlow()
-
-    // 방해금지(DnD) — 조용한 시간대 알림 보류
-    private val _notifyDndEnabled = MutableStateFlow(appSettings.notifyDndEnabled)
-    val notifyDndEnabled: StateFlow<Boolean> = _notifyDndEnabled.asStateFlow()
-    private val _notifyDndStartHour = MutableStateFlow(appSettings.notifyDndStartHour)
-    val notifyDndStartHour: StateFlow<Int> = _notifyDndStartHour.asStateFlow()
-    private val _notifyDndEndHour = MutableStateFlow(appSettings.notifyDndEndHour)
-    val notifyDndEndHour: StateFlow<Int> = _notifyDndEndHour.asStateFlow()
 
     // 데일리 요약 — 정한 시각에 1건 통합
 
@@ -248,94 +237,24 @@ class SpendingViewModel : ViewModel() {
     val spendingCompact: StateFlow<Boolean> = _spendingCompact.asStateFlow()
     fun setSpendingCompact(v: Boolean) { appSettings.spendingCompact = v; _spendingCompact.value = v }
 
-    /**
-     * 호요랜드 굿즈 장바구니 — 담은 것은 [AppSettings] 에 남는다.
-     *
-     * 화면 안 상태로 두지 않는 이유: 목록과 장바구니가 **다른 페이지**라 오갈 때마다 비면
-     * 쓸 수가 없고, 행사는 나흘인데 굿즈는 그 전부터 본다.
-     */
-    private val _hoyolandCart = MutableStateFlow(HoyolandCart.parse(appSettings.hoyolandCartRaw))
-    val hoyolandCart: StateFlow<HoyolandCart> = _hoyolandCart.asStateFlow()
+    /** 호요랜드 굿즈 장바구니 · 내 입장권 — 저장과 회차 정리는 [HoyolandPlanController]. */
+    private val hoyolandPlan = HoyolandPlanController(appSettings) { rescheduleTimedAlerts() }
+    val hoyolandCart: StateFlow<HoyolandCart> = hoyolandPlan.hoyolandCart
 
     /** 담기/빼기 — 담을 때 수량 1 로 시작한다. */
-    fun toggleGoods(name: String) = updateCart { it.toggle(name) }
+    fun toggleGoods(name: String) { hoyolandPlan.toggleGoods(name) }
 
-    /** 수량 지정 — 0 이하면 목록에서 빠진다. */
-    /**
-     * 굿즈 담기 수량. **품목별 '1인 N개 한정' 에서 끊는다.**
-     *
-     * 제한을 화면에만 적어 두면 장바구니에 열 개를 담아 놓고 현장에서야 못 산다는 걸 안다 —
-     * 이 앱이 답하려는 "얼마 들고 가야 하나" 가 그만큼 틀어진다. 여기서 막는 이유는 굿즈 목록과
-     * 장바구니, 안드로이드와 iOS 의 모든 스테퍼가 이 한 함수를 지나기 때문이다. 화면마다 막으면
-     * 한 곳을 빠뜨렸을 때 조용히 새는데, 새는 쪽이 하필 "더 담을 수 있다" 다.
-     */
-    fun setGoodsQuantity(name: String, quantity: Int) =
-        updateCart { it.withQuantity(name, quantity.coerceAtMost(goodsLimitFor(name))) }
+    /** 굿즈 담기 수량 — 품목별 '1인 N개 한정' 에서 끊는다. */
+    fun setGoodsQuantity(name: String, quantity: Int) { hoyolandPlan.setGoodsQuantity(name, quantity) }
 
-    /** 그 굿즈의 1인 한정 수량. 제한이 없으면 장바구니 공통 상한. */
-    private fun goodsLimitFor(name: String): Int =
-        HoyolandApi.current.goods.firstOrNull { it.name == name }
-            ?.limitPerPerson?.takeIf { it > 0 }
-            ?: HoyolandCart.MAX_QUANTITY
+    fun clearGoodsCart() { hoyolandPlan.clearGoodsCart() }
 
-    fun clearGoodsCart() = updateCart { it.cleared() }
+    val hoyolandEntry: StateFlow<HoyolandEntry> = hoyolandPlan.hoyolandEntry
 
-    private inline fun updateCart(edit: (HoyolandCart) -> HoyolandCart) {
-        rollHoyolandEdition()
-        val next = edit(_hoyolandCart.value)
-        appSettings.hoyolandCartRaw = next.serialize()
-        _hoyolandCart.value = next
-    }
+    /** 그날의 조를 정한다. 같은 조를 다시 누르면 해제되어 안 가는 날로 돌아간다. */
+    fun setEntryGroup(ymd: String, group: String) { hoyolandPlan.setEntryGroup(ymd, group) }
 
-    /**
-     * 호요랜드 내 입장권 — 날짜마다 정해 둔 조([HoyolandEntry]).
-     *
-     * 장바구니와 같은 이유로 저장한다. 표는 개막 2주 전에 사고 조는 그때 정해지는데, 현장에
-     * 서서 "내가 몇 시 조였지" 를 다시 입력하게 둘 수는 없다.
-     */
-    private val _hoyolandEntry = MutableStateFlow(HoyolandEntry.parse(appSettings.hoyolandEntryRaw))
-    val hoyolandEntry: StateFlow<HoyolandEntry> = _hoyolandEntry.asStateFlow()
-
-    /**
-     * 그날의 조를 정한다. **같은 조를 다시 누르면 해제**되어 안 가는 날로 돌아간다
-     * ([HoyolandEntry.withGroup]) — 화면에 "안 감" 칸을 따로 두지 않으려는 것이다.
-     */
-    fun setEntryGroup(ymd: String, group: String) = updateEntry { it.withGroup(ymd, group) }
-
-    fun clearEntry() = updateEntry { it.cleared() }
-
-    private inline fun updateEntry(edit: (HoyolandEntry) -> HoyolandEntry) {
-        rollHoyolandEdition()
-        val next = edit(_hoyolandEntry.value)
-        appSettings.hoyolandEntryRaw = next.serialize()
-        _hoyolandEntry.value = next
-        // 입장 알림은 가는 날 · 조에서 시각이 나온다 — 바꾼 즉시 다시 걸어야 옛 조의 알림이 남지 않는다.
-        rescheduleTimedAlerts()
-    }
-
-    init { rollHoyolandEdition() }
-
-    /**
-     * 저장된 장바구니 · 입장권이 **지난 회차 것이면** 정리한다 — 장바구니는 비우고, 입장권은 새 기간 안
-     * 날짜만 남긴다([HoyolandEvent.cartForEdition] · [HoyolandEvent.entryForEdition]).
-     *
-     * 켤 때 한 번, 그리고 담거나 고칠 때마다 다시 본다 — 앱을 켜 둔 채 다음 회차 config 가 들어와도
-     * 작년 값 위에 덧붙이지 않게. 회차가 같으면 아무것도 하지 않는다.
-     */
-    private fun rollHoyolandEdition() {
-        // 개발자 단계 목업은 개막일을 옮겨 회차가 바뀐 것처럼 보인다 — 그걸로 실제 값을 지우지 않는다.
-        if (HoyolandApi.isStageMock) return
-        val event = HoyolandApi.current
-        val saved = appSettings.hoyolandEdition
-        if (saved == event.editionKey) return
-        val cart = event.cartForEdition(_hoyolandCart.value, saved)
-        val entry = event.entryForEdition(_hoyolandEntry.value, saved)
-        appSettings.hoyolandCartRaw = cart.serialize()
-        appSettings.hoyolandEntryRaw = entry.serialize()
-        appSettings.hoyolandEdition = event.editionKey
-        _hoyolandCart.value = cart
-        _hoyolandEntry.value = entry
-    }
+    fun clearEntry() { hoyolandPlan.clearEntry() }
 
     private val _collabBannerExpanded = MutableStateFlow(appSettings.collabBannerExpanded)
     val collabBannerExpanded: StateFlow<Boolean> = _collabBannerExpanded.asStateFlow()
@@ -375,61 +294,21 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    fun setNotifyBudget(v: Boolean) { appSettings.notifyBudget = v; _notifyBudget.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyPickup(v: Boolean) { appSettings.notifyPickup = v; _notifyPickup.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyNews(v: Boolean) { appSettings.notifyNews = v; _notifyNews.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyCombat(v: Boolean) { appSettings.notifyCombat = v; _notifyCombat.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyHoyoland(v: Boolean) { appSettings.notifyHoyoland = v; _notifyHoyoland.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyAppUpdate(v: Boolean) { appSettings.notifyAppUpdate = v; _notifyAppUpdate.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyBudget(v: Boolean) { notify.setNotifyBudget(v) }
+    fun setNotifyAttendance(v: Boolean) { notify.setNotifyAttendance(v) }
+    fun setNotifyResin(v: Boolean) { notify.setNotifyResin(v) }
+    fun setNotifyPickup(v: Boolean) { notify.setNotifyPickup(v) }
+    fun setNotifyNews(v: Boolean) { notify.setNotifyNews(v) }
+    fun setNotifyCombat(v: Boolean) { notify.setNotifyCombat(v) }
+    fun setNotifyHoyoland(v: Boolean) { notify.setNotifyHoyoland(v) }
+    fun setNotifyAppUpdate(v: Boolean) { notify.setNotifyAppUpdate(v) }
 
-    fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
-    fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }
-    fun setNotifyDndEndHour(v: Int) { appSettings.notifyDndEndHour = v; _notifyDndEndHour.value = appSettings.notifyDndEndHour }
+    fun setNotifyDndEnabled(v: Boolean) { notify.setNotifyDndEnabled(v) }
+    fun setNotifyDndStartHour(v: Int) { notify.setNotifyDndStartHour(v) }
+    fun setNotifyDndEndHour(v: Int) { notify.setNotifyDndEndHour(v) }
 
-    /**
-     * OS 알림 권한을 **처음 허용**했을 때 — 항목별 알림([NotificationCatalog.items])을 전부 한꺼번에 켠다.
-     *
-     * 권한만 받고 토글이 꺼져 있으면 알림이 한 건도 오지 않는다. 예전엔 온보딩에서 세 개만 켰던 탓에
-     * "알림 켜고 시작하기"를 누른 사람도 정기결제·전투 시즌·공지는 조용했다.
-     *
-     * **데일리 요약·방해금지는 건드리지 않는다.** 둘은 개별 알림이 아니라 *발송 방식*을 바꾸는 설정이라
-     * (요약은 하루 1건으로 묶고, 방해금지는 시간대별로 막는다) 임의로 켜면 오히려 알림이 줄거나 늦는다.
-     * 그래서 카탈로그에도 들어 있지 않다.
-     *
-     * 세터를 일곱 번 부르지 않는다 — 그러면 [applyNativeAfterNotifyChange] 가 일곱 번 돌아
-     * 워커 재등록·즉시 실행이 그만큼 중복된다. 값만 쓰고 반영은 **마지막에 한 번**.
-     *
-     * `when` 은 [NotifyKey] 에 대해 exhaustive 라, 항목이 늘면 여기서 컴파일 에러로 잡힌다(누락 방지).
-     */
-    fun enableAllNotifyItems() {
-        NotifyKey.entries.forEach { key ->
-            when (key) {
-                NotifyKey.BUDGET -> { appSettings.notifyBudget = true; _notifyBudget.value = true }
-                NotifyKey.RESIN -> { appSettings.notifyResin = true; _notifyResin.value = true }
-                NotifyKey.ATTENDANCE -> { appSettings.notifyAttendance = true; _notifyAttendance.value = true }
-                NotifyKey.PICKUP -> { appSettings.notifyPickup = true; _notifyPickup.value = true }
-                NotifyKey.COMBAT -> { appSettings.notifyCombat = true; _notifyCombat.value = true }
-                NotifyKey.NEWS -> { appSettings.notifyNews = true; _notifyNews.value = true }
-                // 행사가 끝나 목록에서 빠진 토글은 건드리지 않는다 — 켜 두면 끌 자리가 없는 값이 된다.
-                NotifyKey.HOYOLAND -> if (NotificationCatalog.hoyolandAlertsActive) {
-                    appSettings.notifyHoyoland = true; _notifyHoyoland.value = true
-                }
-                // iOS 에는 없는 항목이다 — 같은 이유로 목록에 있을 때만 켠다.
-                NotifyKey.APP_UPDATE -> if (NotificationCatalog.appUpdateAlertsActive) {
-                    appSettings.notifyAppUpdate = true; _notifyAppUpdate.value = true
-                }
-            }
-        }
-        applyNativeAfterNotifyChange(true)
-    }
-
-    private fun applyNativeAfterNotifyChange(enabled: Boolean) {
-        NativeScheduler.apply()
-        rescheduleTimedAlerts()
-        if (enabled) NativeScheduler.runNow()
-    }
+    /** OS 알림 권한을 **처음 허용**했을 때 — 항목별 알림을 전부 한꺼번에 켠다(데일리 요약·방해금지는 건드리지 않는다). */
+    fun enableAllNotifyItems() { notify.enableAllNotifyItems() }
 
     /**
      * 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 사전 예약 갱신.
@@ -680,15 +559,10 @@ class SpendingViewModel : ViewModel() {
         _pity.value = repo.loadPity()
         _readAlerts.value = repo.loadReadAlerts()
         _dismissedAlerts.value = repo.loadDismissedAlerts()
-        _enkaGiUid.value = repo.loadEnkaGiUid()
-        _enkaHsrUid.value = repo.loadEnkaHsrUid()
-        _enkaResult.value = null
-        _enkaResults.value = emptyMap()
-        seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
+        enka.reload()   // UID 를 맞추고 화면 상태를 비운 뒤, 디스크 캐시로 '내 캐릭터' 를 즉시 채운다
         seedGameInfoDiskCache()
-        loadGachaDeferred()
-        _redeemedCodes.value = repo.loadRedeemedCodes()
-        _unusableCodes.value = repo.loadUnusableCodes()
+        gacha.loadGachaDeferred()
+        giftCodes.reloadSaved()
         refreshChallenge()
         recomputeSpendingDerived()   // 첫 프레임이 0원으로 그려지지 않게 동기로 한 번
     }
@@ -711,7 +585,7 @@ class SpendingViewModel : ViewModel() {
             val combats = repo.loadCombatModes()
             // 클리어 편성은 전용 페이지에서만 쓰지만, 여기서 미리 채워야 페이지가 빈 화면으로 열리지 않는다.
             runCatching { repo.loadCombatClears() }.getOrNull()
-                ?.takeIf { it.isNotEmpty() }?.let { _combatClears.value = it }
+                ?.takeIf { it.isNotEmpty() }?.let { clears.seed(it) }
             // 일정·소식도 함께 — 예전엔 이 둘만 캐시가 없어서, 배너·오늘 할 일은 캐시로 즉시 차는데
             // 홈의 '이번주 일정'·'게임 소식' 카드만 네트워크가 올 때까지 빈 채로 남았다.
             val events = repo.loadGameEvents()
@@ -735,28 +609,6 @@ class SpendingViewModel : ViewModel() {
             }
             // 보여줄 게 하나라도 있으면 스켈레톤 대신 캐시를 그린다.
             if (banners.isNotEmpty() || notes.isNotEmpty()) _gameInfoReady.value = true
-        }
-    }
-
-    /**
-     * 가챠 기록 로드 + 통계 산출을 **한 프레임 뒤로** 미룬다.
-     *
-     * 기록이 수만 건이면 파싱 한 번에 전수 순회가 붙는데, 이게 앱 시작 경로에서 첫 화면이 그려지기 전에
-     * 동기로 돌고 있었다. 데이터가 늘수록 시작이 선형으로 느려지는 유일한 구간이었다.
-     * (순회는 [GachaReport.computeAll] 로 통계·대시보드가 한 번에 나눠 쓴다 — 예전엔 각자 두 번이었다.)
-     *
-     * 홈은 이 값을 읽지 않는다 — 소비처는 마이페이지·가챠 리포트·데이터 관리뿐이고,
-     * 두 StateFlow 모두 초기값이 null 이라 늦게 도착해도 화면이 깨지지 않는다.
-     *
-     * 매번 저장소에서 다시 읽으므로 그 사이에 가져오기/초기화가 일어나도 결과가 어긋나지 않는다.
-     */
-    private fun loadGachaDeferred() {
-        viewModelScope.launch {
-            yield()   // Main.immediate 라 양보하지 않으면 그대로 이어서 실행된다
-            gachaRecords = repo.loadGachaRecords()
-            val (stats, dash) = GachaReport.computeAll(gachaRecords)
-            _gachaStats.value = stats
-            _gachaDashboard.value = dash
         }
     }
 
@@ -861,10 +713,9 @@ class SpendingViewModel : ViewModel() {
     private fun cancelAccountWork() {
         gameInfoJob?.cancel()
         liveNotesJob?.cancel()
-        combatClearsJob?.cancel()
+        clears.cancel()
         checkInJob?.cancel()
-        redeemJob?.cancel()
-        _redeemState.value = RedeemState.Idle
+        giftCodes.cancelForAccountChange()
         clearHoyolabState()
         enkaUidsSynced = false
     }
@@ -875,9 +726,7 @@ class SpendingViewModel : ViewModel() {
         _noteErrors.value = emptyMap()
         _ledgers.value = emptyList()
         _combat.value = emptyList()
-        _combatClears.value = emptyList()
-        _combatClearsFailed.value = false
-        lastCombatClearAt = 0L
+        clears.reset()
         lastLiveNoteAt = 0L
     }
 
@@ -1081,9 +930,7 @@ class SpendingViewModel : ViewModel() {
         )
         _hoyolabConfig.value = merged
         repo.saveHoyolab(merged)
-        uids["genshin"]?.takeIf { it.isNotBlank() }?.let { _enkaGiUid.value = it }
-        uids["hsr"]?.takeIf { it.isNotBlank() }?.let { _enkaHsrUid.value = it }
-        repo.saveEnkaUids(_enkaGiUid.value, _enkaHsrUid.value)
+        enka.applyUids(genshin = uids["genshin"], hsr = uids["hsr"])
     }
 
     // 기존 연동 사용자 대비: 연동됐는데 게임 UID 가 비어있으면 1회 자동 동기화(재연동 불필요).
@@ -1092,7 +939,7 @@ class SpendingViewModel : ViewModel() {
         if (enkaUidsSynced) return
         val cfg = _hoyolabConfig.value
         if (!cfg.isLinked) return
-        if (_enkaGiUid.value.isNotBlank() && _enkaHsrUid.value.isNotBlank() && cfg.zzzUid.isNotBlank()) {
+        if (enka.enkaGiUid.value.isNotBlank() && enka.enkaHsrUid.value.isNotBlank() && cfg.zzzUid.isNotBlank()) {
             enkaUidsSynced = true
             return
         }
@@ -1189,112 +1036,17 @@ class SpendingViewModel : ViewModel() {
     private val _combat = MutableStateFlow<List<CombatMode>>(emptyList())
     val combat: StateFlow<List<CombatMode>> = _combat.asStateFlow()
 
-    // ── 엔드 콘텐츠 클리어 편성(층·간별로 어떤 캐릭터를 썼는지) ──
-    // 시즌 2개치 × 모드 4~6개라 호출이 무겁다. 전용 페이지에 들어갈 때만 받고, 화면은 캐시부터 그린다.
-    private val _combatClears = MutableStateFlow<List<CombatClear>>(emptyList())
-    val combatClears: StateFlow<List<CombatClear>> = _combatClears.asStateFlow()
-
-    private val _combatClearsLoading = MutableStateFlow(false)
-    val combatClearsLoading: StateFlow<Boolean> = _combatClearsLoading.asStateFlow()
+    // ── 엔드 콘텐츠 클리어 편성(층·간별로 어떤 캐릭터를 썼는지) — [CombatClearsController] ──
+    private val clears = CombatClearsController(viewModelScope, { repo }, { _hoyolabConfig.value }) { enka.characterNamesByGame() }
+    val combatClears: StateFlow<List<CombatClear>> = clears.combatClears
+    val combatClearsLoading: StateFlow<Boolean> = clears.combatClearsLoading
 
     /** 마지막 조회가 전부 실패했다 — 화면은 '기록 없음'이 아니라 '불러오지 못함'을 보여야 한다. */
-    private val _combatClearsFailed = MutableStateFlow(false)
-    val combatClearsFailed: StateFlow<Boolean> = _combatClearsFailed.asStateFlow()
+    val combatClearsFailed: StateFlow<Boolean> = clears.combatClearsFailed
 
-    /** 마지막으로 클리어 편성을 받아온 시각 — 페이지 재진입마다 다시 받지 않게. */
-    private var lastCombatClearAt = 0L
-    private var combatClearsJob: Job? = null
+    /** 엔드 콘텐츠 클리어 편성 조회. 캐시가 신선하면(30분) 건너뛴다. */
+    fun refreshCombatClears(force: Boolean = false) { clears.refreshCombatClears(force) }
 
-    /**
-     * 엔드 콘텐츠 클리어 편성 조회. 캐시가 신선하면(30분) 건너뛴다.
-     *
-     * 이름 채우기: HoYoLAB 전투 응답에는 캐릭터 **이름이 없다**(id·아이콘뿐). 이미 받아 둔
-     * 보유 캐릭터([enkaResults])가 같은 id 체계를 쓰므로 거기서 이름을 끌어온다.
-     */
-    fun refreshCombatClears(force: Boolean = false) {
-        if (_combatClearsLoading.value) return
-        val cfg = _hoyolabConfig.value
-        if (!cfg.isLinked) return
-        val now = currentTimeMillis()
-        if (!force && _combatClears.value.isNotEmpty() && now - lastCombatClearAt < COMBAT_CLEAR_FRESH_MS) return
-        combatClearsJob = viewModelScope.launch {
-            _combatClearsLoading.value = true
-            try {
-                val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid).filterValues { it.isNotBlank() }
-                // 캐릭터 이름 메타(yatta)는 편성 결과와 무관하다 — **편성과 같이 쏜다**(27.51.1). 예전엔 편성을 다 받은 뒤에야
-                // 나가서 한 왕복이 더 붙었다. 편성을 못 받아 일찍 빠져나가면 아래에서 끊는다.
-                val metaNamesDeferred = async {
-                    runCatching {
-                        coroutineScope {
-                            val gi = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = false) }
-                            val hsr = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = true) }
-                            mapOf(Game.GENSHIN.key to gi.await(), Game.HSR.key to hsr.await())
-                        }
-                    }.getOrDefault(emptyMap())
-                }
-                // 게임별로 받는다 — null 은 실패. 예전엔 실패를 빈 목록으로 뭉개서 '기록 없음'으로 보였고,
-                // 한 게임만 실패해도 다른 게임 결과만으로 통째로 갈아끼워 그 게임 편성이 사라졌다.
-                val perGame = coroutineScope {
-                    uids.map { (key, uid) ->
-                        async(Dispatchers.IO) { HoyolabApi.getCombatClears(cfg.ltuid, cfg.ltoken, key, uid) }
-                    }.awaitAll()
-                }
-                val loadedGames = uids.keys.zip(perGame).filter { it.second != null }
-                    .map { GameData.byName(it.first).displayName }.toSet()
-                _combatClearsFailed.value = uids.isNotEmpty() && loadedGames.isEmpty()
-                if (loadedGames.isEmpty()) { metaNamesDeferred.cancel(); return@launch }
-                val fetched = perGame.filterNotNull().flatten()
-                // 이름 출처는 두 겹이다. ①전체 캐릭터 메타(yatta) — 쇼케이스에 없는 캐릭터까지 덮는다.
-                // ②보유 캐릭터 캐시 — 메타에 아직 없는 신규 캐릭터를 보완한다(우선순위가 더 높다).
-                //
-                // ⚠️ 두 겹 모두 **게임별로** 유지한다. 캐릭터 id 공간이 게임마다 독립이라
-                // 하나로 합치면 스타레일 1xxx 와 젠레스 1xxx 가 충돌한다(달리아 → 이블린 사고).
-                val metaNames = metaNamesDeferred.await()
-                val ownedNames = characterNamesByGame()
-                // 게임별로 메타 위에 보유 캐시를 덮는다(신규 캐릭터가 메타보다 먼저 들어온다).
-                val namesByGame = (metaNames.keys + ownedNames.keys).associateWith { key ->
-                    metaNames[key].orEmpty() + ownedNames[key].orEmpty()
-                }
-                // 젠레스 뱅부 이름 — 요원 이름 출처(메타 · 보유 캐시)에는 뱅부가 없어 nanoka 도감에서 id 로 받는다(9/30).
-                val buddyIds = fetched.flatMap { c -> c.rooms.flatMap { it.firstHalf + it.secondHalf } }
-                    .filter { it.isBuddy && it.name.isBlank() }.map { it.id }.distinct()
-                val buddyNames = runCatching {
-                    coroutineScope {
-                        buddyIds.map { id -> async(Dispatchers.IO) { id to NanokaApi.bangbooName(id) } }.awaitAll()
-                    }.mapNotNull { (id, n) -> n?.let { id to it } }.toMap()
-                }.getOrDefault(emptyMap())
-                val named = CombatClearLogic.withNames(fetched, namesByGame).map { c ->
-                    if (buddyNames.isEmpty()) c else c.copy(rooms = c.rooms.map { r ->
-                        r.copy(
-                            firstHalf = r.firstHalf.map { a -> if (a.isBuddy && a.name.isBlank()) buddyNames[a.id]?.let { a.copy(name = it) } ?: a else a },
-                            secondHalf = r.secondHalf.map { a -> if (a.isBuddy && a.name.isBlank()) buddyNames[a.id]?.let { a.copy(name = it) } ?: a else a },
-                        )
-                    })
-                }
-                val grouped = CombatClearLogic.grouped(
-                    mergeByGame(_combatClears.value, named, loadedGames) { it.game },
-                )
-                _combatClears.value = grouped
-                lastCombatClearAt = currentTimeMillis()
-                runCatching { repo.saveCombatClears(grouped) }
-            } finally {
-                _combatClearsLoading.value = false
-            }
-        }
-    }
-
-    /** 보유 캐릭터 캐시에서 id → 이름 맵을 만든다(게임 구분 없이 — id 가 게임별로 겹치지 않는다). */
-    /**
-     * 보유 캐릭터 캐시의 이름 — **게임 키별로** 나눠 준다.
-     *
-     * 예전엔 세 게임을 한 맵에 합쳤는데, 캐릭터 id 는 게임마다 독립이라 스타레일과 젠레스가
-     * 정면으로 겹친다. 합친 맵을 클리어 편성에 넘기는 바람에 스타레일 캐릭터 자리에
-     * 젠레스 이름이 찍혔다.
-     */
-    private fun characterNamesByGame(): Map<String, Map<Int, String>> =
-        _enkaResults.value.mapValues { (_, r) ->
-            r.profile?.chars?.associate { it.id to it.name }.orEmpty()
-        }
 
     private val _gameEvents = MutableStateFlow<List<GameEvent>>(emptyList())
     val gameEvents: StateFlow<List<GameEvent>> = _gameEvents.asStateFlow()
@@ -1306,56 +1058,19 @@ class SpendingViewModel : ViewModel() {
     private val _gameNews = MutableStateFlow<List<NewsItem>>(emptyList())
     val gameNews: StateFlow<List<NewsItem>> = _gameNews.asStateFlow()
 
-    // ── 공지 본문(상세 페이지) ──────────────────────────────────────────────
-    // 목록에서 공지를 열면 HoYoLab 아티클 API 로 본문을 받아 온다. 실패해도 화면은 비우지 않는다 —
-    // 목록이 이미 갖고 있는 summary(줄바꿈 없는 평문)로 폴백하고, '브라우저에서 보기'를 함께 제공한다.
-    private val _newsArticle = MutableStateFlow<NewsArticle?>(null)
-    val newsArticle: StateFlow<NewsArticle?> = _newsArticle.asStateFlow()
-
-    private val _newsArticleLoading = MutableStateFlow(false)
-    val newsArticleLoading: StateFlow<Boolean> = _newsArticleLoading.asStateFlow()
+    // ── 공지 본문(상세 페이지) — 받아 오는 규칙은 [NewsArticleController] ──
+    private val newsDetail = NewsArticleController(viewModelScope)
+    val newsArticle: StateFlow<NewsArticle?> = newsDetail.newsArticle
+    val newsArticleLoading: StateFlow<Boolean> = newsDetail.newsArticleLoading
 
     /** 본문 로드 실패(네트워크·파싱) — UI 는 summary 폴백을 보여준다. */
-    private val _newsArticleFailed = MutableStateFlow(false)
-    val newsArticleFailed: StateFlow<Boolean> = _newsArticleFailed.asStateFlow()
+    val newsArticleFailed: StateFlow<Boolean> = newsDetail.newsArticleFailed
 
-    /** 현재 로드했거나 로드 중인 공지 id — 같은 글 재진입(탭 전환 복귀 포함) 시 재요청을 막는 기준. */
-    private var newsArticleItemId: String? = null
-
-    /**
-     * 공지 상세 진입 — 본문을 받아 온다.
-     * 같은 글을 다시 열면(탭 전환 후 복귀, 화면 재구성 등) 재요청하지 않는다 — 그러지 않으면
-     * loading 이 다시 켜지며 스켈레톤이 깜빡이고 스크롤이 튄다. 단, 이전에 실패했으면 재시도한다.
-     */
-    fun loadNewsArticle(item: NewsItem) {
-        if (newsArticleItemId == item.id && !_newsArticleFailed.value) return
-        newsArticleItemId = item.id
-        // 다른 글로 이동했으면 이전 본문이 잠깐 비치면 안 되므로 먼저 비운다.
-        if (_newsArticle.value?.let { it.title != item.title } != false) _newsArticle.value = null
-        _newsArticleFailed.value = false
-        if (item.id.isBlank()) { _newsArticleFailed.value = true; return }
-        _newsArticleLoading.value = true
-        // 앞 글 요청을 끊는다 — 안 그러면 늦게 온 A 글 본문이 B 글 제목 아래에 앉는다.
-        newsArticleJob?.cancel()
-        newsArticleJob = viewModelScope.launch {
-            val article = NewsApi.article(item)
-            if (newsArticleItemId != item.id) return@launch   // 취소가 닿기 전에 끝난 경우까지 막는다
-            _newsArticle.value = article
-            _newsArticleFailed.value = article == null
-            _newsArticleLoading.value = false
-        }
-    }
-
-    private var newsArticleJob: Job? = null
+    /** 공지 상세 진입 — 본문을 받아 온다(같은 글을 다시 열면 다시 받지 않는다). */
+    fun loadNewsArticle(item: NewsItem) { newsDetail.loadNewsArticle(item) }
 
     /** 공지 상세 이탈 — 다음 진입 때 이전 글이 비치지 않도록 정리. */
-    fun clearNewsArticle() {
-        newsArticleJob?.cancel()
-        newsArticleItemId = null
-        _newsArticle.value = null
-        _newsArticleLoading.value = false
-        _newsArticleFailed.value = false
-    }
+    fun clearNewsArticle() { newsDetail.clearNewsArticle() }
 
 
     // 천장(gameKey -> PityState), 이벤트 체크
@@ -1430,7 +1145,7 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             val out = StringBuilder()
             ENKA_GAMES.filter { usesArtifactScore(it) }.forEach { game ->
-                val chars = _enkaResults.value[game]?.profile?.chars.orEmpty()
+                val chars = enka.enkaResults.value[game]?.profile?.chars.orEmpty()
                     .filter { it.detailed && it.artifacts.isNotEmpty() }
                 if (chars.isEmpty()) {
                     out.appendLine("GatchaScore: [$game] 표본 없음")
@@ -1614,15 +1329,7 @@ class SpendingViewModel : ViewModel() {
             if (account.value.isGuest) appSettings.pendingOnboardingBudget = budget
             else if (_budget.value != budget) setBudgets(budget, _gameBudgets.value)
         } else appSettings.pendingOnboardingBudget = -1L
-        if (alerts) {
-            // 세터를 네 번 부르면 워커 재등록이 네 번 돈다 — 값만 쓰고 반영은 한 번([enableAllNotifyItems] 와 같은 이유).
-            appSettings.notifyAttendance = attendance; _notifyAttendance.value = attendance
-            appSettings.notifyResin = resin; _notifyResin.value = resin
-            appSettings.notifyPickup = pickup; _notifyPickup.value = pickup
-            appSettings.notifyBudget = budgetAlert; _notifyBudget.value = budgetAlert
-            appSettings.notifyDndEnabled = true; _notifyDndEnabled.value = true
-            applyNativeAfterNotifyChange(attendance || resin || pickup || budgetAlert)
-        }
+        if (alerts) notify.applyOnboarding(attendance, resin, pickup, budgetAlert)
     }
 
     /**
@@ -1689,8 +1396,8 @@ class SpendingViewModel : ViewModel() {
     fun debugPingApis(onResult: (List<String>) -> Unit) {
         viewModelScope.launch {
             // Enka · Mihomo 는 UID 가 든 경로만 있다 — 연동된 내 UID 로 잰다(없으면 ApiPing 이 없는 UID 로 부른다).
-            val gi = _enkaGiUid.value
-            val hsr = _enkaHsrUid.value
+            val gi = enka.enkaGiUid.value
+            val hsr = enka.enkaHsrUid.value
             onResult(withContext(Dispatchers.IO) { com.gatcha.log.data.api.ApiPing.run(gi, hsr) })
         }
     }
@@ -1700,8 +1407,8 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             kotlinx.coroutines.delay(4_000)   // 앱이 뜨며 나가는 요청들이 지나간 뒤에 잰다
             repeat(times.coerceIn(1, 10)) { i ->
-                val gi = _enkaGiUid.value
-                val hsr = _enkaHsrUid.value
+                val gi = enka.enkaGiUid.value
+                val hsr = enka.enkaHsrUid.value
                 withContext(Dispatchers.IO) { com.gatcha.log.data.api.ApiPing.run(gi, hsr) }
                 println("GatchaPing: == run ${i + 1}/$times done")
                 kotlinx.coroutines.delay(1_500)
@@ -1776,423 +1483,74 @@ class SpendingViewModel : ViewModel() {
     private val persistDispatcher = Dispatchers.Default.limitedParallelism(1)
     private var persistJob: Job? = null
 
-    // ----- Enka 프로필 쇼케이스 -----
-    private val _enkaGiUid = MutableStateFlow("")
-    val enkaGiUid: StateFlow<String> = _enkaGiUid.asStateFlow()
-    private val _enkaHsrUid = MutableStateFlow("")
-    val enkaHsrUid: StateFlow<String> = _enkaHsrUid.asStateFlow()
-    private val _enkaResult = MutableStateFlow<EnkaResult?>(null)
-    val enkaResult: StateFlow<EnkaResult?> = _enkaResult.asStateFlow()
-    private val _enkaLoading = MutableStateFlow(false)
-    val enkaLoading: StateFlow<Boolean> = _enkaLoading.asStateFlow()
-
-    // 상시 섹션용 TTL 캐시 ("game:uid" → (시각, 결과)). Enka 429 방지 위해 5분 내 재요청 생략.
-    private val enkaCache = mutableMapOf<String, Pair<Long, EnkaResult>>()
-    private val enkaTtlMs = 5 * 60 * 1000L
-    // 디스크 캐시 유효기간 — 이보다 오래된 디스크 항목은 시드에서 제외(앱 재시작 즉시표시 한계).
-    private val enkaDiskTtlMs = 24 * 60 * 60 * 1000L
-
-    /** 디스크 캐시 → 메모리 캐시 시드(계정별). loadAll 에서 호출. */
-    /**
-     * '내 캐릭터' 디스크 캐시를 메모리로 — 그리고 **화면 상태까지** 채운다.
-     *
-     * ⚠️ 예전엔 [enkaCache](내부 TTL 캐시)만 채우고 [_enkaResults](화면이 읽는 것)는 손대지 않았다.
-     * 그런데 이 함수를 부르는 [loadAll] 은 바로 앞에서 `_enkaResults.value = emptyMap()` 으로
-     * 화면 상태를 비운다 — 지우고 안 채운 셈이라 **섹션이 스켈레톤으로 남았다**
-     * (`result == null` 이 스켈레톤 조건이다).
-     *
-     * [loadAll] 은 앱 시작만이 아니라 **클라우드 동기화가 끝날 때마다** 돈다. 백그라운드에서
-     * 돌아오면 [onAppForeground] 가 '내 캐릭터 갱신 → 클라우드 동기화' 순으로 부르는데, 갱신이
-     * 캐시 적중으로 빨리 끝나면 그 결과를 뒤이어 오는 동기화가 지워 버린다. 조회는 이미 '진행 중'
-     * 판정([enkaInFlight])이나 신선도로 걸러져 다시 돌지 않으니, 다음 트리거까지 빈 채로 남았다.
-     * 캐시는 멀쩡히 있는데 화면만 비는 상태 — 지우는 쪽이 아니라 **채우는 쪽을 고친다.**
-     */
-    private fun seedEnkaDiskCache() {
-        enkaCache.clear()
-        enkaCache.putAll(repo.loadEnkaCache(enkaDiskTtlMs))
-        if (enkaCache.isEmpty()) return
-        // 지금 UID 의 것만 싣는다 — 계정을 바꿨는데 남의 로스터가 잠깐 보이면 안 된다.
-        val seeded = ENKA_GAMES.mapNotNull { game ->
-            val uid = enkaUidFor(game).takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            enkaCache["$game:$uid"]?.let { game to it.second }
-        }
-        if (seeded.isNotEmpty()) {
-            _enkaResults.update { it + seeded }
-            seeded.forEach { (g, r) -> prefetchCharCamps(g, r.profile?.chars.orEmpty()) }
-        }
-    }
+    // ----- Enka 프로필 쇼케이스 · '내 캐릭터' 로스터 — [EnkaRosterController] -----
+    private val enka = EnkaRosterController(
+        scope = viewModelScope,
+        repo = { repo },
+        hoyolab = { _hoyolabConfig.value },
+        ensureUids = { ensureEnkaUids() },
+        persistDispatcher = persistDispatcher,
+        prefetchCharCamps = { game, chars -> charMeta.prefetchCharCamps(game, chars) },
+    )
+    val enkaGiUid: StateFlow<String> = enka.enkaGiUid
+    val enkaHsrUid: StateFlow<String> = enka.enkaHsrUid
+    val enkaResult: StateFlow<EnkaResult?> = enka.enkaResult
+    val enkaLoading: StateFlow<Boolean> = enka.enkaLoading
 
     /** Enka UID 로 프로필 조회 + UID 계정별 영속(클라우드 동기화 포함). */
-    fun loadEnkaProfile(game: String, uid: String) {
-        val u = uid.trim()
-        if (game == "genshin") _enkaGiUid.value = u else _enkaHsrUid.value = u
-        repo.saveEnkaUids(_enkaGiUid.value, _enkaHsrUid.value)
-        viewModelScope.launch {
-            _enkaLoading.value = true
-            val cfg = _hoyolabConfig.value
-            val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, u, cfg.ltuid, cfg.ltoken) }
-            val cached = enkaCache["$game:$u"]
-            when {
-                r.profile != null -> { enkaCache["$game:$u"] = currentTimeMillis() to r; persistEnkaCache(); _enkaResult.value = r }
-                cached != null -> _enkaResult.value = cached.second   // 실패(토큰만료 등) 시 마지막 정상 로스터 유지 — stale-while-revalidate
-                else -> _enkaResult.value = r                          // 표시할 캐시 없을 때만 에러 표시
-            }
-            _enkaLoading.value = false
-        }
-    }
+    fun loadEnkaProfile(game: String, uid: String) { enka.loadEnkaProfile(game, uid) }
 
-    /**
-     * 게임정보 탭 상시 섹션 — 선택 게임의 저장 UID 로 자동 로드. 5분 캐시 적중 시 네트워크 생략.
-     * UID 미설정이면 결과 비움(섹션 미표시). [force] 면 캐시 무시하고 새로고침.
-     */
-    private fun enkaUidFor(game: String): String = when (game) {
-        "genshin" -> _enkaGiUid.value
-        "hsr" -> _enkaHsrUid.value
-        else -> _hoyolabConfig.value.zzzUid // 젠레스: 연동 계정 UID
-    }.trim()
-
-    /**
-     * 단일 화면(로스터·스탯)용 조회. 결과는 [_enkaResult] 와 **게임별 맵([_enkaResults]) 양쪽에** 싣는다.
-     *
-     * 맵에도 싣는 이유: 단일 슬롯은 게임 키가 없어 "지금 값이 어느 게임 것인지" 알 수 없다.
-     * 로스터를 원신으로 열었는데 슬롯에 스타레일 결과(혹은 null)가 들어 있으면 화면이 비어 보였다.
-     * 게다가 같은 조회가 이미 진행 중이면([enkaInFlight]) 이 호출은 **아무것도 싣지 않고 빠져나가**,
-     * 그 요청이 끝나도 슬롯은 갱신되지 않았다 — 뒤로 갔다 다시 들어오면(캐시 적중) 그제야 보이던 증상.
-     * 화면은 맵을 게임 키로 읽으면 되고, 진행 중이면 그 요청의 주인이 맵에 결과를 넣어 준다.
-     */
-    fun autoLoadEnka(game: String, force: Boolean = false) {
-        // 캐시 적중 시 동기 반영(탭 전환 즉시) — UID 가 이미 있는 경우만
-        val uidNow = enkaUidFor(game)
-        if (!force && uidNow.isNotBlank()) {
-            val cached = enkaCache["$game:$uidNow"]
-            if (cached != null && currentTimeMillis() - cached.first < enkaTtlMs) {
-                publishEnka(game, cached.second)
-                return
-            }
-        }
-        viewModelScope.launch {
-            ensureEnkaUids() // 연동됐는데 UID 비면 1회 동기화 → 기존 사용자도 자동 로드
-            val uid = enkaUidFor(game)
-            if (uid.isBlank()) {
-                _enkaResult.value = null
-                _enkaResults.update { it + (game to EnkaResult(profile = null, error = null)) }
-                return@launch
-            }
-            val key = "$game:$uid"
-            val cached = enkaCache[key]
-            if (cached != null) publishEnka(game, cached.second)   // 있으면 먼저 보여준다(stale-while-revalidate)
-            if (!force && cached != null && currentTimeMillis() - cached.first < enkaTtlMs) return@launch
-            // 같은 조회가 진행 중이면 그 요청이 맵에 결과를 실어 준다 — 여기서 더 할 일이 없다.
-            if (!enkaInFlight.add(key)) return@launch
-            _enkaLoading.value = true
-            if (cached == null) _enkaLoadingGames.update { it + game }   // 보여줄 게 없을 때만 스피너
-            try {
-                val cfg = _hoyolabConfig.value
-                // 보여 줄 캐시가 없을 때만 **먼저 온 목록**을 받는다(27.51.1) — 섹션 쪽(autoLoadEnkaSection)과 같은 규칙이다.
-                var partialShown = false
-                val onPartial: ((EnkaResult) -> Unit)? = if (cached != null) null else { partial ->
-                    if (enkaUidFor(game) == uid) {
-                        // IO 스레드에서 불린다 — 상태 흐름만 건드린다(진영 미리 받기는 최종 결과에서 한다).
-                        partialShown = true
-                        _enkaResult.value = partial
-                        _enkaResults.update { it + (game to partial) }
-                        _enkaLoadingGames.update { it - game }
-                    }
-                }
-                val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
-                if (enkaUidFor(game) != uid) return@launch   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
-                when {
-                    r.profile != null -> {
-                        enkaCache[key] = currentTimeMillis() to r; persistEnkaCache(); publishEnka(game, r)
-                    }
-                    // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지. 캐시도 먼저 그린 목록도 없을 때만 에러 표시.
-                    cached == null && !partialShown -> publishEnka(game, r)
-                }
-            } finally {
-                enkaInFlight.remove(key)
-                _enkaLoading.value = false
-                _enkaLoadingGames.update { it - game }
-            }
-        }
-    }
-
-    /**
-     * Enka 캐시 디스크 저장 — **메인 밖에서.** 3게임 풀스탯이라 수백 KB 를 직렬화하는데, 예전엔 복귀 때마다
-     * 메인에서 돌아 화면이 멎었다. 사본을 떠서 넘긴다(메인이 계속 고치는 맵을 IO 에서 읽으면 안 된다).
-     */
-    private fun persistEnkaCache() {
-        val snapshot = enkaCache.toMap()
-        val target = repo
-        viewModelScope.launch(persistDispatcher) { target.saveEnkaCache(snapshot) }   // 한 줄로 — 늦게 뜬 사본이 먼저 끝나 새 캐시를 덮지 않게
-    }
-
-    /** 조회 결과를 단일 슬롯과 게임별 맵에 함께 싣는다(둘이 갈리면 화면마다 다른 걸 본다). */
-    private fun publishEnka(game: String, result: EnkaResult) {
-        _enkaResult.value = result
-        _enkaResults.update { it + (game to result) }
-        prefetchCharCamps(game, result.profile?.chars.orEmpty())
-    }
+    /** 단일 화면(로스터·스탯)용 조회 — 결과는 [enkaResult] 와 게임별 맵([enkaResults]) 양쪽에 싣는다. */
+    fun autoLoadEnka(game: String, force: Boolean = false) { enka.autoLoadEnka(game, force) }
 
     /** 게임 탭 전환 시 이전 결과 정리 */
-    fun clearEnkaResult() { _enkaResult.value = null }
+    fun clearEnkaResult() { enka.clearEnkaResult() }
 
-    // ----- '내 캐릭터' 섹션 — 헤더 게임필터 연동(전체=3게임 동시 표시) -----
-    // 단일 _enkaResult 와 별개로 게임별 결과를 동시에 보관. enkaCache(5분 TTL)를 공유한다.
-    // 값은 non-null(iOS SKIE 브리징 단순화) — 미설정/빈 게임은 EnkaResult(null,null)로 채워 '빈 표시'.
-    private val _enkaResults = MutableStateFlow<Map<String, EnkaResult>>(emptyMap())
-    val enkaResults: StateFlow<Map<String, EnkaResult>> = _enkaResults.asStateFlow()
-    private val _enkaLoadingGames = MutableStateFlow<Set<String>>(emptySet())
-    val enkaLoadingGames: StateFlow<Set<String>> = _enkaLoadingGames.asStateFlow()
+    /** '내 캐릭터' 섹션 — 게임별 결과. 값은 non-null(미설정/빈 게임은 EnkaResult(null,null)로 채워 '빈 표시'). */
+    val enkaResults: StateFlow<Map<String, EnkaResult>> = enka.enkaResults
+    val enkaLoadingGames: StateFlow<Set<String>> = enka.enkaLoadingGames
 
-    /**
-     * 네트워크 조회가 진행 중인 게임(키 = "게임:uid").
-     *
-     * '내 캐릭터' 섹션은 게임 필터가 바뀔 때마다 다시 요청한다. 캐시가 신선하면 그 전에 빠져나가지만,
-     * 캐시가 없거나 만료된 상태에서 필터를 몇 번 건드리면 같은 조회가 통째로 겹친다.
-     * 특히 젠레스는 서버가 다건 조회(id_list)를 거부해 **에이전트 1명당 1요청**이라, 보유 50명이면
-     * 한 세트가 51건이다. 겹치면 그대로 배가 된다.
-     */
-    private val enkaInFlight = mutableSetOf<String>()
-
-    /**
-     * '내 캐릭터' 섹션용 — 지정 게임들의 로스터를 동시 보관. 캐시 적중분은 즉시 반영.
-     * 게임마다 호스트가 달라(enka.network / mihomo / HoYoLAB) 동시 호출해도 429와 무관하므로
-     * 미적중분을 **병렬**로 가져온다(총 지연 = 합 → 최댓값). 네트워크는 IO 디스패처로 분리해 메인 스레드 미점유.
-     * UID 미설정 게임은 빈 결과(섹션서 빈 표시).
-     */
-    fun autoLoadEnkaSection(games: List<String>, force: Boolean = false, ttlMs: Long = enkaTtlMs) {
-        viewModelScope.launch {
-            // 연동됐는데 UID 가 비어 있으면 1회 동기화한다. **UID 가 이미 있는 게임은 그것을 기다리지 않는다**(27.51.1) —
-            // 예전엔 세 게임 중 하나만 UID 가 비어도(그 게임을 안 하는 사용자) 실행할 때마다 HoYoLAB 1~2건을 먼저 받고 나서야
-            // 나머지 게임의 캐릭터 목록 요청이 나갔다. 빈 게임만 동기화가 끝나기를 기다린다.
-            val uidSync = async(start = CoroutineStart.LAZY) { ensureEnkaUids() }
-            games.map { game ->
-                async {
-                    if (enkaUidFor(game).isBlank()) uidSync.await()
-                    val uid = enkaUidFor(game)
-                    if (uid.isBlank()) {
-                        _enkaResults.update { it + (game to EnkaResult(profile = null, error = null)) }
-                        return@async
-                    }
-                    val key = "$game:$uid"
-                    val cached = enkaCache[key]   // 디스크 시드 포함
-                    val fresh = cached != null && currentTimeMillis() - cached.first < ttlMs
-                    // 캐시(신선/오래됨 무관)가 있으면 즉시 표시 — stale-while-revalidate
-                    if (cached != null) {
-                        _enkaResults.update { it + (game to cached.second) }
-                        prefetchCharCamps(game, cached.second.profile?.chars.orEmpty())
-                        if (fresh && !force) return@async   // 신선하면 네트워크 생략
-                    } else {
-                        _enkaLoadingGames.update { it + game }   // 보여줄 캐시가 없을 때만 스피너
-                    }
-                    if (!enkaInFlight.add(key)) return@async   // 같은 조회가 이미 진행 중
-                    try {
-                    val cfg = _hoyolabConfig.value
-                    // 보여 줄 캐시가 없을 때만 **먼저 온 부분 결과**를 받는다 — 스타레일은 느린 mihomo 를, 원신은 전원 상세를,
-                    // 젠레스는 1명당 1요청인 상세를 기다리지 않고 HoYoLAB 보유 목록으로 먼저 그린다.
-                    // 캐시가 있으면 이미 그려져 있고, 부분 결과로 갈아끼우면 닉네임 · 스탯이 잠깐 빠진다.
-                    var partialShown = false
-                    val onPartial: ((EnkaResult) -> Unit)? = if (cached != null) null else { partial ->
-                        if (enkaUidFor(game) == uid) {
-                            partialShown = true
-                            _enkaResults.update { it + (game to partial) }
-                            _enkaLoadingGames.update { it - game }
-                        }
-                    }
-                    val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken, onPartial) }
-                    if (enkaUidFor(game) != uid) return@async   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
-                    if (r.profile != null) {
-                        enkaCache[key] = currentTimeMillis() to r
-                        _enkaResults.update { it + (game to r) }   // 갱신분 반영
-                        prefetchCharCamps(game, r.profile?.chars.orEmpty())
-                    } else if (cached == null && !partialShown) {
-                        // 캐시도 먼저 그린 목록도 없고 실패 → 에러 표시. 먼저 그린 목록이 있으면 그대로 둔다(상세만 못 받은 것이다).
-                        _enkaResults.update { it + (game to r) }
-                    }
-                    } finally {
-                        enkaInFlight.remove(key)
-                        _enkaLoadingGames.update { it - game }
-                    }
-                }
-            }.awaitAll()
-            uidSync.cancel()   // 아무도 기다리지 않았으면 시작도 안 했다 — 남겨 두면 이 코루틴이 끝나지 않는다
-            persistEnkaCache()   // 갱신된 캐시 디스크 영속(1회)
-        }
+    /** '내 캐릭터' 섹션용 — 지정 게임들의 로스터를 동시에 받는다. 캐시 적중분은 즉시 반영. */
+    fun autoLoadEnkaSection(games: List<String>, force: Boolean = false, ttlMs: Long = EnkaRosterController.TTL_MS) {
+        enka.autoLoadEnkaSection(games, force, ttlMs)
     }
 
-    // ----------------------------------------------------------------- 현재 게임 버전(nanoka)
 
-    private val _gameVersions = MutableStateFlow<List<GameVersionLine>>(emptyList())
+    // ----------------------------------------------------------------- 현재 게임 버전 · 정련 효과 · 소속(nanoka) — [CharMetaController]
+    private val charMeta = CharMetaController(viewModelScope) { repo }
+
     /** 지금 돌고 있는 게임 버전(출석 3게임) — 데일리 타일 아래 한 줄. */
-    val gameVersions: StateFlow<List<GameVersionLine>> = _gameVersions.asStateFlow()
+    val gameVersions: StateFlow<List<GameVersionLine>> = charMeta.gameVersions
 
-    private var gameVersionsLoaded = false
+    /** 현재 버전을 **처음 받아오는 중**인가 — 화면이 그동안 스켈레톤을 세운다. */
+    val gameVersionsLoading: StateFlow<Boolean> = charMeta.gameVersionsLoading
 
-    private val _gameVersionsLoading = MutableStateFlow(false)
-    /**
-     * 현재 버전을 **처음 받아오는 중**인가 — 화면이 그동안 스켈레톤을 세운다.
-     *
-     * 값이 없을 때만 켠다. 이미 한 줄이 서 있는데 갱신마다 스켈레톤으로 되돌리면 카드가
-     * 껌뻑인다 — 이 값은 몇 주에 한 번 바뀌므로 옛 값을 그대로 둬도 틀리지 않는다.
-     */
-    val gameVersionsLoading: StateFlow<Boolean> = _gameVersionsLoading.asStateFlow()
+    /** 현재 버전 로드. 화면 진입 시 부르며 **한 번만** 실제로 돈다. */
+    fun loadGameVersions(force: Boolean = false) { charMeta.loadGameVersions(force) }
 
-    /**
-     * 현재 버전 로드. 화면 진입 시 부르며 **한 번만** 실제로 돈다.
-     *
-     * 매니페스트 1건이면 끝나지만 버전이 바뀌는 주기는 몇 주라 매번 받을 이유가 없다.
-     * 앱을 껐다 켜면 다시 받는다(메모리 플래그).
-     *
-     * 빈 결과는 **'없음'으로 굳히지 않는다** — 네트워크가 죽었을 뿐일 수 있어 다음 진입에 다시 본다.
-     */
-    fun loadGameVersions(force: Boolean = false) {
-        if (gameVersionsLoaded && !force) return
-        gameVersionsLoaded = true
-        if (_gameVersions.value.isEmpty()) _gameVersionsLoading.value = true
-        viewModelScope.launch {
-            val versions = withContext(Dispatchers.IO) { GameVersions.live() }
-            if (versions.isEmpty()) gameVersionsLoaded = false else _gameVersions.value = versions
-            // 실패해도 끈다 — 다음 진입에서 다시 받으므로, 여기서 켜 둔 채로 두면 네트워크가
-            // 죽은 동안 스켈레톤이 영원히 흐른다.
-            _gameVersionsLoading.value = false
-        }
-    }
-
-    private val _weaponRefinement = MutableStateFlow<Map<String, WeaponRefinement>>(emptyMap())
     /** 무기·광추 정련 효과(키 "gameKey:weaponId:level"). 캐릭터 상세를 열 때만 채운다. */
-    val weaponRefinement: StateFlow<Map<String, WeaponRefinement>> = _weaponRefinement.asStateFlow()
-
-    /**
-     * 장착 무기의 정련 효과 조회.
-     *
-     * 캐릭터 상세는 무기 이름과 수치만 보여 주는데, 정작 "이 무기가 무슨 일을 하는가"가 빠져 있었다.
-     * 젠레스는 부르지 않는다 — 상류 한국어 W-엔진 데이터가 미번역 자리표시자로 오는 게 흔하다.
-     */
-    /** 정련 효과 조회가 진행 중인 키. 결과 맵과 별개다 — 맵은 응답이 온 뒤에야 채워진다. */
-    private val refinementInFlight = mutableSetOf<String>()
-
-    // 저장해 둔 값으로 시작한다 — 화면이 뜨는 순간부터 배지가 보이게. 도감 응답은 그 뒤에 채운다.
-    private val _charCamp = MutableStateFlow(repo.loadCharCamps())
+    val weaponRefinement: StateFlow<Map<String, WeaponRefinement>> = charMeta.weaponRefinement
 
     /** 캐릭터 소속(진영) — 키는 "게임키:캐릭터id". 젠레스는 응답이 직접 주므로 여기 없다. */
-    val charCamp: StateFlow<Map<String, String>> = _charCamp.asStateFlow()
-    private val charCampInFlight = mutableSetOf<String>()
+    val charCamp: StateFlow<Map<String, String>> = charMeta.charCamp
 
-    /**
-     * 로스터가 들어오면 **소속을 미리 받아 둔다.**
-     *
-     * 상세에 들어선 뒤에 부르면 도감 응답을 기다리는 1초 남짓 동안 배지 자리가 비었다가
-     * 뒤늦게 튀어나온다(2026-09-09 제보). 목록을 받는 시점에 미리 채워 두면 상세는 이미
-     * 손에 든 값을 그린다.
-     *
-     * 캐시에 있는 것은 건너뛰므로 캐릭터당 **한 번만** 나간다. 도감은 정적 파일이라
-     * 부담이 적지만, 그래도 한꺼번에 쏟지 않게 넷씩 끊어 보낸다.
-     */
-    private fun prefetchCharCamps(gameKey: String, chars: List<EnkaChar>) {
-        if (gameKey != "genshin" && gameKey != "hsr" && gameKey != "starrail") return
-        val need = chars.map { it.id }.filter { it > 0 && !_charCamp.value.containsKey("$gameKey:$it") }
-        if (need.isEmpty()) return
-        viewModelScope.launch {
-            need.chunked(4).forEach { batch ->
-                val found = withContext(Dispatchers.IO) {
-                    batch.map { id -> async { id to NanokaApi.charCamp(gameKey, id) } }.awaitAll()
-                }
-                // ⚠️ **소속이 없는 캐릭터도 기록한다.** 값이 있는 것만 넣었더니, 도감에 없거나
-                // (404) 지역 코드를 모르는 캐릭터는 맵에 영영 안 들어가서 로스터가 갱신될 때마다
-                // 같은 요청이 다시 나갔다 — 실측으로 같은 id 를 여섯 번까지 불렀다.
-                // 빈 문자열이 "물어봤고 없더라"는 뜻이다. 화면은 빈 값을 그리지 않는다.
-                val add = found.map { (id, camp) -> "$gameKey:$id" to camp.orEmpty() }
-                _charCamp.update { it + add }
-                repo.saveCharCamps(_charCamp.value)
-            }
-        }
-    }
+    /** 캐릭터 소속을 도감에서 받아 온다 — 원신·스타레일만. */
+    fun loadCharCamp(gameKey: String, charId: Int) { charMeta.loadCharCamp(gameKey, charId) }
 
-    /**
-     * 캐릭터 소속을 도감에서 받아 온다 — 원신·스타레일만.
-     *
-     * 상세 화면에 들어설 때 한 캐릭터만 부른다. 목록에서 부르면 캐릭터 수만큼 요청이 나간다.
-     * 정련([loadWeaponRefinement])과 같은 규칙으로 중복 요청을 막는다.
-     */
-    fun loadCharCamp(gameKey: String, charId: Int) {
-        if (charId <= 0) return
-        val key = "$gameKey:$charId"
-        if (_charCamp.value.containsKey(key)) return
-        if (!charCampInFlight.add(key)) return
-        viewModelScope.launch {
-            try {
-                // 없어도 기록한다 — 재요청을 막는다([prefetchCharCamps] 주석 참고).
-                val camp = withContext(Dispatchers.IO) { NanokaApi.charCamp(gameKey, charId) }
-                _charCamp.update { it + (key to camp.orEmpty()) }
-                repo.saveCharCamps(_charCamp.value)
-            } finally {
-                charCampInFlight.remove(key)
-            }
-        }
-    }
+    /** 장착 무기의 정련 효과 조회. */
+    fun loadWeaponRefinement(gameKey: String, weaponId: Int, level: Int) { charMeta.loadWeaponRefinement(gameKey, weaponId, level) }
 
-    fun loadWeaponRefinement(gameKey: String, weaponId: Int, level: Int) {
-        if (weaponId <= 0) return
-        val key = "$gameKey:$weaponId:$level"
-        if (_weaponRefinement.value.containsKey(key)) return
-        // 결과 맵만 보면 **응답이 오기 전까지는 계속 '없음'** 이라, 그 사이 같은 키가 다시 들어오면
-        // (화면 재구성·상세 재진입) 같은 요청이 겹친다. [enkaInFlight] 와 같은 방식으로 막는다.
-        if (!refinementInFlight.add(key)) return
-        viewModelScope.launch {
-            try {
-                val r = withContext(Dispatchers.IO) { NanokaApi.refinement(gameKey, weaponId, level) } ?: return@launch
-                _weaponRefinement.update { it + (key to r) }
-            } finally {
-                refinementInFlight.remove(key)
-            }
-        }
-    }
 
-    // ----- 가챠 효율 리포트 (UIGF/SRGF) -----
-    private var gachaRecords: List<GachaRecord> = emptyList()
-    private val _gachaStats = MutableStateFlow<GachaStats?>(null)
-    val gachaStats: StateFlow<GachaStats?> = _gachaStats.asStateFlow()
-    private val _gachaDashboard = MutableStateFlow<GachaDashboard?>(null)
-    val gachaDashboard: StateFlow<GachaDashboard?> = _gachaDashboard.asStateFlow()
+    // ----- 가챠 효율 리포트 (UIGF/SRGF) — [GachaRecordsController] -----
+    private val gacha = GachaRecordsController(viewModelScope, { repo }, ::emitStatus)
+    val gachaStats: StateFlow<GachaStats?> = gacha.gachaStats
+    val gachaDashboard: StateFlow<GachaDashboard?> = gacha.gachaDashboard
 
     /** 선택한 JSON 파일들(UIGF/SRGF)의 내용을 읽어 파싱·중복제거·병합 후 저장. */
-    fun importGachaFromContents(contents: List<String>) {
-        if (contents.isEmpty()) return
-        viewModelScope.launch {
-            val parsed = withContext(Dispatchers.IO) {
-                contents.flatMap { text ->
-                    GachaReport.normalize(text)
-                }
-            }
-            if (parsed.isEmpty()) {
-                emitStatus("가챠 기록을 찾지 못했어요 (UIGF/SRGF JSON 확인)")
-                return@launch
-            }
-            val existingIds = gachaRecords.mapTo(HashSet()) { it.id }
-            var added = 0
-            var skipped = 0
-            val merged = gachaRecords.toMutableList()
-            for (r in parsed) {
-                if (r.id.isBlank() || r.id in existingIds) { skipped++; continue }
-                existingIds.add(r.id); merged.add(r); added++
-            }
-            gachaRecords = merged
-            withContext(Dispatchers.IO) { repo.saveGachaRecords(merged) }
-            val (stats, dash) = GachaReport.computeAll(merged)
-            _gachaStats.value = stats
-            _gachaDashboard.value = dash
-            emitStatus("가챠 기록 ${added}건 추가 (중복 ${skipped} 제외)")
-        }
-    }
+    fun importGachaFromContents(contents: List<String>) { gacha.importGachaFromContents(contents) }
 
-    fun clearGachaRecords() {
-        gachaRecords = emptyList()
-        repo.markGachaCleared(currentTimeMillis())   // 병합이 합집합이라, 시각 없이 비우면 다른 기기 기록이 되살아난다
-        repo.saveGachaRecords(emptyList())
-        _gachaStats.value = null
-        _gachaDashboard.value = null
-        emitStatus("가챠 기록을 초기화했어요")
-    }
+    fun clearGachaRecords() { gacha.clearGachaRecords() }
+
 
     // ----------------------------------------------------------------- 백업 파일 내보내기/가져오기 (SAF)
     /**
@@ -2287,60 +1645,18 @@ class SpendingViewModel : ViewModel() {
     private var _spendingRefreshing = false
 
     /** 일회성 토스트 메시지 (UI 가 소비 후 clearStatus 호출) */
-    private val _statusMessage = MutableStateFlow<String?>(null)
-    val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
+    val statusMessage: StateFlow<String?> = feedback.statusMessage
 
-    fun clearStatus() { _statusMessage.value = null }
-    private fun emitStatus(msg: String) { _statusMessage.value = msg }
+    fun clearStatus() { feedback.clearStatus() }
+    private fun emitStatus(msg: String) { feedback.status(msg) }
     /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
     fun showStatus(msg: String) = emitStatus(msg)
 
-    /**
-     * 오류 얼럿 모달 — 토스트가 아니라 모달로 세우는 것들(null 이 아니면 노출). UI 가 확인 후 [clearErrorAlert].
-     *
-     * 예전엔 네트워크 미연결 전용이라 제목이 UI 에 "인터넷 연결 없음" 으로 박혀 있었다.
-     * 인증 만료·클라우드 백업 실패도 같은 자리에 세워야 해서 제목까지 함께 든다([ErrorAlert]).
-     */
-    private val _errorAlert = MutableStateFlow<ErrorAlert?>(null)
-    val errorAlert: StateFlow<ErrorAlert?> = _errorAlert.asStateFlow()
-    fun clearErrorAlert() { _errorAlert.value = null }
+    /** 오류 얼럿 모달 — null 이 아니면 노출. UI 가 확인 후 [clearErrorAlert]. 세우는 규칙은 [FeedbackController]. */
+    val errorAlert: StateFlow<ErrorAlert?> = feedback.errorAlert
+    fun clearErrorAlert() { feedback.clearErrorAlert() }
 
-    /** 이미 얼럿이 떠 있으면 덮어쓰지 않는다 — 먼저 뜬 쪽이 대개 원인에 더 가깝다. */
-    private fun emitErrorAlert(alert: ErrorAlert) {
-        if (_errorAlert.value == null) _errorAlert.value = alert
-    }
-
-    private fun emitNetworkAlert() = emitErrorAlert(
-        ErrorAlert("인터넷 연결 없음", "인터넷에 연결되어 있지 않아요.\n연결 상태를 확인한 뒤 다시 시도해주세요."),
-    )
-
-    /** 같은 (종류·출처) 오류를 다시 알리기까지의 최소 간격. 배경 점검이 반복 실패해도 도배되지 않는다. */
-    private val errorNotifiedAt = mutableMapOf<String, Long>()
-
-    /**
-     * [ErrorBus] 를 화면으로 잇는 단일 지점 — 데이터 계층이 삼키던 실패가 여기서 토스트·얼럿이 된다.
-     *
-     * 종류마다 **사용자가 할 일이 있는지**로 표시 수단을 가른다. 연결·서버·형식 오류는 잠시 뒤 풀리거나
-     * 우리가 할 게 없으니 토스트로 알리고 지나가지만, 인증 만료와 클라우드 실패는 재연동·정리를 하기
-     * 전까지 계속 실패하므로 모달로 세운다.
-     */
-    /** 연동 만료 모달을 이번 실행에서 이미 보여줬는가 — 재연동 전까지 계속 실패해서 반복 노출된다. */
-    private var authAlertShown = false
-
-    /** 최근에 연결 실패를 낸 출처들 — 값은 시각(ms). [networkDownConfirmed] 가 쓴다. */
-    private val networkFailedAt = mutableMapOf<String, Long>()
-
-    /**
-     * 지금 실패한 출처를 기록하고, **연결이 정말 끊긴 것으로 볼 수 있는지** 답한다.
-     *
-     * 판단 기준은 "서로 다른 출처 둘이 [NETWORK_CORROBORATE_MS] 안에 실패" 다. 한 곳만
-     * 실패하는 건 그 상류의 문제이지 기기의 연결 문제가 아니다.
-     */
-    private fun networkDownConfirmed(source: String, now: Long): Boolean {
-        networkFailedAt.entries.removeAll { now - it.value > NETWORK_CORROBORATE_MS }
-        networkFailedAt[source] = now
-        return networkFailedAt.size >= 2
-    }
+    private fun emitNetworkAlert() = feedback.networkAlert()
 
     /**
      * 앱 밖(백그라운드 작업·알람)에서 출석이 바뀌면 저장소에서 다시 읽는다.
@@ -2376,77 +1692,6 @@ class SpendingViewModel : ViewModel() {
         _attendanceStreak.value = computeAttendanceStreak()
     }
 
-    private fun observeErrors() {
-        viewModelScope.launch {
-            ErrorBus.events.collect { r ->
-                // ⚠️ **서버·API·형식 오류는 화면에 올리지 않는다**(2026-09-08 지시로 되돌림).
-                //
-                // 데이터 계층의 실패를 전부 토스트로 올렸더니 정상 사용 중에도 "OO 서버가 응답하지
-                // 않아요" 가 계속 떴다. 이 앱은 한 화면에서 상류 여러 곳을 동시에 찌르고(HoYoLAB·
-                // Enka·mihomo·ennead·GitHub), 그중 하나가 잠깐 흔들리는 건 흔한 일이다.
-                // 대개 다음 갱신에 스스로 낫고, 사용자가 할 수 있는 일도 없다.
-                //
-                // 남기는 것은 **사용자가 조치할 수 있는 것**뿐이다 —
-                //   연결 끊김(NETWORK) · 연동 만료(AUTH) · 클라우드 백업 실패(CLOUD).
-                // 나머지는 로그로만 남는다(`GatchaNet` 으로 검색).
-                if (r.kind == ErrorBus.Kind.SERVER ||
-                    r.kind == ErrorBus.Kind.API ||
-                    r.kind == ErrorBus.Kind.PARSE
-                ) return@collect
-
-                val modal = true   // 남은 셋은 전부 얼럿이다(토스트를 쓰지 않는다)
-                // ⚠️ 쿨다운 키에서 **출처를 뺐다.** 이 앱은 한 화면에서 상류 여러 곳을 동시에
-                // 찌른다(HoYoLAB·Enka·mihomo·ennead·GitHub). 출처별로 세면 하나가 죽어도
-                // 토스트가 출처 수만큼 줄줄이 떴다. 종류가 같으면 한 번만 알린다.
-                val key = r.kind.name
-                val now = currentTimeMillis()
-                val cooldown = if (modal) ERROR_MODAL_COOLDOWN_MS else ERROR_TOAST_COOLDOWN_MS
-                if (now - (errorNotifiedAt[key] ?: 0L) < cooldown) return@collect
-                // 연동 만료 모달은 **세션당 한 번**만. 재연동 전까지 계속 실패하는 성격이라
-                // 시간 쿨다운만 두면 앱을 켜 두는 내내 반복해서 뜬다.
-                if (r.kind == ErrorBus.Kind.AUTH) {
-                    if (authAlertShown) return@collect
-                    authAlertShown = true
-                }
-                // 연결 끊김은 **한 곳만 실패해서는 단정할 수 없다.** 이 앱은 한 화면에서 상류
-                // 여러 곳을 동시에 찌르는데(HoYoLAB·Enka·mihomo·ennead·GitHub), 그중 하나가
-                // DNS 를 못 풀거나 인증서가 어긋나도 나머지는 멀쩡히 오간다. 그걸 그대로 올리면
-                // 인터넷이 연결돼 있는데 "연결 없음" 얼럿이 뜬다(실측 제보).
-                //
-                // **서로 다른 출처 둘**이 짧은 시간 안에 실패했을 때만 진짜 끊김으로 본다.
-                if (r.kind == ErrorBus.Kind.NETWORK && !networkDownConfirmed(r.source, now)) return@collect
-                errorNotifiedAt[key] = now
-                val detail = r.detail.takeIf { it.isNotBlank() }
-                when (r.kind) {
-                    // 연결 자체가 끊긴 것만 알린다 — 사용자가 확인할 수 있는 상태다.
-                    // 얼럿 전에 **진짜 끊겼는지 한 번 확인**한다(9/30) — 복귀 직후 한꺼번에 끊긴 요청들이
-                    // 두 출처 조건을 넘겨 멀쩡한데도 떴다. 잠깐 기다렸다 확인 요청이 통하면 띄우지 않는다.
-                    ErrorBus.Kind.NETWORK -> launch {
-                        delay(NETWORK_RECHECK_DELAY_MS)
-                        if (Net.isOnline()) { errorNotifiedAt.remove(key); return@launch }
-                        emitErrorAlert(
-                            ErrorAlert(
-                                "인터넷 연결 없음",
-                                "네트워크에 연결하지 못했어요.\n연결 상태를 확인한 뒤 다시 시도해주세요.",
-                            ),
-                        )
-                    }
-                    ErrorBus.Kind.SERVER, ErrorBus.Kind.API, ErrorBus.Kind.PARSE -> Unit  // 위에서 걸렀다
-                    ErrorBus.Kind.AUTH -> emitErrorAlert(
-                        ErrorAlert(
-                            "${r.source} 연동 만료",
-                            "로그인 정보가 만료됐어요.\n게임 정보 탭에서 다시 연동해주세요." +
-                                (detail?.let { "\n\n($it)" } ?: ""),
-                        ),
-                    )
-                    ErrorBus.Kind.CLOUD -> emitErrorAlert(
-                        ErrorAlert("클라우드 백업 오류", detail ?: "클라우드 백업에 실패했어요."),
-                    )
-                }
-            }
-        }
-    }
-
     /** 읽은 알림 키 집합(안정 키 — 가변 메시지 아님). 기기 재진입에도 유지되도록 prefs 영구 저장(로컬 전용). */
     private val _readAlerts = MutableStateFlow<Set<String>>(emptySet())
     val readAlerts: StateFlow<Set<String>> = _readAlerts.asStateFlow()
@@ -2479,49 +1724,24 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----------------------------------------------------------------- 인앱 업데이트 확인
-    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
-    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
+    private val appUpdate = AppUpdateController(viewModelScope, ::emitStatus)
+    val updateInfo: StateFlow<UpdateInfo?> = appUpdate.info
 
-    /**
-     * 강제 업데이트 여부 — 현재 버전이 매니페스트의 minVersionCode 미만.
-     * true 면 UI 는 닫을 수 없는 업데이트 화면을 띄운다(데이터 꼬임 방지·구버전 유지보수 종료).
-     */
-    private val _forceUpdate = MutableStateFlow(false)
-    val forceUpdate: StateFlow<Boolean> = _forceUpdate.asStateFlow()
+    /** 강제 업데이트 여부 — true 면 UI 는 닫을 수 없는 업데이트 화면을 띄운다. 판정은 [AppUpdateController]. */
+    val forceUpdate: StateFlow<Boolean> = appUpdate.force
 
     /** 원격 version.json 과 현재 버전 비교. [manual] 이면 최신일 때 토스트로 알림. */
-    fun checkForUpdate(manual: Boolean = false) {
-        viewModelScope.launch {
-            val info = UpdateChecker.check()
-            if (info != null) {
-                _updateInfo.value = info
-                _forceUpdate.value = mustUpdate(UpdateChecker.currentVersionCode(), info)
-            } else if (manual) emitStatus("이미 최신 버전이에요")
-        }
-    }
+    fun checkForUpdate(manual: Boolean = false) { appUpdate.check(manual) }
 
     /** 강제 업데이트일 땐 닫히지 않는다(구버전 계속 사용 차단). */
-    fun dismissUpdate() { if (!_forceUpdate.value) _updateInfo.value = null }
+    fun dismissUpdate() { appUpdate.dismiss() }
 
     /** 인앱 업데이트 다운로드 진행률(0~1). null = 진행 중 아님. */
-    private val _updateProgress = MutableStateFlow<Float?>(null)
-    val updateProgress: StateFlow<Float?> = _updateProgress.asStateFlow()
+    val updateProgress: StateFlow<Float?> = appUpdate.progress
 
-    /**
-     * 인앱 업데이트 실행 — 플랫폼별 동작은 [platformStartInAppUpdate] 에 위임한다.
-     * (Android: APK 다운로드+설치 / iOS: 릴리스 페이지 URL 열기)
-     */
-    fun startInAppUpdate() {
-        val info = _updateInfo.value ?: return
-        // 다이얼로그 닫기 — 강제 업데이트면 남긴다. 걷어 버리면 받다 실패하거나 설치 화면에서
-        // 취소했을 때 창이 다시 뜨지 않아 옛 버전을 그대로 쓸 수 있었다. 받는 동안은 화면이 창을 가린다.
-        if (!_forceUpdate.value) _updateInfo.value = null
-        platformStartInAppUpdate(
-            info,
-            onProgress = { _updateProgress.value = it },
-            onStatus = { emitStatus(it) },
-        )
-    }
+    /** 인앱 업데이트 실행(Android: APK 다운로드+설치 / iOS: 릴리스 페이지 URL 열기). */
+    fun startInAppUpdate() { appUpdate.start() }
+
 
     /** 진행 중인 체크인 — 계정을 바꾸면 끊는다(옛 계정 결과가 새 계정 출석으로 찍히지 않게). */
     private var checkInJob: Job? = null
@@ -2961,185 +2181,36 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----------------------------------------------------------------- 선물코드 (자동 수집 + 교환)
-    private val _redeemState = MutableStateFlow<RedeemState>(RedeemState.Idle)
-    val redeemState: StateFlow<RedeemState> = _redeemState.asStateFlow()
+    private val giftCodes = GiftCodeController(viewModelScope, { repo }, { _hoyolabConfig.value }, ::emitStatus)
+    val redeemState: StateFlow<RedeemState> = giftCodes.redeemState
 
     /** 자동 수집된 활성 코드. */
-    private val _activeCodes = MutableStateFlow<List<GiftCode>>(emptyList())
-    val activeCodes: StateFlow<List<GiftCode>> = _activeCodes.asStateFlow()
-    private val _codesLoading = MutableStateFlow(false)
-    val codesLoading: StateFlow<Boolean> = _codesLoading.asStateFlow()
+    val activeCodes: StateFlow<List<GiftCode>> = giftCodes.activeCodes
+    val codesLoading: StateFlow<Boolean> = giftCodes.codesLoading
     /** 이미 교환한 코드(목록에서 사용 표시). */
-    private val _redeemedCodes = MutableStateFlow<Set<String>>(emptySet())
-    val redeemedCodes: StateFlow<Set<String>> = _redeemedCodes.asStateFlow()
+    val redeemedCodes: StateFlow<Set<String>> = giftCodes.redeemedCodes
 
-    /**
-     * 더는 못 받는 코드(만료·무효·수량 마감). [activeCodes] 에서 아예 걸러낸다.
-     *
-     * 자동수집 API(hoyo-codes)는 수량이 마감된 코드도 `status: OK` 로 계속 실어 보낸다.
-     * 그대로 두면 눌러봐야 실패만 하는 행이 목록에 남는다.
-     */
-    private val _unusableCodes = MutableStateFlow<Set<String>>(emptySet())
-
-    /** 가려진 코드 수 — 0 이 아닐 때만 화면이 '되살리기'를 제공한다. */
-    val unusableCodes: StateFlow<Set<String>> = _unusableCodes.asStateFlow()
+    /** 가려진 코드 — 0 이 아닐 때만 화면이 '되살리기'를 제공한다. */
+    val unusableCodes: StateFlow<Set<String>> = giftCodes.unusableCodes
 
     /** 코드 수집 실패(네트워크·파싱). true 면 '코드 없음'이 아니라 '못 불러옴' — 화면은 재시도를 제공한다. */
-    private val _codesFailed = MutableStateFlow(false)
-    val codesFailed: StateFlow<Boolean> = _codesFailed.asStateFlow()
+    val codesFailed: StateFlow<Boolean> = giftCodes.codesFailed
 
     /** 게임의 현재 활성 선물코드를 자동 수집해 [activeCodes] 로 노출. */
-    /** 코드 조회가 진행 중인 게임 키. 게임이 다르면 막지 않는다(사용자가 탭을 바꾼 것). */
-    private val codesInFlight = mutableSetOf<String>()
+    fun loadActiveCodes(gameKey: String, force: Boolean = false) { giftCodes.loadActiveCodes(gameKey, force) }
 
-    /** 게임별로 받아 둔 코드(받은 시각, 걸러내기 전 목록) — 화면 재진입 · 게임 전환마다 다시 받지 않게. */
-    private val codesCache = mutableMapOf<String, Pair<Long, List<GiftCode>>>()
-
-    fun loadActiveCodes(gameKey: String, force: Boolean = false) {
-        // 받아 둔 게 있으면 먼저 보여 준다 — 예전엔 게임을 바꾸면 응답이 올 때까지 **앞 게임의 코드**가 떠 있었다.
-        codesCache[gameKey]?.let { (at, list) ->
-            _activeCodes.value = list.filterNot { it.code.uppercase() in _unusableCodes.value }
-            _codesFailed.value = false
-            if (!force && currentTimeMillis() - at < CODES_FRESH_MS) return
-        } ?: run { _activeCodes.value = emptyList() }
-        // 같은 게임 조회가 이미 돌고 있으면 두 번 쏘지 않는다 — 코드 화면은 진입·게임 전환·재구성으로
-        // 같은 키가 연달아 들어오는데, 여기엔 신선도 캐시도 진행 중 판정도 없어 그대로 다 나갔다.
-        if (!codesInFlight.add(gameKey)) return
-        viewModelScope.launch {
-            _codesLoading.value = true
-            try {
-                val codes = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
-                // 실패(null)면 기존 목록을 지우지 않고 실패 상태만 세운다 — 빈 목록으로 위장하지 않는다.
-                if (codes == null) {
-                    _codesFailed.value = true
-                } else {
-                    _codesFailed.value = false
-                    codesCache[gameKey] = currentTimeMillis() to codes
-                    // 수집 목록에는 이미 못 쓰게 된 코드가 계속 섞여 온다 — 받아올 때 걸러낸다.
-                    _activeCodes.value = codes.filterNot { it.code.uppercase() in _unusableCodes.value }
-                }
-            } finally {
-                codesInFlight.remove(gameKey)
-                _codesLoading.value = false
-            }
-        }
-    }
-
-    private fun markRedeemed(code: String) {
-        val s = _redeemedCodes.value + code.uppercase()
-        _redeemedCodes.value = s
-        repo.saveRedeemedCodes(s)
-    }
-
-    /** 더는 못 받는 코드 — 기억해 두고 지금 목록에서도 즉시 뺀다(다음 수집에서도 계속 걸러짐). */
-    private fun markUnusable(code: String) {
-        val c = code.uppercase()
-        val s = _unusableCodes.value + c
-        _unusableCodes.value = s
-        repo.saveUnusableCodes(s)
-        _activeCodes.value = _activeCodes.value.filterNot { it.code.uppercase() == c }
-    }
-
-    /**
-     * 가려 둔 코드를 전부 되살린다 — **유일한 복구 수단**이다.
-     *
-     * `unusable_codes` 는 합집합으로만 자라고 로컬 전용이라(스냅샷 비포함) 클라우드 복원으로도
-     * 안 풀린다. 판정이 틀렸을 때 사용자가 되돌릴 방법이 재설치뿐이었다. 옛 버전이
-     * 모르는 retcode 를 전부 차단하던 시절에 탄 코드도 여기서 되살아난다.
-     */
-    fun restoreUnusableCodes(gameKey: String) {
-        if (_unusableCodes.value.isEmpty()) return
-        val n = _unusableCodes.value.size
-        _unusableCodes.value = emptySet()
-        repo.saveUnusableCodes(emptySet())
-        emitStatus("가려진 코드 ${n}개를 되살렸어요")
-        loadActiveCodes(gameKey)   // 걸러내던 목록을 다시 받아 화면에 올린다
-    }
-
-    /** 교환 실행(검증 포함). 성공/이미사용이면 사용 표시. */
-    private suspend fun doRedeem(gameKey: String, code: String): CodeResult {
-        val cfg = _hoyolabConfig.value
-        if (!cfg.isLinked) return CodeResult(false, "HoYoLAB 연동이 필요해요")
-        val uid = when (gameKey) {
-            "genshin" -> cfg.genshinUid
-            "hsr" -> cfg.hsrUid
-            "zzz" -> cfg.zzzUid
-            else -> ""
-        }
-        if (uid.isBlank()) return CodeResult(false, "이 게임 UID가 없어요")
-        if (cfg.cookieToken.isBlank() && cfg.webCookie.isBlank()) {
-            return CodeResult(false, "HoYoLAB 재연동이 필요해요 (교환 인증 쿠키 없음)")
-        }
-        val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, cfg.webCookie, gameKey, uid, code)
-        // 교환 성공 또는 이미 계정 귀속(retcode -2017/-2018)이면 '받음' 표시 — 메시지 문자열 매칭 금지(확실 분기).
-        if (r.success || r.alreadyRedeemed) markRedeemed(code)
-        // 다시 시도해도 소용없는 코드는 목록에서 뺀다. 재시도 가치가 있는 실패(쿠키·레이트리밋·네트워크)는
-        // unusable 이 아니므로 여기 안 걸린다 — 멀쩡한 코드가 사라지지 않게 하는 게 이 분기의 요점.
-        else if (r.unusable) markUnusable(code)
-        return r
-    }
+    /** 가려 둔 코드를 전부 되살린다 — 유일한 복구 수단이다. */
+    fun restoreUnusableCodes(gameKey: String) { giftCodes.restoreUnusableCodes(gameKey) }
 
     /** HoYoLAB 선물코드 교환(단건). 결과는 [redeemState] 로 노출. */
-    fun redeemGiftCode(gameKey: String, code: String) {
-        if (redeemJob?.isActive == true) return
-        redeemJob = viewModelScope.launch {
-            _redeemState.value = RedeemState.Loading
-            val r = doRedeem(gameKey, code.trim().uppercase())
-            _redeemState.value = RedeemState.Done(r.success, r.message)
-        }
-    }
+    fun redeemGiftCode(gameKey: String, code: String) { giftCodes.redeemGiftCode(gameKey, code) }
 
-    /**
-     * 수집된 활성 코드 중 미교환분을 순차 교환(레이트리밋 대비 지연).
-     *
-     * **같은 retcode 로 연달아 실패하면 중단한다.** 코드마다 사유가 다르면 코드 문제지만,
-     * 똑같은 코드가 계속 나오면 계정 쪽 사유다(쿠키 만료·등급 미달·게임 미연동·리전 불일치).
-     * 그대로 끝까지 돌면 남은 코드를 전부 헛되이 태우고, 예전 판정 규칙에서는 그 코드들이
-     * 통째로 영구 차단됐다.
-     */
-    fun redeemAllCodes(gameKey: String) {
-        val targets = _activeCodes.value.map { it.code }.filter { it !in _redeemedCodes.value }
-        if (redeemJob?.isActive == true) return
-        if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
-        redeemJob = viewModelScope.launch {
-            var ok = 0; var fail = 0; var lastFailMsg = ""
-            var sameFailStreak = 0
-            var lastFailRetcode: Int? = null
-            var aborted = false
-            for (i in targets.indices) {
-                _redeemState.value = RedeemState.Loading
-                val r = doRedeem(gameKey, targets[i])
-                if (r.success || r.alreadyRedeemed) {
-                    ok++
-                    sameFailStreak = 0
-                    lastFailRetcode = null
-                } else {
-                    fail++
-                    lastFailMsg = r.message
-                    if (r.retcode == lastFailRetcode) sameFailStreak++ else { sameFailStreak = 1; lastFailRetcode = r.retcode }
-                    if (sameFailStreak >= REDEEM_ABORT_SAME_FAILS && i < targets.lastIndex) { aborted = true; break }
-                }
-                if (i < targets.lastIndex) delay(5500) // 교환 레이트리밋(-2016) 회피
-            }
-            // 실패 사유를 그대로 노출(전부 실패 시 원인 파악 — 쿠키/만료/리전 등)
-            val detail = when {
-                aborted -> "같은 사유로 ${sameFailStreak}번 실패해 중단했어요 — $lastFailMsg"
-                fail == 0 -> "교환 ${ok}건 완료 (우편함 확인)"
-                ok == 0 -> "교환 실패 ${fail}건 — $lastFailMsg"
-                else -> "교환 ${ok}건 완료 · 실패 ${fail}건 ($lastFailMsg)"
-            }
-            _redeemState.value = RedeemState.Done(!aborted && fail == 0, detail)
-        }
-    }
+    /** 수집된 활성 코드 중 미교환분을 순차 교환. 같은 사유로 연달아 실패하면 중단한다. */
+    fun redeemAllCodes(gameKey: String) { giftCodes.redeemAllCodes(gameKey) }
 
-    /**
-     * 진행 중인 교환 — 한 번에 하나만. 화면을 나갔다 들어오면 [resetRedeem] 이 상태를 Idle 로 되돌려
-     * 버튼이 다시 살아났고, 5.5초 대기 중이던 루프 옆에 두 번째 루프가 붙었다.
-     */
-    private var redeemJob: Job? = null
+    /** 화면 이탈 시 결과 표시를 걷는다. 교환이 도는 중이면 그대로 둔다. */
+    fun resetRedeem() { giftCodes.resetRedeem() }
 
-    /** 화면 이탈 시 결과 표시를 걷는다. 교환이 도는 중이면 그대로 둔다 — 돌아왔을 때 진행 중으로 보여야 한다. */
-    fun resetRedeem() { if (redeemJob?.isActive != true) _redeemState.value = RedeemState.Idle }
 
     private fun markCheckedIn(gameKey: String) = editTodayAttendance { it + gameKey }
 
@@ -3259,7 +2330,7 @@ class SpendingViewModel : ViewModel() {
      * 백그라운드로 돌린다(유실 방지 pull-전-push-금지는 그대로). 첫 로그인·재설치(로컬 없음)에서만 로딩 화면.
      */
     val hasLocalData: Boolean
-        get() = _spendings.value.isNotEmpty() || gachaRecords.isNotEmpty()
+        get() = _spendings.value.isNotEmpty() || gacha.hasRecords
 
     /**
      * 로딩 게이트(계정 데이터 불러오는 중)가 필요한가 — 로그인했고, 이 기기에서 이 계정을 아직 한 번도
@@ -3448,8 +2519,7 @@ class SpendingViewModel : ViewModel() {
         val hsr = guest.loadEnkaHsrUid()
         if (gi.isNotBlank() || hsr.isNotBlank()) {
             repo.saveEnkaUids(gi.ifBlank { repo.loadEnkaGiUid() }, hsr.ifBlank { repo.loadEnkaHsrUid() })
-            _enkaGiUid.value = repo.loadEnkaGiUid()
-            _enkaHsrUid.value = repo.loadEnkaHsrUid()
+            enka.reloadUids()
         }
     }
 
@@ -3529,22 +2599,9 @@ class SpendingViewModel : ViewModel() {
 
         /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
         const val SYNC_TIMEOUT_MS = 8_000L
-        /**
-         * 일괄 교환 중단 기준 — 같은 retcode 실패가 이만큼 연달아 나오면 계정 사유로 보고 멈춘다.
-         * 코드 사유라면 코드마다 retcode 가 흩어지므로 이 연속이 나오지 않는다.
-         */
-        const val REDEEM_ABORT_SAME_FAILS = 3
-        /** 같은 오류 토스트를 다시 띄우기까지의 최소 간격(ms). 배경 점검이 20여 건을 동시에 실패해도 한 번만 뜬다. */
-        /** 연결 끊김을 단정하기까지 서로 다른 출처의 실패를 모아 보는 창. */
-private const val NETWORK_CORROBORATE_MS = 20_000L
 
-const val ERROR_TOAST_COOLDOWN_MS = 180_000L
-        /** 같은 오류 모달을 다시 세우기까지의 최소 간격(ms). 확인을 눌러 닫은 직후 다시 뜨면 앱을 못 쓴다. */
-        const val ERROR_MODAL_COOLDOWN_MS = 30L * 60 * 1000
         /** Firestore 문서 크기 한도(바이트). 이 값을 넘기면 set 이 실패한다. */
         const val CLOUD_DOC_LIMIT_BYTES = 1_048_576
-        /** 연결 오류 뒤 실제 연결을 다시 확인하기까지 기다리는 시간 — 복귀 직후 끊김이 가라앉을 틈. */
-        const val NETWORK_RECHECK_DELAY_MS = 1_500L
         /** push 재시도 간격 — 첫 시도(0) · 15초 · 1분. 순간 끊김은 이 안에서 조용히 풀린다. */
         val PUSH_RETRY_DELAYS_MS = longArrayOf(0L, 15_000L, 60_000L)
         /** 연달아 이만큼 실패해야 백업 실패 얼럿(재시도 3회를 다 쓴 뒤). */
@@ -3580,17 +2637,13 @@ const val ERROR_TOAST_COOLDOWN_MS = 180_000L
          */
         const val CLOUD_MAX_AGE_MS = 60L * 1000
 
-        /** 선물코드 목록 신선도 — 새 코드는 하루 몇 번 뜨는 수준이다. */
-        const val CODES_FRESH_MS = 10L * 60 * 1000
 
         /** 포그라운드 복귀 때의 '내 캐릭터' 재조회 간격 — 로스터는 하루에 몇 번 바뀌지 않는다. */
         const val ENKA_FOREGROUND_TTL_MS = 30L * 60 * 1000
 
         /** Enka 가 보유 캐릭터를 주는 게임 — 나머지는 상류가 주지 않는다. */
-        val ENKA_GAMES = listOf("genshin", "hsr", "zzz")
+        val ENKA_GAMES = EnkaRosterController.ENKA_GAMES
 
-        /** 엔드 콘텐츠 클리어 편성 신선도(ms). 시즌 단위로 바뀌는 데이터라 넉넉히 잡는다. */
-        const val COMBAT_CLEAR_FRESH_MS = 30L * 60 * 1000
         const val DAY_MS = 86_400_000L
         /** 출석 초기화 기준(베이징 UTC+8) — DST 가 없어 고정 오프셋으로 충분하다. */
         const val HOYO_TZ_SHIFT_MS = 8L * 60 * 60 * 1000
@@ -3619,7 +2672,7 @@ const val ERROR_TOAST_COOLDOWN_MS = 180_000L
         viewModelScope.launch {
             _spendings.collect { recomputeSpendingDerived() }
         }
-        observeErrors()   // 데이터 계층이 삼키던 실패를 화면으로 올린다
+        feedback.observeErrors()   // 데이터 계층이 삼키던 실패를 화면으로 올린다
         observeAttendance()   // 백그라운드 자동 출석의 결과를 화면에 반영한다
         bootstrapAuthAndSync()
     }
