@@ -130,8 +130,6 @@ private fun spendingEditorSaver(find: (String) -> Spending?) =
 @Composable
 fun HomeScreen(
     viewModel: SpendingViewModel = viewModel(),
-    /** 하단 탭 바가 보이는지 — 앱 루트(MainActivity)의 토스트가 바 위(100) · 바 없는 화면(24) 자리를 가르는 데 쓴다. */
-    onTabBarVisibleChange: (Boolean) -> Unit = {},
 ) {
     // 고른 탭 · 열린 에디터는 재생성(시스템이 백그라운드에서 정리 · 화면 설정 변경) 뒤에도 남긴다(27.52.0) —
     // 예전엔 remember 라 지출을 적다가 다른 앱에 다녀오면 홈 탭으로 돌아가 있고 적던 화면도 닫혀 있었다.
@@ -159,9 +157,6 @@ fun HomeScreen(
     // 풀스크린 하위 페이지(알림 상세·연간 리포트·지출 상세·HoYoLAB 연동·설정)가 열렸는지.
     // 열려 있으면 하단바와 FAB를 숨긴다. 각 탭 콘텐츠가 자신의 하위 페이지 상태를 보고한다.
     var subPageActive by remember { mutableStateOf(false) }
-    // 탭 바가 보이는 때 = 에디터가 닫혀 있고 하위 페이지도 아닐 때(아래 bottomBar 의 표시 조건과 같다).
-    val tabBarVisible = spendingEditor.value == null && !subPageActive
-    LaunchedEffect(tabBarVisible) { onTabBarVisibleChange(tabBarVisible) }
 
     // 탭별 스크롤 상태를 끌어올려, 하단바 탭 클릭 시 해당 페이지를 최상단으로 이동.
     val tabListStates = listOf(
