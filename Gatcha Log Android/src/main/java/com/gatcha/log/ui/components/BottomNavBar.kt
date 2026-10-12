@@ -4,7 +4,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -33,13 +36,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.ui.theme.DividerColor
@@ -75,6 +81,37 @@ import com.gatcha.log.ui.theme.glgStandardSpec
  */
 /** 탭 좌우 여백 — 알약이 서로 붙지 않을 만큼만. 폭 배분은 SpaceEvenly 가 맡는다. */
 private val TAB_H_PADDING = 10.dp
+
+/**
+ * 선택 면 · 눌림 연출을 알약 좌우로 이만큼 **더 넓게** 그린다(2026-10-12 요청 — "많이 넓게, 다른 탭 영역까지 가도 됨").
+ *
+ * 탭의 자리(레이아웃 폭)는 그대로 두고 **그리는 면만** 밖으로 낸다. 폭 자체를 키우면 좁은 기기에서 네 탭이 캡슐을
+ * 넘쳐 위 지뢰 1번(`maxWidth must be >= than minWidth`)으로 돌아간다. 처음엔 16(360dp 기기에서 옆 탭 아이콘을
+ * 덮지 않는 최대치)으로 잡았다가 "너무 뚱뚱하다"는 지적으로 12 → 10 으로 두 번 줄였다. 가장자리 탭에서는 캡슐 끝에서 잘린다.
+ */
+private val TAB_SELECT_OUTSET = 10.dp
+
+/**
+ * 선택 면을 위아래로도 이만큼 키운다 — **캡슐 높이에 맞춘다**(2026-10-12 요청 — "위아래 높낮이에 맞게 넓게").
+ * 탭 알약은 40dp(아이콘 20 + 위아래 10)인데 캡슐은 64dp 라 위아래로 12씩 떠 있었다. 4 를 더해 48dp —
+ * 캡슐 안쪽에 8dp 를 남긴다. 처음엔 56dp(안쪽 4)로 캡슐을 거의 채웠는데 "너무 뚱뚱하다"는 지적으로 50 → 48 로 두 번 줄였다.
+ */
+private val TAB_SELECT_OUTSET_V = 4.dp
+
+/** 자리는 그대로 두고 좌우 [h] · 위아래 [v] 만큼 넓게 재서 그린다 — 넘친 만큼은 이웃 위에 겹쳐 그려진다. */
+private fun Modifier.outset(h: Dp, v: Dp): Modifier = layout { measurable, constraints ->
+    val ox = h.roundToPx()
+    val oy = v.roundToPx()
+    val wide = measurable.measure(
+        constraints.copy(
+            minWidth = constraints.minWidth + ox * 2,
+            maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + ox * 2 else constraints.maxWidth,
+            minHeight = constraints.minHeight + oy * 2,
+            maxHeight = if (constraints.hasBoundedHeight) constraints.maxHeight + oy * 2 else constraints.maxHeight,
+        ),
+    )
+    layout((wide.width - ox * 2).coerceAtLeast(0), (wide.height - oy * 2).coerceAtLeast(0)) { wide.place(-ox, -oy) }
+}
 
 /**
  * 툴바·FAB 공통 들뜸 — "살짝 떠 있는" 정도만(2026-08-03 요청).
@@ -223,13 +260,24 @@ private fun tabButton(icon: ImageVector, label: String, selected: Boolean, accen
         animationSpec = glgStandardSpec(),
         label = "tabFg",
     )
+    // 누르는 자리와 접근성 이름은 이 Box(=탭의 원래 자리)가 갖고, **보이는 면**(선택 색 · 눌림 연출)은
+    // 그 밑에 좌우 · 위아래로 넓힌 층이 그린다([TAB_SELECT_OUTSET] · [TAB_SELECT_OUTSET_V]). 눌림 연출이 같은 interactionSource 를 읽어 넓은 면 전체에 퍼진다.
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.clickable(interactionSource = interaction, indication = null) { onClick() },
+    ) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .outset(TAB_SELECT_OUTSET, TAB_SELECT_OUTSET_V)
+                .clip(CircleShape)
+                .background(bg)
+                .indication(interaction, LocalIndication.current),
+        )
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(bg)
-            .clickable { onClick() }
-            .padding(horizontal = TAB_H_PADDING, vertical = 10.dp),
+        modifier = Modifier.padding(horizontal = TAB_H_PADDING, vertical = 10.dp),
     ) {
         Icon(icon, contentDescription = label, tint = fg, modifier = Modifier.size(20.dp))
         // Row 안의 AnimatedVisibility 는 기본 전환이 가로 확장/축소 + 페이드다 — 알약이 스르륵 늘어난다.
@@ -246,5 +294,6 @@ private fun tabButton(icon: ImageVector, label: String, selected: Boolean, accen
                 )
             }
         }
+    }
     }
 }
