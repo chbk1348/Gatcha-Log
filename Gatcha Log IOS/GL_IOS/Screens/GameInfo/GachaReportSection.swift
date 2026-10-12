@@ -9,6 +9,8 @@ struct GachaReportSection: View {
     let onOpenDashboard: (String) -> Void
     @Environment(\.glgAccent) private var accent
     @State private var importing = false
+    /// 「초기화」 확인 창 — 데이터 관리와 같은 2단계를 거친다(27.52.0).
+    @State private var confirmClear = false
 
     private var stats: GachaStats? { store.gachaStats }
     private var spend: [String: Int64] { store.gachaSpendByGame() }
@@ -24,7 +26,8 @@ struct GachaReportSection: View {
                     Text("가챠 효율 리포트").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     Spacer()
                     if stats != nil {
-                        Button { store.clearGachaRecords() } label: {
+                        // 바로 지우지 않고 확인부터 — 예전엔 한 번 누르면 가져온 기록이 전부 사라졌다(27.52.0).
+                        Button { confirmClear = true } label: {
                             Text("초기화").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                         }.buttonStyle(.plain)
                     }
@@ -58,6 +61,8 @@ struct GachaReportSection: View {
                 if !contents.isEmpty { store.importGachaFromContents(contents) }
             }
         }
+        // 창 · 문구는 데이터 관리와 한 곳(DataManagementView.swift 의 gachaClearConfirm)을 같이 쓴다.
+        .gachaClearConfirm(isPresented: $confirmClear, store: store)
     }
 
     private var emptyState: some View {

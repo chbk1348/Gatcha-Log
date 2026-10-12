@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import platform.BackgroundTasks.BGAppRefreshTask
 import platform.BackgroundTasks.BGAppRefreshTaskRequest
+import platform.BackgroundTasks.BGTaskRequest
 import platform.BackgroundTasks.BGTaskScheduler
 import platform.Foundation.NSDate
 import platform.Foundation.dateByAddingTimeInterval
@@ -46,7 +47,7 @@ private suspend fun runCheckIn() {
         )
     }
     runCatching { NotificationChecker.run(settings, repo, cfg) }
-    // 확정 시각 알림(픽업·시즌 마감·재화 가득참)과 출석 리마인더(다음 18:00) 재예약 —
+    // 확정 시각 알림(픽업·시즌 마감·재화 가득참 · 출석 리마인더) 재예약 —
     // 앱을 오래 안 열어도 OS 가 정시에 쏘도록.
     // 이 호출은 **등록이 끝날 때까지 중단한다**. 호출자(BGTask 핸들러)가 완료 보고를 하는 순간
     // OS 가 앱을 서스펜드하므로, 기다리지 않으면 예약이 걸리기 전에 프로세스가 멈춘다.
@@ -59,11 +60,19 @@ actual object NativeScheduler {
     actual fun apply() {
         val scheduler = BGTaskScheduler.sharedScheduler
         if (AppSettings().needsPeriodicWork()) {
-            val request = BGAppRefreshTaskRequest(TASK_ID).apply {
-                earliestBeginDate = NSDate().dateByAddingTimeInterval(REFRESH_INTERVAL_SECONDS)
+            // **대기 중인 요청이 있으면 다시 내지 않는다**(27.52.0). 같은 식별자로 다시 내면 앞 요청이 바뀌어
+            // 「6시간 뒤」가 그때마다 새로 시작된다 — 이 함수는 앱을 열 때마다 불리므로, 자주 여는 사람일수록
+            // 백그라운드 작업(새 소식 · 앱 업데이트 알림이 여기서만 나간다)이 영영 돌지 않았다.
+            scheduler.getPendingTaskRequestsWithCompletionHandler { pending ->
+                val waiting = pending.orEmpty().any { (it as? BGTaskRequest)?.identifier == TASK_ID }
+                if (!waiting) {
+                    val request = BGAppRefreshTaskRequest(TASK_ID).apply {
+                        earliestBeginDate = NSDate().dateByAddingTimeInterval(REFRESH_INTERVAL_SECONDS)
+                    }
+                    // 등록되지 않은 식별자/시뮬레이터 등에서 throw 할 수 있어 예외는 무시한다.
+                    runCatching { scheduler.submitTaskRequest(request, null) }
+                }
             }
-            // 등록되지 않은 식별자/시뮬레이터 등에서 throw 할 수 있어 예외는 무시한다.
-            runCatching { scheduler.submitTaskRequest(request, null) }
         } else {
             scheduler.cancelTaskRequestWithIdentifier(TASK_ID)
         }

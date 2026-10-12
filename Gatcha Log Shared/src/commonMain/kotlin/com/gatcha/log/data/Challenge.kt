@@ -80,6 +80,9 @@ object SavingsChallenge {
     /**
      * @param gameBudgets 게임 키 → 월 한도. 0 이하는 "정하지 않음" 이라 건너뛴다.
      *   설정된 게임마다 챌린지 한 줄이 생긴다(27.50.0).
+     * @param budgetSinceMillis 월 예산을 정한(마지막으로 바꾼) 시각. **예산 배지는 그 달부터만 센다**(27.52.0) —
+     *   예전엔 오늘 처음 예산을 정해도 지난 달 전부에 그 값을 대 봐서 「3개월 예산」 배지가 바로 나왔다.
+     *   모르면(0 — 이 값이 생기기 전에 정한 예산) 예전처럼 전부 센다.
      */
     fun evaluate(
         spendings: List<Spending>,
@@ -88,6 +91,7 @@ object SavingsChallenge {
         earnedStored: Set<String>,
         gameBudgets: Map<String, Long> = emptyMap(),
         nowMillis: Long = currentTimeMillis(),
+        budgetSinceMillis: Long = 0L,
     ): ChallengeSummary {
         val spentDays: Set<String> = spendings.map { it.dayKey }.toSet()
 
@@ -121,9 +125,10 @@ object SavingsChallenge {
         val months = trackedMonths(spendings, y, m)
         val monthTotals = months.map { totalOf(it.first, it.second) }
 
-        val budgetAchievedAny = budget > 0 && monthTotals.isNotEmpty() &&
-            months.indices.any { budget > 0 && monthTotals[it] <= budget }
-        val budgetRun = if (budget <= 0) 0 else maxConsecutive(monthTotals.map { it <= budget })
+        val sinceYm = if (budgetSinceMillis > 0) DateUtil.yearMonthKey(budgetSinceMillis) else 0
+        val budgetMonthTotals = monthTotals.filterIndexed { i, _ -> months[i].first * 100 + months[i].second >= sinceYm }
+        val budgetAchievedAny = budget > 0 && budgetMonthTotals.any { it <= budget }
+        val budgetRun = if (budget <= 0) 0 else maxConsecutive(budgetMonthTotals.map { it <= budget })
         val zeroMonthAny = monthTotals.any { it == 0L } && months.isNotEmpty()
         val savingRun = maxDecreasingRun(monthTotals)
 

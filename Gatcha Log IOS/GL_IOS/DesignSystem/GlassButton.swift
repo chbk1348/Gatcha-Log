@@ -178,6 +178,104 @@ private struct GldsChipPress: ButtonStyle {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// GLDS 드롭다운(10/12) — 칩을 눌러 여는 선택 목록. Android `GlgDropdownMenu` · `GlgDropdownItem` 과 같은 값.
+// 흰 면 · 모서리 20 · 강조색 30% 1.5 테두리 · 위아래 6 · 폭 160~280. 항목은 좌우 16 · 위아래 11 · 14 Medium,
+// 선택은 강조색 SemiBold + 오른쪽 체크 18.
+//
+// 시스템 `Menu` 를 쓰지 않는 이유: 항목 글자가 시스템 크기(17)로 고정이라 앱의 다른 글자(12~15)보다 크게 뜨고
+// 바꿀 방법이 없다(「지출 필터 글자가 너무 크다」, 10/12). 화면이 직접 그려 Android 와 같은 크기 · 모양으로 맞춘다.
+//
+// 쓰는 법: 칩에 `.gldsMenuAnchor("id")` 를 달고, 그 칩들을 품은 화면(스크롤뷰)에 `.gldsDropdownHost(open:) { id in … }`
+// 를 단다. 열린 메뉴는 화면 맨 위 층에 그려져 목록에 가리거나 잘리지 않고, 바깥을 누르면 닫힌다.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 칩의 자리 — 메뉴를 그 아래에 붙이려고 화면 쪽으로 올려 보낸다.
+struct GldsMenuAnchorKey: PreferenceKey {
+    static let defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+/// 드롭다운의 항목 한 줄.
+struct GldsDropdownItem: View {
+    let text: String
+    var selected: Bool = false
+    let action: () -> Void
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Text(text)
+                    .font(.pretendard(size: 14, weight: selected ? .semibold : .medium))
+                    .foregroundStyle(selected ? accent.primary : GLGColor.textPrimary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if selected {
+                    Image(systemName: "checkmark").font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(accent.primary).frame(width: 18, height: 18)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+extension View {
+    /// 이 칩 아래에 [id] 의 드롭다운이 붙는다.
+    func gldsMenuAnchor(_ id: String) -> some View {
+        anchorPreference(key: GldsMenuAnchorKey.self, value: .bounds) { [id: $0] }
+    }
+
+    /// 드롭다운이 그려질 자리 — [open] 이 가리키는 칩 바로 아래(간격 6), 칩의 왼쪽 끝에 맞춰.
+    /// 화면 오른쪽을 넘으면 넘지 않는 데까지만 왼쪽으로 민다. 바깥을 누르면 닫는다.
+    func gldsDropdownHost<Items: View>(open: Binding<String?>, @ViewBuilder items: @escaping (String) -> Items) -> some View {
+        overlayPreferenceValue(GldsMenuAnchorKey.self) { anchors in
+            GeometryReader { proxy in
+                if let id = open.wrappedValue, let anchor = anchors[id] {
+                    let chip = proxy[anchor]
+                    ZStack(alignment: .topLeading) {
+                        Color.clear.contentShape(Rectangle())
+                            .onTapGesture { open.wrappedValue = nil }
+                            .accessibilityHidden(true)
+                        HStack(spacing: 0) {
+                            // 칩의 왼쪽 끝까지 — 자리가 모자라면 이 칸이 먼저 줄어 메뉴가 화면 안에 남는다.
+                            Color.clear.frame(maxWidth: max(0, chip.minX), maxHeight: 0).layoutPriority(1)
+                            GldsDropdownPanel { items(id) }.layoutPriority(2)
+                            Spacer(minLength: 12)
+                        }
+                        .padding(.top, chip.maxY + 6)
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .animation(GLGMotion.standard(GLGMotion.durationShort), value: open.wrappedValue)
+        }
+    }
+}
+
+/// 드롭다운의 면 — 가장 긴 항목에 폭을 맞춘다(160~280).
+private struct GldsDropdownPanel<Items: View>: View {
+    @ViewBuilder var items: Items
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) { items }
+            .padding(.vertical, 6)
+            .frame(minWidth: 160, maxWidth: 280)
+            .fixedSize()
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(accent.primary.opacity(0.30), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 8)
+            .accessibilityAddTraits(.isModal)
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // GLDS 로딩 스피너(9/30) — Android `CircularProgressIndicator`(Material 원형 무한 로딩)와 같은 모양.
 // 강조색 호가 돌면서 늘었다 줄었다 한다. 시스템 ProgressView(톱니 모양)를 쓰지 않는다 — 두 플랫폼 로딩 모양을 하나로.
 // ════════════════════════════════════════════════════════════════════════════

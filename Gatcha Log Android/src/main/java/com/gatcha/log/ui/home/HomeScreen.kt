@@ -249,7 +249,7 @@ fun HomeScreen(
                     spendingToEdit = editing,
                     // 스마트 기본값·'자주 사는 것'의 근거.
                     recentSpendings = editorSpendings,
-                    nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, editing?.id) },
+                    nudgeMessage = { game, amount, date -> viewModel.overspendNudge(game, amount, editing?.id, date) },
                     myGames = viewModel.myGames.collectAsStateWithLifecycle().value,
                     onDismiss = { spendingEditor.value = null },
                     onSave = { spending ->

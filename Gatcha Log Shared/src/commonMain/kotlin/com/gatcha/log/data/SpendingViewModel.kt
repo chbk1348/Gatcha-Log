@@ -178,6 +178,18 @@ class SpendingViewModel : ViewModel() {
             }
             // 새 버전 알림 — 업데이트 창을 다시 띄운다(이미 떠 있던 앱은 시작 시 확인이 다시 돌지 않는다).
             "update" -> checkForUpdate()
+            // 탭만 여는 알림(예산 → 지출, 출석 → 게임 정보). 표는 [NotificationRoutes].
+            "tab" -> arg.toIntOrNull()?.takeIf { it in 0..3 }?.let { _pendingTab.value = it }
+            // 게임 정보 탭의 그 자리로(행동력 · 일정 · 전투).
+            "gameinfo" -> {
+                _pendingGameInfoAnchor.value = when (arg) {
+                    "notes" -> GameInfoAnchor.NOTES
+                    "schedule" -> GameInfoAnchor.SCHEDULE
+                    "combat" -> GameInfoAnchor.COMBAT
+                    else -> null
+                }
+                _pendingTab.value = 2
+            }
             // 호요랜드 알림 — 게임 정보 탭의 호요랜드 자리로 간다(예매 버튼이 거기 있다).
             // 27.51 까지의 「예매 1시간 전」 예약은 예매 주소(https…)를 그대로 실었다 — 남아 있는 것도 같은 자리로 보낸다.
             ScheduledAlerts.HOYOLAND_LINK, "http", "https" -> {
@@ -280,8 +292,16 @@ class SpendingViewModel : ViewModel() {
      * 우선순위: 게임별 한도 초과 예상 → 전체 예산 초과 예상 → 단건 큰 금액(평소치 초과).
      * 수정 시엔 같은 달의 기존 금액을 빼서 순증분으로 예측(이중 합산 방지).
      */
-    fun overspendNudge(game: Game, amount: Long, editingId: String? = null): String? {
+    fun overspendNudge(game: Game, amount: Long, editingId: String? = null): String? =
+        overspendNudge(game, amount, editingId, currentTimeMillis())
+
+    /**
+     * @param dateMillis 입력 중인 지출의 날짜. **이번 달이 아니면 예산 · 한도 예측을 하지 않는다**(27.52.0) —
+     *   지난달 날짜로 추가해도 「이번 달 이미 N원 썼어요」가 떴다. 단건 큰 금액 경고는 날짜와 무관하게 본다.
+     */
+    fun overspendNudge(game: Game, amount: Long, editingId: String?, dateMillis: Long): String? {
         if (!appSettings.nudgeOverspend || amount <= 0) return null
+        val inThisMonth = DateUtil.isSameMonth(dateMillis, currentYear, currentMonth)
         val editRecord = editingId?.let { id -> _spendings.value.firstOrNull { it.id == id } }
         // 이번 달에 이미 집계된 기존 금액만 차감(다른 달 기록 수정 시 이중차감 방지).
         val prevInMonth = editRecord != null && DateUtil.isSameMonth(editRecord.dateMillis, currentYear, currentMonth)
@@ -298,9 +318,9 @@ class SpendingViewModel : ViewModel() {
         val overall = _budget.value
         val threshold = appSettings.nudgeThreshold
         return when {
-            gameLimit > 0 && projectedGame > gameLimit ->
+            inThisMonth && gameLimit > 0 && projectedGame > gameLimit ->
                 "${game.shortName}에 이번 달 이미 ${won(gameNow)} 썼어요.\n추가하면 한도 ${won(gameLimit)}을 넘어요."
-            overall > 0 && projectedMonth > overall ->
+            inThisMonth && overall > 0 && projectedMonth > overall ->
                 "이번 달 이미 ${won(monthNow)} 썼어요.\n추가하면 예산 ${won(overall)}을 넘어요."
             threshold > 0 && amount >= threshold ->
                 "${won(amount)}은 평소보다 큰 지출이에요.\n정말 추가할까요?"
@@ -361,6 +381,8 @@ class SpendingViewModel : ViewModel() {
 
     /** 실시간 노트(행동력)를 마지막으로 받은 시각. 0 = 받은 적 없음. */
     private var lastLiveNoteAt = 0L
+    /** 행동력 지름길([refreshLiveNotesQuiet])을 마지막으로 **시도한** 시각 — 성공 여부와 무관하게 간격을 건다. */
+    private var lastLiveNoteTryAt = 0L
 
     /** 클라우드 스냅샷을 마지막으로 당겨온 시각. */
     private var lastCloudPullAt = 0L
@@ -482,6 +504,12 @@ class SpendingViewModel : ViewModel() {
         val cfg = _hoyolabConfig.value
         if (!cfg.isLinked) return
         if (_gameInfoRefreshing) return   // 전체 갱신이 이미 돌고 있으면 같은 요청을 두 번 쏘지 않는다
+        // **진행 중이면 건너뛰고, 실패했어도 시도 간격은 지킨다**(27.52.0). 성공했을 때만 시각을 적어서, 토큰이 만료된
+        // 사용자는 탭에 들어올 때마다 HoYoLAB 에 3건을 보냈다. 탭을 빠르게 오가면 같은 요청이 겹치기도 했다.
+        if (liveNotesJob?.isActive == true) return
+        val now = currentTimeMillis()
+        if (now - lastLiveNoteTryAt < LIVE_NOTE_RETRY_MIN_MS) return
+        lastLiveNoteTryAt = now
         val uids = mapOf(
             "genshin" to cfg.genshinUid,
             "hsr" to cfg.hsrUid,
@@ -725,10 +753,17 @@ class SpendingViewModel : ViewModel() {
             _signingOut.value = true
             try {
                 // ★ 인증을 끊기 전에 대기 중인 클라우드 push 를 먼저 밀어낸다(아래 flush 주석 참고).
-                flushPendingCloudSync()
+                val flushed = flushPendingCloudSync()
                 val done = withTimeoutOrNull(SYNC_TIMEOUT_MS) { authManager.signOut() } != null
                 switchAccount(Account.GUEST)
-                emitStatus(if (done) "로그아웃되었어요" else "로그아웃했어요 (서버 정리는 나중에 완료돼요)")
+                emitStatus(
+                    when {
+                        // 못 올린 변경은 지워지지 않는다 — 계정 저장소에 남아 있다가 다시 로그인하면 합쳐져 올라간다.
+                        !flushed -> "로그아웃했어요 — 올리지 못한 변경은 이 기기에 남아 있고, 다시 로그인하면 올라가요"
+                        done -> "로그아웃되었어요"
+                        else -> "로그아웃했어요 (서버 정리는 나중에 완료돼요)"
+                    },
+                )
             } finally {
                 _signingOut.value = false
             }
@@ -819,7 +854,8 @@ class SpendingViewModel : ViewModel() {
         if (!validSpending(spending)) return false
         // 같은 id 가 이미 있으면 추가하지 않는다 — 저장 버튼 연타 · 재시도로 같은 기록이 두 번 들어가 합계가 부풀었다.
         if (_spendings.value.any { it.id == spending.id }) return true
-        val stamped = spending.copy(updatedAt = currentTimeMillis())
+        // 전체 삭제 시각보다 반드시 뒤로 찍는다 — 시계가 앞선 기기에서 전체 삭제를 했어도 새 지출은 살아남는다.
+        val stamped = spending.copy(updatedAt = maxOf(currentTimeMillis(), repo.loadSpendingsClearedAt() + 1))
         // 상태 갱신과 저장을 분리한다 — update {} 블록은 CAS 재시도 시 통째로 다시 실행되므로
         // 그 안에 저장을 넣으면 디스크 쓰기와 클라우드 푸시 예약이 한 번 더 일어날 수 있다.
         val next = (listOf(stamped) + _spendings.value).sortedByDescending { it.dateMillis }
@@ -834,8 +870,9 @@ class SpendingViewModel : ViewModel() {
         if (!validSpending(updated)) return false
         // 그사이 지워진 지출(다른 기기 삭제 · 동기화)이면 수정하지 않는다 — 예전엔 조용히 아무것도 안 하면서
         // "수정되었어요" 를 띄웠다.
-        if (_spendings.value.none { it.id == updated.id }) { emitStatus("이미 삭제된 지출이에요"); return true }
-        val stamped = updated.copy(updatedAt = currentTimeMillis())
+        val before = _spendings.value.firstOrNull { it.id == updated.id }
+        if (before == null) { emitStatus("이미 삭제된 지출이에요"); return true }
+        val stamped = updated.copy(updatedAt = stampAfter(before.updatedAt))
         val next = _spendings.value.map { if (it.id == stamped.id) stamped else it }
             .sortedByDescending { it.dateMillis }
         _spendings.value = next
@@ -847,17 +884,24 @@ class SpendingViewModel : ViewModel() {
     // 지출 ↔ 정기결제 자동 연결(autoLinkSubscription·collectUnlinkedSubscriptions 등)은
     // 여기 있었다 — 정기결제를 기능째 걷어냈다(2026-09-09).
 
+    /**
+     * 수정 · 삭제 시각 — **이미 찍혀 있는 시각([seen])보다 반드시 뒤**(27.52.0).
+     * 지금 시각만 찍으면, 시계가 빠른 기기에서 고친 지출을 다른 기기가 나중에 고치거나 지워도 「더 최신」인 옛 값이 이겼다.
+     */
+    private fun stampAfter(seen: Long): Long = maxOf(currentTimeMillis(), seen + 1)
+
     fun deleteSpending(id: String) {
-        repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
         val (removed, next) = _spendings.value.partition { it.id == id }
+        // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어). 시각은 지운 지출의 수정 시각보다 뒤로.
+        repo.addDeletedSpendingIds(setOf(id), stampAfter(removed.maxOfOrNull { it.updatedAt } ?: 0L))
         _spendings.value = next
         persistSpendings(next)
     }
 
     fun deleteSpendings(ids: Set<String>) {
-        repo.addDeletedSpendingIds(ids) // tombstone — 삭제 전파
         // partition 1회 — 예전엔 같은 목록을 filter 로 두 번 훑었다.
         val (removed, next) = _spendings.value.partition { it.id in ids }
+        repo.addDeletedSpendingIds(ids, stampAfter(removed.maxOfOrNull { it.updatedAt } ?: 0L)) // tombstone — 삭제 전파
         _spendings.value = next
         persistSpendings(next)
     }
@@ -880,7 +924,7 @@ class SpendingViewModel : ViewModel() {
                 dateMillis = dateMillis?.let { DateUtil.startOfDay(it) + (s.dateMillis - DateUtil.startOfDay(s.dateMillis)) }
                     ?: s.dateMillis,
                 tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
-                updatedAt = currentTimeMillis(),
+                updatedAt = stampAfter(s.updatedAt),
             )
         }.sortedByDescending { it.dateMillis }
         _spendings.value = next
@@ -892,7 +936,8 @@ class SpendingViewModel : ViewModel() {
     fun clearSpendings() {
         // 전체 삭제는 id 마다 tombstone 이 아니라 **시각 하나**로 남긴다 — tombstone 은 상한(2000)이라
         // 그보다 많이 지우면 잘린 만큼 다른 기기에서 되살아났다([GatchaRepository.markSpendingsCleared]).
-        repo.markSpendingsCleared(currentTimeMillis())
+        // 지우는 지출들의 수정 시각보다 뒤로 — 시계가 빠른 기기가 찍은 지출도 함께 지워지게.
+        repo.markSpendingsCleared(stampAfter((_spendings.value.maxOfOrNull { it.updatedAt } ?: 0L) - 1))
         _spendings.value = emptyList()
         persistSpendings(emptyList())
     }
@@ -930,10 +975,15 @@ class SpendingViewModel : ViewModel() {
         val config = input.trimmed().let { c ->
             // 계정(ltuid)이 바뀌었는데 교환 쿠키는 그대로면 옛 계정 것이다 — 남기면 선물코드가 다른
             // 계정으로 교환된다. 새 로그인에서 함께 들어온 쿠키(값이 바뀐 것)는 그대로 둔다.
-            if (c.ltuid == prev.ltuid) c
+            // **게임 UID 도 같다**(27.52.0) — 화면은 칸에 남아 있던 옛 계정 UID 를 그대로 실어 보내는데, 조회는 새 계정에
+            // 있는 게임만 덮어쓴다. 새 계정에 없는 게임에 옛 계정 UID 가 남아 남의 행동력 · 전투를 조회했다.
+            if (c.ltuid == prev.ltuid || !prev.isLinked) c
             else c.copy(
                 webCookie = c.webCookie.takeIf { it != prev.webCookie }.orEmpty(),
                 cookieToken = c.cookieToken.takeIf { it != prev.cookieToken }.orEmpty(),
+                genshinUid = c.genshinUid.takeIf { it != prev.genshinUid }.orEmpty(),
+                hsrUid = c.hsrUid.takeIf { it != prev.hsrUid }.orEmpty(),
+                zzzUid = c.zzzUid.takeIf { it != prev.zzzUid }.orEmpty(),
             )
         }
         hoyolabInputError(config)?.let { emitStatus(it); return false }
@@ -988,9 +1038,17 @@ class SpendingViewModel : ViewModel() {
                 // (재설치 후 연동 1회로 '저장 다시' 없이 바로 전체 노출 — force=true 로 5분 TTL 무시.)
                 autoLoadEnkaSection(listOf("genshin", "hsr", "zzz"), force = true)
             }
+            // **행동력 · 원장 · 전투도 여기서 바로 다시 받는다**(27.52.0). 예전엔 화면이 저장 뒤에 강제 갱신을 불러야 했는데
+            // 경로마다 빠져서(Android 설정의 연동 저장), 연동해 놓고도 신선도가 낡을 때까지 5~30분 비어 있었다.
+            refreshGameInfo(force = true, silent = true)
             emitStatus(
-                if (uids.isNotEmpty()) "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
-                else "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요",
+                when {
+                    uids.isEmpty() -> "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요"
+                    // 교환용 쿠키가 없으면 선물코드 자동 교환이 안 된다 — 이메일 로그인이 아니면 받지 못한다.
+                    config.cookieToken.isBlank() && config.webCookie.isBlank() ->
+                        "HoYoLAB 계정이 연동되었어요 ✓ (선물코드 교환은 이메일 로그인으로 연동해야 돼요)"
+                    else -> "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
+                },
             )
         }
         return true
@@ -1014,8 +1072,13 @@ class SpendingViewModel : ViewModel() {
             hsrUid = uids["hsr"]?.ifBlank { null } ?: cur.hsrUid,
             zzzUid = uids["zzz"]?.ifBlank { null } ?: cur.zzzUid,
         )
-        _hoyolabConfig.value = merged
-        repo.saveHoyolab(merged)
+        // **바뀐 것이 없으면 저장하지 않는다**(27.52.0). 세 게임 중 하나를 안 하는 사용자는 UID 한 칸이 늘 비어 있어 실행마다
+        // 이 길을 탔는데, 값이 같아도 저장하면서 수정 시각을 「지금」으로 찍어 올리기가 돌았고 — 다른 기기에서 진짜로 바꾼
+        // 값을 이 기기의 옛 값이 이겼다.
+        if (merged != cur) {
+            _hoyolabConfig.value = merged
+            repo.saveHoyolab(merged)
+        }
         enka.applyUids(genshin = uids["genshin"], hsr = uids["hsr"])
     }
 
@@ -1036,6 +1099,7 @@ class SpendingViewModel : ViewModel() {
         if (repo !== startRepo || _hoyolabConfig.value.ltuid != cfg.ltuid) return
         if (uids.isNotEmpty()) {
             applyGameUids(uids)
+            // 서버가 답했으면 이번 실행에서는 다시 묻지 않는다 — 계정에 없는 게임의 빈 칸은 물어도 채워지지 않는다.
             enkaUidsSynced = true
         }
     }
@@ -1532,7 +1596,10 @@ class SpendingViewModel : ViewModel() {
         val prevBest = repo.loadBestNoSpend()
         val prevBadges = repo.loadEarnedBadges()
         applyChallenge(
-            SavingsChallenge.evaluate(_spendings.value, _budget.value, prevBest, prevBadges, _gameBudgets.value),
+            SavingsChallenge.evaluate(
+                _spendings.value, _budget.value, prevBest, prevBadges, _gameBudgets.value,
+                budgetSinceMillis = repo.budgetSetAt(),
+            ),
             prevBest, prevBadges,
         )
     }
@@ -1562,7 +1629,9 @@ class SpendingViewModel : ViewModel() {
             target.saveSpendings(list, notify = false)
             val prevBest = target.loadBestNoSpend()
             val prevBadges = target.loadEarnedBadges()
-            val summary = SavingsChallenge.evaluate(list, budget, prevBest, prevBadges, gameBudgets)
+            val summary = SavingsChallenge.evaluate(
+                list, budget, prevBest, prevBadges, gameBudgets, budgetSinceMillis = target.budgetSetAt(),
+            )
             withContext(Dispatchers.Main) {
                 if (repo !== target) return@withContext   // 그 사이 계정이 바뀌었다
                 applyChallenge(summary, prevBest, prevBadges)
@@ -1663,7 +1732,10 @@ class SpendingViewModel : ViewModel() {
                 return@launch
             }
             persistJob?.join()
-            repo.importBackupJson(json)
+            if (!repo.importBackupJson(json)) {
+                emitStatus("백업 파일이 아니에요 — 이 앱에서 내보낸 백업 파일을 골라 주세요")
+                return@launch
+            }
             reloadSyncedState()
             // 로그인 상태면 복원 결과를 클라우드에도 업로드(다른 기기와 일치)
             syncUid()?.let { uid ->
@@ -1763,6 +1835,16 @@ class SpendingViewModel : ViewModel() {
                 val now = currentTimeMillis()
                 delay(((now + HOYO_TZ_SHIFT_MS) / DAY_MS + 1) * DAY_MS - HOYO_TZ_SHIFT_MS - now + 1_000)
                 reloadAttendance()
+            }
+        }
+        // 같은 까닭으로 **로컬 자정**에는 「이번 달」과 절약 챌린지를 다시 계산한다(27.52.0) — 앱을 켠 채 달이 넘어가면
+        // 1일 00:10 에 넣는 지출에 지난달 합계로 「이번 달 이미 N원 썼어요」가 떴고, 무지출 연속 일수도 어제 값이었다.
+        viewModelScope.launch {
+            while (true) {
+                val now = currentTimeMillis()
+                delay(DateUtil.startOfDayPlus(now, 1) - now + 1_000)
+                recomputeSpendingDerived()
+                refreshChallenge()
             }
         }
         viewModelScope.launch {
@@ -2175,7 +2257,8 @@ class SpendingViewModel : ViewModel() {
             } else if (cloudConfigured) {
                 syncUid()?.let { uid ->
                     val target = repo
-                    val hasPendingLocal = syncJob?.isActive == true // 디바운스 푸시 대기 = 미반영 로컬 변경
+                    // 디바운스 푸시 대기 또는 못 올린 표시 = 미반영 로컬 변경
+                    val hasPendingLocal = syncJob?.isActive == true || target.hasUnsynced
                     syncJob?.cancel()
                     if (hasPendingLocal) {
                         // 로컬 변경을 먼저 클라우드에 반영(PTR 이 옛 클라우드로 덮어쓰지 않게)
@@ -2468,6 +2551,8 @@ class SpendingViewModel : ViewModel() {
         // 문서를 덮어쓸 수 있다. 계정 기준으로 먼저 차단해 그 레이스를 원천 차단.
         if (account.value.isGuest) return
         val uid = CloudSync.currentUid() ?: return
+        // 올라갈 때까지 저장소에 표시해 둔다 — 재시도가 다 끝나 이 작업이 사라져도 「못 올린 변경」이 남는다.
+        repo.markUnsynced()
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             delay(1500)
@@ -2490,16 +2575,18 @@ class SpendingViewModel : ViewModel() {
      *
      * 디바운스 대기는 취소하되 push 자체는 지금 수행한다 — job.join() 으로 기다리면 남은 delay 만큼
      * 로그아웃이 늦어지므로, 대기를 건너뛰고 곧바로 올리는 편이 빠르고 결과도 같다.
+     *
+     * @return 올릴 것이 없었거나 올라갔으면 true. false 면 못 올린 변경이 이 기기에 남아 있다.
      */
-    private suspend fun flushPendingCloudSync() {
-        val job = syncJob ?: return
-        if (!job.isActive) return
-        job.cancel()                       // 남은 delay 는 버리고
+    private suspend fun flushPendingCloudSync(): Boolean {
+        val job = syncJob
+        // 대기 중인 작업이 없어도 **못 올린 변경 표시**가 있으면 올린다(27.52.0) — 재시도 세 번이 끝난 뒤에는 작업이 없어서,
+        // 그대로 로그아웃하면 그 변경은 올라가지 않고 안내도 없었다.
+        if (job?.isActive != true && !repo.hasUnsynced) return true
+        job?.cancel()                      // 남은 delay 는 버리고
         syncJob = null
-        if (!cloudConfigured) return
-        if (account.value.isGuest) return
-        val uid = CloudSync.currentUid() ?: return
-        withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }   // 지금 올린다
+        val uid = syncUid() ?: return true
+        return withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) } == true   // 지금 올린다
     }
 
     /** 마지막으로 Firestore 에 성공적으로 push 한 스냅샷(중복 쓰기 생략용). */
@@ -2556,10 +2643,12 @@ class SpendingViewModel : ViewModel() {
         if (syncUid() != uid) return false
         val target = repo
         val attendanceAtExport = target.attendanceRaw()
+        val unsyncedAtExport = target.unsyncedMark()   // 스냅샷보다 먼저 — 올리는 사이의 변경은 표시가 남게
         val json = withContext(Dispatchers.IO) { target.exportSnapshotJson() }
         if (json == lastPushedSnapshot) {
             // 올릴 것이 없다 = 원격이 이미 로컬과 같다 → 출석 보호 표시도 풀어 준다.
             target.clearAttendanceDirtyIfUnchanged(attendanceAtExport)
+            target.clearUnsyncedIf(unsyncedAtExport)
             return true   // 변경 없음 → write 생략
         }
         // 문서의 **실제** 크기로 잰다 — 한도는 UTF-16 단위가 아니라 UTF-8 바이트 기준이다.
@@ -2593,6 +2682,7 @@ class SpendingViewModel : ViewModel() {
             // 올라갔으니 다음 pull 은 출석을 그대로 받아도 된다 — 단 푸시 도중 자동 출석이 새로
             // 쓰지 않았을 때만(→ [GatchaRepository.clearAttendanceDirtyIfUnchanged]).
             target.clearAttendanceDirtyIfUnchanged(attendanceAtExport)
+            target.clearUnsyncedIf(unsyncedAtExport)
         } else if (++pushFailStreak >= PUSH_FAIL_ALERT_STREAK || docBytes > CLOUD_DOC_LIMIT_BYTES) {
             // 용량 초과는 다시 해도 안 풀리니 바로, 그 밖은 연달아 실패했을 때만 알린다.
             if (pushFailureNotified) return ok
@@ -2659,7 +2749,7 @@ class SpendingViewModel : ViewModel() {
         if (!quiet) _initialSyncing.value = true
         // 대기 중인 로컬 변경이 있었는지 기억해 둔다 — 아래에서 디바운스 push 를 끊는데, pull 이 실패하면
         // 그 변경은 다음 편집 전까지 아무도 올리지 않았다(저장 직후 앱을 내리면 다른 기기에 안 보임).
-        val hadPendingPush = syncJob?.isActive == true
+        val hadPendingPush = syncJob?.isActive == true || repo.hasUnsynced
         syncJob?.cancel()
         // pull 은 최대 8초 — 그 사이 로그아웃 · 계정 전환이 끝나면 [repo] 는 다른 계정 것이 된다.
         // 시작할 때의 저장소를 잡아 두고, 합치기 직전에 여전히 같은 계정일 때만 반영한다.
@@ -2692,7 +2782,7 @@ class SpendingViewModel : ViewModel() {
                     // Failed 또는 타임아웃(null) → 상태 불명이므로 push 금지, 로컬 유지 + 안내.
                     if (!quiet) { emitNetworkAlert(); reloadSyncedState() }
                     // 다만 끊어 둔 로컬 변경은 다시 예약한다 — 원래 올라갈 참이던 것이다.
-                    if (hadPendingPush && repo === targetRepo) scheduleCloudSync()
+                    if ((hadPendingPush || targetRepo.hasUnsynced) && repo === targetRepo) scheduleCloudSync()
                 }
             }
         } finally {
@@ -2744,6 +2834,8 @@ class SpendingViewModel : ViewModel() {
          * 0.6개 차이라 "가득 찼나"를 오판할 만큼은 아니다.
          */
         const val LIVE_NOTE_MAX_AGE_MS = 5L * 60 * 1000
+        /** 행동력 지름길을 다시 시도하기까지의 최소 간격 — 실패가 이어져도 이보다 자주 보내지 않는다. */
+        const val LIVE_NOTE_RETRY_MIN_MS = 60L * 1000
 
         /**
          * 클라우드 스냅샷의 최대 나이 — 게임 자료와 **따로 잡는다.**

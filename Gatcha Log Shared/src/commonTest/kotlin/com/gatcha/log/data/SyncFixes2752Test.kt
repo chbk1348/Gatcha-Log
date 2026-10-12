@@ -91,14 +91,15 @@ class SyncFixes2752Test {
     fun 상한에_닿은_계정에서도_방금_지운_지출이_되살아나지_않는다() {
         val dev = device()
         val max = 2000
+        val t0 = currentTimeMillis() - 60_000   // 실제 같은 시각 — 아주 오래된 삭제 기록은 정리 대상이다
         // 원격은 삭제 기록 상한을 꽉 채웠고, 지출 X 가 살아 있다.
         val remote = device().apply {
-            saveSpendings(listOf(sp("x", updatedAt = 100)), notify = false)
-            addDeletedSpendingIds((1..max).map { "old$it" }.toSet(), at = 50)
+            saveSpendings(listOf(sp("x", updatedAt = t0 + 100)), notify = false)
+            addDeletedSpendingIds((1..max).map { "old$it" }.toSet(), at = t0 + 50)
         }.exportSnapshotJson()
         dev.importSnapshotJson(remote)
         // 이 기기가 X 를 지운다(아직 못 올림).
-        dev.addDeletedSpendingIds(setOf("x"), at = 200)
+        dev.addDeletedSpendingIds(setOf("x"), at = t0 + 200)
         dev.saveSpendings(emptyList(), notify = false)
         dev.push(remote)
         assertTrue("x" in dev.loadDeletedSpendingIds(), "방금 지운 것이 상한에서 먼저 잘렸다")
@@ -124,5 +125,89 @@ class SyncFixes2752Test {
         dev.importBackupJson("""{"spendings_cleared_at": 99999999999999, "deleted_spendings": ["mine"]}""")
         assertEquals(listOf("mine"), dev.loadSpendings().map { it.id })
         assertEquals(0L, dev.loadSpendingsClearedAt())
+    }
+
+    // ── 보강(27.52.0) ─────────────────────────────────────────────────────────
+
+    private fun gacha(id: String) = GachaRecord("genshin", "character", "301", "1", "x", "캐릭터", 5, "2026-09-01 00:00:00", "8000", id)
+
+    @Test
+    fun 백업_복원은_가챠_기록을_합친다() {
+        val backup = device().apply { saveGachaRecords(listOf(gacha("1"), gacha("2"))) }.exportSnapshotJson()
+        // 백업한 뒤에 3 을 더 가져왔고, 그 전에 한 번 비운 적도 있다.
+        val dev = device().apply {
+            markGachaCleared(currentTimeMillis() - 1_000)
+            saveGachaRecords(listOf(gacha("2"), gacha("3")))
+        }
+        assertTrue(dev.importBackupJson(backup))
+        assertEquals(setOf("1", "2", "3"), dev.loadGachaRecords().map { it.id }.toSet(), "백업 이후에 가져온 기록이 사라졌다")
+        // 올리기를 거쳐 다른 기기로 가도 같다.
+        val cloud = dev.push(null)
+        assertEquals(setOf("1", "2", "3"), device().apply { importSnapshotJson(cloud) }.loadGachaRecords().map { it.id }.toSet())
+    }
+
+    @Test
+    fun 백업이_아닌_파일은_받지_않는다() {
+        val dev = device().apply { saveSpendings(listOf(sp("mine", updatedAt = 100)), notify = false) }
+        assertTrue(!dev.importBackupJson("""{"info":{"version":"v4.0"},"hk4e":[{"uid":"8000","list":[]}]}"""))
+        assertTrue(!dev.importBackupJson("not json"))
+        assertEquals(listOf("mine"), dev.loadSpendings().map { it.id })
+    }
+
+    @Test
+    fun 깨진_저장_값이_있어도_스냅샷을_내보낸다() {
+        val store = InMemoryKvStore()
+        val dev = GatchaRepository("t", storeFactory = { store }, secureFactory = { InMemorySecureStore() })
+        dev.saveSpendings(listOf(sp("a", updatedAt = 100)), notify = false)
+        store.putString("pity", "{깨진 값")
+        val json = dev.exportSnapshotJson()   // 예전엔 여기서 예외가 올라왔다
+        assertTrue("\"spendings\"" in json)
+        assertTrue("\"pity\"" !in json, "깨진 키는 싣지 않는다")
+    }
+
+    @Test
+    fun 시계가_빠른_기기가_찍은_지출도_나중에_지우면_지워진다() {
+        val future = currentTimeMillis() + 3_600_000   // A 의 시계가 1시간 빠르다
+        val a = device().apply { saveSpendings(listOf(sp("x", updatedAt = future)), notify = false) }
+        var cloud = a.push(null)
+        // B(시계 정상)가 받아서 지운다 — 삭제 시각은 그 지출의 수정 시각 바로 뒤로 찍힌다(뷰모델 규칙).
+        val b = device().apply { importSnapshotJson(cloud) }
+        b.addDeletedSpendingIds(setOf("x"), at = future + 1)
+        b.saveSpendings(emptyList(), notify = false)
+        cloud = b.push(cloud)
+        assertTrue(b.loadSpendings().isEmpty(), "지운 기기에서 되살아났다")
+        // C(시계 정상, x 를 이미 받아 둔 기기)도 지운다.
+        val c = device().apply { saveSpendings(listOf(sp("x", updatedAt = future)), notify = false) }
+        c.importSnapshotJson(cloud)
+        assertTrue(c.loadSpendings().isEmpty(), "다른 기기에서 되살아났다")
+    }
+
+    @Test
+    fun 모르는_지출의_미래_삭제_시각은_지금으로_자른다() {
+        val dev = device()
+        dev.importSnapshotJson("""{"deleted_spendings":["ghost"],"deleted_spendings_at":{"ghost":99999999999999}}""")
+        assertTrue((dev.loadDeletedAt()["ghost"] ?: 0L) <= currentTimeMillis())
+    }
+
+    @Test
+    fun 일_년이_넘은_삭제_기록은_정리한다() {
+        val dev = device()
+        val now = currentTimeMillis()
+        dev.addDeletedSpendingIds(setOf("ancient"), at = now - 400L * 24 * 3_600_000)
+        dev.addDeletedSpendingIds(setOf("recent"), at = now - 1_000)
+        assertEquals(setOf("recent"), dev.loadDeletedSpendingIds())
+    }
+
+    @Test
+    fun 못_올린_변경_표시는_올리는_사이에_바뀌면_남는다() {
+        val dev = device()
+        assertTrue(!dev.hasUnsynced)
+        dev.markUnsynced()
+        val mark = dev.unsyncedMark()
+        dev.markUnsynced()            // 올리는 사이에 또 바뀌었다
+        dev.clearUnsyncedIf(mark)
+        assertTrue(dev.hasUnsynced, "올리는 사이의 변경까지 올린 것으로 쳤다")
+        dev.clearUnsyncedIf(dev.unsyncedMark())
+        assertTrue(!dev.hasUnsynced)
     }
 }

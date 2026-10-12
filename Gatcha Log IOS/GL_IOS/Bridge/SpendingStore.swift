@@ -539,8 +539,9 @@ final class SpendingStore {
                                           paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)
     }
     /// N6 과소비 넛지 판정 — 경고 메시지 또는 nil.
-    func overspendNudge(game: Game, amount: Int64, editingId: String?) -> String? {
-        vm.overspendNudge(game: game, amount: amount, editingId: editingId)
+    /// 날짜도 넘긴다(27.52.0) — 지난달 날짜로 추가할 때는 이번 달 예산 경고를 내지 않는다.
+    func overspendNudge(game: Game, amount: Int64, editingId: String?, dateMillis: Int64) -> String? {
+        vm.overspendNudge(game: game, amount: amount, editingId: editingId, dateMillis: dateMillis)
     }
     var displayYear: Int { Int(vm.displayYear) }
     var displayMonth: Int { Int(vm.displayMonth) }

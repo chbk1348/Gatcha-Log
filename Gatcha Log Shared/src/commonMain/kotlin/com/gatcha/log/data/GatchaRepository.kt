@@ -168,6 +168,9 @@ class GatchaRepository(
     fun loadBudget(): Long = prefs.getLong(KEY_BUDGET, 0L) // 0 = 미설정(사용자가 지정해야 함)
     fun saveBudget(value: Long) { prefs.putLong(KEY_BUDGET, value); stamp(KEY_BUDGET); changed() }
 
+    /** 월 예산을 마지막으로 정한 시각(수정 시각 표시). 모르면 0 — 절약 챌린지가 예산 배지를 어느 달부터 셀지에 쓴다. */
+    fun budgetSetAt(): Long = loadMeta()[KEY_BUDGET] ?: 0L
+
     /** 게임별 월 한도(gameKey → 금액). 한도 없는 게임은 키 자체가 없음. 전체 예산[loadBudget]과 별개. */
     fun loadGameBudgets(): Map<String, Long> {
         val raw = prefs.getString(KEY_BUDGET_GAMES, null) ?: return emptyMap()
@@ -535,9 +538,15 @@ class GatchaRepository(
      * 예전엔 병합에서 "이 기기에만 있는 것 + 들어온 것" 순서로 이어 붙여 앞에서 잘랐다. 원격이 상한(2,000)을
      * 채운 계정에서는 **방금 지운 것**이 맨 앞에 놓여 먼저 잘렸고, 지운 지출이 몇 초 뒤 되살아났다(27.52.0).
      */
-    private fun capTombstones(ids: Set<String>, times: Map<String, Long>): List<String> =
-        if (ids.size <= DELETED_SPENDINGS_MAX) ids.toList()
-        else ids.sortedBy { times[it] ?: 0L }.takeLast(DELETED_SPENDINGS_MAX)
+    private fun capTombstones(ids: Set<String>, times: Map<String, Long>): List<String> {
+        // **지운 지 [DELETED_SPENDINGS_MAX_AGE_MS] 가 넘은 기록은 버린다**(27.52.0) — 삭제는 이미 모든 기기에 퍼졌고,
+        // 남겨 두면 문서 한도(1MiB)를 삭제 기록이 계속 차지한다. 시각이 없는 옛 기록과 복원 표식([RESTORED_AT])은 남긴다.
+        // 그보다 오래 꺼 둔 기기가 돌아오면 그 지출이 되살아날 수 있다 — 한도로 잘리는 것과 같은 대가다.
+        val oldest = currentTimeMillis() - DELETED_SPENDINGS_MAX_AGE_MS
+        val live = ids.filter { id -> (times[id] ?: 0L).let { it <= RESTORED_AT || it >= oldest } }
+        return if (live.size <= DELETED_SPENDINGS_MAX) live
+        else live.sortedBy { times[it] ?: 0L }.takeLast(DELETED_SPENDINGS_MAX)
+    }
 
     /**
      * 백업으로 되살리는 지출의 삭제 기록은 **지우지 않고 시각을 앞당긴다** — 없으면 아주 이른 시각을 적는다.
@@ -554,7 +563,7 @@ class GatchaRepository(
         hit.forEach { id ->
             val t = times[id] ?: 0L
             // 시각이 없으면 가장 이른 시각을, 있으면 복원 시각보다는 앞이 되게 — 같은 밀리초에 지우고 되살려도 복원이 이긴다.
-            times[id] = if (t <= 0L) 1L else minOf(t, restoredAt - 1)
+            times[id] = if (t <= 0L) RESTORED_AT else minOf(t, restoredAt - 1)
         }
         saveDeletedAt(times)
     }
@@ -580,6 +589,22 @@ class GatchaRepository(
         prefs.putString(KEY_DELETED_AT, o.toString())
     }
 
+    /**
+     * **아직 클라우드에 못 올린 변경이 있다**는 표시(27.52.0) — 올리기를 예약할 때 세우고, 올라가면 내린다.
+     *
+     * 예전엔 「진행 중인 올리기 작업이 있는가」로만 알았다. 재시도 세 번이 끝난 뒤에는 작업이 없으니, 그 상태로
+     * 로그아웃하면 변경은 올라가지 않고 안내도 없었다. 값은 표시를 세운 시각이라, 올리는 사이에 또 바뀌었는지 가릴 수 있다.
+     */
+    fun markUnsynced() {
+        prefs.putLong(KEY_UNSYNCED_AT, maxOf(currentTimeMillis(), prefs.getLong(KEY_UNSYNCED_AT, 0L) + 1))
+    }
+    fun unsyncedMark(): Long = prefs.getLong(KEY_UNSYNCED_AT, 0L)
+    val hasUnsynced: Boolean get() = unsyncedMark() > 0L
+    /** [mark] 를 읽은 뒤로 새 변경이 없었을 때만 표시를 내린다 — 올리는 사이에 바뀐 것은 다음 올리기 몫이다. */
+    fun clearUnsyncedIf(mark: Long) {
+        if (unsyncedMark() == mark) prefs.putLong(KEY_UNSYNCED_AT, 0L)
+    }
+
     /** 가챠 기록 전체 삭제 시각 — 다른 기기의 옛 기록이 합집합 병합으로 되살아나지 않게. */
     fun markGachaCleared(at: Long) {
         prefs.putLong(KEY_GACHA_CLEARED_AT, maxOf(prefs.getLong(KEY_GACHA_CLEARED_AT, 0L), at))
@@ -595,7 +620,8 @@ class GatchaRepository(
     fun mergeForPush(localJson: String, remoteJson: String?): String {
         if (remoteJson.isNullOrBlank()) return localJson
         val scratch = GatchaRepository("merge", storeFactory = { InMemoryKvStore() }, secureFactory = { InMemorySecureStore() })
-        scratch.importSnapshotJson(localJson, keepUnpushedAttendance = false)
+        // 이 기기의 스냅샷은 받은 값이 아니라 **내 값**이다 — 미래 시각 자르기를 걸지 않는다([importSnapshot] 의 trusted).
+        scratch.importSnapshot(localJson, keepUnpushedAttendance = false, trusted = true)
         // 아직 못 올린 출석 날짜는 원격 값으로 덮지 않는다 — 실제 저장소의 표시와 날짜 목록을 그대로 옮긴다.
         if (prefs.getBoolean(KEY_ATTENDANCE_DIRTY, false)) {
             scratch.prefs.putBoolean(KEY_ATTENDANCE_DIRTY, true)
@@ -623,8 +649,10 @@ class GatchaRepository(
      * 그냥 스냅샷처럼 병합하면 실수로 지운 뒤 복원할 때 tombstone · 전체 삭제 시각에 모두 걸려
      * "복원했어요" 만 뜨고 0건이었다. 사용자가 고른 파일이 정본이므로 삭제 기록보다 앞선다.
      */
-    fun importBackupJson(json: String) {
-        val o = runCatching { JSONObject(json) }.getOrNull() ?: return
+    fun importBackupJson(json: String): Boolean {
+        val o = runCatching { JSONObject(json) }.getOrNull() ?: return false
+        // 백업 파일이 아니면 받지 않는다(27.52.0) — 가챠 기록 파일을 골라도 아무것도 안 바뀐 채 「백업을 복원했어요」가 떴다.
+        if (BACKUP_MARKER_KEYS.none { o.has(it) }) return false
         o.optJSONArray(KEY_SPENDINGS)?.let { arr ->
             val now = currentTimeMillis()
             val ids = mutableSetOf<String>()
@@ -640,12 +668,18 @@ class GatchaRepository(
         // **파일의 삭제 기록은 받지 않는다**(27.52.0). 다른 계정 · 게스트에서 만든 파일의 전체 삭제 시각이나 삭제 목록이
         // 합쳐지면 복원받는 쪽의 멀쩡한 지출이 지워진다. 복원은 되살리는 일이지 지우는 일이 아니다.
         o.remove(KEY_DELETED_SPENDINGS); o.remove(KEY_DELETED_AT); o.remove(KEY_SPENDINGS_CLEARED_AT)
-        if (!o.has(KEY_GACHA)) o.remove(KEY_GACHA_CLEARED_AT)
+        // **가챠 기록은 합친다**(27.52.0). 예전엔 파일 목록을 정본으로 삼아 통째로 바꿨다 — 백업한 뒤에 가져온 기록이
+        // 이 기기에서, 그리고 올리기를 거쳐 모든 기기에서 사라졌다. 여기서 바로 합치고 스냅샷 경로에는 넘기지 않는다
+        // (그 경로는 「비운 시각」을 비교해, 이 기기가 한 번이라도 비운 적이 있으면 파일의 기록을 받지 않는다).
+        o.optJSONArray(KEY_GACHA)?.let { fromFile ->
+            val local = prefs.getString(KEY_GACHA, null)?.let { runCatching { JSONArray(it) }.getOrNull() } ?: JSONArray()
+            prefs.putString(KEY_GACHA, unionGacha(local, fromFile).toString())
+        }
+        o.remove(KEY_GACHA); o.remove(KEY_GACHA_CLEARED_AT)
         // 나머지 키도 파일이 이기게 한다 — 수정 시각을 지금으로 찍지 않으면 이 기기에서 더 최근에 고친
         // 예산 · 천장이 복원을 막고, 다른 기기로도 복원 값이 퍼지지 않는다.
         val now = currentTimeMillis()
         o.put(KEY_META, JSONObject().apply { SYNC_META_KEYS.forEach { put(it, now) } })
-        if (o.has(KEY_GACHA)) o.put(KEY_GACHA_CLEARED_AT, now)   // 가챠도 파일 목록이 정본
         val attendanceBefore = if (o.has(KEY_ATTENDANCE)) loadAttendance().keys else emptySet()
         importSnapshotJson(o.toString(), keepUnpushedAttendance = false)
         // 복원한 출석은 **아직 못 올린 것**이다. 표시를 안 세우면 직후 올리기의 병합이 원격 출석으로 되돌려
@@ -654,6 +688,19 @@ class GatchaRepository(
             saveAttendanceDirtyDays(loadAttendanceDirtyDays() + attendanceBefore + loadAttendance().keys)
             prefs.putBoolean(KEY_ATTENDANCE_DIRTY, true)
         }
+        return true
+    }
+
+    /** 가챠 기록 두 목록의 합집합 — 같은 id 는 앞 목록 것을 남긴다. id 없는 옛 기록은 그대로 둔다. */
+    private fun unionGacha(first: JSONArray, second: JSONArray): JSONArray {
+        val seen = HashSet<String>()
+        val result = JSONArray()
+        for (arr in listOf(first, second)) for (i in 0 until arr.length()) {
+            val r = arr.optJSONObject(i) ?: continue
+            val id = r.optString("id")
+            if (id.isBlank() || seen.add(id)) result.put(r)
+        }
+        return result
     }
 
     // ---------------------------------------------------------------- 읽은 홈 알림 넛징 키 — 로컬 전용(기기별 UI 상태)
@@ -1154,14 +1201,27 @@ class GatchaRepository(
      */
     fun exportSnapshot(): JSONObject {
         val o = JSONObject()
-        prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
-        prefs.getString(KEY_DELETED_SPENDINGS, null)?.let { o.put(KEY_DELETED_SPENDINGS, JSONArray(it)) }
+        // **저장된 값 하나가 깨져 있어도 내보내기는 끝낸다**(27.52.0). 예전엔 `JSONArray(원문)` 이 던진 예외가 그대로 올라가
+        // 올리기 · 「백업 내보내기」에서 앱이 죽을 수 있었다(읽는 쪽은 이미 키마다 견디게 돼 있다). 깨진 키는 싣지 않는다 —
+        // 받는 쪽은 없는 키를 건드리지 않으므로 원격 · 다른 기기의 값이 그대로 남는다.
+        fun arr(key: String) {
+            val raw = prefs.getString(key, null) ?: return
+            runCatching { JSONArray(raw) }.onSuccess { o.put(key, it) }
+                .onFailure { println("GatchaRepository: 깨진 저장 값은 내보내지 않음 — $key") }
+        }
+        fun obj(key: String) {
+            val raw = prefs.getString(key, null) ?: return
+            runCatching { JSONObject(raw) }.onSuccess { o.put(key, it) }
+                .onFailure { println("GatchaRepository: 깨진 저장 값은 내보내지 않음 — $key") }
+        }
+        arr(KEY_SPENDINGS)
+        arr(KEY_DELETED_SPENDINGS)
         loadSpendingsClearedAt().takeIf { it > 0 }?.let { o.put(KEY_SPENDINGS_CLEARED_AT, it) }
-        prefs.getString(KEY_DELETED_AT, null)?.let { o.put(KEY_DELETED_AT, JSONObject(it)) }
-        prefs.getString(KEY_META, null)?.let { o.put(KEY_META, JSONObject(it)) }
+        obj(KEY_DELETED_AT)
+        obj(KEY_META)
         prefs.getLong(KEY_GACHA_CLEARED_AT, 0L).takeIf { it > 0 }?.let { o.put(KEY_GACHA_CLEARED_AT, it) }
         o.put(KEY_BUDGET, loadBudget())
-        prefs.getString(KEY_BUDGET_GAMES, null)?.let { o.put(KEY_BUDGET_GAMES, JSONObject(it)) }
+        obj(KEY_BUDGET_GAMES)
         prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
         prefs.getString(KEY_MY_GAMES, null)?.let { o.put(KEY_MY_GAMES, it) }
         prefs.getString(KEY_PROFILE_EMAIL, null)?.let { o.put(KEY_PROFILE_EMAIL, it) }
@@ -1176,14 +1236,14 @@ class GatchaRepository(
         o.put(KEY_ACCENT_VER, ACCENT_PALETTE_VER)
         prefs.getString(KEY_ENKA_GI, null)?.let { o.put(KEY_ENKA_GI, it) }
         prefs.getString(KEY_ENKA_HSR, null)?.let { o.put(KEY_ENKA_HSR, it) }
-        prefs.getString(KEY_ATTENDANCE, null)?.let { o.put(KEY_ATTENDANCE, JSONObject(it)) }
-        prefs.getString(KEY_PITY, null)?.let { o.put(KEY_PITY, JSONObject(it)) }
-        prefs.getString(KEY_EVENT_CHECKS, null)?.let { o.put(KEY_EVENT_CHECKS, JSONArray(it)) }
-        prefs.getString(KEY_GACHA, null)?.let { o.put(KEY_GACHA, JSONArray(it)) }
-        prefs.getString(KEY_HOME_CARDS, null)?.let { o.put(KEY_HOME_CARDS, JSONArray(it)) }
-        prefs.getString(KEY_REDEEMED, null)?.let { o.put(KEY_REDEEMED, JSONArray(it)) }
+        obj(KEY_ATTENDANCE)
+        obj(KEY_PITY)
+        arr(KEY_EVENT_CHECKS)
+        arr(KEY_GACHA)
+        arr(KEY_HOME_CARDS)
+        arr(KEY_REDEEMED)
         o.put(KEY_BEST_NOSPEND, loadBestNoSpend())
-        prefs.getString(KEY_BADGES, null)?.let { o.put(KEY_BADGES, JSONArray(it)) }
+        arr(KEY_BADGES)
         return o
     }
 
@@ -1197,7 +1257,15 @@ class GatchaRepository(
      *   클라우드 pull 용이다. **백업 파일 복원은 false** — 사용자가 고른 파일이 정본이고, 게스트는 푸시가
      *   돌지 않아 이 표시가 늘 켜져 있으므로 막으면 백업의 출석 이력이 통째로 빠진다.
      */
-    fun importSnapshotJson(json: String, keepUnpushedAttendance: Boolean = true) {
+    fun importSnapshotJson(json: String, keepUnpushedAttendance: Boolean = true) =
+        importSnapshot(json, keepUnpushedAttendance, trusted = false)
+
+    /**
+     * @param trusted 이 기기 자신의 스냅샷이다([mergeForPush] 의 밑바탕) — 「받은 시각은 지금을 넘지 못한다」를 걸지 않는다.
+     *   걸면 시계가 빠른 기기가 찍은 지출을 지운 기록(그 지출의 수정 시각 바로 뒤로 찍힌다)이 지금으로 잘려,
+     *   곧이어 합치는 원격의 그 지출을 이기지 못하고 되살아난다.
+     */
+    private fun importSnapshot(json: String, keepUnpushedAttendance: Boolean, trusted: Boolean) {
         val o = runCatching { JSONObject(json) }.getOrNull() ?: return
         // 지출: id 기준 합집합 병합 + 삭제 tombstone 적용 — 구/스테일 스냅샷이 최신 로컬 지출을 덮어 삭제하지
         // 못하게 한다. 실제 삭제는 tombstone(deleted_spendings)으로만 전파. (이번 유실 사고 재발 방지)
@@ -1214,7 +1282,23 @@ class GatchaRepository(
                 val inTimes = o.optJSONObject(KEY_DELETED_AT)
                 val times = loadDeletedAt()
                 // 받은 시각은 지금을 넘지 못한다 — 미래 값이 들어오면 그 지출은 다시 만들어도 계속 지워진다.
-                incomingTomb.forEach { id -> inTimes?.optLong(id, 0L)?.takeIf { it > 0 }?.let { times[id] = maxOf(times[id] ?: 0L, minOf(it, now)) } }
+                // **단, 그 지출의 수정 시각 바로 뒤까지는 받는다**(27.52.0). 삭제 시각은 지운 지출의 수정 시각보다 뒤로 찍히므로
+                // ([SpendingViewModel.deleteSpendings]), 시계가 빠른 기기가 만든 지출을 지운 기록은 정당하게 미래일 수 있다.
+                val stampOf: Map<String, Long> =
+                    if (trusted || incomingTomb.none { (inTimes?.optLong(it, 0L) ?: 0L) > now }) emptyMap()
+                    else buildMap {
+                        val local = prefs.getString(KEY_SPENDINGS, null)?.let { runCatching { JSONArray(it) }.getOrNull() }
+                        for (list in listOfNotNull(local, o.optJSONArray(KEY_SPENDINGS))) for (i in 0 until list.length()) {
+                            val sp = list.optJSONObject(i) ?: continue
+                            val id = sp.optString("id")
+                            if (id in incomingTomb) put(id, maxOf(get(id) ?: 0L, sp.optLong("updatedAt", 0L)))
+                        }
+                    }
+                incomingTomb.forEach { id ->
+                    val t = inTimes?.optLong(id, 0L)?.takeIf { it > 0 } ?: return@forEach
+                    val ceiling = if (trusted) Long.MAX_VALUE else maxOf(now, (stampOf[id] ?: 0L) + 1)
+                    times[id] = maxOf(times[id] ?: 0L, minOf(t, ceiling))
+                }
                 val merged = capTombstones(loadDeletedSpendingIds() + incomingTomb, times)
                 prefs.putString(KEY_DELETED_SPENDINGS, JSONArray(merged).toString())
                 val kept = merged.toSet()
@@ -1223,7 +1307,7 @@ class GatchaRepository(
             // **받은 전체 삭제 시각도 지금을 넘지 못한다**(27.52.0). 시계가 앞선 기기의 전체 삭제나 조작된 백업의 미래 값을
             // 그대로 받으면, 그 시각 전에 고친 지출이 병합할 때마다 모든 기기에서 지워지고 값은 max 로만 합쳐져 되돌릴 수 없었다.
             // 지금으로 자르면 이번 병합을 끝으로 풀리고, 자른 값이 다음 올리기로 원격의 미래 값도 대신한다.
-            markSpendingsCleared(minOf(o.optLong(KEY_SPENDINGS_CLEARED_AT, 0L), now))
+            markSpendingsCleared(o.optLong(KEY_SPENDINGS_CLEARED_AT, 0L).let { if (trusted) it else minOf(it, now) })
             val tomb = loadDeletedSpendingIds()
             val deletedAt = loadDeletedAt()
             val clearedAt = loadSpendingsClearedAt()
@@ -1363,14 +1447,7 @@ class GatchaRepository(
             localCleared > inCleared -> Unit
             incoming != null -> {
                 val local = prefs.getString(KEY_GACHA, null)?.let { runCatching { JSONArray(it) }.getOrNull() } ?: JSONArray()
-                val seen = HashSet<String>()
-                val result = JSONArray()
-                for (arr in listOf(local, incoming)) for (i in 0 until arr.length()) {
-                    val r = arr.optJSONObject(i) ?: continue
-                    val id = r.optString("id")
-                    if (id.isBlank() || seen.add(id)) result.put(r)
-                }
-                prefs.putString(KEY_GACHA, result.toString())
+                prefs.putString(KEY_GACHA, unionGacha(local, incoming).toString())
             }
         }
     }
@@ -1392,6 +1469,15 @@ class GatchaRepository(
         /** [stamp] 로 수정 시각을 적는 키 — 묶음은 대표 키 하나로 적는다(프로필 · 게임 UID · Enka UID). */
         val SYNC_META_KEYS = listOf(KEY_BUDGET, KEY_BUDGET_GAMES, KEY_MY_GAMES, KEY_PROFILE_NAME, KEY_HOYO_GI, KEY_ACCENT, KEY_ENKA_GI, KEY_PITY, KEY_EVENT_CHECKS)
         const val DELETED_SPENDINGS_MAX = 2000
+        /** 삭제 기록을 들고 있는 기간 — 이보다 오래된 것은 정리한다([capTombstones]). */
+        const val DELETED_SPENDINGS_MAX_AGE_MS = 365L * 24 * 60 * 60 * 1000
+        /** 시각 없는 삭제 기록을 백업 복원이 이기게 할 때 적는 「가장 이른 시각」([stampRestoredTombstones]). */
+        private const val RESTORED_AT = 1L
+        /** 아직 클라우드에 못 올린 변경이 있다는 표시 — 로컬 전용([markUnsynced]). */
+        private const val KEY_UNSYNCED_AT = "sync_unsynced_at"
+        /** 백업 파일이라면 하나쯤은 들어 있는 키 — 하나도 없으면 다른 종류의 파일이다([importBackupJson]). */
+        private val BACKUP_MARKER_KEYS
+            get() = listOf(KEY_SPENDINGS, KEY_BUDGET, KEY_GACHA, KEY_ATTENDANCE, KEY_META, KEY_PITY, KEY_BADGES, KEY_HOME_CARDS)
         const val KEY_DELETED_SPENDINGS = "deleted_spendings" // 삭제된 지출 id tombstone(합집합 병합 방어 — 삭제 전파용)
         const val KEY_BUDGET = "budget"
         const val KEY_BUDGET_GAMES = "budget_games"

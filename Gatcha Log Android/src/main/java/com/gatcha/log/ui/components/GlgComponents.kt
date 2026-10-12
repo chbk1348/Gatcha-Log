@@ -14,6 +14,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -786,9 +788,17 @@ fun GlgCircleIconButton(
     }
 }
 
-/** 커스텀 토글 스위치 */
+/**
+ * 커스텀 토글 스위치.
+ *
+ * TalkBack 이 「스위치 · 켜짐/꺼짐」으로 읽도록 역할과 상태를 싣는다(27.52.0) — 예전엔 clickable 뿐이라
+ * 이름 없는 버튼으로만 읽히고 켜졌는지 알 수 없었다. 모양 · 눌림은 그대로다.
+ *
+ * **줄 전체가 토글인 곳**(설정 · 알림 설정의 토글 줄)은 줄이 역할 · 상태를 싣고, 스위치에는
+ * `Modifier.clearAndSetSemantics {}` 를 [modifier] 로 넘겨 따로 읽히지 않게 한다 — 같은 토글에 두 번 멈추지 않게.
+ */
 @Composable
-fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val accent = LocalAccent.current
     val trackWidth = 50.dp
     val trackHeight = 30.dp
@@ -797,11 +807,11 @@ fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val offset by animateDpAsState(if (checked) trackWidth - thumb - 3.dp else 3.dp, label = "thumb")
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(trackWidth, trackHeight)
             .clip(CircleShape)
             .background(trackColor)
-            .clickable { onCheckedChange(!checked) },
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(

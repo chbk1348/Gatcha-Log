@@ -2,6 +2,7 @@ package com.gatcha.log.util
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -28,5 +29,15 @@ object SafIO {
             } ?: error("출력 스트림 없음")
             true
         }.getOrDefault(false)
+    }
+
+    /**
+     * 쓰기에 실패한 문서를 지운다(27.52.0) — 「문서 만들기」는 고르는 순간 빈 파일을 만들어 두므로,
+     * 그대로 두면 0바이트 파일이 저장된 것처럼 남는다. 제공자가 삭제를 지원하지 않으면 그대로 둔다(실패 무시).
+     */
+    suspend fun delete(context: Context, uri: Uri) {
+        withContext(Dispatchers.IO) {
+            runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }
+        }
     }
 }

@@ -267,12 +267,12 @@ struct AddSpendingView: View {
         .task(id: nudgeKey) {
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard !Task.isCancelled else { return }
-            inlineNudge = store.overspendNudge(game: game, amount: Int64(amount) ?? 0, editingId: editing?.id)
+            inlineNudge = store.overspendNudge(game: game, amount: Int64(amount) ?? 0, editingId: editing?.id, dateMillis: dateMillis)
         }
     }
 
     /// 과소비 경고를 다시 계산할 계기 — 금액 · 게임. 본문 밖에서 조립한다(뷰 빌더 안의 보간은 타입 추론이 무겁다).
-    private var nudgeKey: String { "\(gameName)|\(amount)" }
+    private var nudgeKey: String { "\(gameName)|\(amount)|\(dateMillis)" }
 
     /// "원석 3,280 · 약 20뽑" — 재화 환산은 사는 순간에 보여야 의미가 있다.
     private var currencyLine: String? {
@@ -661,7 +661,7 @@ struct AddSpendingView: View {
 
     private func attemptSave() {
         let parsed = Int64(amount) ?? 0
-        if let msg = store.overspendNudge(game: game, amount: parsed, editingId: editing?.id) { nudgeMsg = msg }
+        if let msg = store.overspendNudge(game: game, amount: parsed, editingId: editing?.id, dateMillis: dateMillis) { nudgeMsg = msg }
         else { doSave() }
     }
 

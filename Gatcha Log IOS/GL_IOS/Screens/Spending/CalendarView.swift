@@ -12,6 +12,14 @@ struct CalendarView: View {
     private var y: Int { year == 0 ? store.displayYear : year }
     private var m: Int { month == 0 ? store.displayMonth : month }
 
+    /// 총 지출 줄 제목 — 보고 있는 달이 이번 달일 때만 「이번 달」이라 부른다(27.52.0).
+    /// 예전엔 달을 넘겨도 늘 「이번 달 총 지출」이라, 지난달 합계가 이번 달 것으로 읽혔다.
+    /// 「이번 달」의 기준은 이 화면이 처음 여는 달과 같은 값(store.displayYear · displayMonth)이다.
+    private var totalLabel: String {
+        if y == store.displayYear && m == store.displayMonth { return "이번 달 총 지출" }
+        return y == store.displayYear ? "\(m)월 총 지출" : "\(y)년 \(m)월 총 지출"
+    }
+
     // 타임라인은 지출·배너·연월이 바뀔 때만 만든다.
     //
     // 예전엔 body 첫 줄에서 buildEntries 를 통째로 돌렸다. 이 함수는 지출 1건마다 DateMillis.comps 를
@@ -49,7 +57,7 @@ struct CalendarView: View {
                     .padding(.bottom, 16)
                     // 월 요약(총 지출) — 줄 제목 15 + 값 15 Bold
                     HStack {
-                        Text("이번 달 총 지출").font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary)
+                        Text(verbatim: totalLabel).font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary)
                         Spacer(minLength: 8)
                         Text(won(monthTotal)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(accent.primary)
                     }

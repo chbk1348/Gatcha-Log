@@ -12,6 +12,12 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 /**
+ * 호요랜드의 시각은 **한국 시간**이다(27.52.0) — 행사가 한국에서 열리고 예매 · 입장 · 무대 시각도 한국 시각으로 공지된다.
+ * 예전엔 기기 시간대로 읽어, 해외 시간대의 기기에서는 예매 알림과 무대 LIVE 판정이 그 시차만큼 밀렸다.
+ */
+internal val HoyolandTimeZone = kotlinx.datetime.TimeZone.of("Asia/Seoul")
+
+/**
  * 호요랜드(호요버스 한국 오프라인 행사) 정본 — **Android·iOS 가 이 한 소스를 공유한다.**
  *
  * 예전에는 일정·장소·라인업이 `HoyolandSection.kt` 와 `HoyolandSection.swift` 에 문자열 상수로
@@ -717,7 +723,7 @@ data class HoyolandEvent(
     @OptIn(ExperimentalTime::class)
     private fun today(nowMillis: Long): LocalDate =
         Instant.fromEpochMilliseconds(nowMillis)
-            .toLocalDateTime(DateUtil.timeZone).date   // 캐시된 타임존(시스템 조회 우회 금지)
+            .toLocalDateTime(HoyolandTimeZone).date
 
     /**
      * 지금이 개최 전인지·중인지·끝났는지.
@@ -840,7 +846,7 @@ data class HoyolandEvent(
     fun stageSlots(ymd: String, nowMillis: Long = currentTimeMillis()): List<StageSlot> {
         val slots = slotsFor(ymd)
         if (slots.isEmpty()) return emptyList()
-        val nowLocal = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone)
+        val nowLocal = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(HoyolandTimeZone)
         val isToday = nowLocal.date.toString() == ymd
         val nowMin = nowLocal.hour * 60 + nowLocal.minute
         val starts = slots.map { minutesOfDay(it.time) }
@@ -1149,7 +1155,7 @@ data class HoyolandEvent(
     /** 오늘이 행사 기간 안이면 그 `yyyy-MM-dd`, 아니면 null. */
     @OptIn(ExperimentalTime::class)
     private fun todayYmd(nowMillis: Long): String? {
-        val today = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone).date.toString()
+        val today = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(HoyolandTimeZone).date.toString()
         return today.takeIf { it in dayYmds }
     }
 
@@ -1387,7 +1393,7 @@ data class HoyolandEvent(
     private fun millisAt(date: LocalDate?, hour: Int): Long =
         // 시(時)가 범위 밖이면 0 — `atTime(24, 0)` 은 예외를 던지고, 그 예외가 예약 알림 계획 전체를 버리게 했다(27.52.0).
         if (hour !in 0..23) 0L
-        else date?.atTime(hour, 0)?.toInstant(DateUtil.timeZone)?.toEpochMilliseconds() ?: 0L
+        else date?.atTime(hour, 0)?.toInstant(HoyolandTimeZone)?.toEpochMilliseconds() ?: 0L
 
     /** 개막일 [hour] 시의 로컬 시각(밀리초). 날짜를 못 읽으면 0. */
     fun startAtMillis(hour: Int): Long = millisAt(start, hour)
@@ -1890,7 +1896,7 @@ object HoyolandDefaults {
         source: HoyolandEvent = event,
         nowMillis: Long = currentTimeMillis(),
     ): HoyolandEvent? {
-        val today = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone).date
+        val today = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(HoyolandTimeZone).date
         val ymd = { d: Int -> today.plus(d, DateTimeUnit.DAY).toString() }
         return when (key) {
             // D-16 — 게이지가 절반쯤 찬 자리(발표는 16일 전으로 당겨 둔다).
@@ -1914,7 +1920,7 @@ object HoyolandDefaults {
         source: HoyolandEvent = event,
         nowMillis: Long = currentTimeMillis(),
     ): HoyolandEvent {
-        val now = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone)
+        val now = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(HoyolandTimeZone)
         val today = now.date
         val ymd = { d: Int -> today.plus(d, DateTimeUnit.DAY).toString() }
         // 기준 시각 — 상대 배치가 자정을 넘지 않도록 낮 구간(04:00~19:00)으로 당긴다.
