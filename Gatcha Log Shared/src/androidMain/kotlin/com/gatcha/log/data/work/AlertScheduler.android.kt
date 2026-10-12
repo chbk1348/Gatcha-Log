@@ -130,7 +130,11 @@ actual object AlertScheduler {
         Unit
     }
 
-    /** 출석 리마인더는 주기 점검([NotificationChecker] ②)이 맡는다 — 예약형은 iOS 만 쓴다. */
+    /**
+     * 걷어 낼 옛 예약이 없다 — 27.51 까지의 예약형 출석 리마인더는 iOS 에만 있었다.
+     * 지금의 출석 리마인더는 두 플랫폼 모두 [ScheduledAlerts.plan] ⑦ 의 예약이고([replaceAll] 이 건다),
+     * 그 예약이 맡지 못한 날만 주기 점검([NotificationChecker] ②)이 보낸다.
+     */
     actual suspend fun refreshAttendanceReminder(settings: AppSettings, repo: GatchaRepository) = Unit
 
     /**
