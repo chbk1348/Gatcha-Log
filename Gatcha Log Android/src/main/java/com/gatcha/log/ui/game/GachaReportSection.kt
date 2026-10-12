@@ -95,7 +95,7 @@ fun GachaReportSection(
             ReportSection { GldsButton("기록 추가 가져오기", onClick = openPicker, modifier = Modifier.fillMaxWidth()) }
         }
     }
-    GachaClearConfirm(show = showClear, onDismiss = { showClear = false }, onClear = onClear)
+    GachaClearConfirm(show = showClear, onDismiss = { showClear = false }, onClear = onClear, fromReport = true)
 }
 
 /**
@@ -105,9 +105,11 @@ fun GachaReportSection(
  * 문구를 두 곳에 적어 두면 한쪽만 고쳐져 어긋난다.
  *
  * [show] 는 1차 창이다. 2차 창은 여기서 들고 있어, 부르는 쪽은 [onDismiss] 에서 [show] 만 내리면 된다.
+ *
+ * @param fromReport 가챠 리포트에서 띄웠는가 — 그 화면에는 백업 버튼이 없어 **어디에 있는지**를 문구에 적는다(10/12 결정).
  */
 @Composable
-fun GachaClearConfirm(show: Boolean, onDismiss: () -> Unit, onClear: () -> Unit) {
+fun GachaClearConfirm(show: Boolean, onDismiss: () -> Unit, onClear: () -> Unit, fromReport: Boolean = false) {
     var showFinal by remember { mutableStateOf(false) }
     // 1단계(백업 권장 안내)
     if (show) {
@@ -117,7 +119,11 @@ fun GachaClearConfirm(show: Boolean, onDismiss: () -> Unit, onClear: () -> Unit)
             confirmText = "계속",
             onConfirm = { onDismiss(); showFinal = true },
         ) {
-            Text("가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.", fontSize = 13.sp, color = TextSecondary)
+            Text(
+                if (fromReport) "가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 설정 ▸ 데이터 관리의 ‘백업 파일 내보내기’로 백업을 권장해요."
+                else "가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.",
+                fontSize = 13.sp, color = TextSecondary,
+            )
         }
     }
     // 2단계(최종 확인)

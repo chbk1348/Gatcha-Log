@@ -153,6 +153,8 @@ struct DataManagementView: View {
 private struct GachaClearConfirm: ViewModifier {
     @Binding var isPresented: Bool
     let store: SpendingStore
+    /// 가챠 리포트에서 띄웠는가 — 그 화면에는 백업 버튼이 없어 **어디에 있는지**를 문구에 적는다(10/12 결정, Android 와 같다).
+    var fromReport: Bool = false
     @State private var confirmFinal = false
 
     func body(content: Content) -> some View {
@@ -161,7 +163,11 @@ private struct GachaClearConfirm: ViewModifier {
             .alert("가챠 기록 초기화", isPresented: $isPresented) {
                 Button("취소", role: .cancel) {}.glgAlertTint()
                 Button("계속") { confirmFinal = true }.glgAlertTint()
-            } message: { Text("가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.") }
+            } message: {
+                Text(fromReport
+                     ? "가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 설정 ▸ 데이터 관리의 ‘백업 파일 내보내기’로 백업을 권장해요."
+                     : "가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.")
+            }
             // 2단계(최종 확인)
             .alert("정말 초기화할까요?", isPresented: $confirmFinal) {
                 Button("취소", role: .cancel) {}.glgAlertTint()
@@ -172,7 +178,7 @@ private struct GachaClearConfirm: ViewModifier {
 
 extension View {
     /// 가챠 기록 초기화 확인 창을 건다 — [isPresented] 를 켜면 1차 안내부터 뜬다.
-    func gachaClearConfirm(isPresented: Binding<Bool>, store: SpendingStore) -> some View {
-        modifier(GachaClearConfirm(isPresented: isPresented, store: store))
+    func gachaClearConfirm(isPresented: Binding<Bool>, store: SpendingStore, fromReport: Bool = false) -> some View {
+        modifier(GachaClearConfirm(isPresented: isPresented, store: store, fromReport: fromReport))
     }
 }

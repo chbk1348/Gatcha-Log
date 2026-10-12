@@ -62,7 +62,7 @@ struct GachaReportSection: View {
             }
         }
         // 창 · 문구는 데이터 관리와 한 곳(DataManagementView.swift 의 gachaClearConfirm)을 같이 쓴다.
-        .gachaClearConfirm(isPresented: $confirmClear, store: store)
+        .gachaClearConfirm(isPresented: $confirmClear, store: store, fromReport: true)
     }
 
     private var emptyState: some View {
