@@ -35,8 +35,8 @@ import com.gatcha.log.util.currentTimeMillis
 object NotificationChecker {
 
     /**
-     * iOS 출석 리마인더(예약형)가 **맡은 날짜**를 적는 표시. 즉시 알림의 `"attend"` 와 따로 둔다 — 같은 키를 쓰면
-     * 예약(내일 날짜)과 점검(오늘 날짜)이 번갈아 덮어써서 리마인더가 점검마다 다시 울린다.
+     * 예약형 출석 리마인더([ScheduledAlerts.plan] ⑦)가 **맡은 날짜**를 적는 표시. 즉시 알림의 `"attend"` 와 따로 둔다 —
+     * 같은 키를 쓰면 예약(내일 날짜)과 점검(오늘 날짜)이 번갈아 덮어써서 리마인더가 점검마다 다시 울린다.
      */
     internal const val ATTEND_SCHEDULED_TAG = "attend_scheduled"
 
@@ -168,7 +168,7 @@ object NotificationChecker {
                 val done = repo.loadAttendance()[today] ?: emptySet()
                 // 「내 게임」에서 뺀 게임은 세지 않는다 — 화면 · 자동 출석과 같은 목록이다.
                 val pending = GameData.trackedAttendanceGames(cfg, repo.loadMyGames()).filter { it.key !in done }
-                // 오늘 몫을 예약형 리마인더(iOS)가 맡았으면 그쪽이 울린다 — 여기서 또 보내지 않는다.
+                // 오늘 몫을 예약형 리마인더가 맡았으면 그쪽이 울린다 — 여기서 또 보내지 않는다.
                 val handled = settings.lastNotified("attend") == today ||
                     settings.lastNotified(ATTEND_SCHEDULED_TAG) == today
                 if (pending.isNotEmpty() && !handled) {

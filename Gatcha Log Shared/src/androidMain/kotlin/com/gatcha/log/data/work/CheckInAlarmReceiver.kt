@@ -30,6 +30,8 @@ class CheckInAlarmReceiver : BroadcastReceiver() {
 
                 // 네트워크 같은 일시적 실패면 몇 시간 뒤 한 번 더. 쿠키 만료(authFails)는 다시 해도
                 // 결과가 같으므로 재시도하지 않고 다음 날로 넘긴다(사용자 재연동이 필요하다).
+                // 출석이 바뀌었으니 예약도 고쳐 건다 — 오늘 몫의 출석 리마인더가 걷힌다.
+                runCatching { ScheduledAlerts.reschedule(settings, repo) }
                 val retryable = outcome != null && outcome.hasAnyFail && outcome.authFails.isEmpty()
                 if (retryable) DailyCheckInAlarm.scheduleRetry() else DailyCheckInAlarm.apply()
             } finally {

@@ -81,7 +81,13 @@ object EnneadApi {
         }.getOrNull()
     }
 
+    /** 일정 응답이라면 하나쯤은 들어 있는 키. */
+    private val KNOWN_KEYS = listOf("banners", "events", "challenges")
+
     private fun parse(game: Game, root: JSONObject): EnneadResult {
+        // **아는 키가 하나도 없으면 실패다**(27.52.0). 상류가 오류 본문을 200 으로 주거나 형식을 바꾸면 예전엔 「배너 · 이벤트
+        // 없음」으로 읽혀, 그 게임의 일정이 화면에서 비워지고 그대로 저장됐다. 던지면 호출부가 실패(null)로 받는다.
+        if (KNOWN_KEYS.none { root.has(it) }) error("ennead: 아는 키가 없는 응답")
         val now = currentTimeMillis()
 
         val banners = mutableListOf<GachaBanner>()

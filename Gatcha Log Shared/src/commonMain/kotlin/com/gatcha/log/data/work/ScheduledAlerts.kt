@@ -4,6 +4,7 @@ import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.NotificationCatalog
+import com.gatcha.log.data.NotificationRoutes
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolandEntry
 import com.gatcha.log.data.Josa
@@ -120,6 +121,7 @@ object ScheduledAlerts {
                                 title = "$shortName 픽업이 곧 끝나요",
                                 text = "$names · D-$lead 남았어요. 뽑을 거면 지금이에요",
                                 whenMillis = at,
+                                link = NotificationRoutes.GAME_SCHEDULE,
                                 // 예약이 이 마감을 맡았다고 적어 둔다 — 안 적으면 마지막 예약이 울린 뒤 다시 계획할 때
                                 // 「예약할 시각이 다 지났다」고 보고 같은 건을 한 번 더 보냈다.
                                 dedupTag = tag,
@@ -143,7 +145,8 @@ object ScheduledAlerts {
                             title = title, text = text, dedupTag = tag, dedupValue = end.toString(),
                         ) else out += ScheduledAlert(
                             key = "pickup:${game?.key ?: gameName}:late", title = title, text = text,
-                            whenMillis = sendAt, dedupTag = tag, dedupValue = lateValue(end, sendAt),
+                            whenMillis = sendAt, link = NotificationRoutes.GAME_SCHEDULE,
+                            dedupTag = tag, dedupValue = lateValue(end, sendAt),
                         )
                     }
                 }
@@ -168,6 +171,7 @@ object ScheduledAlerts {
                                 title = "$shortName ${Josa.subj(c.name)} 곧 끝나요",
                                 text = "${c.stars}/${c.maxStars} 에서 멈춰 있어요. D-$lead 에 끝나면 남은 보상은 사라져요",
                                 whenMillis = at,
+                                link = NotificationRoutes.GAME_COMBAT,
                                 dedupTag = tag,
                                 dedupValue = c.endMillis.toString(),
                             )
@@ -191,7 +195,8 @@ object ScheduledAlerts {
                             title = title, text = text, dedupTag = tag, dedupValue = c.endMillis.toString(),
                         ) else out += ScheduledAlert(
                             key = "combat:${game?.key ?: c.game}:${c.name}:late", title = title, text = text,
-                            whenMillis = sendAt, dedupTag = tag, dedupValue = lateValue(c.endMillis, sendAt),
+                            whenMillis = sendAt, link = NotificationRoutes.GAME_COMBAT,
+                            dedupTag = tag, dedupValue = lateValue(c.endMillis, sendAt),
                         )
                     }
                 }
@@ -217,6 +222,7 @@ object ScheduledAlerts {
                     title = "${game?.shortName ?: n.game} ${Josa.subj(n.resinLabel)} 가득 찼어요",
                     text = "${n.maxResin}/${n.maxResin} 이에요. 지금부터는 더 쌓이지 않아요",
                     whenMillis = at,
+                    link = NotificationRoutes.GAME_NOTES,
                     dedupTag = "resin:$gameKey",
                     dedupValue = DateUtil.hoyoDayKey(at),
                 )
@@ -318,12 +324,47 @@ object ScheduledAlerts {
             }
         }
 
+        // ⑦ 출석 리마인더 — **베이징 18시**(출석 초기화 6시간 전). 두 플랫폼이 같은 예약을 쓴다(27.52.0).
+        //    예전엔 iOS 만 예약형이었고 Android 는 주기 작업이 저녁 시간대에 깨어야만 왔다(안 깨면 그날은 없음).
+        //    오늘 남은 출석이 있고 18시 전이면 오늘, 아니면 내일 것을 건다. 출석 · 토글 · 연동 · 계정이 바뀌면
+        //    [reschedule] 이 다시 돌아 고쳐 건다. Android 는 울리는 순간에도 한 번 더 확인한다([attendanceStillPending]).
+        val cfg = repo.loadHoyolab()
+        if (settings.notifyAttendance && cfg.isLinked) {
+            val today18 = hoyoDayStart(nowMillis) + ATTEND_REMIND_HOUR * 3_600_000L
+            val at = shiftOutOfQuiet(settings, if (attendanceStillPending(repo, nowMillis) && nowMillis < today18) today18 else today18 + DAY_MS)
+            out += ScheduledAlert(
+                key = ATTEND_KEY,
+                title = "오늘 출석 아직이에요",
+                text = "탭하면 바로 출석할 수 있어요. 1분이면 끝나요",
+                whenMillis = at,
+                link = NotificationRoutes.TAB_GAME_INFO,
+                dedupTag = NotificationChecker.ATTEND_SCHEDULED_TAG,
+                dedupValue = DateUtil.hoyoDayKey(at),
+            )
+        }
+
         // ⑥ 방해금지 시간에 끝난 자동 출석의 성공 알림 — 해제 시각에 한 번([deferCheckInSuccess]).
         deferredCheckIn(settings.lastNotified(CHECKIN_DEFERRED_TAG))?.let { (at, title, text) ->
-            if (at > nowMillis) out += ScheduledAlert(key = "auto_checkin", title = title, text = text, whenMillis = at)
+            if (at > nowMillis) out += ScheduledAlert(
+                key = "auto_checkin", title = title, text = text, whenMillis = at, link = NotificationRoutes.TAB_GAME_INFO,
+            )
         }
 
         return AlertPlan(out.sortedBy { it.whenMillis }.take(MAX_PENDING), now)
+    }
+
+    /** 출석 리마인더 예약의 키 — Android 수신부가 울리기 직전에 이 키를 보고 한 번 더 확인한다. */
+    const val ATTEND_KEY = "attend"
+    private const val ATTEND_REMIND_HOUR = 18
+    private const val HOYO_SHIFT_MS = 8L * 3_600_000L
+
+    /** 출석 기준일(베이징 자정)의 시작 시각. */
+    private fun hoyoDayStart(millis: Long): Long = (millis + HOYO_SHIFT_MS) / DAY_MS * DAY_MS - HOYO_SHIFT_MS
+
+    /** 오늘(베이징 기준) 아직 출석하지 않은 게임이 있는가 — 세는 게임은 화면 · 자동 출석과 같은 목록이다. */
+    fun attendanceStillPending(repo: GatchaRepository, nowMillis: Long = currentTimeMillis()): Boolean {
+        val done = repo.loadAttendance()[DateUtil.hoyoDayKey(nowMillis)].orEmpty()
+        return GameData.trackedAttendanceGames(repo.loadHoyolab(), repo.loadMyGames()).any { it.key !in done }
     }
 
     /** 호요랜드 알림의 딥링크 — [com.gatcha.log.data.SpendingViewModel.handleNotificationLink] 가 받는다. */
@@ -409,9 +450,15 @@ object ScheduledAlerts {
         // 정상 알림을 오히려 막는다. 그쪽은 [NotificationChecker] 가 전담한다.
         if (!AlertScheduler.schedulesAhead) return
 
-        // 출석 리마인더도 여기서 함께 다시 건다(27.52.0) — 출석 · 토글 · 연동 · 계정이 바뀌면 전부 이 함수를 지나므로,
-        // 낮에 걸린 리마인더가 수동 출석이나 토글 끔 뒤에도 그대로 울리던 일이 없어진다. Android 는 할 일이 없다.
+        // 예전 iOS 전용 리마인더 예약을 걷는다 — 이제 아래 계획 안에 들어 있다([plan] ⑦). Android 는 할 일이 없다.
         runCatching { AlertScheduler.refreshAttendanceReminder(settings, repo) }
+
+        // 오늘 몫으로 걸어 둔 출석 리마인더가 있었고 18시가 지났다 = 이미 울렸다. 주기 점검([NotificationChecker] ②)이
+        // 같은 날 또 보내지 않게 넘겨 적는다 — 아래에서 표시가 내일 날짜로 바뀌기 전에.
+        val today = DateUtil.hoyoDayKey(nowMillis)
+        if (settings.lastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG) == today &&
+            DateUtil.hoyoHour(nowMillis) >= ATTEND_REMIND_HOUR
+        ) settings.setLastNotified("attend", today)
 
         val plan = runCatching { plan(settings, repo, nowMillis) }.getOrNull() ?: return
         val registered = runCatching { AlertScheduler.replaceAll(plan.scheduled) }.isSuccess
@@ -421,6 +468,8 @@ object ScheduledAlerts {
         plan.scheduled.forEach {
             if (it.dedupTag.isNotEmpty()) settings.setLastNotified(it.dedupTag, it.dedupValue)
         }
+        // 출석 리마인더가 계획에 없으면(토글 끔 · 연동 해제) 표시도 지운다 — 남아 있으면 주기 점검이 「예약이 맡았다」고 본다.
+        if (plan.scheduled.none { it.key == ATTEND_KEY }) settings.setLastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG, "")
         // 실제로 게시됐을 때만 적는다 — 권한이 꺼져 못 보낸 것을 '보냄'으로 적으면 권한을 켠 뒤에도 오지 않는다.
         plan.immediate.forEach { a ->
             val posted = runCatching { Notifier.notify(a.id, a.title, a.text) }.getOrDefault(false)
@@ -466,8 +515,8 @@ expect object AlertScheduler {
     suspend fun replaceAll(alerts: List<ScheduledAlert>)
 
     /**
-     * 출석 리마인더(예약형)를 지금 상태로 다시 건다 — iOS 만 쓴다. Android 는 주기 점검([NotificationChecker] ②)이
-     * 그때그때 판정하므로 할 일이 없다.
+     * 27.51 까지의 iOS 전용 출석 리마인더 예약을 걷는다. 출석 리마인더는 이제 [ScheduledAlerts.plan] 의 한 건이라
+     * [replaceAll] 이 같이 건다. Android 는 할 일이 없다.
      */
     suspend fun refreshAttendanceReminder(settings: AppSettings, repo: GatchaRepository)
 }

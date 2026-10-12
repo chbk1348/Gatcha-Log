@@ -3,6 +3,8 @@ package com.gatcha.log.data.vm
 import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.data.api.NewsArticle
 import com.gatcha.log.data.api.NewsItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,7 +46,8 @@ internal class NewsArticleController(private val scope: CoroutineScope) {
         // 앞 글 요청을 끊는다 — 안 그러면 늦게 온 A 글 본문이 B 글 제목 아래에 앉는다.
         newsArticleJob?.cancel()
         newsArticleJob = scope.launch {
-            val article = NewsApi.article(item)
+            // 본문 파싱은 메인 밖에서(27.52.0) — 엔드필드 본문은 280KB 라 열 때마다 화면이 잠깐 멎었다.
+            val article = withContext(Dispatchers.Default) { NewsApi.article(item) }
             if (newsArticleItemId != item.id) return@launch   // 취소가 닿기 전에 끝난 경우까지 막는다
             _newsArticle.value = article
             _newsArticleFailed.value = article == null

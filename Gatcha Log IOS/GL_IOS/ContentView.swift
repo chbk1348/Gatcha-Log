@@ -14,6 +14,8 @@ struct ContentView: View {
     /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
     @State private var store = SpendingStore.shared
     @State private var selectedTab: Int = 0
+    /// 탭 바의 마이페이지 아이콘 — 로그인한 계정의 구글 프로필 사진(원형). 게스트이거나 못 받았으면 nil → 사람 아이콘.
+    @State private var myPageTabIcon: UIImage? = nil
     /// 지출 목록이 다중 선택 중인가 — 선택 하단바가 떠 있는 동안 '추가' 버튼을 감춘다.
     /// (SpendingView 의 로컬 상태로 두면 TabView 오버레이인 그 버튼이 볼 수 없다)
     ///
@@ -387,6 +389,26 @@ struct ContentView: View {
 
     // ── 탭 구성 (iPhone·iPad 공통 시스템 탭바) ────────────────────────────
 
+    /// 마이페이지 탭의 라벨 — 프로필 사진이 있으면 그 사진, 없으면 사람 아이콘(10/12 지시).
+    /// 홈 왼쪽 위 프로필 알약 · 마이페이지 머리와 같은 사진이다.
+    @ViewBuilder
+    private var myPageTabLabel: some View {
+        if let icon = myPageTabIcon {
+            Label { Text("마이페이지") } icon: { Image(uiImage: icon) }
+        } else {
+            Label("마이페이지", systemImage: "person.fill")
+        }
+    }
+
+    /// 탭 아이콘으로 쓸 사진 주소. 게스트는 빈 값 — 계정이 바뀌면 다시 받는다.
+    private var myPagePhotoUrl: String { store.account.isGuest ? "" : store.account.photoUrl }
+
+    private func loadMyPageTabIcon() async {
+        guard let url = URL(string: myPagePhotoUrl), !myPagePhotoUrl.isEmpty else { myPageTabIcon = nil; return }
+        // 시스템 탭 아이콘과 같은 자리 크기. 못 받으면 사람 아이콘 그대로 둔다.
+        myPageTabIcon = await glgCircularImage(url: url, side: 28)
+    }
+
     @ViewBuilder
     private var mainTabs: some View {
         if #available(iOS 26.0, *) {
@@ -397,7 +419,7 @@ struct ContentView: View {
                 Tab("홈", systemImage: "house.fill", value: 0) { homeTabContent }
                 Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
-                Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
+                Tab(value: 3) { myPageTabContent } label: { myPageTabLabel }
                 // '추가' 는 **시스템 바에 맡긴다** — 좁은 창이면 하단 탭바 옆 원형 버튼,
                 // 펼친 iPhone Duo 면 세로로 선 바에서 **4탭 아래**에 선다(iOS 27.1).
                 //
@@ -412,7 +434,10 @@ struct ContentView: View {
             }
             .tint(accent)
             .glgMeasureCanvas($canvasWidth)
-            .tabBarMinimizeBehavior(.never) // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지)
+            // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지). 10/12 에 시스템 축소(`.onScrollDown` — 탭 넷이 하나로 접힌다)와
+            // 「이름 글자만 숨기기」를 차례로 시도했다가 둘 다 되돌렸다.
+            .tabBarMinimizeBehavior(.never)
+            .task(id: myPagePhotoUrl) { await loadMyPageTabIcon() }
             // iPad: 탭바에서 뗀 '추가' 를 우측 하단에 둔다.
             //
             // 하위 화면이 하단 바를 띄우면(굿즈 목록의 장바구니 바) 감춘다 — 같은 우측 하단이라
@@ -453,10 +478,11 @@ struct ContentView: View {
                     .tabItem { Label("게임 정보", systemImage: "gamecontroller.fill") }
                     .tag(2)
                 myPageTabContent
-                    .tabItem { Label("마이페이지", systemImage: "person.fill") }
+                    .tabItem { myPageTabLabel }
                     .tag(3)
             }
             .tint(accent)
+            .task(id: myPagePhotoUrl) { await loadMyPageTabIcon() }
             .overlay(alignment: .bottomTrailing) {
                 // 선택 모드에서는 감춘다 — 선택 하단바('N건 선택 · 삭제 · 일괄 편집')와 자리가 겹쳐
                 // '일괄 편집'이 '+' 에 가려 눌리지 않았다. 같은 이유로 '맨 위로'도 이미 숨긴다.

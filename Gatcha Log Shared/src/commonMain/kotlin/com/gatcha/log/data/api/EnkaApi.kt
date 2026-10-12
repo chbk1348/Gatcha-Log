@@ -268,7 +268,8 @@ object EnkaApi {
                 ),
                 null,
                 // 연동된 계정인데 HoYoLAB 보유 목록이 못 왔다 — 쇼케이스 8~12명뿐이다.
-                partial = linked && hoyoData == null,
+                // 이름 메타를 못 받아 「#1234」 로 선 캐릭터가 있어도 덜 받은 것이다 — 5분을 채우지 않고 곧 다시 받는다.
+                partial = (linked && hoyoData == null) || chars.any { it.name.startsWith("#") },
             )
         }.getOrElse { EnkaResult(null, "응답을 해석하지 못했어요") }
     }

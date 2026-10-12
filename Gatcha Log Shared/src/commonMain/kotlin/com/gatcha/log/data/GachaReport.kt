@@ -342,10 +342,12 @@ object GachaReport {
 
     fun fromJsonArray(jsonStr: String?): List<GachaRecord> {
         if (jsonStr.isNullOrBlank()) return emptyList()
+        // **깨진 원소만 건너뛴다**(27.52.0). 예전엔 원소 하나가 객체가 아니면 예외가 올라와 전체가 빈 목록이 됐다 —
+        // 그 상태로 새 기록을 가져와 저장하면 옛 기록이 통째로 사라질 수 있었다. 배열 자체가 깨졌을 때만 빈 목록이다.
         return runCatching {
             val arr = JSONArray(jsonStr)
-            (0 until arr.length()).map { i ->
-                val o = arr.getJSONObject(i)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 val game = o.optString("game")
                 val gachaType = o.optString("gachaType")
                 GachaRecord(

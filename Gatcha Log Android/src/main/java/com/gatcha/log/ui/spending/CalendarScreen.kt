@@ -70,6 +70,13 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         buildEntries(spendings, banners, year, month, todayKey)
     }
     val monthTotal = remember(entries) { entries.filterIsInstance<ActiveDay>().sumOf { it.spendTotal } }
+    // 총 지출 줄의 이름은 **보고 있는 달**을 따른다(27.52.0) — 예전엔 어느 달로 넘겨도 「이번 달 총 지출」이었다.
+    // 이번 달이면 그대로, 같은 해의 다른 달은 「N월」, 해가 다르면 「YYYY년 N월」.
+    val totalLabel = when {
+        year == viewModel.displayYear && month == viewModel.displayMonth -> "이번 달 총 지출"
+        year == viewModel.displayYear -> "${month}월 총 지출"
+        else -> "${year}년 ${month}월 총 지출"
+    }
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val listState = rememberLazyListState()
@@ -100,7 +107,7 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
                 // 월 요약(총 지출) — 줄 제목 15 + 값 15 Bold
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("이번 달 총 지출", fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Text(totalLabel, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
                     Text(won(monthTotal), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
                 }
             }

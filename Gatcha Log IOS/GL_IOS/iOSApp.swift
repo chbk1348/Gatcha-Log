@@ -130,14 +130,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotifi
         }
         let id = response.notification.request.identifier
             .replacingOccurrences(of: "gatcha_alert_", with: "")
-        if let nid = Int(id) {
-            let tab: Int
-            switch nid {
-            case 2001, 3300...3399: tab = 1       // 예산 → 지출
-            case 2002, 2003, 2100...2199: tab = 2 // 출석·자동출석·재화 → 게임 정보
-            default: tab = 0
-            }
-            NotificationCenter.default.post(name: .glgOpenTab, object: tab)
+        // 링크 없이 온 알림(27.51 까지 만들어진 것) — 번호로 갈 곳을 고른다. 표는 공용 한 벌이다(NotificationRoutes, 27.52.0).
+        // 예전엔 Swift 에 번호를 다시 적어 두어 Android 와 가는 곳이 달랐다.
+        if let nid = Int32(id) {
+            let link = NotificationRoutes.shared.defaultLink(id: nid)
+            if !link.isEmpty { NotificationCenter.default.post(name: .glgDeepLink, object: link) }
         }
         completionHandler()
     }

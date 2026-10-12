@@ -41,6 +41,7 @@ actual object Notifier {
      * 보이던 이유다([AlertScheduler] 예약 경로와 같은 결함).
      */
     actual suspend fun notify(id: Int, title: String, text: String, link: String): Boolean {
+        @Suppress("NAME_SHADOWING") val link = link.ifBlank { NotificationRoutes.defaultLink(id) }   // 갈 곳은 공용 표가 정한다
         if (NotifyHold.defer(id, title, text, link)) return true   // 첫 화면(온보딩 · 로딩) 동안은 홈이 뜰 때까지 붙잡는다
         val center = UNUserNotificationCenter.currentNotificationCenter()
         if (!awaitEnabled(center)) return false

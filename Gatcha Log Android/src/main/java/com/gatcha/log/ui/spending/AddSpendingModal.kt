@@ -103,7 +103,8 @@ fun AddSpendingModal(
     spendingToEdit: Spending? = null,
     /** 스마트 기본값·'자주 사는 것'의 근거. 비어 있으면 추론하지 않는다. */
     recentSpendings: List<Spending> = emptyList(),
-    nudgeMessage: (game: Game, amount: Long) -> String? = { _, _ -> null },
+    // 날짜도 넘긴다(27.52.0) — 지난달 날짜로 추가할 때는 이번 달 예산 경고를 내지 않는다.
+    nudgeMessage: (game: Game, amount: Long, dateMillis: Long) -> String? = { _, _, _ -> null },
     /** 내 게임(계정 데이터 — 비어 있으면 전부). 게임 목록에서 위로 올린다. */
     myGames: Set<String> = emptySet(),
     onDismiss: () -> Unit,
@@ -184,9 +185,9 @@ fun AddSpendingModal(
     // 히어로에 바로 뜨는 과소비 경고 — 저장을 누른 뒤가 아니라 금액이 정해지는 순간에 알린다.
     // 입력 도중 매 글자마다 뜨면 방해가 되므로 손이 멈춘 뒤에만 평가한다.
     var inlineNudge by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(amount, game) {
+    LaunchedEffect(amount, game, dateMillis) {
         kotlinx.coroutines.delay(450)
-        inlineNudge = nudgeMessage(game, amount.toLongOrNull() ?: 0L)
+        inlineNudge = nudgeMessage(game, amount.toLongOrNull() ?: 0L, dateMillis)
     }
 
     // 같은 게임에서 2회 이상 산 것만, 많이 산 순. 수정 진입에는 쓰지 않는다.
@@ -253,7 +254,7 @@ fun AddSpendingModal(
     // 저장 시도 — 넛지 메시지가 있으면 확인 다이얼로그를 띄우고, 없으면 즉시 저장.
     fun attemptSave() {
         val parsed = amount.toLongOrNull() ?: 0L
-        val msg = nudgeMessage(game, parsed)
+        val msg = nudgeMessage(game, parsed, dateMillis)
         if (msg != null) nudgeMsg = msg else save(buildSpending())
     }
 

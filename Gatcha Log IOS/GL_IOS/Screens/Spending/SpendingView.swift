@@ -50,6 +50,8 @@ struct SpendingView: View {
     @State private var paymentFilter: String? = nil
     @State private var sortOrder: SortOrder = .dateDesc
     @State private var showFilter = false
+    /// 열려 있는 퀵필터 드롭다운("period" · "game" · "sort"). nil 이면 닫힘.
+    @State private var openQuickMenu: String? = nil
     @State private var selectedIds: Set<String> = []
     @State private var showBulkEdit = false
     /// 일괄 삭제 확인 — 예전엔 누르는 즉시 지워졌다(단건 삭제는 묻는데 여기만 빠져 있었다).
@@ -138,6 +140,8 @@ struct SpendingView: View {
         .scrollIndicators(.hidden)
         // 퀵필터 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다(9/30) — 자르지 않는다.
         .scrollClipDisabled()
+        // 퀵필터 드롭다운은 목록 위 층에 그린다 — 줄에 가리거나 잘리지 않고, 바깥을 누르면 닫힌다.
+        .gldsDropdownHost(open: $openQuickMenu) { quickMenuItems($0) }
         .refreshable {
             store.refreshSpending()
             // 동기화가 끝날 때까지 스피너를 붙잡는다 — 바로 돌아오면 끝나기도 전에 스피너가 걷혔다.
@@ -429,40 +433,13 @@ struct SpendingView: View {
             // 스크롤뷰에 넣지 않는다(9/30) — iOS 26 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다.
             // GLDS 칩 3개라 한 줄에 들어간다.
                 HStack(spacing: 6) {
-                    // 기간 — 단일 선택.
-                    quickMenu(label: period == .all ? "기간" : period.rawValue, active: period != .all) {
-                        ForEach(PeriodFilter.allCases, id: \.self) { p in
-                            Button { period = p } label: {
-                                if period == p { Label(p.rawValue, systemImage: "checkmark") } else { Text(p.rawValue) }
-                            }
-                        }
-                    }
+                    // 기간 — 단일 선택. 항목은 [quickMenuItems] 가 그린다.
+                    quickMenu("period", label: period == .all ? "기간" : period.rawValue, active: period != .all)
                     // 날짜 두 칸은 이 줄에 두지 않는다 — '기간 지정'일 때만 아랫줄로 펼친다.
-                    // 게임 — 다중 선택. iOS 메뉴는 고르면 닫히므로 여러 개는 다시 열어 켠다(시스템 동작).
-                    quickMenu(label: gameMenuLabel, active: !gameFilters.isEmpty) {
-                        Button { gameFilters = [] } label: {
-                            if gameFilters.isEmpty { Label("전체", systemImage: "checkmark") } else { Text("전체") }
-                        }
-                        ForEach(GLGGames.keys, id: \.self) { key in
-                            if let g = GameData.shared.byNameOrNull(name: key) {
-                                Button {
-                                    if gameFilters.contains(g.displayName) { gameFilters.remove(g.displayName) }
-                                    else { gameFilters.insert(g.displayName) }
-                                } label: {
-                                    if gameFilters.contains(g.displayName) { Label(g.shortName, systemImage: "checkmark") }
-                                    else { Text(g.shortName) }
-                                }
-                            }
-                        }
-                    }
+                    // 게임 — 다중 선택이라 고를 때마다 닫지 않는다(Android 와 같다).
+                    quickMenu("game", label: gameMenuLabel, active: !gameFilters.isEmpty)
                     // 정렬 — 거르는 게 아니라 늘어놓는 방식이지만, 기간만큼 자주 바꾼다.
-                    quickMenu(label: sortOrder == .dateDesc ? "정렬" : sortOrder.rawValue, active: sortOrder != .dateDesc) {
-                        ForEach(SortOrder.allCases, id: \.self) { s in
-                            Button { sortOrder = s } label: {
-                                if sortOrder == s { Label(s.rawValue, systemImage: "checkmark") } else { Text(s.rawValue) }
-                            }
-                        }
-                    }
+                    quickMenu("sort", label: sortOrder == .dateDesc ? "정렬" : sortOrder.rawValue, active: sortOrder != .dateDesc)
                 }
                 .padding(.vertical, 4)
                 // 라벨이 바뀌며 칩 폭이 변할 때 줄 전체가 미끄러지지 않게 — 레이아웃 애니메이션을 끊는다.
@@ -540,27 +517,42 @@ struct SpendingView: View {
     }()
     private func dateChipLabel(_ d: Date) -> String { Self.dateChipFormatter.string(from: d) }
 
-    /// 퀵필터 알약 하나 + 시스템 드롭다운 메뉴.
+    /// 퀵필터 알약 하나 — 누르면 GLDS 드롭다운이 그 아래에 열린다([quickMenuItems]).
     ///
-    /// ⚠️ **걸린 필터를 `.glassProminent`(강조색 채움)로 그리지 말 것.** 2026-08-03 실기기 확인:
-    /// iOS 26+ 는 메뉴를 소스 버튼에서 뽑아내듯 모프시키고 닫을 때 역재생하는데, 소스가 강조색으로
-    /// 꽉 찬 캡슐이면 **닫히는 내내 색 덩어리가 스쳐 보인다**. 시스템 애니메이션이라 우리 트랜잭션
-    /// (`.transaction { $0.animation = nil }`)으로는 못 막는다 — 실제로 시도했고 효과 없었다.
-    /// 채움을 빼자 즉시 사라졌다.
-    ///
-    /// 그래서 걸림은 **채움이 아니라** 강조색 테두리 · 글자로 알린다(GLDS 칩, 9/30) — 모프가 통째로
-    /// 스냅샷을 떠도 번질 색 면적이 없다.
-    private func quickMenu<C: View>(label: String, active: Bool, @ViewBuilder content: () -> C) -> some View {
-        Menu {
-            content()
-        } label: {
-            // GLDS 칩(9/30) — 걸림은 채움이 아니라 강조색 테두리 · 글자(모프 때 번지지 않게, 위 설명).
-            GldsChipLabel(label: label, selected: active, dropdown: true)
-                .fixedSize()
+    /// 예전엔 시스템 `Menu` 였다. 항목 글자가 시스템 크기(17)라 앱의 다른 글자보다 크게 떴고 바꿀 방법이 없어,
+    /// Android 와 같은 드롭다운(항목 14)을 직접 그린다(10/12 「지출 필터 폰트크기가 너무 큼」).
+    private func quickMenu(_ id: String, label: String, active: Bool) -> some View {
+        GldsChip(label: label, selected: active, dropdown: true) {
+            openQuickMenu = openQuickMenu == id ? nil : id
         }
-        .buttonStyle(.plain)
-        // 라벨이 길어져도 Menu 가 옛 크기로 잘랐다(iOS 26) — 라벨이 바뀌면 새로 만들어 크기를 다시 잰다.
-        .id("\(label)|\(active)")
+        .fixedSize()
+        .gldsMenuAnchor(id)
+    }
+
+    /// 열린 퀵필터 드롭다운의 항목 — Android `QuickFilterBar` 와 같은 목록 · 같은 닫힘 규칙
+    /// (단일 선택 축은 고르면 닫고, 게임은 여러 개를 연달아 켜도록 열어 둔다).
+    @ViewBuilder
+    private func quickMenuItems(_ id: String) -> some View {
+        switch id {
+        case "period":
+            ForEach(PeriodFilter.allCases, id: \.self) { p in
+                GldsDropdownItem(text: p.rawValue, selected: period == p) { period = p; openQuickMenu = nil }
+            }
+        case "game":
+            GldsDropdownItem(text: "전체", selected: gameFilters.isEmpty) { gameFilters = []; openQuickMenu = nil }
+            ForEach(GLGGames.keys, id: \.self) { key in
+                if let g = GameData.shared.byNameOrNull(name: key) {
+                    GldsDropdownItem(text: g.shortName, selected: gameFilters.contains(g.displayName)) {
+                        if gameFilters.contains(g.displayName) { gameFilters.remove(g.displayName) }
+                        else { gameFilters.insert(g.displayName) }
+                    }
+                }
+            }
+        default:
+            ForEach(SortOrder.allCases, id: \.self) { s in
+                GldsDropdownItem(text: s.rawValue, selected: sortOrder == s) { sortOrder = s; openQuickMenu = nil }
+            }
+        }
     }
 
     /// 접힌 상태에서도 몇 개가 걸렸는지 보이게 — 0개=축 이름, 1개=게임 약칭, 그 이상=개수.

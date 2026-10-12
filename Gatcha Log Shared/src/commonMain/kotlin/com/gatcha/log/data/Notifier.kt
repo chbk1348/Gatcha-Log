@@ -44,6 +44,33 @@ expect object Notifier {
 }
 
 /**
+ * 알림을 눌렀을 때 **어디로 가는가** — 두 플랫폼이 같은 표를 쓴다(27.52.0).
+ *
+ * 예전엔 iOS 만 알림 번호로 탭을 골랐다(Swift 에 번호를 다시 적어서). 그래서 예산 알림은 iOS 만 지출 탭으로 갔고,
+ * iOS 의 픽업 · 전투 알림은 게임 정보가 아니라 홈으로 갔다. 이제 알림에 링크가 없으면 여기서 기본 링크를 붙이고,
+ * 처리는 [SpendingViewModel.handleNotificationLink] 한 곳이 한다.
+ */
+object NotificationRoutes {
+    const val TAB_SPENDING = "tab:1"
+    const val TAB_GAME_INFO = "tab:2"
+    const val GAME_NOTES = "gameinfo:notes"
+    const val GAME_SCHEDULE = "gameinfo:schedule"
+    const val GAME_COMBAT = "gameinfo:combat"
+
+    /** 알림 번호([Notifier] 의 ID 대역) → 기본 링크. 갈 곳이 따로 없으면 빈 문자열(앱만 연다). */
+    fun defaultLink(id: Int): String = when (id) {
+        Notifier.ID_BUDGET -> TAB_SPENDING
+        Notifier.ID_ATTEND, Notifier.ID_AUTO_CHECKIN -> TAB_GAME_INFO
+        Notifier.ID_APP_UPDATE -> "update"
+        in Notifier.ID_RESIN_BASE until Notifier.ID_RESIN_BASE + 100 -> GAME_NOTES
+        in Notifier.ID_BUDGET_GAME_BASE until Notifier.ID_BUDGET_GAME_BASE + 100 -> TAB_SPENDING
+        in Notifier.ID_PICKUP_BASE until Notifier.ID_PICKUP_BASE + 100 -> GAME_SCHEDULE
+        in Notifier.ID_COMBAT_BASE until Notifier.ID_COMBAT_BASE + 100 -> GAME_COMBAT
+        else -> ""
+    }
+}
+
+/**
  * 온보딩 · 로그인 · 데이터 불러오기 화면이 떠 있는 동안 알림을 붙잡아 두는 곳 — 홈이 뜨면 한꺼번에 보낸다.
  * 앱을 켜는 순간 자동 출석 · 알림 점검이 돌아 첫 화면을 다 보기도 전에 배너가 떴다(9/29).
  * 화면이 [release]/[hold] 로만 바꾸고, 기본은 붙잡지 않는다(백그라운드 실행은 화면이 없다).

@@ -53,6 +53,8 @@ actual object AlertScheduler {
     const val EXTRA_TEXT = "gl_alert_text"
     const val EXTRA_LINK = "gl_alert_link"
     const val EXTRA_NOTIF_ID = "gl_alert_notif_id"
+    /** 예약 키 — 수신부가 출석 리마인더([ScheduledAlerts.ATTEND_KEY])를 알아보는 데 쓴다. */
+    const val EXTRA_KEY = "gl_alert_key"
 
     /** 데일리 요약 예약 표식 — 수신부가 고정 문구 대신 그날 수치를 계산해 보낸다. */
 
@@ -164,6 +166,7 @@ actual object AlertScheduler {
                     putExtra(EXTRA_TITLE, a.title)
                     putExtra(EXTRA_TEXT, a.text)
                     putExtra(EXTRA_LINK, a.link)
+                    putExtra(EXTRA_KEY, a.key)
                     putExtra(EXTRA_NOTIF_ID, notificationId(a.key))
                 },
                 // extra 는 PendingIntent 동등성에 안 들어가므로 UPDATE_CURRENT 로 내용만 갈아끼운다.

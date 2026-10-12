@@ -67,7 +67,8 @@ object GiftCodeApi {
         val res = Net.get("https://hoyo-codes.seria.moe/codes?game=$g")
         if (!res.isOk) return null
         return runCatching {
-            val arr = JSONObject(res.body).optJSONArray("codes") ?: return emptyList()
+            // `codes` 칸이 없으면 「코드 없음」이 아니라 실패다 — 상류가 형식을 바꾸거나 오류 본문을 200 으로 줄 때다.
+            val arr = JSONObject(res.body).optJSONArray("codes") ?: return null
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 val code = o.optString("code").trim().uppercase()

@@ -18,7 +18,6 @@ struct HoyolabLinkView: View {
     @State private var zzz = ""
     @State private var showLogin = false
     @State private var showEmailGuide = false
-    @State private var collectedMsg: String? = nil
     @State private var didInit = false
 
     var body: some View {
@@ -47,14 +46,6 @@ struct HoyolabLinkView: View {
                                         in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                             .contentShape(Rectangle())
                         }.buttonStyle(.plain).padding(.top, 12)
-
-                        if let msg = collectedMsg {
-                            Text(msg).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(Color(hex: 0xFF177881))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 14).padding(.vertical, 11)
-                                .background(Color(hex: 0xFFEEF8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .padding(.top, 8)
-                        }
                     }
                     GiBand()
                     GiPageSection {
@@ -129,27 +120,17 @@ struct HoyolabLinkView: View {
                 if !c.isEmpty { cookieToken = c }
                 webCookie = raw
                 showLogin = false
-                collectedMsg = "토큰을 가져왔어요. 게임 UID 확인 중…"
-                Task { await fetchUids(u, t, hasCookie: !c.isEmpty) }
+                // 가져온 즉시 저장한다(27.52.0) — 「저장」 버튼과 같은 길. 예전엔 칸에 채우고 「자동 입력 완료」만
+                // 알려서, 저장을 누르지 않고 나가면 방금 로그인해 받은 토큰이 그대로 버려졌다.
+                // 게임 UID 조회와 결과 안내는 저장을 받은 VM(updateHoyolabConfig)이 한다 — 여기서 따로 조회하거나
+                // 알리면 같은 일을 두 번 한다. 저장에 실패하면 화면이 남고, 칸의 값(방금 채운 토큰)도 그대로다.
+                save()
             }
             .ignoresSafeArea(edges: .bottom)
             .navigationTitle("HoYoLAB 로그인")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { GLGSheetCloseButton { showLogin = false } } }
         }
-    }
-
-    private func fetchUids(_ u: String, _ t: String, hasCookie: Bool) async {
-        let ck = hasCookie ? " · cookie_token 포함" : " · cookie_token 없음(교환은 수동)"
-        // nil = 네트워크 실패 — 계정에 UID 가 없는 것과 구분해 안내한다.
-        guard let uids = try? await HoyolabApi.shared.fetchGameUids(ltuid: u, ltoken: t) else {
-            collectedMsg = "토큰 가져옴 (네트워크 오류로 UID 조회 못 함 — 수동 입력)\(ck)"
-            return
-        }
-        if let g = uids["genshin"] { gi = g }
-        if let h = uids["hsr"] { hsr = h }
-        if let z = uids["zzz"] { zzz = z }
-        collectedMsg = uids.isEmpty ? "토큰 가져옴 (UID 자동조회 실패 — 수동 입력)\(ck)" : "토큰 + UID \(uids.count)개 자동 입력 완료\(ck)"
     }
 
     private func save() {

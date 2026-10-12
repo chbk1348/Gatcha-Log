@@ -44,7 +44,7 @@ actual object AlertScheduler {
     }
 
     actual suspend fun refreshAttendanceReminder(settings: AppSettings, repo: GatchaRepository) {
-        AttendanceReminder.reschedule(settings, repo, repo.loadHoyolab())
+        AttendanceReminder.removeLegacy()
     }
 
     /** 우리가 건 대기 예약만 — 조회는 콜백형이라 결과를 받을 때까지 중단한다. */

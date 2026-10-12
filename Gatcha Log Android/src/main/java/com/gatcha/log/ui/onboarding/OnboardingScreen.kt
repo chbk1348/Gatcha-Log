@@ -102,6 +102,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.data.api.HoyolabApi
+import com.gatcha.log.ui.game.HoyolabEmailLoginGuide
 import com.gatcha.log.ui.game.HoyolabLoginDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -726,6 +727,8 @@ private fun HoyolabStep(
 ) {
     val compact = viewport < 750.dp   // 낮은 화면: 히어로 얇게 · 타일 3열 · 설명 생략
     var showLogin by remember { mutableStateOf(false) }
+    // 로그인 창보다 먼저 띄우는 「이메일 로그인 필수」 안내(27.52.0) — 설정 ▸ HoYoLAB 연동 · iOS 온보딩과 같은 순서.
+    var showEmailGuide by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val linked = hoyo.isLinked
@@ -801,12 +804,19 @@ private fun HoyolabStep(
             GldsButton("다음", onNext, Modifier.cta(true), size = GldsSize.L)
             GldsButton("연결 해제", { onUidsChecked(false); viewModel.updateHoyolabConfig(HoyolabConfig()) }, Modifier.cta(false), variant = GldsVariant.Neutral)
         } else {
-            GldsButton(if (working) "UID 확인 중…" else "HoYoLAB 로그인", { showLogin = true }, Modifier.cta(true), variant = GldsVariant.Inverse, size = GldsSize.L, enabled = !working)
+            GldsButton(if (working) "UID 확인 중…" else "HoYoLAB 로그인", { showEmailGuide = true }, Modifier.cta(true), variant = GldsVariant.Inverse, size = GldsSize.L, enabled = !working)
             GldsButton("나중에 연결할게요", onNext, Modifier.cta(false), variant = GldsVariant.Neutral)
         }
         Spacer(Modifier.height(16.dp))
     }
 
+    // 설정 ▸ HoYoLAB 연동과 같은 안내 — 「이메일로 로그인」을 눌러야 로그인 창이 열린다.
+    if (showEmailGuide) {
+        HoyolabEmailLoginGuide(
+            onDismiss = { showEmailGuide = false },
+            onConfirm = { showEmailGuide = false; showLogin = true },
+        )
+    }
     if (showLogin) {
         // 설정 ▸ HoYoLAB 연동과 같은 로그인 창 · 같은 저장 경로([updateHoyolabConfig]).
         HoyolabLoginDialog(

@@ -284,8 +284,23 @@ class AppSettings {
         set(v) { prefs.putString(KEY_PING_LOG, v) }
 
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
-    fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
-    fun setLastNotified(tag: String, value: String) { prefs.putString("notif_last_$tag", value) }
+    /**
+     * 알림 중복 방지 표시. **계정에 딸린 것은 계정별로 따로 적는다**(27.52.0) — 예산 · 출석 · 재화 · 픽업 · 전투.
+     * 예전엔 전부 기기 단위라, 한 기기에서 두 계정을 쓰면 A 가 받은 예산 초과 알림 때문에 B 는 그 달 알림을 못 받았다.
+     * 새 소식 · 앱 업데이트는 계정과 무관하므로 기기 단위 그대로다([isDeviceTag]).
+     *
+     * 계정별 값이 아직 없으면 예전(기기 단위) 값을 이어 읽는다 — 업데이트 직후 이미 받은 알림이 한꺼번에 다시 오지 않게.
+     */
+    fun lastNotified(tag: String): String =
+        if (isDeviceTag(tag)) prefs.getString("notif_last_$tag", "") ?: ""
+        else prefs.getString(accountNotifKey(tag), null) ?: prefs.getString("notif_last_$tag", "") ?: ""
+
+    fun setLastNotified(tag: String, value: String) {
+        prefs.putString(if (isDeviceTag(tag)) "notif_last_$tag" else accountNotifKey(tag), value)
+    }
+
+    private fun isDeviceTag(tag: String): Boolean = tag.startsWith("news:") || tag == "app_update"
+    private fun accountNotifKey(tag: String): String = "notif_last@${currentAccountId()}@$tag"
 
     companion object {
         private const val PREFS = "gatcha_settings"

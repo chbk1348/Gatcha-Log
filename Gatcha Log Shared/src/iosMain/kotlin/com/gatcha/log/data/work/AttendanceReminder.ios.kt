@@ -1,112 +1,28 @@
 package com.gatcha.log.data.work
 
 import com.gatcha.log.data.AppSettings
-import com.gatcha.log.data.DateUtil
-import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
-import com.gatcha.log.data.HoyolabConfig
-import com.gatcha.log.util.currentTimeMillis
-import kotlin.coroutines.resume
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.datetime.DateTimeUnit
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.number
-import kotlinx.datetime.plus
-import kotlinx.datetime.toInstant
-import kotlinx.datetime.toLocalDateTime
-import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
-import platform.Foundation.NSDateComponents
-import platform.UserNotifications.UNCalendarNotificationTrigger
-import platform.UserNotifications.UNMutableNotificationContent
-import platform.UserNotifications.UNNotificationRequest
 import platform.UserNotifications.UNUserNotificationCenter
 
 /**
- * iOS 출석 리마인더 — 예약형(UNCalendarNotificationTrigger).
+ * iOS 출석 리마인더 — **27.52.0 부터 공용 예약 계획의 한 건이다**([ScheduledAlerts.plan] ⑦).
  *
- * BGTaskScheduler 는 OS 재량이라 "매일 저녁 정시"를 보장하지 못한다.
- * 따라서 출석 리마인더는 OS 가 정시 발송을 보장하는 캘린더 트리거로 예약하고,
- * BGTask 점검([NotificationChecker])과의 중복은 dedup 키("attend")로 막는다.
- *
- * 동작: 다음 베이징 18:00(로컬 시각 환산) 1회 예약(repeats=false).
- *  - 오늘 아직 미출석 & 베이징 18시 전 → 오늘 18:00
- *  - 이미 전부 출석했거나 18시 지남 → 내일 18:00
- *  예약한 날짜는 [NotificationChecker.ATTEND_SCHEDULED_TAG] 에 적어 BGTask 즉시 알림과 겹치지 않게 한다.
- *  예전엔 즉시 알림과 **같은 키("attend")** 를 썼다. 그러면 18시 뒤에는 예약이 내일 날짜로, 점검이 오늘 날짜로
- *  번갈아 덮어써서 점검이 돌 때마다 리마인더가 다시 울렸다 — 키를 갈랐다(27.52.0).
- *  재예약은 [ScheduledAlerts.reschedule] 이 돌 때마다 함께 돈다(앱 시작 · 출석 · 토글 · 연동 · 계정 변경 · BGTask).
+ * 27.51 까지는 여기서 따로 캘린더 트리거를 걸었다(다음 베이징 18:00 한 건). Android 에는 예약형이 없어 두 플랫폼이
+ * 다르게 움직였고, 중복 방지 표시를 주기 점검과 같은 키로 써서 번갈아 덮어쓰는 문제도 있었다.
+ * 지금 남은 일은 **옛 예약을 걷는 것**뿐이다 — 업데이트 전에 걸린 것이 남아 있으면 새 예약과 두 번 울린다.
  */
-@OptIn(ExperimentalForeignApi::class, ExperimentalTime::class)
+@OptIn(ExperimentalForeignApi::class)
 object AttendanceReminder {
-    private const val ID = "gatcha_attend_reminder"
-    private val beijingTz = TimeZone.of("UTC+8")
+    private const val LEGACY_ID = "gatcha_attend_reminder"
 
-    suspend fun reschedule(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
-        val center = UNUserNotificationCenter.currentNotificationCenter()
-        center.removePendingNotificationRequestsWithIdentifiers(listOf(ID))
-
-        val nowInstant = Instant.fromEpochMilliseconds(currentTimeMillis())
-        val nowBeijing = nowInstant.toLocalDateTime(beijingTz)
-        val today = "${nowBeijing.year}-${pad2(nowBeijing.month.number)}-${pad2(nowBeijing.day)}"
-        // 오늘 몫으로 걸어 둔 예약이 있었고 18시가 지났다 = 이미 울렸다. 점검이 같은 날 또 보내지 않게 넘겨 적는다.
-        if (settings.lastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG) == today && nowBeijing.hour >= 18) {
-            settings.setLastNotified("attend", today)
-        }
-        if (!settings.notifyAttendance || !cfg.isLinked) {
-            settings.setLastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG, "")
-            return
-        }
-
-        val done = repo.loadAttendance()[today] ?: emptySet()
-        // 출석을 세는 게임만 본다 — 세 게임 전부를 기준으로 하면 원신 · 스타레일만 하는 계정은 둘 다 출석해도 매일 울린다.
-        val allDoneToday = GameData.trackedAttendanceGames(cfg, repo.loadMyGames()).all { it.key in done }
-
-        // 오늘 미완료 & 18시 전이면 오늘, 아니면 내일.
-        val dayOffset = if (!allDoneToday && nowBeijing.hour < 18) 0 else 1
-        val targetBeijingDate = nowBeijing.date.plus(dayOffset, DateTimeUnit.DAY)
-        val targetKey = "${targetBeijingDate.year}-${pad2(targetBeijingDate.month.number)}-${pad2(targetBeijingDate.day)}"
-
-        // 베이징 18:00 → 로컬 시각으로 환산(디바이스 타임존 기준 정확한 발송).
-        val targetInstant = LocalDateTime(
-            targetBeijingDate.year, targetBeijingDate.month, targetBeijingDate.day, 18, 0,
-        ).toInstant(beijingTz)
-        val localDt = targetInstant.toLocalDateTime(DateUtil.timeZone)   // 캐시된 타임존
-
-        val comps = NSDateComponents().apply {
-            year = localDt.year.toLong()
-            month = localDt.month.number.toLong()
-            day = localDt.day.toLong()
-            hour = localDt.hour.toLong()
-            minute = localDt.minute.toLong()
-        }
-        val trigger = UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(comps, repeats = false)
-
-        val content = UNMutableNotificationContent().apply {
-            setTitle("오늘 출석 아직이에요")
-            setBody("탭하면 바로 출석할 수 있어요. 1분이면 끝나요")
-        }
-        val request = UNNotificationRequest.requestWithIdentifier(ID, content, trigger)
-        // 등록이 끝날 때까지 기다린다 — 예전엔 null 핸들러로 걸어두고 즉시 반환했다.
-        // BGTask 는 완료 보고 직후 앱을 서스펜드하므로, 기다리지 않으면 등록 전에 프로세스가 멈춰
-        // 리마인더가 통째로 유실될 수 있다([AlertScheduler.replaceAll] 과 같은 이유).
-        suspendCancellableCoroutine { cont ->
-            center.addNotificationRequest(request) { error ->
-                if (error != null) println("[GLG][sched] attend add failed: ${error.localizedDescription}")
-                cont.resume(Unit)
-            }
-        }
-
-        // 예약한 날짜는 BGTask 즉시 알림과 겹치지 않도록 따로 적어 둔다(즉시 알림의 "attend" 는 건드리지 않는다).
-        settings.setLastNotified(NotificationChecker.ATTEND_SCHEDULED_TAG, targetKey)
+    fun removeLegacy() {
+        UNUserNotificationCenter.currentNotificationCenter()
+            .removePendingNotificationRequestsWithIdentifiers(listOf(LEGACY_ID))
     }
-
-    private fun pad2(n: Int): String = if (n < 10) "0$n" else "$n"
 }
 
 /**

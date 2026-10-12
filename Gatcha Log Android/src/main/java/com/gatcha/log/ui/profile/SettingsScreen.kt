@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -73,6 +76,7 @@ import com.gatcha.log.ui.components.GldsVariant
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gatcha.log.ui.game.GachaClearConfirm
 import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.NotificationCatalog
@@ -396,16 +400,33 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
 
     // 백업 파일 내보내기/가져오기 (SAF)
+    // 결과를 알린다(27.52.0) — 예전엔 쓰기 결과를 버려, 실패해도 말이 없고 0바이트 파일만 남았다.
     val exportBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        uri?.let { u -> scope.launch { viewModel.exportBackupContent()?.let { json -> SafIO.writeText(context, u, json) } } }
+        uri?.let { u ->
+            scope.launch {
+                val saved = viewModel.exportBackupContent()?.let { json -> SafIO.writeText(context, u, json) } ?: false
+                if (saved) {
+                    viewModel.showStatus("백업 파일을 저장했어요")
+                } else {
+                    // 문서는 고르는 순간 이미 만들어져 있다 — 빈 파일을 백업으로 믿지 않게 지운다.
+                    SafIO.delete(context, u)
+                    viewModel.showStatus("백업 파일을 저장하지 못했어요 — 다시 시도해 주세요")
+                }
+            }
+        }
     }
     val importBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { u -> scope.launch { SafIO.readText(context, u)?.let { viewModel.importBackupFromContent(it) } } }
+        uri?.let { u ->
+            scope.launch {
+                // 읽은 뒤의 안내(형식 오류 · 복원 완료)는 importBackupFromContent 가 낸다 — 여기서는 못 읽은 경우만.
+                val json = SafIO.readText(context, u)
+                if (json == null) viewModel.showStatus("파일을 읽지 못했어요") else viewModel.importBackupFromContent(json)
+            }
+        }
     }
 
     // 파괴작업은 2단계 확인: 1차(백업 권장 안내) → 2차(최종 확인)
     val showClearGacha = remember { mutableStateOf(false) }
-    val showClearGacha2 = remember { mutableStateOf(false) }
     val showClearSpend = remember { mutableStateOf(false) }
     val showClearSpend2 = remember { mutableStateOf(false) }
     val showImportBackup = remember { mutableStateOf(false) }
@@ -440,7 +461,10 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
         band()
         item {
             SetSection("내보내기", "CSV") {
-                SettingsNavRow(Icons.Default.Download, Tint.slate, "지출 내역 내보내기", "CSV") { shareCsvFile(context, viewModel.buildCsv()) }
+                SettingsNavRow(Icons.Default.Download, Tint.slate, "지출 내역 내보내기", "CSV") {
+                    // 공유 시트로 넘기는 길이라 「저장했어요」는 알 수 없다 — 파일을 못 만들었을 때만 알린다(27.52.0).
+                    if (!shareCsvFile(context, viewModel.buildCsv())) viewModel.showStatus("파일을 저장하지 못했어요 — 다시 시도해 주세요")
+                }
             }
         }
 
@@ -462,28 +486,12 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
     GlgDetailHeaderOverlay("데이터 관리", onBack, scrolled)
     }
 
-    // 가챠 기록 초기화 — 1단계(백업 권장 안내)
-    if (showClearGacha.value) {
-        GlgDialog(
-            title = "가챠 기록 초기화",
-            onDismiss = { showClearGacha.value = false },
-            confirmText = "계속",
-            onConfirm = { showClearGacha.value = false; showClearGacha2.value = true },
-        ) {
-            Text("가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.", fontSize = 13.sp, color = TextSecondary)
-        }
-    }
-    // 가챠 기록 초기화 — 2단계(최종 확인)
-    if (showClearGacha2.value) {
-        GlgDialog(
-            title = "정말 초기화할까요?",
-            onDismiss = { showClearGacha2.value = false },
-            confirmText = "초기화",
-            onConfirm = { viewModel.clearGachaRecords(); showClearGacha2.value = false },
-        ) {
-            Text("이 작업은 되돌릴 수 없어요. 가챠 기록을 모두 삭제합니다.", fontSize = 13.sp, color = TextSecondary)
-        }
-    }
+    // 가챠 기록 초기화 — 두 단계 창은 가챠 리포트의 「초기화」와 같은 것을 쓴다(27.52.0, 2차 창은 그쪽이 든다).
+    GachaClearConfirm(
+        show = showClearGacha.value,
+        onDismiss = { showClearGacha.value = false },
+        onClear = { viewModel.clearGachaRecords() },
+    )
     // 지출 전체 삭제 — 1단계(백업 권장 안내)
     if (showClearSpend.value) {
         GlgDialog(
@@ -1047,11 +1055,15 @@ internal fun NotifyCard(content: @Composable ColumnScope.() -> Unit) {
     )
 }
 
-/** 색 아이콘 칸 + 제목/설명 + 스위치. 줄 전체를 눌러도 토글된다. */
+/**
+ * 색 아이콘 칸 + 제목/설명 + 스위치. 줄 전체를 눌러도 토글된다.
+ * TalkBack 에는 **줄 하나**가 「제목 · 설명 · 스위치 · 켜짐/꺼짐」으로 읽힌다(27.52.0) — 역할 · 상태는 줄이 싣고,
+ * 안의 스위치는 따로 읽히지 않게 접근성 정보만 걷는다(눌림은 그대로).
+ */
 @Composable
 private fun NotifyRow(icon: ImageVector, fg: Color, bg: Color, title: String, desc: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable { onToggle(!checked) }.padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onToggle).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(bg), contentAlignment = Alignment.Center) {
@@ -1063,7 +1075,7 @@ private fun NotifyRow(icon: ImageVector, fg: Color, bg: Color, title: String, de
             Text(desc, fontSize = 12.sp, color = TextSecondary)
         }
         Spacer(Modifier.width(8.dp))
-        GlgSwitch(checked, onToggle)
+        GlgSwitch(checked, onToggle, Modifier.clearAndSetSemantics {})
     }
 }
 
@@ -1275,7 +1287,11 @@ private fun HourPickerDialog(title: String, current: Int, onDismiss: () -> Unit,
     }
 }
 
-private fun shareCsvFile(context: Context, csv: String) {
+/**
+ * 지출 내역 CSV 를 공유 시트로 넘긴다. 파일을 만들지 못했거나 시트를 열지 못하면 false(27.52.0) —
+ * 예전엔 쓰기 예외(저장 공간 부족 등)가 그대로 올라와 앱이 죽었다.
+ */
+private fun shareCsvFile(context: Context, csv: String): Boolean = runCatching {
     // 캐시 파일로 써서 URI 로 넘긴다 — EXTRA_TEXT 로 본문을 실으면 기록이 많을 때
     // TransactionTooLargeException 으로 앱이 죽었다. 같은 이름을 덮어써 캐시가 쌓이지 않는다.
     val file = java.io.File(context.cacheDir, "exports").apply { mkdirs() }.resolve("gatcha_log_spending.csv")
@@ -1288,7 +1304,8 @@ private fun shareCsvFile(context: Context, csv: String) {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(Intent.createChooser(intent, "지출 내역 내보내기"))
-}
+    true
+}.getOrDefault(false)
 
 /** Compose 의 LocalContext 는 ContextWrapper 로 감싸여 올 수 있어, 호스트 Activity 를 되짚어 찾는다. */
 private fun Context.findActivity(): Activity? {
