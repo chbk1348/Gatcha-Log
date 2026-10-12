@@ -85,6 +85,8 @@ import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.HomeLogic
+import com.gatcha.log.data.HomeScheduleRow
 import com.gatcha.log.data.NewsLogic
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.AnniversaryInfo
@@ -598,35 +600,30 @@ private fun PityTier.shortLabel(): String = when (this) {
 /** 이번 주 게임 일정 — 카드 없이 섹션 머리 + 목록. 목록 전체가 눌려 게임 정보 일정으로 간다(기능 그대로). */
 @Composable
 fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, onTap: () -> Unit) {
-    val now = System.currentTimeMillis()
-    val items = (events.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) } +
-        challenges.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) })
-        .filter { it.third.first > now }.sortedBy { it.third.first }.take(3)
+    val items = HomeLogic.weekSchedule(events, challenges)
     // 일정이 없어도 **섹션은 남긴다.** 빠지면 "이번 주가 한가하다"와 "아직 못 불러왔다"가
     // 화면에서 똑같아 보인다(로딩 스켈레톤도 같은 자리에 뜬다). 비었다는 것도 알려야 할 상태다.
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         HomeSectionHeader("이번 주 일정", actionTitle = "전체 ›", onAction = onTap)
-        Column(Modifier.fillMaxWidth().clickable { onTap() }) { ScheduleRows(items, now) }
+        Column(Modifier.fillMaxWidth().clickable { onTap() }) { ScheduleRows(items) }
     }
 }
 
-/** 마감 임박(D-0~3) D-day 색 — 게임 정보 일정(ScheduleLogic.urgent)과 같은 기준 · 같은 값. */
-
+/** 마감 임박(D-0~3)만 D-day 를 강조한다 — 게임 정보 일정과 같은 기준 · 같은 색([HomeLogic.weekSchedule]). */
 @Composable
-private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>, now: Long) {
+private fun ScheduleRows(items: List<HomeScheduleRow>) {
     if (items.isEmpty()) {
         Text("이번 주 마감 일정이 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
         return
     }
     items.forEachIndexed { i, row ->
         if (i > 0) HorizontalDivider(color = HomeHair)
-        val dDay = kotlin.math.ceil((row.third.first - now) / 86_400_000.0).toInt()
         Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            HomeGameTag(row.first)
+            HomeGameTag(row.game)
             Spacer(Modifier.width(12.dp))
-            Text(row.second, fontSize = 15.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(row.name, fontSize = 15.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(12.dp))
-            Text(row.third.second, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (dDay in 0..3) Urgent else TextPrimary)
+            Text(row.dDayLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (row.urgent) Urgent else TextPrimary)
         }
     }
 }

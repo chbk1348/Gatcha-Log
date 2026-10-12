@@ -24,7 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.AnnualMonthBar
+import com.gatcha.log.data.AnnualReportLogic
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
@@ -42,20 +43,15 @@ fun AnnualReportContent(viewModel: SpendingViewModel) {
     val accent = LocalAccent.current
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
 
-    val years = remember(spendings) {
-        (spendings.map { DateUtil.year(it.dateMillis) } + viewModel.displayYear).distinct().sortedDescending()
+    // 집계는 전부 공용 [AnnualReportLogic] — iOS 와 같은 함수다(27.52.0). 화면은 그리기만 한다.
+    // '오늘'은 그릴 때마다 읽어 키로 건다 — 달이 넘어가면 월 평균의 분모(지나온 달 수)가 바뀐다.
+    val displayYear = viewModel.displayYear
+    val displayMonth = viewModel.displayMonth
+    val years = remember(spendings, displayYear) { AnnualReportLogic.years(spendings, displayYear) }
+    var selectedYear by remember(years) { mutableStateOf(years.firstOrNull() ?: displayYear) }
+    val report = remember(spendings, selectedYear, displayYear, displayMonth) {
+        AnnualReportLogic.report(spendings, selectedYear, displayYear, displayMonth)
     }
-    var selectedYear by remember(years) { mutableStateOf(years.firstOrNull() ?: viewModel.displayYear) }
-    val yearItems = remember(spendings, selectedYear) { spendings.filter { DateUtil.isSameYear(it.dateMillis, selectedYear) } }
-    val total = remember(yearItems) { yearItems.sumOf { it.amount } }
-    val monthly = remember(yearItems) {
-        LongArray(12).also { arr -> yearItems.forEach { arr[DateUtil.month(it.dateMillis) - 1] += it.amount } }
-    }
-    val byGame = remember(yearItems) {
-        yearItems.groupBy { it.gameName }.map { it.key to it.value.sumOf { s -> s.amount } }.sortedByDescending { it.second }
-    }
-    val months = if (selectedYear == viewModel.displayYear) viewModel.displayMonth else monthly.count { it > 0 }.coerceAtLeast(1)
-    val avg = if (months > 0) total / months else 0L
 
     // 카드 없이 화면 폭 섹션 + 10 띠 — 월간 인사이트와 같은 규격([InsightSection]).
     if (years.size > 1) {
@@ -64,44 +60,44 @@ fun AnnualReportContent(viewModel: SpendingViewModel) {
             contentPadding = PaddingValues(horizontal = 20.dp),
             modifier = Modifier.padding(top = 18.dp),
         ) {
-            items(years) { y -> FilterPill("${y}년", y == selectedYear, accent) { selectedYear = y } }
+            items(years) { y -> FilterPill("${y}년", y == report.year, accent) { selectedYear = y } }
         }
     }
-    InsightSection("${selectedYear}년 요약") {
+    InsightSection("${report.year}년 요약") {
         InsightStatGrid(
-            listOf(won(total) to "총 지출", won(avg) to "월 평균", "${yearItems.size}회" to "총 기록"),
+            listOf(won(report.total) to "총 지출", won(report.monthlyAverage) to "월 평균", "${report.count}회" to "총 기록"),
             cols = 3,
         )
-        if (yearItems.isEmpty()) {
+        if (report.count == 0) {
             Text("이 해의 지출 기록이 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 12.dp))
         }
     }
-    if (yearItems.isEmpty()) return
+    if (report.count == 0) return
     InsightBand()
     InsightSection("월별 지출") {
-        MonthlyBars(monthly, viewModel.displayMonth.takeIf { selectedYear == viewModel.displayYear })
+        MonthlyBars(report.months, displayMonth.takeIf { report.year == displayYear })
     }
-    if (byGame.isNotEmpty()) {
+    if (report.byGame.isNotEmpty()) {
         InsightBand()
         InsightSection("게임별 지출") {
-            byGame.forEach { (game, amt) ->
-                val color = GameData.colorFor(game).toColor()
-                InsightShareRow(game, amt, if (total > 0) amt.toFloat() / total else 0f, color, dot = color)
+            report.byGame.forEach { share ->
+                val color = GameData.colorFor(share.game).toColor()
+                InsightShareRow(share.game, share.amount, share.ratio.toFloat(), color, dot = color)
             }
         }
     }
 }
 
+/** 월별 막대 12칸 — 높이 비율(최소 높이 포함)은 공용 [AnnualReportLogic] 이 정해 준다. */
 @Composable
-private fun MonthlyBars(monthly: LongArray, currentMonth: Int?) {
+private fun MonthlyBars(months: List<AnnualMonthBar>, currentMonth: Int?) {
     val accent = LocalAccent.current
-    val maxM = (monthly.maxOrNull() ?: 0L).coerceAtLeast(1L)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
-        for (m in 0 until 12) {
+        for (bar in months) {
+            val m = bar.month - 1
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.BottomCenter) {
-                    val frac = (monthly[m].toFloat() / maxM).coerceIn(0f, 1f)
-                    val h = if (monthly[m] > 0) frac.coerceAtLeast(0.05f) else 0f
+                    val h = bar.barRatio.toFloat()
                     val isCur = currentMonth != null && (m + 1) == currentMonth
                     if (h > 0f) {
                         Box(

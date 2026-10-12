@@ -280,7 +280,7 @@ object NanokaApi {
      * 전멸한 적이 있다.
      */
     internal fun stripMarkup(s: String): String =
-        s.replace(RE_TAG, "").replace(RE_PLACEHOLDER, "").replace(RE_SPACE, " ").trim()
+        s.replace(RE_MARKUP_TAG, "").replace(RE_BRACE_REF, "").replace(RE_WHITESPACE, " ").trim()
 
     /** manifest.json → 게임별 버전. 형식이 어긋나면 null. */
     fun parseManifest(body: String): NanokaManifest? = runCatching {
@@ -298,11 +298,8 @@ object NanokaApi {
 
 }
 
-private val RE_TAG = Regex("<[^>]*>")
 /** 스타레일 설명 자리표시자 — `#1[i]`·`#2[f1]%`. 색상값(`#f29e38ff`)과 섞이지 않게 숫자만 받는다. */
 private val RE_PARAM = Regex("#(\\d+)\\[([if]\\d*)\\](%?)")
-private val RE_PLACEHOLDER = Regex("\\{[^}]*\\}")
-private val RE_SPACE = Regex("\\s+")
 
 /** manifest.json 한 판. */
 data class NanokaManifest(val games: Map<String, NanokaGame>)

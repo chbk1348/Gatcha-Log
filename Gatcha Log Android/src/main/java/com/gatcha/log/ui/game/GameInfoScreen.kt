@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameData
@@ -125,19 +126,7 @@ fun GameInfoScreen(
     val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
     val gachaDashboard by viewModel.gachaDashboard.collectAsStateWithLifecycle()
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
-    val gachaSpendByGame = remember(spendings) {
-        val m = mutableMapOf<String, Long>()
-        spendings.forEach { sp ->
-            val key = when (sp.gameName) {
-                "원신" -> "genshin"
-                "붕괴: 스타레일" -> "starrail"
-                "젠레스 존 제로" -> "zzz"
-                else -> null
-            }
-            if (key != null) m[key] = (m[key] ?: 0L) + sp.amount
-        }
-        m
-    }
+    val gachaSpendByGame = remember(spendings) { GachaReport.spendByGameKey(spendings) }
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()

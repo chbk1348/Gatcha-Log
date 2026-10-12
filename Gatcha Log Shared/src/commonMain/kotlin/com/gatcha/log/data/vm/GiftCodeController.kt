@@ -142,12 +142,7 @@ internal class GiftCodeController(
     private suspend fun doRedeem(gameKey: String, code: String): CodeResult {
         val cfg = hoyolab()
         if (!cfg.isLinked) return CodeResult(false, "HoYoLAB 연동이 필요해요")
-        val uid = when (gameKey) {
-            "genshin" -> cfg.genshinUid
-            "hsr" -> cfg.hsrUid
-            "zzz" -> cfg.zzzUid
-            else -> ""
-        }
+        val uid = cfg.uidByGame[gameKey].orEmpty()
         if (uid.isBlank()) return CodeResult(false, "이 게임 UID가 없어요")
         if (cfg.cookieToken.isBlank() && cfg.webCookie.isBlank()) {
             return CodeResult(false, "HoYoLAB 재연동이 필요해요 (교환 인증 쿠키 없음)")

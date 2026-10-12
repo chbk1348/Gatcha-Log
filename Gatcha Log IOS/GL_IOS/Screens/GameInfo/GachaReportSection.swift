@@ -98,7 +98,7 @@ struct GachaReportSection: View {
     private func gameCard(_ gk: String, _ g: GachaGameStat) -> some View {
         let info = gachaGameInfo(gk)
         let sp = spend[gk] ?? 0
-        let cost = (sp > 0 && g.five > 0) ? sp / Int64(g.five) : 0
+        let cost = GachaReport.shared.costPerFive(spend: sp, fives: g.five)
         let dist = g.luckDist.map { Int(truncating: $0) }
         let distTotal = max(dist.reduce(0, +), 1)
         return Group {

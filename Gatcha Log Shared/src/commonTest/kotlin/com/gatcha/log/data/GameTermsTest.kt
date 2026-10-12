@@ -1,5 +1,9 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.enkaGameLabel
+import com.gatcha.log.data.api.rankTitle
+import com.gatcha.log.data.api.relicTerm
+import com.gatcha.log.data.api.weaponTerm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -36,5 +40,20 @@ class GameTermsTest {
     fun 그_밖의_게임은_무기() {
         assertEquals("무기", weaponLabelOf(Game.WUWA))
         assertEquals("무기", weaponLabelOf(null))
+    }
+
+    @Test
+    fun 캐릭터_화면의_용어는_게임마다_다르다() {
+        assertEquals(listOf("운명의 자리", "성혼", "형상 시네마"), listOf("genshin", "hsr", "zzz").map { rankTitle(it) })
+        assertEquals(listOf("무기", "광추", "W-엔진"), listOf("genshin", "hsr", "zzz").map { weaponTerm(it) })
+        assertEquals(listOf("성유물", "유물", "드라이브 디스크"), listOf("genshin", "hsr", "zzz").map { relicTerm(it) })
+        assertEquals(listOf("원신", "스타레일", "젠레스"), listOf("genshin", "hsr", "zzz").map { enkaGameLabel(it) })
+    }
+
+    @Test
+    fun 캐릭터_장비_이름은_픽업_줄과_같은_말이다() {
+        assertEquals(weaponLabelOf(Game.GENSHIN), weaponTerm("genshin"))
+        assertEquals(weaponLabelOf(Game.HSR), weaponTerm("hsr"))
+        assertEquals(weaponLabelOf(Game.ZZZ), weaponTerm("zzz"))
     }
 }

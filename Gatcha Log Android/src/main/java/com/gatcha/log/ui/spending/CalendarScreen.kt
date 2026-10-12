@@ -30,9 +30,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gatcha.log.data.DateUtil
-import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Spending
+import com.gatcha.log.data.SpendingCalendarDay
+import com.gatcha.log.data.SpendingCalendarLogic
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.game.GiBand
 import com.gatcha.log.ui.game.GiHairline
@@ -44,7 +44,6 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
-import java.util.Calendar
 
 /**
  * 통합 캘린더 — **타임라인 형식**. 선택한 달에서 활동(지출·픽업 배너 시작/종료)이 있는 날은 노드로,
@@ -60,16 +59,20 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     var year by remember { mutableIntStateOf(viewModel.displayYear) }
     var month by remember { mutableIntStateOf(viewModel.displayMonth) }
 
+    // 달 넘기기 · 타임라인 조립 · 월 합계는 공용 [SpendingCalendarLogic] 이 한다(27.52.0, iOS 와 한 소스).
+    // 예전엔 여기서 java.util.Calendar 로, iOS 는 기기 달력으로 따로 셌다.
     fun shift(delta: Int) {
-        val c = Calendar.getInstance().apply { set(year, month - 1, 1); add(Calendar.MONTH, delta) }
-        year = c.get(Calendar.YEAR); month = c.get(Calendar.MONTH) + 1
+        val next = SpendingCalendarLogic.shiftMonth(year, month, delta)
+        year = next.year; month = next.month
     }
 
-    val todayKey = remember { DateUtil.dayKey(System.currentTimeMillis()) }
-    val entries = remember(spendings, banners, year, month) {
-        buildEntries(spendings, banners, year, month, todayKey)
+    // 「오늘」의 기준 시각 — 화면이 떠 있는 동안은 처음 값 그대로 둔다(예전 todayKey 와 같다).
+    val nowMillis = remember { System.currentTimeMillis() }
+    val timeline = remember(spendings, banners, year, month) {
+        SpendingCalendarLogic.buildMonth(spendings, banners, year, month, nowMillis)
     }
-    val monthTotal = remember(entries) { entries.filterIsInstance<ActiveDay>().sumOf { it.spendTotal } }
+    val entries = timeline.entries
+    val monthTotal = timeline.total
     // 총 지출 줄의 이름은 **보고 있는 달**을 따른다(27.52.0) — 예전엔 어느 달로 넘겨도 「이번 달 총 지출」이었다.
     // 이번 달이면 그대로, 같은 해의 다른 달은 「N월」, 해가 다르면 「YYYY년 N월」.
     val totalLabel = when {
@@ -120,13 +123,12 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         if (entries.isEmpty()) {
             item(key = "empty") { Box(Modifier.padding(horizontal = 20.dp)) { EmptyTimeline() } }
         } else {
-            itemsIndexed(entries, key = { _, e -> if (e is ActiveDay) "a${e.day}" else "g${(e as GapDays).highDay}" }) { idx, e ->
+            itemsIndexed(entries, key = { _, e -> e.key }) { idx, e ->
                 Column(Modifier.padding(horizontal = 20.dp)) {
                     if (idx > 0) GiHairline()
-                    when (e) {
-                        is ActiveDay -> DayRow(e, accent = accent)
-                        is GapDays -> GapRow(e)
-                    }
+                    // 활동이 있는 날이면 그날 줄, 아니면 「활동 없음」 구간 줄.
+                    val day = e.active
+                    if (day != null) DayRow(day, accent = accent) else GapRow(e.gapLowDay, e.gapHighDay)
                 }
             }
         }
@@ -142,7 +144,7 @@ private val DateContentGap = 14.dp
 
 /** 날짜별 활동 한 줄 — 왼쪽 날짜 + 오른쪽 그날 지출 · 픽업 시작/종료. 카드 없이 위아래 12. */
 @Composable
-private fun DayRow(day: ActiveDay, accent: Color) {
+private fun DayRow(day: SpendingCalendarDay, accent: Color) {
     val weekdayKo = arrayOf("일", "월", "화", "수", "목", "금", "토")[day.weekdayIndex]
     val dateColor = when {
         day.isToday -> accent
@@ -180,9 +182,9 @@ private fun DayRow(day: ActiveDay, accent: Color) {
 
 /** 활동 없는 연속 구간을 한 줄로 — 흐린 "활동 없음" 문구, 내용 칸에 맞춰 들인다. */
 @Composable
-private fun GapRow(gap: GapDays) {
-    val label = if (gap.lowDay == gap.highDay) "${gap.lowDay}일 · 활동 없음"
-    else "${gap.lowDay}일–${gap.highDay}일 · 활동 없음 (${gap.highDay - gap.lowDay + 1}일)"
+private fun GapRow(lowDay: Int, highDay: Int) {
+    val label = if (lowDay == highDay) "${lowDay}일 · 활동 없음"
+    else "${lowDay}일–${highDay}일 · 활동 없음 (${highDay - lowDay + 1}일)"
     Text(
         label, fontSize = 13.sp, color = Color.LightGray, fontWeight = FontWeight.Medium,
         modifier = Modifier.padding(start = DateColumnWidth + DateContentGap, top = 12.dp, bottom = 12.dp),
@@ -240,76 +242,5 @@ private fun EmptyTimeline() {
     }
 }
 
-// ----------------------------------------------------------------- 집계 모델
-
-private sealed interface TimelineEntry
-private data class ActiveDay(
-    val day: Int,
-    val weekdayIndex: Int,
-    val isToday: Boolean,
-    val spendings: List<Spending>,
-    val spendTotal: Long,
-    val bannerStart: List<GachaBanner>,
-    val bannerEnd: List<GachaBanner>,
-) : TimelineEntry
-/** 활동이 없는 연속 일 구간 [lowDay..highDay] (한 노드로 묶어 노출). */
-private data class GapDays(val lowDay: Int, val highDay: Int) : TimelineEntry
-
-/** day-of-month (1..31) 추출 — millis 가 [year]/[month] 에 속하면 일자, 아니면 null. */
-private fun dayInMonth(millis: Long, year: Int, month: Int): Int? {
-    if (millis <= 0L) return null
-    // 시각→로컬 변환 **1회**로 연·월·일을 한꺼번에 얻는다(yyyyMMdd).
-    // 예전엔 isSameMonth 로 한 번 변환하고, 일자를 얻으려고 지출 1건마다 Calendar 를 새로 만들었다
-    // — Calendar.getInstance() 는 단순 할당이 아니라 로케일·타임존을 조회한다.
-    val ymd = DateUtil.ymd(millis)
-    if (ymd / 100 != year * 100 + month) return null
-    return ymd % 100
-}
-
-/** 활동(지출·배너)이 있는 날은 노드로, 그 사이 빈 구간은 GapDays 로 묶어 최신순 타임라인 엔트리 리스트로. */
-private fun buildEntries(
-    spendings: List<Spending>,
-    banners: List<GachaBanner>,
-    year: Int,
-    month: Int,
-    todayKey: String,
-): List<TimelineEntry> {
-    val spendByDay = HashMap<Int, MutableList<Spending>>()
-    spendings.forEach { s ->
-        dayInMonth(s.dateMillis, year, month)?.let { d -> spendByDay.getOrPut(d) { mutableListOf() }.add(s) }
-    }
-    val bannerStartByDay = HashMap<Int, MutableList<GachaBanner>>()
-    val bannerEndByDay = HashMap<Int, MutableList<GachaBanner>>()
-    banners.forEach { b ->
-        dayInMonth(b.startMillis, year, month)?.let { d -> bannerStartByDay.getOrPut(d) { mutableListOf() }.add(b) }
-        dayInMonth(b.endMillis, year, month)?.let { d -> bannerEndByDay.getOrPut(d) { mutableListOf() }.add(b) }
-    }
-
-    val activeDays = (spendByDay.keys + bannerStartByDay.keys + bannerEndByDay.keys).toSortedSet().sortedDescending()
-    if (activeDays.isEmpty()) return emptyList()
-
-    val cal = Calendar.getInstance()
-    fun activeDay(d: Int): ActiveDay {
-        cal.set(year, month - 1, d)
-        val daySpendings = (spendByDay[d] ?: emptyList()).sortedByDescending { it.amount }
-        return ActiveDay(
-            day = d,
-            weekdayIndex = cal.get(Calendar.DAY_OF_WEEK) - 1,
-            isToday = "%04d-%02d-%02d".format(year, month, d) == todayKey,
-            spendings = daySpendings,
-            spendTotal = daySpendings.sumOf { it.amount },
-            bannerStart = bannerStartByDay[d].orEmpty(),
-            bannerEnd = bannerEndByDay[d].orEmpty(),
-        )
-    }
-
-    val entries = mutableListOf<TimelineEntry>()
-    activeDays.forEachIndexed { i, d ->
-        entries.add(activeDay(d))
-        if (i < activeDays.lastIndex) {
-            val next = activeDays[i + 1] // d 보다 작은 다음 활동일
-            if (d - next > 1) entries.add(GapDays(lowDay = next + 1, highDay = d - 1))
-        }
-    }
-    return entries
-}
+// (27.52.0) 집계 모델(TimelineEntry · ActiveDay · GapDays)과 buildEntries 는 공용
+// SpendingCalendarLogic.buildMonth 로 옮겼다 — iOS CalendarView 가 같은 조립을 따로 적어 두고 있었다.

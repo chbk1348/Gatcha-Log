@@ -89,6 +89,23 @@ object GachaReport {
 
     val gameOrder = listOf("genshin", "starrail", "zzz")
 
+    /**
+     * 5성 단가 계산에 쓰는 **게임별 지출 합계** — 키는 [GachaStats.byGame] 과 같다(genshin · starrail · zzz).
+     * 가챠 기록이 없는 게임의 지출은 싣지 않는다.
+     */
+    fun spendByGameKey(spendings: List<Spending>): Map<String, Long> {
+        val keyOf = gameInfo.entries.associate { it.value.second to it.key }
+        val out = mutableMapOf<String, Long>()
+        for (s in spendings) {
+            val key = keyOf[s.gameName] ?: continue
+            out[key] = (out[key] ?: 0L) + s.amount
+        }
+        return out
+    }
+
+    /** 5성 한 장에 쓴 돈. 지출이 없거나 5성이 없으면 0 — 화면은 「—」로 적는다. */
+    fun costPerFive(spend: Long, fives: Int): Long = if (spend > 0 && fives > 0) spend / fives else 0L
+
     private val poolMap: Map<String, Map<String, String>> = mapOf(
         "genshin" to mapOf("100" to "novice", "200" to "permanent", "301" to "character", "400" to "character", "302" to "weapon", "500" to "chronicled"),
         // 스타레일 21·22 = 콜라보 캐릭터·광추 픽업(Collaboration Warp) — 일반 픽업과 천장이 별개라 별도 풀로 분리.

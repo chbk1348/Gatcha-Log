@@ -168,6 +168,24 @@ object HoyolabApi {
         fun build(): Map<String, String> = h
     }
 
+    /**
+     * game_record 계열(실시간 노트 · 캐릭터 · 전투 · 젠레스 원장) 요청의 공통 헤더 — 쿠키 · DS · 앱 rpc(2) · BBS UA.
+     * 여덟 군데가 같은 네 줄을 따로 적고 있었다(27.52.0). 게임별로 더 붙는 헤더는 돌려받은 것에 [HoyoHeaders.put] 으로 잇는다.
+     */
+    private fun recordHeaders(cookie: String, query: String, body: String = "") = HoyoHeaders()
+        .withCookie(cookie)
+        .withDS(query, body)
+        .withRpc(2)
+        .withUserAgent(UA_BBS)
+
+    /** game_record 조회 한 건 — 성공(retcode 0)이면 data, 아니면(네트워크 · 깨진 응답 포함) null. */
+    private suspend fun recordData(cookie: String, base: String, query: String): JSONObject? {
+        val res = Net.get("$base?$query", recordHeaders(cookie, query).build())
+        return runCatching {
+            JSONObject(res.body).takeIf { it.optInt("retcode", -1) == 0 }?.optJSONObject("data")
+        }.getOrNull()
+    }
+
     /** ltuid_v2/ltoken_v2 만(실시간 노트). */
     private fun cookieV2(ltuid: String, ltoken: String) = "ltuid_v2=$ltuid; ltoken_v2=$ltoken;"
 
@@ -223,11 +241,7 @@ object HoyolabApi {
 
         val server = inferServer(gameKey, uid)
         val query = "role_id=$uid&server=$server"
-        val headers = HoyoHeaders()
-            .withCookie(cookieV2(ltuid, ltoken))
-            .withDS(query)
-            .withRpc(2)
-            .withUserAgent(UA_BBS)
+        val headers = recordHeaders(cookieV2(ltuid, ltoken), query)
             .apply {
                 if (gameKey == "zzz") {
                     put("x-rpc-challenge_game", "8")
@@ -544,12 +558,7 @@ object HoyolabApi {
         // 2) getGameRecordCard — 바인딩에 없는 게임 보강
         if (out.size < 3) runCatching {
             val query = "uid=$ltuid"
-            val h = HoyoHeaders()
-                .withCookie(cookie)
-                .withDS(query)
-                .withRpc(2)
-                .withUserAgent(UA_BBS)
-                .build()
+            val h = recordHeaders(cookie, query).build()
             val res = Net.get("https://bbs-api-os.hoyolab.com/game_record/card/wapi/getGameRecordCard?$query", h)
             if (res.code != -1) reached = true
             JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
@@ -576,12 +585,7 @@ object HoyolabApi {
     suspend fun fetchHsrAvatarInfo(ltuid: String, ltoken: String, uid: String): JSONObject? {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
         val query = "role_id=$uid&server=${inferServer("hsr", uid)}"
-        val headers = HoyoHeaders()
-            .withCookie(cookieV2(ltuid, ltoken))
-            .withDS(query)
-            .withRpc(2)
-            .withUserAgent(UA_BBS)
-            .build()
+        val headers = recordHeaders(cookieV2(ltuid, ltoken), query).build()
         // 부가 조회 — 실패해도 mihomo 로 폴백한다. 연동 만료로 단정하지 않는다.
         return Net.get("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/avatar/info?$query", headers).parse(
             reportAuth = false,
@@ -593,11 +597,7 @@ object HoyolabApi {
     }
 
     // ----------------------------------------------------------------- 젠레스(ZZZ) 보유 에이전트
-    private fun zzzHeaders(ltuid: String, ltoken: String, query: String, path: String) = HoyoHeaders()
-        .withCookie(cookieV2(ltuid, ltoken))
-        .withDS(query)
-        .withRpc(2)
-        .withUserAgent(UA_BBS)
+    private fun zzzHeaders(ltuid: String, ltoken: String, query: String, path: String) = recordHeaders(cookieV2(ltuid, ltoken), query)
         .put("x-rpc-challenge_game", "8")
         .put("x-rpc-challenge_path", "event/game_record_zzz/api/zzz/$path")
         .build()
@@ -817,7 +817,7 @@ object HoyolabApi {
         return "${b.optInt("month")}/${b.optInt("day")}~${e.optInt("month")}/${e.optInt("day")}"
     }
 
-    private fun thousands(n: Int): String = n.toString().reversed().chunked(3).joinToString(",").reversed()
+    private fun thousands(n: Int): String = com.gatcha.log.util.num(n)   // 천 단위 콤마 — 공용 한 벌
 
     /**
      * 상위 % — API 는 만분율 정수로 준다(1559 → 15.59%). 실측 한 건으로 잡은 단위라 추정이다.
@@ -932,11 +932,7 @@ object HoyolabApi {
     ): JSONObject? {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
         val server = inferServer("genshin", uid)
-        fun headersFor(body: String) = HoyoHeaders()
-            .withCookie(cookieV2(ltuid, ltoken))
-            .withDS("", body)
-            .withRpc(2)
-            .withUserAgent(UA_BBS)
+        fun headersFor(body: String) = recordHeaders(cookieV2(ltuid, ltoken), "", body)
             .put("Content-Type", "application/json")
             .build()
         // 1) 보유 캐릭터 id 목록
@@ -1068,12 +1064,7 @@ object HoyolabApi {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
         val region = inferServer("zzz", uid)
         val query = "lang=ko-kr&month=&region=$region&uid=$uid"
-        val headers = HoyoHeaders()
-            .withCookie(cookieFull(ltuid, ltoken))
-            .withDS(query)
-            .withRpc(2)
-            .withUserAgent(UA_BBS)
-            .build()
+        val headers = recordHeaders(cookieFull(ltuid, ltoken), query).build()
         return Net.get("https://sg-public-api.hoyolab.com/event/nap_ledger/month_info?$query", headers).parse<MonthlyLedger?>(
             reportAuth = false,
             onNetwork = { null },
@@ -1132,18 +1123,7 @@ object HoyolabApi {
         if (gameKey == "zzz") return zzzCombat(ltuid, ltoken, uid)
         val server = inferServer(gameKey, uid)
         val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
-        suspend fun fetch(base: String, query: String): JSONObject? {
-            val headers = HoyoHeaders()
-                .withCookie(cookie)
-                .withDS(query)
-                .withRpc(2)
-                .withUserAgent(UA_BBS)
-                .build()
-            val res = Net.get("$base?$query", headers)
-            return runCatching {
-                JSONObject(res.body).takeIf { it.optInt("retcode", -1) == 0 }?.optJSONObject("data")
-            }.getOrNull()
-        }
+        suspend fun fetch(base: String, query: String): JSONObject? = recordData(cookie, base, query)
         val game = gameFor(gameKey).displayName
         return when (gameKey) {
             "genshin" -> buildList {
@@ -1194,18 +1174,7 @@ object HoyolabApi {
         var anyOk = false
         val server = inferServer(gameKey, uid)
         val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
-        suspend fun fetch(base: String, query: String): JSONObject? {
-            val headers = HoyoHeaders()
-                .withCookie(cookie)
-                .withDS(query)
-                .withRpc(2)
-                .withUserAgent(UA_BBS)
-                .build()
-            val res = Net.get("$base?$query", headers)
-            return runCatching {
-                JSONObject(res.body).takeIf { it.optInt("retcode", -1) == 0 }?.optJSONObject("data")
-            }.getOrNull()?.also { anyOk = true }
-        }
+        suspend fun fetch(base: String, query: String): JSONObject? = recordData(cookie, base, query)?.also { anyOk = true }
         val game = gameFor(gameKey).displayName
         // 시즌 2개(이번·지난)를 순차로 받는다. 병렬로 붙이면 HoYoLAB 이 레이트리밋을 걸어 통째로 비는 편이다.
         val schedules = listOf(1 to true, 2 to false)

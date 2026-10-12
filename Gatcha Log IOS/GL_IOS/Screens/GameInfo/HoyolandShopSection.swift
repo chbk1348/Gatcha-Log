@@ -1157,38 +1157,8 @@ struct HoyolandGuideContent: View {
     let text: String
     @Environment(\.glgAccent) private var accent
 
-    private struct Row { var label: String; var value: String; var subs: [String] }
-    private struct Group { var title: String; var rows: [Row] }
-
-    private var groups: [Group] {
-        var out: [Group] = []
-        var title = ""
-        var rows: [Row] = []
-        func flush() {
-            if !title.isEmpty || !rows.isEmpty { out.append(Group(title: title, rows: rows)) }
-            title = ""; rows = []
-        }
-        for raw in text.components(separatedBy: "\n") {
-            let body = raw.trimmingCharacters(in: .whitespaces)
-            let indented = !body.isEmpty && (raw.hasPrefix("  ") || raw.hasPrefix("\t"))
-            if body.isEmpty { flush(); continue }
-            if indented, !rows.isEmpty {
-                rows[rows.count - 1].subs.append(body.hasPrefix("· ") ? String(body.dropFirst(2)) : body)
-            } else if body.hasPrefix("· ") {
-                let item = String(body.dropFirst(2))
-                if let r = item.range(of: " — ") {
-                    rows.append(Row(label: String(item[..<r.lowerBound]), value: String(item[r.upperBound...]), subs: []))
-                } else {
-                    rows.append(Row(label: item, value: "", subs: []))
-                }
-            } else {
-                if !rows.isEmpty { flush() }
-                title = body
-            }
-        }
-        flush()
-        return out
-    }
+    /// 묶음 · 줄을 가르는 규칙은 공용 `HoyolandText.guideGroups` 에 있다(Android 와 같은 함수).
+    private var groups: [HoyolandGuideGroup] { HoyolandText.shared.guideGroups(text: text) }
 
     var body: some View {
         // 묶음마다 깔던 회색 면을 걷고 헤어라인으로 가른다(10/1).

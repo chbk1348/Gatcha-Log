@@ -54,7 +54,7 @@ data class ScheduledAlert(
  *
  * 알릴 시각(마감 D-3/D-1 아침 9시 등)이 **이미 지났는데 마감은 아직 남은** 구간이 있다.
  * 그 구간은 예약이 안 만들어지고, iOS 는 [NotificationChecker] 가 해당 종류를 통째로
- * 건너뛰므로(`schedulesAhead`) 알림이 **한 건도 안 갔다** — 마감 하루 전인데 조용한 상태.
+ * 건너뛰므로 알림이 **한 건도 안 갔다** — 마감 하루 전인데 조용한 상태.
  * 그 구멍을 메우려고, 재예약을 도는 이 순간 직접 발송한다.
  */
 data class ImmediateAlert(
@@ -446,10 +446,6 @@ object ScheduledAlerts {
         repo: GatchaRepository,
         nowMillis: Long = currentTimeMillis(),
     ) {
-        // 사전 예약을 안 쓰는 플랫폼(Android)에서는 계산 자체가 낭비고, dedup 선점이 주기 워커의
-        // 정상 알림을 오히려 막는다. 그쪽은 [NotificationChecker] 가 전담한다.
-        if (!AlertScheduler.schedulesAhead) return
-
         // 예전 iOS 전용 리마인더 예약을 걷는다 — 이제 아래 계획 안에 들어 있다([plan] ⑦). Android 는 할 일이 없다.
         runCatching { AlertScheduler.refreshAttendanceReminder(settings, repo) }
 
@@ -476,16 +472,6 @@ object ScheduledAlerts {
             if (posted) settings.setLastNotified(a.dedupTag, a.dedupValue)
         }
     }
-
-    private fun comma(v: Long): String {
-        val s = v.toString()
-        val sb = StringBuilder()
-        for (i in s.indices) {
-            if (i > 0 && (s.length - i) % 3 == 0) sb.append(',')
-            sb.append(s[i])
-        }
-        return sb.toString()
-    }
 }
 
 /**
@@ -495,15 +481,6 @@ object ScheduledAlerts {
  *   WorkManager 주기 작업은 예약을 다시 깔고, 예약이 담지 못하는 알림(새 공지 · 예산 초과)을 맡는다.
  */
 expect object AlertScheduler {
-    /**
-     * 이 플랫폼이 확정 시각 알림을 **사전 예약**으로 처리하는가.
-     *
-     * true(iOS)면 픽업·시즌 마감·재화 가득참·정기결제·데일리 요약은 예약으로만 나가고,
-     * [NotificationChecker] 는 그 종류를 건너뛴다 — 둘 다 쏘면 같은 알림이 두 번 온다.
-     * false 면 반대로 주기 워커의 즉시 점검이 전담한다(지금은 두 플랫폼 다 true).
-     */
-    val schedulesAhead: Boolean
-
     /**
      * 기존 예약을 모두 지우고 [alerts] 로 교체. **등록이 실제로 끝난 뒤에 반환한다.**
      *

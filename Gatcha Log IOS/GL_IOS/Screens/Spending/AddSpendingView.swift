@@ -494,9 +494,9 @@ struct AddSpendingView: View {
             }
             Spacer(minLength: 8)
             HStack(spacing: 6) {
-                stepperBtn("minus", enabled: quantity > 1) { setQuantity(quantity - 1) }
+                stepperBtn("minus", enabled: quantity > Int(SpendingEditLogic.shared.MIN_QUANTITY)) { setQuantity(quantity - 1) }
                 Text("\(quantity)").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textPrimary).frame(minWidth: 28)
-                stepperBtn("plus", enabled: quantity < 99) { setQuantity(quantity + 1) }
+                stepperBtn("plus", enabled: quantity < Int(SpendingEditLogic.shared.MAX_QUANTITY)) { setQuantity(quantity + 1) }
             }
         }
     }
@@ -526,14 +526,15 @@ struct AddSpendingView: View {
     // 안 보이면 확인하려고 매번 펴게 되고, 그러면 접은 의미가 없다.
     // 기본값과 다른 값이 하나라도 있으면 요약을 강조색으로 — "뭔가 정해져 있다"가 보이게.
     private var detailsCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let summary = detailSummary
+        return VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(.easeInOut(duration: 0.2)) { detailsExpanded.toggle() } } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("자세히").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Text(detailSummary)
+                        Text(summary.text)
                             .font(.pretendard(size: 11.5))
-                            .foregroundStyle(detailIsCustom ? accent.primary : GLGColor.textSecondary)
+                            .foregroundStyle(summary.isCustom ? accent.primary : GLGColor.textSecondary)
                             .lineLimit(1)
                     }
                     Spacer()
@@ -548,19 +549,13 @@ struct AddSpendingView: View {
         .formSection()
     }
 
-    /// 접힌 상태에서 보여줄 한 줄 — "카카오페이 · 구글플레이 · 태그 2".
-    private var detailSummary: String {
-        var parts: [String] = [paymentMethod.isEmpty ? "카드" : paymentMethod]
-        if !chargePlatform.isEmpty { parts.append(chargePlatform) }
-        let tagCount = selectedTags.count + customTags.split(whereSeparator: { $0 == "," || $0 == " " }).count
-        parts.append(tagCount > 0 ? "태그 \(tagCount)" : "태그 없음")
-        if !memo.isEmpty { parts.append("메모") }
-        return parts.joined(separator: " · ")
-    }
-
-    /// 기본값에서 벗어난 값이 있는가 — 요약을 강조할지 정한다.
-    private var detailIsCustom: Bool {
-        !chargePlatform.isEmpty || !selectedTags.isEmpty || !customTags.isEmpty || !memo.isEmpty
+    /// 접힌 상태에서 보여줄 한 줄("카카오페이 · 구글플레이 · 태그 2")과, 기본값에서 벗어난 값이 있는지(요약 강조 여부).
+    ///
+    /// 공용 계산이다(27.52.0, Android 와 한 소스). 예전엔 여기서 따로 조립했는데 「값이 있다」의 기준이 달랐다 —
+    /// Android 는 공백을 뺀 글자로 봤고 여기는 빈 문자열만 봐서, 스페이스만 친 메모가 「메모」로 세어지고 요약이 강조됐다.
+    private var detailSummary: SpendingDetailSummary {
+        SpendingEditLogic.shared.detailSummary(paymentMethod: paymentMethod, chargePlatform: chargePlatform,
+                                               selectedTags: selectedTags, customTags: customTags, memo: memo)
     }
 
     private var detailFields: some View {
@@ -598,28 +593,16 @@ struct AddSpendingView: View {
     }
 
     // 구매 횟수 변경 — 선택된 상품 기준으로 금액·재화명을 N배로 다시 계산.
+    // 범위(1~99) · 「×N」을 붙이는 모양은 공용 SpendingEditLogic 이 정한다(27.52.0, Android 와 한 소스).
+    // 저장된 항목명에서 횟수 · 상품을 되읽던 detectQuantity · stripMult 도 그쪽(restoreItem)으로 옮겼다.
     private func setQuantity(_ q: Int) {
-        let qty = min(max(q, 1), 99)
+        let qty = Int(SpendingEditLogic.shared.clampQuantity(quantity: Int32(q)))
         quantity = qty
         if let pkg = selectedPackage {
-            setAmount(pkg.price * Int64(qty))
-            itemName = qty > 1 ? "\(pkg.name) ×\(qty)" : pkg.name
+            let applied = SpendingEditLogic.shared.applyQuantity(baseName: pkg.name, unitPrice: pkg.price, quantity: Int32(qty))
+            setAmount(applied.amount)
+            itemName = applied.itemName
         }
-    }
-
-    // 수정 진입 시 항목명 끝 "×N" 에서 구매 횟수 복원. 없으면 1.
-    private func detectQuantity(_ name: String) -> Int {
-        guard let r = name.range(of: "×\\s*\\d+\\s*$", options: .regularExpression) else { return 1 }
-        let digits = name[r].filter(\.isNumber)
-        return min(max(Int(digits) ?? 1, 1), 99)
-    }
-
-    // 항목명에서 끝의 "×N" 을 떼어낸 기본 상품명.
-    private func stripMult(_ name: String) -> String {
-        if let r = name.range(of: "\\s*×\\s*\\d+\\s*$", options: .regularExpression) {
-            return String(name[..<r.lowerBound]).trimmingCharacters(in: .whitespaces)
-        }
-        return name.trimmingCharacters(in: .whitespaces)
     }
 
     private func prefill() {
@@ -632,17 +615,18 @@ struct AddSpendingView: View {
             // 기존 태그는 **추천 목록에 있는 것만** 칩 선택으로, 나머지는 직접 입력 칸으로 가른다(27.52.0, Android 와 같은 규칙).
             // 예전엔 전부 선택 집합에 담았는데 칩은 추천 태그만 그리고 직접 입력 칸은 비어 시작해서,
             // 직접 적어 넣었던 태그는 수정 화면에서 보이지도 않고 지울 방법도 없었다(저장하면 그대로 다시 붙었다).
-            // 이어 붙이는 구분자는 저장할 때 이 칸을 쪼개는 것(쉼표 · 공백, doSave)과 같다.
+            // 가르는 규칙 · 이어 붙이는 구분자는 공용 SpendingEditLogic.splitTags 가 정한다 — 저장할 때 이 칸을 쪼개는
+            // mergeTags(doSave)와 한 파일에 있다. 빈 태그는 칸에 넣지 않는다(예전엔 여기만 안 걸러 구분자만 남았다).
             // 지문(initialFingerprint)은 이 뒤에 뜨므로 이 초깃값이 「고친 것」으로 잡히지 않는다.
-            let suggested = GameData.shared.suggestedTags
-            selectedTags = e.tags.filter { suggested.contains($0) }
-            customTags = e.tags.filter { !suggested.contains($0) }.joined(separator: ", ")
+            let tagSplit = SpendingEditLogic.shared.splitTags(tags: e.tags)
+            selectedTags = tagSplit.selected
+            customTags = tagSplit.custom
             // 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수 복원 → 스텝퍼 노출.
-            quantity = detectQuantity(e.itemName)
-            let base = stripMult(e.itemName)
-            if GameData.shared.packagesFor(game: GameData.shared.byName(name: e.gameName)).contains(where: { $0.name == base }) {
-                selectedPkg = base
-            }
+            // 공용 restoreItem(27.52.0) — **목록에 없는 게임명이면 상품을 찾지 않는다.** 예전엔 여기서 byName 으로
+            // 원신에 떨어뜨려 맞춰 봐서, 다른 게임의 지출에 원신 단가로 곱하는 스텝퍼가 붙을 수 있었다(Android 는 안 붙였다).
+            let restored = SpendingEditLogic.shared.restoreItem(gameName: e.gameName, itemName: e.itemName)
+            quantity = Int(restored.quantity)
+            selectedPkg = restored.packageName
             // 수정은 기록된 게임이 이미 있다 → 곧바로 전체 폼을 보여준다.
             gameChosen = true
             // 수정은 **무엇을 고치러 왔는지 모른다** → 자세히를 펼친 채로 시작한다.
@@ -678,9 +662,9 @@ struct AddSpendingView: View {
         saved = true
         nudgeMsg = nil
         let parsed = Int64(amount) ?? 0
-        let extra = customTags.components(separatedBy: CharacterSet(charactersIn: ", "))
-        var tags: [String] = []
-        for t in (selectedTags + extra) { let tt = t.trimmingCharacters(in: .whitespaces); if !tt.isEmpty && !tags.contains(tt) { tags.append(tt) } }
+        // 칩 + 직접 입력 칸을 한 목록으로 — 쪼개기 · 다듬기 · 중복 제거는 공용 규칙(27.52.0, Android 와 한 소스).
+        // 예전엔 여기서 공백 · 탭만 떼어 내, 붙여 넣은 글자에 줄바꿈이 있으면 태그에 남을 수 있었다(Android 는 떼어 냈다).
+        let tags = SpendingEditLogic.shared.mergeTags(selected: selectedTags, custom: customTags)
         // 거절(금액 상한 초과 등)이면 폼을 닫지 않는다 — 닫으면 입력한 게 통째로 사라졌다.
         guard store.saveSpending(editingId: editing?.id, gameName: gameName, amount: parsed, dateMillis: dateMillis,
                                  paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)

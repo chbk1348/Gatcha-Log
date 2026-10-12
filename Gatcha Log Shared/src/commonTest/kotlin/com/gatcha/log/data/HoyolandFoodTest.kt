@@ -128,4 +128,80 @@ class HoyolandFoodTest {
             .toInstant(TimeZone.currentSystemDefault())
             .toEpochMilliseconds()
     }
+
+    // ── 메뉴판 가르기 ─────────────────────────────────────────────────────────
+
+    @Test
+    fun 메뉴_바로_앞의_문장은_가게_이름이고_뒤의_문장은_안내다() {
+        val blocks = HoyolandText.foodBlocks(스타레일.desc)
+        assertEquals(listOf(HoyolandFoodKind.SHOP, HoyolandFoodKind.MENU, HoyolandFoodKind.NOTE), blocks.map { it.kind })
+        assertEquals("빽! 낙원 핫플 리스트: 푸드트럭 편", blocks[0].text)
+        assertEquals(
+            listOf(
+                HoyolandFoodRow("행운의 황금 레몬 만두", "7,000원", "효 사장님 추천 음식 먹고 만사 형통"),
+                HoyolandFoodRow("개척 여정의 커피", "6,000원"),
+            ),
+            blocks[1].rows,
+        )
+        assertEquals("팬케이크와 커피를 세트로 사면 12,000원입니다(따로 사면 13,000원).", blocks[2].text)
+    }
+
+    @Test
+    fun 들여쓴_부연이_여러_줄이면_줄바꿈_그대로_잇는다() {
+        val blocks = HoyolandText.foodBlocks("· 세트 — 10,000원\n   홍차 또는 밀크티\n   · 스콘 포함")
+        assertEquals("홍차 또는 밀크티\n· 스콘 포함", blocks.single().rows.single().sub)
+    }
+
+    @Test
+    fun 빈_줄_없이_이어_적은_문장은_한_문단이다() {
+        val blocks = HoyolandText.foodBlocks("첫 줄\n둘째 줄\n\n따로 적은 문단")
+        assertEquals(listOf("첫 줄\n둘째 줄", "따로 적은 문단"), blocks.map { it.text })
+        assertEquals(listOf(HoyolandFoodKind.NOTE, HoyolandFoodKind.NOTE), blocks.map { it.kind })
+    }
+
+    @Test
+    fun 이어_적었어도_바로_아래가_메뉴인_줄은_가게_이름으로_따로_선다() {
+        val blocks = HoyolandText.foodBlocks("안내 문장\n가게 이름\n· 쿠키 — 3,000원")
+        assertEquals(listOf(HoyolandFoodKind.NOTE, HoyolandFoodKind.SHOP, HoyolandFoodKind.MENU), blocks.map { it.kind })
+        assertEquals("가게 이름", blocks[1].text)
+    }
+
+    @Test
+    fun 값이_없는_목록_줄은_가격이_빈_메뉴_줄이다() {
+        val row = HoyolandText.foodBlocks("· 물").single().rows.single()
+        assertEquals(HoyolandFoodRow("물", ""), row)
+    }
+
+    @Test
+    fun 메뉴_가짓수는_값이_있는_줄만_센다() {
+        assertEquals(2, HoyolandText.menuCount(스타레일.desc))
+        assertEquals(2, HoyolandText.menuCount(젠레스.desc))
+        assertEquals(0, HoyolandText.menuCount("안내만 있는 글\n· 값 없는 줄"))
+    }
+
+    // ── 굿즈존 안내 가르기 ────────────────────────────────────────────────────
+
+    @Test
+    fun 안내는_제목과_이름_값_줄로_묶인다() {
+        val groups = HoyolandText.guideGroups(
+            "운영 시간\n· 금요일 — 10:00 — 19:00\n   마지막 입장 18:30\n   · 현장 사정에 따라 변동\n· 토요일\n\n결제\n· 카드 — 가능",
+        )
+        assertEquals(listOf("운영 시간", "결제"), groups.map { it.title })
+        assertEquals(
+            listOf(
+                // 값은 첫 줄표 뒤 전부다 — 시각 사이의 줄표에서 다시 자르지 않는다.
+                HoyolandGuideRow("금요일", "10:00 — 19:00", listOf("마지막 입장 18:30", "현장 사정에 따라 변동")),
+                HoyolandGuideRow("토요일", ""),
+            ),
+            groups[0].rows,
+        )
+        assertEquals(listOf(HoyolandGuideRow("카드", "가능")), groups[1].rows)
+    }
+
+    @Test
+    fun 줄_뒤에_오는_글머리_없는_줄은_새_묶음의_제목이다() {
+        val groups = HoyolandText.guideGroups("· 첫 줄 — 값\n다음 묶음\n· 둘째 줄 — 값")
+        assertEquals(listOf("", "다음 묶음"), groups.map { it.title })
+        assertEquals(listOf(1, 1), groups.map { it.rows.size })
+    }
 }

@@ -66,7 +66,7 @@ internal class CombatClearsController(
         combatClearsJob = scope.launch {
             _combatClearsLoading.value = true
             try {
-                val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid).filterValues { it.isNotBlank() }
+                val uids = cfg.linkedUids
                 // 캐릭터 이름 메타(yatta)는 편성 결과와 무관하다 — **편성과 같이 쏜다**(27.51.1). 예전엔 편성을 다 받은 뒤에야
                 // 나가서 한 왕복이 더 붙었다. 편성을 못 받아 일찍 빠져나가면 아래에서 끊는다.
                 val metaNamesDeferred = async {

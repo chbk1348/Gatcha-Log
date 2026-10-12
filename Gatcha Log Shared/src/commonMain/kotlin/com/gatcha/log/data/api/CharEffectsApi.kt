@@ -18,10 +18,7 @@ data class CharEffect(val index: Int, val name: String, val desc: String)
 // ⚠️ 닫는 `}`·`]` 는 **반드시 이스케이프**한다 — Android 정규식 엔진(ICU)은 비이스케이프 `}` 를
 // 양화자 메타로 보고 PatternSyntaxException 을 던진다(Java/iOS 는 허용). 이걸 놓쳐서 예전에
 // GI/HSR/ZZZ 돌파 효과 설명이 Android 에서 전멸한 적이 있다.
-private val RE_MARKUP_TAG = Regex("<[^>]*>")            // <color>/<i>/<unbreak>
-private val RE_BRACE_REF = Regex("\\{[^}]*\\}")         // {LINK#…}/{/LINK} 참조 태그
 private val RE_YATTA_PLACEHOLDER = Regex("#\\d+\\[[^\\]]*\\]%?")  // #1[i]% 미보간 자리표시자
-private val RE_WHITESPACE = Regex("\\s+")
 
 /**
  * 명좌/성혼/의식 단계별 효과 텍스트 조회. Enka/HoYoLAB 응답엔 효과 설명이 없어 외부 메타 API 로 보강한다.

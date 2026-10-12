@@ -1200,52 +1200,34 @@ class GatchaRepository(
      * 즉 새 마이그레이션을 붙일 때 손댈 곳은 세 군데다: 읽기 함수 · [exportSnapshot] · [importSnapshotJson].
      */
     fun exportSnapshot(): JSONObject {
+        // 싣는 키와 순서는 [SNAPSHOT_KEYS] 한 곳에 있다(27.52.0) — 예전엔 여기 · 가져오기 · 수정 시각 목록 · 백업 판별이
+        // 저마다 키를 적어 두어, 서로 맞는지 볼 방법이 눈대조뿐이었다.
         val o = JSONObject()
-        // **저장된 값 하나가 깨져 있어도 내보내기는 끝낸다**(27.52.0). 예전엔 `JSONArray(원문)` 이 던진 예외가 그대로 올라가
-        // 올리기 · 「백업 내보내기」에서 앱이 죽을 수 있었다(읽는 쪽은 이미 키마다 견디게 돼 있다). 깨진 키는 싣지 않는다 —
-        // 받는 쪽은 없는 키를 건드리지 않으므로 원격 · 다른 기기의 값이 그대로 남는다.
-        fun arr(key: String) {
-            val raw = prefs.getString(key, null) ?: return
-            runCatching { JSONArray(raw) }.onSuccess { o.put(key, it) }
-                .onFailure { println("GatchaRepository: 깨진 저장 값은 내보내지 않음 — $key") }
-        }
-        fun obj(key: String) {
-            val raw = prefs.getString(key, null) ?: return
-            runCatching { JSONObject(raw) }.onSuccess { o.put(key, it) }
-                .onFailure { println("GatchaRepository: 깨진 저장 값은 내보내지 않음 — $key") }
-        }
-        arr(KEY_SPENDINGS)
-        arr(KEY_DELETED_SPENDINGS)
-        loadSpendingsClearedAt().takeIf { it > 0 }?.let { o.put(KEY_SPENDINGS_CLEARED_AT, it) }
-        obj(KEY_DELETED_AT)
-        obj(KEY_META)
-        prefs.getLong(KEY_GACHA_CLEARED_AT, 0L).takeIf { it > 0 }?.let { o.put(KEY_GACHA_CLEARED_AT, it) }
-        o.put(KEY_BUDGET, loadBudget())
-        obj(KEY_BUDGET_GAMES)
-        prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
-        prefs.getString(KEY_MY_GAMES, null)?.let { o.put(KEY_MY_GAMES, it) }
-        prefs.getString(KEY_PROFILE_EMAIL, null)?.let { o.put(KEY_PROFILE_EMAIL, it) }
-        // 토큰(ltuid/ltoken/cookieToken/webCookie)은 보안상 스냅샷에 절대 포함하지 않는다(암호화 저장소 전용).
-        // 게임 UID 만 포함 — 토큰이 아니므로 기기 간 동기화에 필요.
-        prefs.getString(KEY_HOYO_GI, null)?.let { o.put(KEY_HOYO_GI, it) }
-        prefs.getString(KEY_HOYO_HSR, null)?.let { o.put(KEY_HOYO_HSR, it) }
-        prefs.getString(KEY_HOYO_ZZZ, null)?.let { o.put(KEY_HOYO_ZZZ, it) }
-        // 강조색은 **값과 기준을 함께** 내보낸다. loadAccentIndex 가 돌려주는 값은 이미 현재
-        // 팔레트로 옮겨진 값이라, 받는 쪽이 기준을 모르면 변환을 한 번 더 걸어 색이 밀린다.
-        o.put(KEY_ACCENT, loadAccentIndex())
-        o.put(KEY_ACCENT_VER, ACCENT_PALETTE_VER)
-        prefs.getString(KEY_ENKA_GI, null)?.let { o.put(KEY_ENKA_GI, it) }
-        prefs.getString(KEY_ENKA_HSR, null)?.let { o.put(KEY_ENKA_HSR, it) }
-        obj(KEY_ATTENDANCE)
-        obj(KEY_PITY)
-        arr(KEY_EVENT_CHECKS)
-        arr(KEY_GACHA)
-        arr(KEY_HOME_CARDS)
-        arr(KEY_REDEEMED)
-        o.put(KEY_BEST_NOSPEND, loadBestNoSpend())
-        arr(KEY_BADGES)
+        SNAPSHOT_KEYS.forEach { it.write(this, o) }
         return o
     }
+
+    /**
+     * 저장된 원문을 JSON 으로 읽어 싣는다. **값 하나가 깨져 있어도 내보내기는 끝낸다**(27.52.0) — 예전엔 예외가 그대로
+     * 올라가 올리기 · 「백업 내보내기」에서 앱이 죽을 수 있었다(읽는 쪽은 이미 키마다 견디게 돼 있다). 깨진 키는 싣지
+     * 않는다 — 받는 쪽은 없는 키를 건드리지 않으므로 원격 · 다른 기기의 값이 그대로 남는다.
+     */
+    private fun putStoredArray(o: JSONObject, key: String) {
+        val raw = prefs.getString(key, null) ?: return
+        runCatching { JSONArray(raw) }.onSuccess { o.put(key, it) }
+            .onFailure { println("GatchaRepository: 깨진 저장 값은 내보내지 않음 — $key") }
+    }
+    private fun putStoredObject(o: JSONObject, key: String) {
+        val raw = prefs.getString(key, null) ?: return
+        runCatching { JSONObject(raw) }.onSuccess { o.put(key, it) }
+            .onFailure { println("GatchaRepository: 깨진 저장 값은 내보내지 않음 — $key") }
+    }
+    private fun putStoredString(o: JSONObject, key: String) {
+        prefs.getString(key, null)?.let { o.put(key, it) }
+    }
+
+    /** 스냅샷에 실리는 키 전부 — 테스트가 내보내기와 가져오기가 어긋나지 않았는지 보는 데 쓴다([SNAPSHOT_KEYS]). */
+    internal fun snapshotKeyNames(): List<String> = SNAPSHOT_KEY_NAMES
 
     /** 계정의 모든 데이터를 단일 JSON 문자열로 직렬화(Firestore 저장·파일 백업용). */
     fun exportSnapshotJson(): String = exportSnapshot().toString()
@@ -1467,7 +1449,69 @@ class GatchaRepository(
         const val KEY_META = "sync_meta"
         const val KEY_GACHA_CLEARED_AT = "gacha_cleared_at"
         /** [stamp] 로 수정 시각을 적는 키 — 묶음은 대표 키 하나로 적는다(프로필 · 게임 UID · Enka UID). */
-        val SYNC_META_KEYS = listOf(KEY_BUDGET, KEY_BUDGET_GAMES, KEY_MY_GAMES, KEY_PROFILE_NAME, KEY_HOYO_GI, KEY_ACCENT, KEY_ENKA_GI, KEY_PITY, KEY_EVENT_CHECKS)
+        /**
+         * **스냅샷에 싣는 키의 표** — 내보내기 순서 그대로(27.52.0).
+         *
+         * 한 칸은 ① 키 ② 어떻게 싣는가 ③ 수정 시각을 함께 보는 묶음의 대표 키([stampedBy]) ④ 백업 파일 판별에 쓰는가.
+         * 내보내기([exportSnapshot]) · 수정 시각 목록([SYNC_META_KEYS]) · 백업 판별([BACKUP_MARKER_KEYS])이 이 표에서 나온다.
+         * 가져오기([importSnapshot])는 키마다 합치는 규칙이 달라 손으로 적혀 있다 — 표와 어긋나면
+         * `GatchaRepositorySnapshotTest` 의 왕복 테스트가 잡는다(내보낸 키가 전부 가져와지는지).
+         *
+         * ⚠️ 순서를 바꾸면 스냅샷의 바이트가 달라진다. 중복 올리기 생략이 바이트 비교라 한 번 더 올라갈 뿐이지만,
+         * 이유 없이 바꾸지는 말 것. 토큰(ltuid · ltoken · cookieToken · webCookie)은 **여기에 넣지 않는다** — 암호화 저장소 전용이다.
+         */
+        private class SnapKey(
+            val key: String,
+            val stampedBy: String? = null,
+            val backupMarker: Boolean = false,
+            val write: (GatchaRepository, JSONObject) -> Unit,
+        )
+        private fun arr(key: String, stampedBy: String? = null, marker: Boolean = false) =
+            SnapKey(key, stampedBy, marker) { r, o -> r.putStoredArray(o, key) }
+        private fun obj(key: String, stampedBy: String? = null, marker: Boolean = false) =
+            SnapKey(key, stampedBy, marker) { r, o -> r.putStoredObject(o, key) }
+        private fun str(key: String, stampedBy: String? = null) =
+            SnapKey(key, stampedBy) { r, o -> r.putStoredString(o, key) }
+
+        private val SNAPSHOT_KEYS: List<SnapKey> by lazy {
+            listOf(
+                arr(KEY_SPENDINGS, marker = true),
+                arr(KEY_DELETED_SPENDINGS),
+                SnapKey(KEY_SPENDINGS_CLEARED_AT) { r, o -> r.loadSpendingsClearedAt().takeIf { it > 0 }?.let { o.put(KEY_SPENDINGS_CLEARED_AT, it) } },
+                obj(KEY_DELETED_AT),
+                obj(KEY_META, marker = true),
+                SnapKey(KEY_GACHA_CLEARED_AT) { r, o -> r.prefs.getLong(KEY_GACHA_CLEARED_AT, 0L).takeIf { it > 0 }?.let { o.put(KEY_GACHA_CLEARED_AT, it) } },
+                SnapKey(KEY_BUDGET, stampedBy = KEY_BUDGET, backupMarker = true) { r, o -> o.put(KEY_BUDGET, r.loadBudget()) },
+                obj(KEY_BUDGET_GAMES, stampedBy = KEY_BUDGET_GAMES),
+                str(KEY_PROFILE_NAME, stampedBy = KEY_PROFILE_NAME),
+                str(KEY_MY_GAMES, stampedBy = KEY_MY_GAMES),
+                str(KEY_PROFILE_EMAIL, stampedBy = KEY_PROFILE_NAME),
+                // 게임 UID 만 싣는다 — 토큰이 아니므로 기기 간 동기화에 필요.
+                str(KEY_HOYO_GI, stampedBy = KEY_HOYO_GI),
+                str(KEY_HOYO_HSR, stampedBy = KEY_HOYO_GI),
+                str(KEY_HOYO_ZZZ, stampedBy = KEY_HOYO_GI),
+                // 강조색은 **값과 기준을 함께** 내보낸다. loadAccentIndex 가 돌려주는 값은 이미 현재
+                // 팔레트로 옮겨진 값이라, 받는 쪽이 기준을 모르면 변환을 한 번 더 걸어 색이 밀린다.
+                SnapKey(KEY_ACCENT, stampedBy = KEY_ACCENT) { r, o -> o.put(KEY_ACCENT, r.loadAccentIndex()) },
+                SnapKey(KEY_ACCENT_VER, stampedBy = KEY_ACCENT) { _, o -> o.put(KEY_ACCENT_VER, ACCENT_PALETTE_VER) },
+                str(KEY_ENKA_GI, stampedBy = KEY_ENKA_GI),
+                str(KEY_ENKA_HSR, stampedBy = KEY_ENKA_GI),
+                obj(KEY_ATTENDANCE, marker = true),
+                obj(KEY_PITY, stampedBy = KEY_PITY, marker = true),
+                arr(KEY_EVENT_CHECKS, stampedBy = KEY_EVENT_CHECKS),
+                arr(KEY_GACHA, marker = true),
+                arr(KEY_HOME_CARDS, marker = true),
+                arr(KEY_REDEEMED),
+                SnapKey(KEY_BEST_NOSPEND) { r, o -> o.put(KEY_BEST_NOSPEND, r.loadBestNoSpend()) },
+                arr(KEY_BADGES, marker = true),
+            )
+        }
+
+        /** 스냅샷에 실리는 키 전부(순서 그대로) — 테스트가 내보내기 · 가져오기의 어긋남을 잡는 데 쓴다. */
+        internal val SNAPSHOT_KEY_NAMES: List<String> get() = SNAPSHOT_KEYS.map { it.key }
+
+        /** 통째로 덮는 키의 수정 시각 묶음 — 묶음 안의 키는 같은 시각으로 이기고 진다(이름 · 이메일, 게임 UID 셋). */
+        val SYNC_META_KEYS: List<String> get() = SNAPSHOT_KEYS.mapNotNull { it.stampedBy }.distinct()
         const val DELETED_SPENDINGS_MAX = 2000
         /** 삭제 기록을 들고 있는 기간 — 이보다 오래된 것은 정리한다([capTombstones]). */
         const val DELETED_SPENDINGS_MAX_AGE_MS = 365L * 24 * 60 * 60 * 1000
@@ -1476,8 +1520,7 @@ class GatchaRepository(
         /** 아직 클라우드에 못 올린 변경이 있다는 표시 — 로컬 전용([markUnsynced]). */
         private const val KEY_UNSYNCED_AT = "sync_unsynced_at"
         /** 백업 파일이라면 하나쯤은 들어 있는 키 — 하나도 없으면 다른 종류의 파일이다([importBackupJson]). */
-        private val BACKUP_MARKER_KEYS
-            get() = listOf(KEY_SPENDINGS, KEY_BUDGET, KEY_GACHA, KEY_ATTENDANCE, KEY_META, KEY_PITY, KEY_BADGES, KEY_HOME_CARDS)
+        private val BACKUP_MARKER_KEYS: List<String> get() = SNAPSHOT_KEYS.filter { it.backupMarker }.map { it.key }
         const val KEY_DELETED_SPENDINGS = "deleted_spendings" // 삭제된 지출 id tombstone(합집합 병합 방어 — 삭제 전파용)
         const val KEY_BUDGET = "budget"
         const val KEY_BUDGET_GAMES = "budget_games"

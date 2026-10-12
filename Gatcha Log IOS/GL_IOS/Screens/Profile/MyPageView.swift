@@ -8,8 +8,8 @@ import Shared
 // 계정 전환·내보내기·테마 등 관리 항목은 ⚙ 설정에서 처리.
 // ════════════════════════════════════════════════════════════════════════════
 
-/// id 는 연-월로 고정한다 — UUID 를 쓰면 body 평가마다 새 id 가 생겨 차트 막대가 전부 재생성된다.
-private struct MonthPoint: Identifiable { let id: String; let month: Int; let amount: Int64 }
+// 통계 계산은 전부 공용(Kotlin) `MyPageStats` — Android 와 같은 함수다(27.52.0). 이 파일은 그리기만 한다.
+// 예전엔 같은 계산을 Swift 로 따로 갖고 있었고, 「지난달보다 N%」와 금액이 같은 게임의 순서가 Android 와 갈렸다.
 
 private let hairColor = Color(hex: 0xFFEEF0F2)
 private let upColor = Color(hex: 0xFFDC2626)
@@ -19,16 +19,18 @@ struct MyPageView: View {
     var store: SpendingStore
 
     var body: some View {
+        // 막대(②)와 지출 기록(④)이 같은 추이를 쓴다 — 한 번만 만든다.
+        let trend = monthlyTrend
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ProfileSection(store: store)
                 Band()
                 MonthSection(monthly: store.monthlyTotal, prevMonthly: store.prevMonthTotal, budget: store.budget,
-                             dailyAvg: dailyAvg, total: totals.amount, monthCount: totals.monthCount, trend: monthlyTrend)
+                             dailyAvg: dailyAvg, total: totals.amount, monthCount: totals.monthCount, trend: trend.points)
                 Band()
                 GameSpendSection(spendings: store.spendings)
                 Band()
-                RecordSection(trend: monthlyTrend)
+                RecordSection(trend: trend)
                 Band()
                 ActivitySection(history: store.attendanceHistory, tracked: store.trackedAttendanceGames,
                                 streak: store.attendanceStreak, taskStats: store.taskStats, spendCount: store.spendings.count)
@@ -65,35 +67,21 @@ struct MyPageView: View {
     @State private var totals = Totals()
     @State private var openSettings = false
 
+    private static var nowMillis: Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
+
     private static func computeTotals(_ spendings: [Spending]) -> Totals {
-        let du = DateUtil.shared
-        let ym = du.yearMonthKey(millis: Int64(Date().timeIntervalSince1970 * 1000))
-        var sum: Int64 = 0
-        var n = 0
-        for s in spendings {                                   // 순회 1회
-            sum += s.amount
-            if du.yearMonthKey(millis: s.dateMillis) == ym { n += 1 }
-        }
-        return Totals(amount: sum, monthCount: n)
+        let t = MyPageStats.shared.totals(spendings: spendings, nowMillis: nowMillis)   // 순회 1회
+        return Totals(amount: t.total, monthCount: Int(t.monthCount))
     }
 
     private var dailyAvg: Int64 {
-        let day = Calendar.current.component(.day, from: Date())
-        return store.monthlyTotal / Int64(max(day, 1))
+        MyPageStats.shared.dailyAverage(monthTotal: store.monthlyTotal, nowMillis: Self.nowMillis)
     }
     /// 월별 추이 — 합계는 Kotlin 이 지출을 한 번만 훑어 만들어 둔 값을 그대로 쓴다(오래된 달 → 이번 달 순).
-    private var monthlyTrend: [MonthPoint] {
-        let totals = store.recentMonthlyTotals
-        return totals.indices.map { i in
-            let ym = Self.yearMonth(monthsAgo: totals.count - 1 - i)
-            return MonthPoint(id: "\(ym.0)-\(ym.1)", month: Int(ym.1), amount: totals[i])
-        }
-    }
-    private static func yearMonth(monthsAgo: Int) -> (Int32, Int32) {
-        let cal = Calendar.current
-        let date = cal.date(byAdding: .month, value: -monthsAgo, to: Date()) ?? Date()
-        let c = cal.dateComponents([.year, .month], from: date)
-        return (Int32(c.year ?? 2026), Int32(c.month ?? 1))
+    /// 월 번호 · 막대 비율 · 월 평균 · 가장 많이 쓴 달은 공용 `MyPageStats.trend` 가 붙인다.
+    private var monthlyTrend: MyPageTrend {
+        MyPageStats.shared.trend(recentTotals: store.recentMonthlyTotals.map { KotlinLong(value: $0) },
+                                 nowMillis: Self.nowMillis)
     }
 }
 
@@ -223,7 +211,7 @@ private struct MonthSection: View {
     let dailyAvg: Int64
     let total: Int64
     let monthCount: Int
-    let trend: [MonthPoint]
+    let trend: [MyPageMonthPoint]
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
@@ -245,7 +233,8 @@ private struct MonthSection: View {
     /// 지난달 0 이면 비교하지 않는다(예전 추세 알약과 같은 규칙).
     @ViewBuilder private var trendText: some View {
         if prevMonthly > 0 {
-            let delta = Int((Double(monthly - prevMonthly) / Double(prevMonthly)) * 100)
+            // 공용 정수 계산 — 예전엔 Double 로 나눠 버려 Android(Float)와 1% 씩 갈렸다(27.52.0).
+            let delta = Int(SpendingInsightStats.shared.momPercent(thisMonth: monthly, lastMonth: prevMonthly))
             let down = delta <= 0
             Text("\(down ? "▼" : "▲") \(abs(delta))% 지난달보다")
                 .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(down ? downColor : GLGColor.urgent)
@@ -253,9 +242,10 @@ private struct MonthSection: View {
     }
 
     private var budgetBlock: some View {
-        let over = monthly > budget
-        let pct = Int(monthly * 100 / budget)
-        let frac = over ? 1 : CGFloat(Double(monthly) / Double(budget))
+        let progress = MyPageStats.shared.budget(monthTotal: monthly, budget: budget)
+        let over = progress.over
+        let pct = Int(progress.percent)
+        let frac = CGFloat(progress.ratio)
         return VStack(spacing: 6) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -268,8 +258,8 @@ private struct MonthSection: View {
             HStack {
                 subText("예산 \(won(budget)) 중 \(pct)%")
                 Spacer(minLength: 8)
-                if over { subText("\(won(monthly - budget)) 초과", color: GLGColor.urgent) }
-                else { subText("\(won(budget - monthly)) 남음") }
+                if over { subText("\(won(progress.gap)) 초과", color: GLGColor.urgent) }
+                else { subText("\(won(progress.gap)) 남음") }
             }
         }
         .padding(.top, 12)
@@ -277,11 +267,11 @@ private struct MonthSection: View {
 
     /// 최근 6개월 막대 — 막대 최대 70 · 라벨 12, 이번 달만 강조색.
     private var monthBars: some View {
-        let maxAmt = max(trend.map { $0.amount }.max() ?? 0, 1)
-        return HStack(alignment: .bottom, spacing: 10) {
-            ForEach(Array(trend.enumerated()), id: \.element.id) { idx, p in
+        // id 는 연-월로 고정한다 — 값이 바뀔 때마다 새 id 가 생기면 차트 막대가 전부 재생성된다.
+        HStack(alignment: .bottom, spacing: 10) {
+            ForEach(Array(trend.enumerated()), id: \.element.yearMonth) { idx, p in
                 let isCurrent = idx == trend.count - 1
-                let frac = CGFloat(Double(p.amount) / Double(maxAmt))
+                let frac = CGFloat(p.barRatio)
                 VStack(spacing: 6) {
                     UnevenRoundedRectangle(topLeadingRadius: 5, topTrailingRadius: 5)
                         .fill(isCurrent ? accent.primary : accent.primary.opacity(0.2))
@@ -316,25 +306,14 @@ private struct GameSpendSection: View {
     @State private var pcts: [Int] = []
 
     /// 6개 이상이면 나머지를 '기타'로 묶는다(게임별 월 추이 카드와 같은 규칙).
+    /// 묶기 · 정렬 · 퍼센트(합이 정확히 100, 최대 잔여법)는 공용 `MyPageStats.gameShare` 가 한다(27.52.0).
+    /// 예전엔 Dictionary 로 모아 정렬해서 금액이 같은 게임의 순서가 실행마다 달라질 수 있었다.
     private static func compute(_ spendings: [Spending]) -> (slices: [Slice], total: Int64, pcts: [Int]) {
-        var sums: [String: Int64] = [:]
-        var colors: [String: Int64] = [:]
-        var sum: Int64 = 0
-        for s in spendings {                       // 순회 1회
-            sums[s.gameName, default: 0] += s.amount
-            if colors[s.gameName] == nil { colors[s.gameName] = s.gameColor }
-            sum += s.amount
+        let share = MyPageStats.shared.gameShare(spendings: spendings)   // 순회 1회
+        let list = share.slices.map {
+            Slice(game: $0.game, amount: $0.amount, color: $0.isEtc ? etcSliceColor : Color(argb64: $0.color))
         }
-        var list = sums.map { Slice(game: $0.key, amount: $0.value,
-                                    color: Color(argb64: colors[$0.key] ?? 0xFF8E8E93)) }
-            .sorted { $0.amount > $1.amount }
-        if list.count > 5 {
-            let etc = list.dropFirst(5).reduce(Int64(0)) { $0 + $1.amount }
-            list = Array(list.prefix(5)) + [Slice(game: "기타", amount: etc, color: etcSliceColor)]
-        }
-        // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
-        let pcts = FormatKt.percentShares(values: list.map { KotlinLong(value: $0.amount) }).map { $0.intValue }
-        return (list, sum, pcts)
+        return (list, share.total, share.slices.map { Int($0.percent) })
     }
 
     var body: some View {
@@ -378,11 +357,11 @@ private struct GameSpendSection: View {
 // ── ④ 지출 기록 ──────────────────────────────────────────────────────────────
 
 private struct RecordSection: View {
-    let trend: [MonthPoint]
+    let trend: MyPageTrend
 
     var body: some View {
-        let avg: Int64 = trend.isEmpty ? 0 : trend.reduce(Int64(0)) { $0 + $1.amount } / Int64(trend.count)
-        let peak = trend.max { $0.amount < $1.amount }.flatMap { $0.amount > 0 ? $0 : nil }
+        let avg: Int64 = trend.monthlyAverage
+        let peak = trend.peak
         MPSection(bottom: 8) {
             SectionHead(title: "지출 기록")
             ListRow {
@@ -435,8 +414,7 @@ private struct ActivitySection: View {
 
     /// 일일 숙제 완주 — 기록이 있는 게임들의 30일 완주율 평균.
     private var taskRate: Int? {
-        let l = taskStats.filter { $0.dailyDays > 0 }
-        return l.isEmpty ? nil : l.reduce(0) { $0 + Int($1.dailyRate) } / l.count
+        MyPageStats.shared.dailyTaskRate(taskStats: taskStats)?.intValue
     }
 
     var body: some View {

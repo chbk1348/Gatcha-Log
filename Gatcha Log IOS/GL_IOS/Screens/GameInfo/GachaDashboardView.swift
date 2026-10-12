@@ -44,7 +44,7 @@ struct GachaDashboardView: View {
     private func content(_ gk: String, _ d: GachaGameDash) -> some View {
         let info = gachaGameInfo(gk)
         let spend = store.gachaSpendByGame()[gk] ?? 0
-        let cost = (spend > 0 && d.five > 0) ? spend / Int64(d.five) : 0
+        let cost = GachaReport.shared.costPerFive(spend: spend, fives: d.five)
         return ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // 요약 — 페이지 맨 위 첫 섹션(위 띠 없음)

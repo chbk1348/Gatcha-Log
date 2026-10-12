@@ -37,6 +37,10 @@ struct HomeView: View {
         // body 안에서 alerts·todayTasks 를 계산하므로 "몇 번 도는가"가 곧 비용이다.
         // Instruments → Points of Interest 에서 확인한다(GLGPerf).
         let _ = GLGPerf.event("homeBody")
+        // 알림 목록은 body 한 번에 **한 번만** 만든다(27.52.0). 예전엔 알림 페이지에 넘길 때와 종 배지를 정할 때
+        // 각자 `alerts` 를 불러, 그릴 때마다 HomeLogic 계산(buildAlerts · gameOverBudget)이 두 벌씩 돌았다.
+        let shownAlerts = alerts
+        let unread = shownAlerts.filter { !store.readAlerts.contains($0.key) }.count
         ScrollView {
             // 홈 3.0(10/1) — iPhone · iPad 같은 구성.
             homeContent
@@ -80,15 +84,15 @@ struct HomeView: View {
                 }
                 .tint(GLGColor.textPrimary)
             }
-            // 알림(우).
+            // 알림(우). 누를 때 도는 클로저(전체 삭제 · 읽음 처리)는 그 순간의 목록을 다시 만든다 — 그릴 때 드는 값이 아니다.
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    NotificationDetailView(store: store, alerts: alerts,
+                    NotificationDetailView(store: store, alerts: shownAlerts,
                                            onGameInfo: { onSwitchTab(2) },
                                            onDismiss: { store.dismissAlert($0.key) },
                                            onDismissAll: { store.dismissAlerts(alerts.map { $0.key }) })
                 } label: {
-                    Image(systemName: unreadCount > 0 ? "bell.badge" : "bell")
+                    Image(systemName: unread > 0 ? "bell.badge" : "bell")
                 }
                 .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
             }
@@ -148,9 +152,12 @@ struct HomeView: View {
             // 카드 안에서 준다(숨은 날 빈 여백이 남지 않게). 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
             HoyolandHomeCard(onTap: { showHoyoland = true })
             // 헤어라인은 앞에 섹션이 있을 때만 — 묶음 머리 · 입장권 바로 다음엔 긋지 않는다(빠진 섹션이 선을 남기지 않게).
-            let showToday = !store.gameInfoReady || !todayTasks.isEmpty
+            // 오늘 할 일도 한 번만 만든다(27.52.0) — 예전엔 "보일까"를 물을 때와 카드를 그릴 때 각각 만들어
+            // HomeLogic 계산 넷이 두 벌씩 돌았다. 준비 전에는 스켈레톤만 서므로 만들지 않는다(예전에도 `||` 가 건너뛰었다).
+            let today = store.gameInfoReady ? todayTasks : []
+            let showToday = !store.gameInfoReady || !today.isEmpty
             if showToday {
-                homeSection(bottom: 8) { todayTaskView() }
+                homeSection(bottom: 8) { todayTaskView(today) }
             }
             dashboardSlots(lineBefore: showToday)
             // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를
@@ -225,11 +232,11 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private func todayTaskView() -> some View {
+    private func todayTaskView(_ tasks: [TodayItem]) -> some View {
         if !store.gameInfoReady {
             TodayTaskSkeleton()
         } else {
-            TodayTaskCard(tasks: todayTasks, inProgress: store.checkingIn != nil)
+            TodayTaskCard(tasks: tasks, inProgress: store.checkingIn != nil)
         }
     }
 
@@ -261,7 +268,6 @@ struct HomeView: View {
                                      attendanceGames: store.trackedAttendanceGames)
             .filter { !store.dismissedAlerts.contains($0.key) }
     }
-    private var unreadCount: Int { alerts.filter { !store.readAlerts.contains($0.key) }.count }
     private var todayTasks: [TodayItem] {
         // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인 — 오늘 할 일에서는 제외(urgentBanner: nil)
         HomeLogic.shared.resolveTodayTasks(

@@ -1,7 +1,6 @@
 package com.gatcha.log.data.work
 
 import com.gatcha.log.data.AppSettings
-import com.gatcha.log.data.GatchaRepository
 import kotlin.concurrent.AtomicInt
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
@@ -29,30 +28,10 @@ private const val TASK_ID = "com.gatcha.log.ios.checkin"
 private const val REFRESH_INTERVAL_SECONDS = 6.0 * 3600.0
 
 /**
- * 자동 출석(토글이 켜져 있을 때) + 로컬 알림 점검 1회 — 백그라운드/즉시 실행 공용. HoYoLAB 미연동이면 출석은 내부에서 no-op.
- * 알림 점검([NotificationChecker])은 Android(GatchaWorker)와 동일 로직으로 패리티 유지.
+ * 백그라운드 · 즉시 실행 공용 — 무엇을 어떤 순서로 할지는 공용 [BackgroundPass] 가 정한다(Android 와 같은 한 벌).
+ * 끝날 때까지 중단한다 — 호출자(BGTask 핸들러)가 완료 보고를 하는 순간 OS 가 앱을 서스펜드한다.
  */
-private suspend fun runCheckIn() {
-    val settings = AppSettings()
-    val repo = GatchaRepository(AppSettings.currentAccountId())
-    val cfg = repo.loadHoyolab()
-    // **자동 출석 토글이 켜져 있을 때만** 대신 출석한다(27.52.0). 예전엔 조건이 없어, 토글을 꺼도 HoYoLAB 이 연동돼
-    // 있으면 앱을 열 때와 백그라운드 작업마다 출석했다. Android(GatchaWorker)는 처음부터 토글을 봤다.
-    if (settings.autoCheckIn) runCatching {
-        AutoCheckInRunner.run(
-            settings = settings,
-            repo = repo,
-            cfg = cfg,
-            postFailureNotification = true,
-        )
-    }
-    runCatching { NotificationChecker.run(settings, repo, cfg) }
-    // 확정 시각 알림(픽업·시즌 마감·재화 가득참 · 출석 리마인더) 재예약 —
-    // 앱을 오래 안 열어도 OS 가 정시에 쏘도록.
-    // 이 호출은 **등록이 끝날 때까지 중단한다**. 호출자(BGTask 핸들러)가 완료 보고를 하는 순간
-    // OS 가 앱을 서스펜드하므로, 기다리지 않으면 예약이 걸리기 전에 프로세스가 멈춘다.
-    runCatching { ScheduledAlerts.reschedule(settings, repo) }
-}
+private suspend fun runCheckIn() = BackgroundPass.run()
 
 @OptIn(ExperimentalForeignApi::class)
 actual object NativeScheduler {

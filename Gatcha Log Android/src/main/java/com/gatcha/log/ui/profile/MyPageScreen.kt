@@ -41,13 +41,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Calendar
 import com.gatcha.log.data.AttendanceDayLevel
 import com.gatcha.log.data.AttendanceLogic
 import com.gatcha.log.data.ChallengeSummary
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
+import com.gatcha.log.data.MyPageMonthPoint
+import com.gatcha.log.data.MyPageStats
+import com.gatcha.log.data.MyPageTrend
 import com.gatcha.log.data.Spending
+import com.gatcha.log.data.SpendingInsightStats
 import com.gatcha.log.data.TaskStats
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.glgTabContentBottom
@@ -58,7 +61,6 @@ import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.*
-import com.gatcha.log.util.percentShares
 import com.gatcha.log.util.won
 import com.gatcha.log.ui.savings.SavingsChallengeScreen
 
@@ -122,23 +124,12 @@ fun MyPageScreen(
     val monthlyTotal by viewModel.currentMonthTotal.collectAsStateWithLifecycle()
     val prevMonthly by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
     val recentTotals by viewModel.recentMonthlyTotals.collectAsStateWithLifecycle()
+    // 여기서 내는 통계는 전부 공용 [MyPageStats] — iOS 와 같은 함수다(27.52.0). 화면은 '지금'만 넘긴다.
     // 한 번의 순회로 누적 총액·이번 달 건수를 같이 낸다.
-    val (total, monthCount) = remember(spendings) {
-        val ym = DateUtil.yearMonthKey(System.currentTimeMillis())
-        var sum = 0L
-        var n = 0
-        spendings.forEach {
-            sum += it.amount
-            if (DateUtil.yearMonthKey(it.dateMillis) == ym) n++
-        }
-        sum to n
-    }
-    val dailyAvg = remember(monthlyTotal) { monthlyTotal / currentDayOfMonth().coerceAtLeast(1) }
-    val monthlyTrend = remember(recentTotals) {
-        // recentMonthlyTotals 는 오래된 달 → 이번 달 순. 표시용 월 번호만 붙인다.
-        val months = recentYearMonths(recentTotals.size)
-        recentTotals.mapIndexed { i, v -> MonthPoint(months[i].second, v) }
-    }
+    val totals = remember(spendings) { MyPageStats.totals(spendings, System.currentTimeMillis()) }
+    val dailyAvg = remember(monthlyTotal) { MyPageStats.dailyAverage(monthlyTotal, System.currentTimeMillis()) }
+    // recentMonthlyTotals 는 오래된 달 → 이번 달 순. 월 번호 · 막대 비율 · 월 평균 · 가장 많이 쓴 달을 붙인다.
+    val monthlyTrend = remember(recentTotals) { MyPageStats.trend(recentTotals, System.currentTimeMillis()) }
 
     AnimatedContent(
         targetState = sub,
@@ -190,7 +181,7 @@ fun MyPageScreen(
             )
         }
         band()
-        item { MonthSection(monthlyTotal, prevMonthly, budget, dailyAvg, total, monthCount, monthlyTrend) }
+        item { MonthSection(monthlyTotal, prevMonthly, budget, dailyAvg, totals.total, totals.monthCount, monthlyTrend.points) }
         band()
         item { GameSpendSection(spendings) }
         band()
@@ -349,14 +340,15 @@ private fun MonthSection(
     dailyAvg: Long,
     total: Long,
     monthCount: Int,
-    trend: List<MonthPoint>,
+    trend: List<MyPageMonthPoint>,
 ) {
     val accent = LocalAccent.current
     Section {
         SectionHead("이번 달 지출") {
             // 지난달 0 이면 비교하지 않는다(예전 TrendPill 과 같은 규칙).
             if (prevMonthly > 0L) {
-                val deltaPct = ((monthly - prevMonthly).toFloat() / prevMonthly * 100f).toInt()
+                // 공용 정수 계산 — 예전엔 Float 로 나눠 버려 iOS(Double)와 1% 씩 갈렸다(27.52.0).
+                val deltaPct = SpendingInsightStats.momPercent(monthly, prevMonthly)
                 val down = deltaPct <= 0
                 Text(
                     "${if (down) "▼" else "▲"} ${kotlin.math.abs(deltaPct)}% 지난달보다",
@@ -367,18 +359,17 @@ private fun MonthSection(
         Text(won(monthly), fontSize = 32.sp, fontWeight = FontWeight.Black, color = TextPrimary, maxLines = 1)
         // 예산은 설정했을 때만 — 초과 문구는 홈 예산 카드와 같은 규칙.
         if (budget > 0) {
-            val over = monthly > budget
-            val pct = (monthly * 100 / budget).toInt()
-            val frac = if (over) 1f else monthly.toFloat() / budget
+            val progress = remember(monthly, budget) { MyPageStats.budget(monthly, budget) }
+            val over = progress.over
             Box(
                 Modifier.padding(top = 12.dp).fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(HairColor),
             ) {
-                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(if (over) Urgent else accent))
+                Box(Modifier.fillMaxWidth(progress.ratio.toFloat()).fillMaxHeight().background(if (over) Urgent else accent))
             }
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                SubText("예산 ${won(budget)} 중 ${pct}%")
-                if (over) SubText("${won(monthly - budget)} 초과", color = Urgent)
-                else SubText("${won(budget - monthly)} 남음")
+                SubText("예산 ${won(budget)} 중 ${progress.percent}%")
+                if (over) SubText("${won(progress.gap)} 초과", color = Urgent)
+                else SubText("${won(progress.gap)} 남음")
             }
         }
         StatTriple(
@@ -392,8 +383,7 @@ private fun MonthSection(
 
 /** 최근 6개월 막대 — 막대 최대 70 · 라벨 12, 이번 달만 강조색. */
 @Composable
-private fun MonthBars(trend: List<MonthPoint>, accent: Color) {
-    val maxAmt = remember(trend) { (trend.maxOfOrNull { it.amount } ?: 0L).coerceAtLeast(1L) }
+private fun MonthBars(trend: List<MyPageMonthPoint>, accent: Color) {
     Row(
         Modifier.fillMaxWidth().padding(top = 22.dp).height(96.dp),
         verticalAlignment = Alignment.Bottom,
@@ -401,7 +391,7 @@ private fun MonthBars(trend: List<MonthPoint>, accent: Color) {
     ) {
         trend.forEachIndexed { i, p ->
             val isCurrent = i == trend.lastIndex
-            val barH = (70f * (p.amount.toFloat() / maxAmt).coerceIn(0f, 1f)).coerceAtLeast(3f).dp
+            val barH = (70f * p.barRatio.toFloat()).coerceAtLeast(3f).dp
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     Modifier
@@ -421,16 +411,12 @@ private fun MonthBars(trend: List<MonthPoint>, accent: Color) {
 @Composable
 private fun GameSpendSection(spendings: List<Spending>) {
     // 6개 이상이면 나머지를 '기타'로 묶는다(게임별 월 추이 카드와 같은 규칙).
-    val byGame = remember(spendings) {
-        val all = spendings.groupBy { it.gameName }
-            .map { (g, list) -> GameSlice(g, list.sumOf { s -> s.amount }, list.first().gameColor.toColor()) }
-            .sortedByDescending { it.amount }
-        if (all.size <= 5) all
-        else all.take(5) + GameSlice("기타", all.drop(5).sumOf { it.amount }, EtcSliceColor)
+    // 묶기 · 정렬 · 퍼센트(합이 정확히 100, 최대 잔여법)는 공용 [MyPageStats.gameShare] 가 한다(27.52.0).
+    val share = remember(spendings) { MyPageStats.gameShare(spendings) }
+    val byGame = remember(share) {
+        share.slices.map { GameSlice(it.game, it.amount, if (it.isEtc) EtcSliceColor else it.color.toColor(), it.percent) }
     }
-    val total = remember(byGame) { byGame.sumOf { it.amount } }
-    // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
-    val pcts = remember(byGame) { percentShares(byGame.map { it.amount }) }
+    val total = share.total
     Section(bottom = if (byGame.isEmpty() || total <= 0L) 20.dp else 8.dp) {
         SectionHead("게임별 지출") { MoreText("전체 기간") }
         if (byGame.isEmpty() || total <= 0L) {
@@ -452,7 +438,7 @@ private fun GameSpendSection(spendings: List<Spending>) {
                 Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(slice.color))
                 Text(slice.game, fontSize = 14.sp, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
                 NumText(won(slice.amount))
-                SubText("${pcts[i]}%", Modifier.width(34.dp).wrapContentWidth(Alignment.End))
+                SubText("${slice.percent}%", Modifier.width(34.dp).wrapContentWidth(Alignment.End))
             }
         }
     }
@@ -460,9 +446,9 @@ private fun GameSpendSection(spendings: List<Spending>) {
 
 /** ④ 지출 기록 — 최근 6개월 월 평균 · 가장 많이 쓴 달. */
 @Composable
-private fun RecordSection(trend: List<MonthPoint>) {
-    val avg = remember(trend) { if (trend.isEmpty()) 0L else trend.sumOf { it.amount } / trend.size }
-    val peak = remember(trend) { trend.maxByOrNull { it.amount }?.takeIf { it.amount > 0 } }
+private fun RecordSection(trend: MyPageTrend) {
+    val avg = trend.monthlyAverage
+    val peak = trend.peak
     Section(bottom = 8.dp) {
         SectionHead("지출 기록")
         ListRow {
@@ -507,9 +493,7 @@ private fun ActivitySection(
         (29 downTo 0).map { ago -> AttendanceLogic.dayLevel(history[DateUtil.hoyoDayKeyAgo(ago)].orEmpty(), tracked) }
     }
     // 일일 숙제 완주 — 기록이 있는 게임들의 30일 완주율 평균.
-    val taskRate = remember(taskStats) {
-        taskStats.filter { it.dailyDays > 0 }.takeIf { it.isNotEmpty() }?.let { l -> l.sumOf { it.dailyRate } / l.size }
-    }
+    val taskRate = remember(taskStats) { MyPageStats.dailyTaskRate(taskStats) }
     Section(bottom = if (taskStats.isNotEmpty()) 8.dp else 20.dp) {
         SectionHead("활동") { MoreText("최근 30일") }
         days.chunked(15).forEachIndexed { r, rowDays ->
@@ -596,20 +580,11 @@ private fun ChallengeSection(challenge: ChallengeSummary, onOpen: () -> Unit) {
     }
 }
 
-private data class MonthPoint(val month: Int, val amount: Long)
-private data class GameSlice(val game: String, val amount: Long, val color: Color)
+/** 게임별 지출 한 조각 — 공용 [com.gatcha.log.data.MyPageGameSlice] 에 화면 색을 입힌 것. */
+private data class GameSlice(val game: String, val amount: Long, val color: Color, val percent: Int)
 
 /** '기타'(상위 5개 밖) 조각 색 — 게임별 월 추이 카드와 동일 회색. */
 private val EtcSliceColor = Color(0xFFB8BDC6)
-
-/** 최근 [count]개월 (year, month1-12) — 오래된→최신 순. */
-private fun recentYearMonths(count: Int): List<Pair<Int, Int>> =
-    (count - 1 downTo 0).map { back ->
-        val c = Calendar.getInstance().apply { add(Calendar.MONTH, -back) }
-        c.get(Calendar.YEAR) to (c.get(Calendar.MONTH) + 1)
-    }
-
-private fun currentDayOfMonth(): Int = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
 
 // ============================================================
 //  설정 화면(SettingsScreen)에서도 재사용하는 공용 컴포넌트 — 유지

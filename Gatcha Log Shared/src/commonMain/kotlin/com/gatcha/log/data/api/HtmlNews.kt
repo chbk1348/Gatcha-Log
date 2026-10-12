@@ -19,7 +19,6 @@ internal object HtmlNews {
     private val RE_IMG = Regex("<img\\b[^>]*?\\bsrc\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>", RegexOption.IGNORE_CASE)
     /** 문단이 끝나는 태그 — 여기서 줄을 바꾸지 않으면 본문 전체가 한 문단으로 붙는다. */
     private val RE_BREAK = Regex("<(br|/p|/div|/li|/h[1-6]|/tr)\\s*/?>", RegexOption.IGNORE_CASE)
-    private val RE_TAG = Regex("<[^>]*>")
     private val RE_BLANKS = Regex("\n{3,}")
 
     /** `&amp;` 류 엔티티 — 공지에 실제로 섞여 오는 것만. 숫자 참조는 [decodeNumeric] 이 처리한다. */
@@ -75,7 +74,7 @@ internal object HtmlNews {
         // (명조 본문이 `<div>…</div>\n<div>…</div>` 구조라 문단마다 빈 줄이 하나씩 끼었다).
         val flattened = raw.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
         val withBreaks = RE_BREAK.replace(flattened, "\n")
-        val stripped = RE_TAG.replace(withBreaks, "")
+        val stripped = RE_MARKUP_TAG.replace(withBreaks, "")
         val decoded = decode(stripped)
         return decoded.lines().joinToString("\n") { it.trim() }  // 줄 끝에 남은 공백 정리
             .let { RE_BLANKS.replace(it, "\n\n") }               // 빈 줄 3개 이상은 2개로

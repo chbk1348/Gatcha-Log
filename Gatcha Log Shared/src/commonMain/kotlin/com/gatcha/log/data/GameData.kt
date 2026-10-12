@@ -130,7 +130,7 @@ object GameData {
      * [myGames](내 게임)를 정했으면 그중 고른 것만 — 겹치는 게 없으면(호요버스 게임을 안 고름) 거르지 않는다.
      */
     fun trackedAttendanceGames(cfg: HoyolabConfig, myGames: Set<String> = emptySet()): List<Game> {
-        val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+        val uids = cfg.uidByGame
         val base = if (!cfg.isLinked) attendanceGames
         else attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }.ifEmpty { attendanceGames }
         if (myGames.isEmpty()) return base
