@@ -124,7 +124,7 @@ struct GldsButtonStyle: ButtonStyle {
 
 // ════════════════════════════════════════════════════════════════════════════
 // GLDS 칩(9/30) — 필터 · 선택용 알약. Android `GldsChip` 과 같은 값.
-// 높이 32 · 좌우 12 · 13 Bold. 기본 흰 면 + 1 #E3E5EA, 선택은 **면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
+// 높이 36 · 좌우 14 · 14 Bold(10/12 에 32 · 12 · 13 에서 키웠다 — 높이는 GLDS 버튼 S 와 같다). 기본 흰 면 + 1 #E3E5EA, 선택은 **면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
 // (Menu 라벨의 글래스 모프 때 채운 면이 번져 보였다). dropdown 은 ▾, removable 은 ✕.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -141,14 +141,14 @@ struct GldsChipLabel: View {
     var body: some View {
         let line = color ?? accent.primary
         let fg = selected ? (color ?? accent.deep) : GLGColor.textPrimary
-        HStack(spacing: 3) {
-            Text(label).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
-            if dropdown { Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(selected ? fg : GLGColor.textSecondary) }
-            if removable { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+        HStack(spacing: 4) {
+            Text(label).font(.pretendard(size: 14, weight: .bold)).lineLimit(1)
+            if dropdown { Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(selected ? fg : GLGColor.textSecondary) }
+            if removable { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)) }
         }
         .foregroundStyle(fg)
-        .padding(.horizontal, 12)
-        .frame(height: 32)
+        .padding(.horizontal, 14)
+        .frame(height: 36)
         .background(Color.white, in: Capsule())
         .overlay(Capsule().strokeBorder(selected ? line : Color(hex: 0xFFE3E5EA), lineWidth: selected ? 1.5 : 1))
         .contentShape(Capsule())

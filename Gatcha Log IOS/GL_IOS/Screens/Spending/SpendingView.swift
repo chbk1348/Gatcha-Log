@@ -293,8 +293,11 @@ struct SpendingView: View {
                 // iOS 26+ 는 시스템 글래스 원형, iOS 18 은 불투명 흰 원(→ glgFloatingCircleButton).
                 // 지름은 바로 아래 '추가' 버튼과 같게 맞춘다 — 우측 하단에 세로로 나란히 뜬다.
                 .glgFloatingCircleButton(tint: accent.primary, diameter: GLGLegacyAddButton.size)
-                // 우측 여백도 '추가' 버튼과 같은 값 — 두 원이 세로로 정확히 겹쳐 보여야 한다.
-                .padding(.trailing, GLGLegacyAddButton.trailingInset)
+                // 우측 자리도 '추가' 버튼에 맞춘다 — 두 원이 세로로 정확히 겹쳐 보여야 한다.
+                // iOS 26+ 아이폰은 '추가'가 탭 바 옆의 시스템 원이고 이 버튼(시스템 글래스)과 지름이 달라, 오른쪽 여백만
+                // 같게 두면 가운데가 4pt 어긋났다(10/12 지적). '추가' 원과 같은 폭의 칸을 잡고 그 가운데에 세운다.
+                .frame(width: alignsScrollTopWithTabBarAdd ? GLGTabBarAddButton.diameter : nil)
+                .padding(.trailing, alignsScrollTopWithTabBarAdd ? GLGTabBarAddButton.trailingInset : GLGLegacyAddButton.trailingInset)
                 // iOS 18 에선 같은 우측 하단에 '추가' 원형 버튼이 떠 있어 **정확히 포개졌다.**
                 // 기준 좌표계가 서로 달라(추가=TabView 바깥/여긴 탭 안쪽) 눈으로는 둘 다
                 // "바닥에서 조금 띄운" 값인데 실제 높이가 같아진다. 그만큼 위로 비켜난다.
@@ -308,6 +311,12 @@ struct SpendingView: View {
 
     /// 맨 위로 버튼이 되돌아갈 앵커 id.
     private static let topAnchor = "spendingTop"
+
+    /// '맨 위로'를 탭 바의 '추가' 원에 가운데 맞추는가 — iOS 26+ **아이폰만**. 듀오 · 아이패드는 '추가'가 옆 · 위에 있다.
+    private var alignsScrollTopWithTabBarAdd: Bool {
+        if #available(iOS 26.0, *) { return GLGFormFactor.current == .phone }
+        return false
+    }
 
 
     private var spendingBand: some View { GldsBand() }

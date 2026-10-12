@@ -656,6 +656,18 @@ enum GLGLegacyAddButton {
     }
 }
 
+/// iOS 26+ **아이폰** 탭 바에서 캡슐과 떨어져 서는 '추가' 원의 자리 — 시스템이 그리는 것이라 잰 값이다
+/// (iPhone 17 Pro Max · iOS 27, 3배율 화면에서 지름 188px · 오른쪽 여백 62px).
+///
+/// 지출 리스트의 '맨 위로'(`SpendingView`)가 이 원과 **가운데를 맞춰** 바로 위에 선다(10/12). 듀오 · 아이패드는
+/// '추가'가 다른 자리에 있어 쓰지 않는다.
+enum GLGTabBarAddButton {
+    /// 원의 지름.
+    static let diameter: CGFloat = 188.0 / 3
+    /// 화면 오른쪽 끝에서 원까지.
+    static let trailingInset: CGFloat = 62.0 / 3
+}
+
 /// 넓은 창(iPad)의 '추가' FAB — iOS 26 은 **시스템 글래스**(.glassProminent), 이하는 솔리드 원.
 ///
 /// 직접 그린 원 + 그림자였는데, 같은 화면 아래쪽 탭바가 이미 시스템 Liquid Glass 라
