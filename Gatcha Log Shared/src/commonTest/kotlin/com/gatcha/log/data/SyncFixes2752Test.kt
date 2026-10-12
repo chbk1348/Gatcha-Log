@@ -210,4 +210,46 @@ class SyncFixes2752Test {
         dev.clearUnsyncedIf(dev.unsyncedMark())
         assertTrue(!dev.hasUnsynced)
     }
+
+    @Test
+    fun 표에_있는_키는_전부_가져오고_다시_내보낸다() {
+        // 스냅샷 키 표의 모든 칸에 값을 넣은 원격 — 표에 키를 더하면 여기에도 값을 더해야 한다(그게 이 테스트의 목적이다).
+        val t = currentTimeMillis() - 60_000
+        val remote = """{
+            "spendings":[{"id":"a","gameName":"원신","amount":1000,"dateMillis":1754000000000,"updatedAt":$t}],
+            "deleted_spendings":["z"],
+            "spendings_cleared_at":${t - 10},
+            "deleted_spendings_at":{"z":$t},
+            "sync_meta":{"budget":$t,"budget_games":$t,"profile_name":$t,"my_games":$t,"hoyo_gi":$t,"accent_index":$t,"enka_gi":$t,"pity":$t,"event_checks":$t},
+            "gacha_cleared_at":${t - 10},
+            "budget":50000,
+            "budget_games":{"genshin":30000},
+            "profile_name":"이름",
+            "my_games":"genshin,hsr",
+            "profile_email":"a@b.c",
+            "hoyo_gi":"800000001","hoyo_hsr":"800000002","hoyo_zzz":"1300000003",
+            "accent_index":1,"accent_palette_ver":2,
+            "enka_gi":"800000001","enka_hsr":"800000002",
+            "attendance":{"2026-10-01":["genshin"]},
+            "pity":{"genshin":{"count":10}},
+            "event_checks":["e1"],
+            "gacha_records":[{"game":"genshin","gachaType":"301","name":"x","rarity":5,"time":"2026-09-01 00:00:00","uid":"8000","id":"1"}],
+            "home_cards":["budget"],
+            "redeemed_codes":["CODE1"],
+            "best_nospend":7,
+            "badges":["first_save"]
+        }"""
+        val dev = device()
+        val table = dev.snapshotKeyNames()
+        val given = com.gatcha.log.json.JSONObject(remote)
+        assertEquals(emptyList(), table.filter { !given.has(it) }, "표에 새 키가 생겼다 — 이 테스트의 원격 값에도 더할 것")
+        dev.importSnapshotJson(remote)
+        val out = com.gatcha.log.json.JSONObject(dev.exportSnapshotJson())
+        assertEquals(emptyList(), table.filter { !out.has(it) }, "내보내기는 싣는데 가져오기가 받지 않는 키가 있다")
+        // 값도 그대로 돌아온다(몇 칸만 짚는다).
+        assertEquals(50_000L, dev.loadBudget())
+        assertEquals(setOf("genshin", "hsr"), dev.loadMyGames())
+        assertEquals(listOf("a"), dev.loadSpendings().map { it.id })
+        assertEquals(setOf("CODE1"), dev.loadRedeemedCodes().toSet())
+    }
 }

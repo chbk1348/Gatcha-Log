@@ -9,83 +9,7 @@ import Shared
 private let GLGFoodRowBg = Color(hex: 0xFFF7F8FA)
 private let GLGFoodTextThird = Color(hex: 0xFF98A0AB)
 
-/**
- 메뉴판 한 덩이 — 파는 것들의 목록이거나, 그 앞뒤의 문장(카운터 이름·세트 안내)이다.
-
- 원격 config 의 설명글은 줄 단위로 규칙이 있다. `Text` 하나에 통째로 넣으면
- "· 행운의 황금 레몬 만두 — 7,000원" 이 본문과 같은 무게로 깔려 **가격이 글 속에 묻힌다.**
- 값은 그대로 두고 표시만 나눈다(옛 빌드에서도 글자는 그대로 나온다).
- */
-enum HoyolandFoodBlock {
-    case menu([HoyolandFoodRow])
-    case para(String)
-}
-
-struct HoyolandFoodRow {
-    let name: String
-    let price: String
-    var sub: String
-}
-
-/**
- 메뉴 설명글을 **파는 줄 / 읽는 줄**로 가른다.
-
- - 들여쓴 줄 → 바로 위 메뉴의 부연(`·` 가 붙어 있어도 부연이다)
- - `· 이름 — 7,000원` → 메뉴 줄. 이어지는 구간이 하나의 목록으로 묶인다
- - 그 외 → 문장. 여기서 목록이 끊기는 건 의도다(그 문장은 앞 목록에만 걸린다)
- */
-func hoyolandFoodBlocks(_ desc: String) -> [HoyolandFoodBlock] {
-    var blocks: [HoyolandFoodBlock] = []
-    var buffer: [HoyolandFoodRow] = []
-    func flush() {
-        if !buffer.isEmpty {
-            blocks.append(.menu(buffer))
-            buffer.removeAll()
-        }
-    }
-    let lines = desc.components(separatedBy: "\n")
-    func isIndented(_ raw: String) -> Bool {
-        !raw.trimmingCharacters(in: .whitespaces).isEmpty && (raw.hasPrefix("  ") || raw.hasPrefix("\t"))
-    }
-    // 빈 줄을 지났는가 — 이어 적은 문장(줄바꿈)과 따로 적은 문단을 가른다.
-    var gap = false
-    for (i, raw) in lines.enumerated() {
-        let indented = isIndented(raw)
-        let line = raw.trimmingCharacters(in: .whitespaces)
-        if line.isEmpty { gap = true; continue }
-        defer { gap = false }
-        if indented, !buffer.isEmpty {
-            // 부연이 여러 줄이면 **줄바꿈 그대로** 잇는다(10/6) — 어드민의 「음식 설명」 칸에서 나눈 줄이다.
-            // 띄어쓰기로 이어 붙이던 때는 두 줄로 적은 설명이 한 줄로 뭉쳤다. (Android `parseFoodBlocks` 와 같다)
-            var last = buffer.removeLast()
-            // 목록 머리(「· 」)는 지우지 않는다 — 설명 안에 적은 목록이 목록으로 선다(`HoyolandListText`).
-            last.sub = last.sub.isEmpty ? line : "\(last.sub)\n\(line)"
-            buffer.append(last)
-        } else if line.hasPrefix("· ") {
-            let item = String(line.dropFirst(2))
-            if let r = item.range(of: " — ", options: .backwards) {
-                buffer.append(HoyolandFoodRow(name: String(item[..<r.lowerBound]),
-                                              price: String(item[r.upperBound...]),
-                                              sub: ""))
-            } else {
-                buffer.append(HoyolandFoodRow(name: item, price: "", sub: ""))
-            }
-        } else {
-            flush()
-            // 빈 줄 없이 이어 적은 문장은 **한 문단**이다(10/6) — 줄마다 문단으로 끊으면 두 줄짜리 안내가 문단 간격만큼
-            // 벌어진다. 다만 바로 아래가 메뉴인 줄은 가게 이름이라 따로 선다(어드민 `foodRowsFromPrograms` 와 같은 규칙).
-            let next = lines[(i + 1)...].first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            let isShop = next.map { !isIndented($0) && $0.trimmingCharacters(in: .whitespaces).hasPrefix("· ") } ?? false
-            if !gap, !isShop, case .para(let prev)? = blocks.last {
-                blocks[blocks.count - 1] = .para("\(prev)\n\(line)")
-            } else {
-                blocks.append(.para(line))
-            }
-        }
-    }
-    flush()
-    return blocks
-}
+// 메뉴판을 파는 줄 / 읽는 줄로 가르는 규칙은 공용 `HoyolandText.foodBlocks` 에 있다(Android 와 같은 함수).
 
 /**
  푸드존 — 게임별 메뉴판.
@@ -187,8 +111,7 @@ struct HoyolandFoodView: View {
 
     /// 마지막이 메뉴 줄인가 — 섹션 아래 여백을 그만큼 덜어 낸다(Android HoyolandFoodContent 와 같은 판정).
     private func endsWithMenu(_ p: HoyolandProgram) -> Bool {
-        guard p.deadline.isEmpty, case .menu = hoyolandFoodBlocks(p.desc).last else { return false }
-        return true
+        p.deadline.isEmpty && HoyolandText.shared.foodBlocks(desc: p.desc).last?.kind == .menu
     }
 
     /// 감싸던 카드를 걷었다(10/1) — 한 열은 섹션(hoyolandSection)이 감싸고, 두 열은 헤어라인으로 가른다.
@@ -197,9 +120,8 @@ struct HoyolandFoodView: View {
         let raw = event.stageColor(game: game)
         let c: Color = raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
         // 메뉴 줄 세기 — 카드를 열기 전에 "몇 가지나 파나"가 보이게. 들여쓴 부연은 빼고 센다.
-        let menuCount = p.desc.components(separatedBy: "\n")
-            .filter { $0.hasPrefix("· ") && $0.contains(" — ") }.count
-        let blocks = hoyolandFoodBlocks(p.desc)
+        let menuCount = Int(HoyolandText.shared.menuCount(desc: p.desc))
+        let blocks = HoyolandText.shared.foodBlocks(desc: p.desc)
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
@@ -223,33 +145,31 @@ struct HoyolandFoodView: View {
                             .layoutPriority(1)
                     }
                 }
-                ForEach(Array(blocks.enumerated()), id: \.offset) { bi, block in
-                    switch block {
-                    case .para(let text):
+                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                    switch block.kind {
+                    case .shop:
                         // 메뉴 **바로 앞**에 오는 문장은 그 메뉴를 파는 곳의 이름이다
                         // ("오렐리아 아카데미 카페테리아" · "CuppaMoment"). 뒤에 오는 문장은
                         // 그 메뉴에 붙는 안내다("코스 A·B 를 주문하면 …"). 같은 회색 문단으로
                         // 두면 한 카드 안에 카운터가 둘이라는 사실이 안 보인다.
-                        if bi + 1 < blocks.count, case .menu = blocks[bi + 1] {
-                            HStack(spacing: 7) {
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(c).frame(width: 3, height: 13)
-                                Text(text).font(.pretendard(size: 13, weight: .bold))
-                                    .foregroundStyle(GLGColor.textPrimary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Spacer(minLength: 0)
-                            }
-                        } else {
-                            // 안내 문단도 여러 줄 글이다 — 줄바꿈 · 목록 줄을 다른 화면과 같이 그린다(10/6).
-                            HoyolandListText(text: text, size: 12.5, lineSpacing: 4)
-                                .foregroundStyle(GLGColor.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 7) {
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .fill(c).frame(width: 3, height: 13)
+                            Text(block.text).font(.pretendard(size: 13, weight: .bold))
+                                .foregroundStyle(GLGColor.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
                         }
-                    case .menu(let rows):
+                    case .note:
+                        // 안내 문단도 여러 줄 글이다 — 줄바꿈 · 목록 줄을 다른 화면과 같이 그린다(10/6).
+                        HoyolandListText(text: block.text, size: 12.5, lineSpacing: 4)
+                            .foregroundStyle(GLGColor.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    case .menu:
                         // 메뉴는 **헤어라인으로 나눈 목록**이다(10/1) — 회색 메뉴판 면을 걷었다. 첫 줄 위에도 헤어라인을
                         // 그어 소제목·안내 문장과 "어디서부터 파는 것인가" 의 경계를 남긴다.
                         VStack(spacing: 0) {
-                            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                            ForEach(Array(block.rows.enumerated()), id: \.offset) { _, row in
                                 HoyolandHairline()
                                 // 메뉴 사진 — 있으면 줄 왼쪽 52칸(누르면 크게 보기). 없으면 글만.
                                 let photo = p.menuImageUrl(name: row.name)

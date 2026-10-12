@@ -1,14 +1,11 @@
 package com.gatcha.log.data.api
 
 
+import com.gatcha.log.data.DateUtil
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
-import kotlin.time.ExperimentalTime
 
 /**
  * 자동 수집된 활성 리딤코드. rewards 는 한국어로 정규화돼 저장된다(영어 미노출).
@@ -39,7 +36,7 @@ private val RE_QTY_DIGITS = Regex("\\d+")
  *
  * 커뮤니티 공개 API(hoyo-codes)를 사용한다. HoYoverse 3게임만 지원
  * (genshin / hkrpg=스타레일 / nap=젠레스). 실패 시 빈 목록 → 기존 수동 입력으로 폴백.
- * 보상 문자열은 영문(구조화 "Item*Qty;..." 또는 산문)으로 와서 [localizeRewards] 로 한국어화한다.
+ * 보상 문자열은 영문(구조화 "Item*Qty;..." 또는 산문)으로 와서 [parseItems] · [formatItems] 로 한국어화한다.
  */
 object GiftCodeApi {
 
@@ -89,7 +86,6 @@ object GiftCodeApi {
     /** 운영 어드민이 쓰는 라이브 문서 이름 — [LiveConfig] 참고. */
     private const val CONFIG_DOC = "giftCodes"
 
-    private val seoulTz = TimeZone.of("Asia/Seoul")
 
     /**
      * 라이브 → 정본 순. 둘 다 못 읽으면 **보정 없음** 으로 간다 — 보정은 덧대는 것이라
@@ -122,7 +118,7 @@ object GiftCodeApi {
                 val code = o.optString("code").trim().uppercase()
                 if (game !in GAME || code.isEmpty()) continue
                 val endRaw = o.optString("end").trim()
-                if (endRaw.isNotEmpty() && (kstMillis(endRaw) ?: continue) <= nowMillis) continue
+                if (endRaw.isNotEmpty() && (DateUtil.seoulMillis(endRaw) ?: continue) <= nowMillis) continue
                 manual.getOrPut(game) { ArrayList() }
                     .add(GiftCode(code, o.optString("rewards").trim(), o.optBoolean("highlight", false)))
             }
@@ -132,12 +128,6 @@ object GiftCodeApi {
             for (i in 0 until arr.length()) arr.optString(i).trim().uppercase().takeIf { it.isNotEmpty() }?.let(hidden::add)
         }
         GiftCodeOverrides(manual, hidden)
-    }.getOrNull()
-
-    /** "yyyy-MM-dd HH:mm" (Asia/Seoul) → epoch millis. 못 읽으면 null. */
-    @OptIn(ExperimentalTime::class)
-    private fun kstMillis(s: String): Long? = runCatching {
-        LocalDateTime.parse(s.replace(" ", "T")).toInstant(seoulTz).toEpochMilliseconds()
     }.getOrNull()
 
     /**
@@ -151,14 +141,6 @@ object GiftCodeApi {
         if (auto == null && manual.isEmpty()) return null
         return (manual + auto.orEmpty()).distinctBy { it.code }.filterNot { it.code in overrides.hidden }
     }
-
-    /**
-     * 보상명 한국어화 — 영어가 보이지 않도록 처리한다.
-     *  - 구조화 "Primogem*30;Mora*20000" → "원석 ×30, 모라 ×20000"
-     *  - 산문 "60 primogems and five adventurer's experience" → "원석 ×60, 모험가의 경험 ×5"
-     *  - 인게임 공식 한국어 명칭을 알 수 없는 이벤트 아이템은 (오역 대신) "외 N종"으로 요약.
-     */
-    fun localizeRewards(raw: String): String = formatItems(parseItems(raw))
 
     private fun parseItems(raw: String): List<Pair<String, String?>> {
         if (raw.isBlank()) return emptyList()

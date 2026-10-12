@@ -36,6 +36,14 @@ internal val DayOfWeek.koLabel: String
 
 object DateUtil {
 
+    /** 한국 시간대 — 운영 문서(공지 · 선물 코드 · 호요랜드)의 시각은 기기가 어디에 있든 한국 시각이다. */
+    val SEOUL: TimeZone = TimeZone.of("Asia/Seoul")
+
+    /** 운영 문서에 적는 「yyyy-MM-dd HH:mm」(한국 시각) → epoch millis. 못 읽으면 null. */
+    fun seoulMillis(text: String): Long? = runCatching {
+        LocalDateTime.parse(text.trim().replace(" ", "T")).toInstant(SEOUL).toEpochMilliseconds()
+    }.getOrNull()
+
     /**
      * 로컬 타임존 — **캐시한다.** getter 로 두면 접근할 때마다 시스템 조회가 일어나는데,
      * [isSameMonth] 한 번이 이 값을 2회 읽으므로 지출 1,000건 필터에 조회가 4,000회 발생했다.

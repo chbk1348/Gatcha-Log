@@ -183,7 +183,7 @@ private fun EmptyState(onImport: () -> Unit) {
 private fun GameCard(gk: String, g: GachaGameStat, spend: Long, onOpenDashboard: () -> Unit) {
     val accent = LocalAccent.current
     val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
-    val cost = if (spend > 0 && g.five > 0) spend / g.five else 0L
+    val cost = GachaReport.costPerFive(spend, g.five)
     val dist = g.luckDist
     run {
         Column(Modifier.fillMaxWidth()) {

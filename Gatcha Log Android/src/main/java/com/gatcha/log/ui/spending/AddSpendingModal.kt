@@ -66,6 +66,7 @@ import com.gatcha.log.data.PkgCategory
 import com.gatcha.log.data.category
 import com.gatcha.log.data.FrequentItem
 import com.gatcha.log.data.SpendingDefaults
+import com.gatcha.log.data.SpendingEditLogic
 import com.gatcha.log.data.currencyAmountOrNull
 import com.gatcha.log.data.currencyPullsOrNull
 import com.gatcha.log.data.Spending
@@ -150,22 +151,27 @@ fun AddSpendingModal(
     // 수정 진입 시 기존 태그를 둘로 가른다(27.52.0, iOS 와 같은 규칙) — 추천 목록에 있는 것은 칩으로,
     // **없는 것은 직접 입력 칸에** 채운다. 예전엔 전부 selectedTags 에 담고 칩은 추천 목록만 그려서, 직접 입력했던
     // 태그는 보이지도 않고 지울 길도 없었다(저장하면 그대로 다시 붙었다). 칸에 있으면 거기서 지우는 것으로 빠진다.
-    // 이어 붙이는 구분자는 저장 때 이 칸을 쪼개는 것과 같다(쉼표 · 공백 — [buildSpending]).
-    val existingTags = spendingToEdit?.tags.orEmpty()
-    var customTags by rememberSaveable(spendingToEdit) {
-        mutableStateOf(existingTags.filter { it.isNotBlank() && it !in GameData.suggestedTags }.joinToString(", "))
-    }
+    // 가르는 규칙 · 이어 붙이는 구분자는 공용 [SpendingEditLogic.splitTags] 가 정한다 — 저장 때 이 칸을 쪼개는
+    // [SpendingEditLogic.mergeTags] 와 한 파일에 있어 둘이 어긋나지 않는다.
+    val tagSplit = remember(spendingToEdit) { SpendingEditLogic.splitTags(spendingToEdit?.tags.orEmpty()) }
+    var customTags by rememberSaveable(spendingToEdit) { mutableStateOf(tagSplit.custom) }
     val selectedTags = rememberSaveable(
         spendingToEdit,
         // listSaver 를 쓰지 않는다 — 빈 목록은 저장하지 않아서, 칩을 전부 끈 뒤 복원되면 처음 태그가 되살아난다.
         saver = Saver<SnapshotStateList<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toMutableStateList() }),
-    ) { existingTags.filter { it in GameData.suggestedTags }.toMutableStateList() }
+    ) { tagSplit.selected.toMutableStateList() }
     // 수정 진입 시 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수를 복원 → 스텝퍼가 그대로 노출.
+    // 되읽는 규칙은 공용 [SpendingEditLogic.restoreItem] 이다(27.52.0) — 목록에 없는 게임명이면 상품을 찾지 않는다.
     // 고른 상품은 **이름**으로 들고 있다(상품명은 한 게임 안에서 겹치지 않는다).
-    var selectedPackageName by rememberSaveable(spendingToEdit) { mutableStateOf(detectEditPackage(spendingToEdit)?.name) }
+    val restoredItem = remember(spendingToEdit) {
+        spendingToEdit?.let { SpendingEditLogic.restoreItem(it.gameName, it.itemName) }
+    }
+    var selectedPackageName by rememberSaveable(spendingToEdit) { mutableStateOf(restoredItem?.packageName) }
     val selectedPackage = selectedPackageName?.let { name -> GameData.packagesFor(game).firstOrNull { it.name == name } }
     // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
-    var quantity by rememberSaveable(spendingToEdit) { mutableIntStateOf(detectEditQuantity(spendingToEdit)) }
+    var quantity by rememberSaveable(spendingToEdit) {
+        mutableIntStateOf(restoredItem?.quantity ?: SpendingEditLogic.MIN_QUANTITY)
+    }
     val showDatePicker = remember { mutableStateOf(false) }
     // N6 과소비 넛지 — 저장 직전 경고 메시지(있으면 확인 다이얼로그 노출 후 그래도 추가 시 저장).
     var nudgeMsg by remember { mutableStateOf<String?>(null) }
@@ -203,21 +209,21 @@ fun AddSpendingModal(
     }
 
     // 구매 횟수 변경 — 선택된 상품 기준으로 금액·재화명을 N배로 다시 계산.
+    // 범위(1~99) · 「×N」을 붙이는 모양은 공용 [SpendingEditLogic] 이 정한다(27.52.0, iOS 와 한 소스).
     fun setQuantity(q: Int) {
-        val qty = q.coerceIn(1, 99)
+        val qty = SpendingEditLogic.clampQuantity(q)
         quantity = qty
         selectedPackage?.let { pkg ->
-            amount = (pkg.price * qty).toString()
-            itemName = if (qty > 1) "${pkg.name} ×$qty" else pkg.name
+            val applied = SpendingEditLogic.applyQuantity(pkg.name, pkg.price, qty)
+            amount = applied.amount.toString()
+            itemName = applied.itemName
         }
     }
 
     fun buildSpending(): Spending {
         val parsed = amount.toLongOrNull() ?: 0L
-        val tags = (selectedTags + customTags.split(",", " "))
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
+        // 칩 + 직접 입력 칸을 한 목록으로 — 쪼개기 · 다듬기 · 중복 제거는 공용 규칙(27.52.0, iOS 와 한 소스).
+        val tags = SpendingEditLogic.mergeTags(selectedTags, customTags)
         val base = spendingToEdit ?: Spending(gameName = game.displayName, amount = parsed)
         return base.copy(
             // 목록에 없는 게임명은 게임을 직접 바꾸지 않았으면 원래 이름 · 색 그대로 둔다(위 keepOriginalGame).
@@ -459,9 +465,8 @@ fun AddSpendingModal(
                 item {
                     GlgCardReveal(visible = gameChosen, order = 2) {
                     FormSection {
-                        val tagCount = selectedTags.size + customTags.split(",", " ").count { it.isNotBlank() }
-                        val custom = chargePlatform.isNotBlank() || selectedTags.isNotEmpty() ||
-                            customTags.isNotBlank() || memo.isNotBlank()
+                        // 요약 글자 · 강조 여부는 공용 계산(27.52.0) — iOS 는 공백뿐인 메모도 「메모」로 세고 있었다.
+                        val summary = SpendingEditLogic.detailSummary(paymentMethod, chargePlatform, selectedTags, customTags, memo)
                         Row(
                             // clip 을 걸지 않는다. 리플이 없는 앱(PressScaleIndication)이라 모양을 깎을
                             // 이유가 없는데, `clip` 은 **자기 자식까지 깎는다** — 이 줄은 좌우 패딩이
@@ -482,15 +487,10 @@ fun AddSpendingModal(
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
-                                    buildList {
-                                        add(paymentMethod.ifBlank { "카드" })
-                                        if (chargePlatform.isNotBlank()) add(chargePlatform)
-                                        add(if (tagCount > 0) "태그 $tagCount" else "태그 없음")
-                                        if (memo.isNotBlank()) add("메모")
-                                    }.joinToString(" · "),
+                                    summary.text,
                                     fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     // 기본값과 다른 값이 있으면 강조 — "뭔가 정해져 있다"가 보이게.
-                                    color = if (custom) LocalAccent.current else TextSecondary,
+                                    color = if (summary.isCustom) LocalAccent.current else TextSecondary,
                                     modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
@@ -947,12 +947,12 @@ private fun QuantityStepper(quantity: Int, unitPrice: Long, currencyTotal: Strin
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            StepperBtn(Icons.Default.Remove, enabled = quantity > 1) { onChange(quantity - 1) }
+            StepperBtn(Icons.Default.Remove, enabled = quantity > SpendingEditLogic.MIN_QUANTITY) { onChange(quantity - 1) }
             Text(
                 "$quantity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 28.dp),
             )
-            StepperBtn(Icons.Default.Add, enabled = quantity < 99) { onChange(quantity + 1) }
+            StepperBtn(Icons.Default.Add, enabled = quantity < SpendingEditLogic.MAX_QUANTITY) { onChange(quantity + 1) }
         }
     }
 }
@@ -972,18 +972,5 @@ private fun StepperBtn(icon: ImageVector, enabled: Boolean, onClick: () -> Unit)
     }
 }
 
-/** 수정 진입 시 항목명 끝의 "×N" 에서 구매 횟수 복원. 없으면 1. */
-private fun detectEditQuantity(s: Spending?): Int {
-    val name = s?.itemName?.trim() ?: return 1
-    val m = Regex("×\\s*(\\d+)\\s*$").find(name) ?: return 1
-    return m.groupValues[1].toIntOrNull()?.coerceIn(1, 99) ?: 1
-}
-
-/** 수정 진입 시 항목명(×N 제거)이 해당 게임의 상품과 일치하면 그 상품을 복원 → 스텝퍼 노출. */
-private fun detectEditPackage(s: Spending?): GamePackage? {
-    val name = s?.itemName?.trim() ?: return null
-    val base = name.replace(Regex("\\s*×\\s*\\d+\\s*$"), "").trim()
-    // 목록에 없는 게임명이면 맞춰 볼 상품 목록이 없다 — 원신 상품에 맞추지 않는다.
-    val game = GameData.byNameOrNull(s.gameName) ?: return null
-    return GameData.packagesFor(game).firstOrNull { it.name == base }
-}
+// (27.52.0) 수정 진입 때 항목명에서 구매 횟수 · 상품을 되읽던 detectEditQuantity · detectEditPackage 는
+// 공용 SpendingEditLogic.restoreItem 으로 옮겼다 — iOS 가 같은 규칙을 따로 적어 두고 있었다.

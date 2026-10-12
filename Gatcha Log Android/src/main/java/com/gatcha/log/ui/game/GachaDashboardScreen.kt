@@ -90,7 +90,7 @@ fun GachaDashboardScreen(
             val gk = selected
             val gameColor = GachaReport.gameInfo[gk]?.third?.toColor() ?: accent
             val spend = spendByGameKey[gk] ?: 0L
-            val cost = if (spend > 0 && d.five > 0) spend / d.five else 0L
+            val cost = GachaReport.costPerFive(spend, d.five)
 
             // 1) 요약 — 페이지 맨 위 첫 섹션(위 띠 없음)
             DashCard() {

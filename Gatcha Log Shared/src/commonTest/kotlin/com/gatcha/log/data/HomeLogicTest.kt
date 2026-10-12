@@ -321,4 +321,40 @@ class HomeLogicTest {
         assertEquals(gi.key, picked?.game?.key)
         assertEquals(70, picked?.count)
     }
+
+    // ── 이번 주 일정 ──────────────────────────────────────────────────────────
+
+    @Test
+    fun 이번_주_일정은_마감이_가까운_순으로_세_건이다() {
+        val events = listOf(
+            GameEvent(game = "원신", name = "나흘 뒤", endMillis = now + 4 * day),
+            GameEvent(game = "원신", name = "끝남", endMillis = now - 1),
+            GameEvent(game = "원신", name = "열흘 뒤", endMillis = now + 10 * day),
+        )
+        val challenges = listOf(
+            GameChallenge(game = "젠레스 존 제로", name = "이틀 뒤", typeName = "시유", endMillis = now + 2 * day),
+            GameChallenge(game = "붕괴: 스타레일", name = "엿새 뒤", typeName = "혼돈", endMillis = now + 6 * day),
+        )
+        val rows = HomeLogic.weekSchedule(events, challenges, now)
+        assertEquals(listOf("이틀 뒤", "나흘 뒤", "엿새 뒤"), rows.map { it.name })
+        assertEquals("젠레스 존 제로", rows.first().game)
+    }
+
+    @Test
+    fun 이번_주_일정의_강조는_적힌_디데이와_같은_날짜_계산이다() {
+        val rows = HomeLogic.weekSchedule(
+            listOf(
+                GameEvent(game = "원신", name = "사흘", endMillis = now + 3 * day),
+                GameEvent(game = "원신", name = "나흘", endMillis = now + 4 * day),
+            ),
+            emptyList(), now,
+        )
+        assertEquals(listOf("D-3", "D-4"), rows.map { it.dDayLabel })
+        assertEquals(listOf(true, false), rows.map { it.urgent })
+    }
+
+    @Test
+    fun 일정이_없으면_빈_목록이다() {
+        assertTrue(HomeLogic.weekSchedule(emptyList(), emptyList(), now).isEmpty())
+    }
 }

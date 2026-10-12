@@ -261,14 +261,6 @@ object SavingsChallenge {
         return best
     }
 
-    private fun comma(v: Long): String {
-        val s = v.toString()
-        val sb = StringBuilder()
-        val n = s.length
-        for (i in 0 until n) {
-            if (i > 0 && (n - i) % 3 == 0) sb.append(',')
-            sb.append(s[i])
-        }
-        return sb.toString()
-    }
+    /** 천 단위 콤마 — 구현은 공용 한 벌([com.gatcha.log.util.num])을 쓴다(27.52.0, 같은 함수가 다섯 곳에 따로 있었다). */
+    private fun comma(v: Long): String = com.gatcha.log.util.num(v)
 }

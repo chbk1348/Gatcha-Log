@@ -32,8 +32,6 @@ actual object AlertScheduler {
 
     private const val PREFIX = "gatcha_sched_"
 
-    actual val schedulesAhead: Boolean = true
-
     actual suspend fun replaceAll(alerts: List<ScheduledAlert>) {
         val center = UNUserNotificationCenter.currentNotificationCenter()
         // 이전 예약 정리 — 데이터가 바뀌면(픽업 종료·구독 삭제) 옛 예약이 남아 헛알림이 된다.

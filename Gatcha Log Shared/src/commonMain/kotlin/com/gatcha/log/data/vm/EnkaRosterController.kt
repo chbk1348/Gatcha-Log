@@ -7,7 +7,6 @@ import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.mergePartialRoster
 import com.gatcha.log.util.currentTimeMillis
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +25,6 @@ import kotlinx.coroutines.withContext
  *
  * @param repo 지금 계정의 저장소 — 계정을 바꾸면 뷰모델이 갈아끼우므로 **부를 때마다** 받아 온다.
  * @param ensureUids 연동됐는데 게임 UID 가 비어 있으면 1회 동기화(뷰모델이 HoYoLAB 설정까지 고친다).
- * @param persistDispatcher 저장을 한 줄로 세우는 디스패처 — 뷰모델의 지출 저장과 같은 줄을 쓴다.
  * @param prefetchCharCamps 로스터가 들어오면 소속을 미리 받아 둔다([CharMetaController.prefetchCharCamps]).
  */
 internal class EnkaRosterController(
@@ -34,9 +32,15 @@ internal class EnkaRosterController(
     private val repo: () -> GatchaRepository,
     private val hoyolab: () -> HoyolabConfig,
     private val ensureUids: suspend () -> Unit,
-    private val persistDispatcher: CoroutineDispatcher,
     private val prefetchCharCamps: (String, List<EnkaChar>) -> Unit,
 ) {
+    /**
+     * 캐시 저장을 한 줄로 세우는 디스패처 — 늦게 뜬 사본이 먼저 끝나 새 캐시를 덮지 않게 한다.
+     * 예전엔 뷰모델의 것을 **값으로** 받았다. 뷰모델에서 선언 순서가 바뀌면 null 이 넘어와 첫 저장에서 죽는 약점이었다(27.52.0).
+     * 줄을 세워야 하는 것은 이 캐시 저장끼리라, 지출 저장과 같은 줄을 쓸 이유가 없다.
+     */
+    private val persistDispatcher = Dispatchers.Default.limitedParallelism(1)
+
     private val _enkaGiUid = MutableStateFlow("")
     val enkaGiUid: StateFlow<String> = _enkaGiUid.asStateFlow()
     private val _enkaHsrUid = MutableStateFlow("")

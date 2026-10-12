@@ -3,8 +3,6 @@ package com.gatcha.log.data.work
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.gatcha.log.data.AppSettings
-import com.gatcha.log.data.GatchaRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -22,16 +20,11 @@ class CheckInAlarmReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val settings = AppSettings()
-                val repo = GatchaRepository(AppSettings.currentAccountId())
-                val outcome = runCatching {
-                    AutoCheckInRunner.run(settings, repo, repo.loadHoyolab(), postFailureNotification = true)
-                }.getOrNull()
+                // 출석하고 예약을 고쳐 건다 — 순서는 공용 [BackgroundPass] 가 정한다(토글이 꺼져 있으면 출석은 건너뛴다).
+                val outcome = BackgroundPass.checkInOnly()
 
                 // 네트워크 같은 일시적 실패면 몇 시간 뒤 한 번 더. 쿠키 만료(authFails)는 다시 해도
                 // 결과가 같으므로 재시도하지 않고 다음 날로 넘긴다(사용자 재연동이 필요하다).
-                // 출석이 바뀌었으니 예약도 고쳐 건다 — 오늘 몫의 출석 리마인더가 걷힌다.
-                runCatching { ScheduledAlerts.reschedule(settings, repo) }
                 val retryable = outcome != null && outcome.hasAnyFail && outcome.authFails.isEmpty()
                 if (retryable) DailyCheckInAlarm.scheduleRetry() else DailyCheckInAlarm.apply()
             } finally {

@@ -119,6 +119,18 @@ object SpendingInsightStats {
             .sortedByDescending { it.amount }
     }
 
+    /**
+     * 전월 대비 증감률(%) — **정수로 계산해 0 쪽으로 버린다**. 지난달이 0 이하면 -1(비교할 기준이 없다).
+     *
+     * -1 은 "1% 줄었다"와 겹치므로, 지난달 기록 유무는 호출부가 **금액으로** 가른다([MoMComparison] 설명과 같다).
+     *
+     * 마이페이지 「지난달보다」도 이 함수를 쓴다(27.52.0). 그 전엔 화면이 각자 실수로 나눠 버렸는데
+     * Android 는 Float, iOS 는 Double 이라 지난달 100 · 이번 달 129 가 한쪽은 29%, 다른 쪽은 28% 였다
+     * (0.29 × 100 이 Double 로는 28.999…). 정수 나눗셈에는 그 틈이 없다.
+     */
+    fun momPercent(thisMonth: Long, lastMonth: Long): Int =
+        if (lastMonth > 0) (((thisMonth - lastMonth) * 100) / lastMonth).toInt() else -1
+
     /** 전월 대비 — (year, month) 이번 달 vs 직전 달. */
     fun momComparison(spendings: List<Spending>, year: Int, month: Int): MoMComparison {
         val py = if (month <= 1) year - 1 else year
@@ -128,7 +140,7 @@ object SpendingInsightStats {
         val thisTotal = thisItems.sumOf { it.amount }
         val lastTotal = lastItems.sumOf { it.amount }
         val delta = thisTotal - lastTotal
-        val percent = if (lastTotal > 0) ((delta * 100) / lastTotal).toInt() else -1
+        val percent = momPercent(thisTotal, lastTotal)
 
         // 게임별 합계를 각 달에 한 번씩만 만든다. 예전엔 게임 1종마다 두 달치를 통째로 다시
         // 필터해서 O(게임수 × 지출수) 였다(게임 10종·1,000건이면 20,000회 순회).

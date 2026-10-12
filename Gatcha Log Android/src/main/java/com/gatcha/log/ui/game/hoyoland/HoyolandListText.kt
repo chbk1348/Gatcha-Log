@@ -59,7 +59,7 @@ internal fun HoyolandListDot(level: Int, fontSize: TextUnit, color: Color, lineH
  * 글자 크기 · 색 · 줄간은 **부르는 자리의 것 그대로**다 — 목록이 생겼다고 그 자리의 글 모양이 바뀌지 않는다.
  * 목록 줄이 하나도 없으면 예전처럼 `Text` 하나로 그린다.
  *
- * 값을 오른쪽에 붙여 강조하는 줄(예매 안내 · 푸드 메뉴의 「· 이름 — 값」)은 이것이 아니라 `HoyolandRichText` 가 그린다.
+ * 값을 따로 세우는 줄(푸드 메뉴 · 굿즈존 안내의 「· 이름 — 값」)은 이것이 아니라 그 화면이 직접 그린다 — 줄 규칙은 [HoyolandText.foodBlocks] · [HoyolandText.guideGroups].
  */
 @Composable
 internal fun HoyolandListText(

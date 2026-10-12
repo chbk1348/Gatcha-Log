@@ -148,28 +148,6 @@ object GachaRateData {
 
     fun byKey(key: String): GachaGameRate? = games.firstOrNull { it.key == key }
 
-    // ============================================================ 확률 계산 (웹앱 이식)
-    /** 현재 누적 천장(pity)에서의 단일 뽑기 최고등급 확률 */
-    fun rateAt(pity: Int, b: GachaBannerRate): Double = when {
-        pity >= b.hardPity -> 1.0
-        pity >= b.softPity -> b.base + (1 - b.base) * (pity - b.softPity + 1) / (b.hardPity - b.softPity)
-        else -> b.base
-    }
-
-    // n회 안의 확보 확률(`pickupProb`)은 픽뚫 뒤 두 번째 최고등급을 `hardPity * 0.82` 만큼
-    // 평행이동한 근사라, 90% 지점이 최악 뽑기 수(`maxPullsToSecure`)를 넘는 일이 있었다.
-    // → `GachaCalcContext.kt` 의 `pickupCdf` 로 대체했다. 정확한 분포의 합성곱이라
-    //   마지막 원소가 정확히 최악 지점에서 1.0 이 되고, 게이지·분위수·판정이 어긋나지 않는다.
-
-    /**
-     * 픽업(최고등급 픽업 캐릭터/음추) 확정까지 **최악의 경우** 필요한 뽑기 수.
-     * - 기본: 하드 천장까지 남은 횟수(반드시 최고등급 1회 확보).
-     * - 50/50 보유 + 미보장이면 첫 5★를 픽뚫할 수 있어 한 사이클(hardPity) 더 가산.
-     * - no5050(픽뚫 없음)/이미 보장(guaranteed)이면 한 번에 픽업 확정이라 가산 없음.
-     */
-    fun maxPullsToSecure(count: Int, guaranteed: Boolean, b: GachaBannerRate): Int {
-        val toFive = (b.hardPity - count).coerceAtLeast(1)
-        val needsTwoCycles = b.has5050 && !b.no5050 && !guaranteed
-        return if (needsTwoCycles) toFive + b.hardPity else toFive
-    }
+    // 확률 계산(단일 뽑기 확률 · 최악 뽑기 수)은 여기 있었다 — 부르는 곳이 없어 걷어 냈다(27.52.0).
+    // 확보 확률은 `GachaCalcContext.kt` 의 `pickupCdf` 가 맡는다.
 }

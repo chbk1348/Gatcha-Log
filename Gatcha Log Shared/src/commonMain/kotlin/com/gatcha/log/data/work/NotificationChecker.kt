@@ -7,7 +7,6 @@ import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
-import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.Josa
 import com.gatcha.log.data.LiveNote
@@ -81,7 +80,7 @@ object NotificationChecker {
      */
     private suspend fun fetchLiveNotes(repo: GatchaRepository, cfg: HoyolabConfig): List<LiveNote> {
         if (!cfg.isLinked) return emptyList()
-        val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+        val uids = cfg.uidByGame
         // 세 게임을 **동시에** 받는다(27.51.1) — 예전엔 차례로 받아 왕복 셋만큼 걸렸다. 화면 쪽 갱신도 같은 식으로 부른다
         // (게임마다 한 건씩이라 HoYoLAB 한도와 무관하다). 순서는 게임 순서 그대로다.
         val fresh = coroutineScope {
@@ -198,52 +197,9 @@ object NotificationChecker {
             }
         }
 
-        // ④ 픽업 마감 임박 (로컬 배너 캐시) — 게임별 1회, D-3/D-1 레벨.
-        //    iOS 는 [ScheduledAlerts] 가 같은 알림을 미리 예약하므로 여기선 건너뛴다(중복 방지).
-        if (settings.notifyPickup && !AlertScheduler.schedulesAhead) {
-            val now = currentTimeMillis()
-            repo.loadActiveBanners().filter { it.endMillis > now }
-                .groupBy { it.game }
-                .forEach { (gameName, list) ->
-                    // dDay 를 배너당 한 번만 — 예전엔 minOf 와 filter 에서 각각 다시 계산했다.
-                    val withD = list.map { it to it.dDay(now) }
-                    val minD = withD.minOf { it.second }
-                    val level = when { minD <= 1 -> "d1"; minD <= 3 -> "d3"; else -> null } ?: return@forEach
-                    val tag = "pickup:$gameName"
-                    if (settings.lastNotified(tag) != level) {
-                        settings.setLastNotified(tag, level)
-                        val game = GameData.byNameOrNull(gameName)
-                        val shortName = game?.shortName ?: gameName
-                        val nid = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0)
-                        val names = withD.filter { it.second <= 3 }.joinToString(", ") { it.first.name }
-                        val whenLabel = if (minD <= 1) "오늘·내일까지예요" else "D-$minD 남았어요"
-                        Notifier.notify(nid, "$shortName 픽업이 곧 끝나요", "$names · $whenLabel. 뽑을 거면 지금이에요")
-                    }
-                }
-        }
-
-        // ⑤ 정기결제 갱신 알림은 여기 있었다 — 기능째 걷어냈다(2026-09-09).
-
-        // ⑥ 전투 콘텐츠 시즌 마감 임박 (로컬 진행도 캐시) — 게임+모드별 1회, D-3/D-1 레벨.
-        //    놓치면 그 시즌 보상은 복구가 안 되므로 미클리어일 때만 알린다(판정은 HomeLogic 공유 룰).
-        if (settings.notifyCombat && !AlertScheduler.schedulesAhead) {
-            val now = currentTimeMillis()
-            HomeLogic.combatDeadlines(repo.loadCombatModes(), now).forEach { c ->
-                val level = if (c.dDay <= 1) "d1" else "d3"
-                val tag = "combat:${c.gameShort}:${c.mode}"
-                if (settings.lastNotified(tag) != level) {
-                    settings.setLastNotified(tag, level)
-                    val game = GameData.byNameOrNull(c.gameShort)   // 이름 인덱스 — shortName 도 키다
-                    val nid = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0)
-                    val whenLabel = if (c.dDay <= 0) "오늘" else if (c.dDay == 1) "내일" else "D-${c.dDay} 에"
-                    Notifier.notify(
-                        nid,
-                        "${c.gameShort} ${Josa.subj(c.mode)} 곧 끝나요",
-                        "${c.stars}/${c.maxStars} 에서 멈춰 있어요. $whenLabel 끝나면 남은 보상은 사라져요",
-                    )
-                }
-            }
-        }
+        // ④ 픽업 마감 · ⑥ 전투 시즌 마감은 여기 있었다 — 두 플랫폼 모두 [ScheduledAlerts] 가 미리 예약하므로 이 점검은
+        //    실행되지 않는 분기였고, 걷어 냈다(27.52.0). 예약 시각이 지난 뒤에야 알게 된 마감도 그쪽이 보낸다.
+        // ⑤ 정기결제 갱신 알림도 여기 있었다 — 기능째 걷어냈다(2026-09-09).
 
         // ⑦ 새 게임 공지 — 게임별로 '마지막으로 알린 공지 시각'보다 새 글이 올라왔을 때만.
         if (settings.notifyNews) {
@@ -358,15 +314,6 @@ object NotificationChecker {
         return if (start < end) h in start until end else h >= start || h < end
     }
 
-    /** 천 단위 콤마(비음수 금액). */
-    private fun won(v: Long): String {
-        val s = v.toString()
-        val sb = StringBuilder()
-        val n = s.length
-        for (i in 0 until n) {
-            if (i > 0 && (n - i) % 3 == 0) sb.append(',')
-            sb.append(s[i])
-        }
-        return sb.toString()
-    }
+    /** 천 단위 콤마(「원」은 붙이지 않는다) — 구현은 공용 한 벌([com.gatcha.log.util.num])을 쓴다(27.52.0). */
+    private fun won(v: Long): String = com.gatcha.log.util.num(v)
 }

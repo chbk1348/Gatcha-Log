@@ -58,34 +58,9 @@ private let enkaGold = Color(hex: 0xFFD8A12E)
 /// 낮은 치명 점수(교체 후보) 표시색 — Android WarningText 와 동일 값.
 private let enkaWarn = Color(hex: 0xFFB37400)
 
-private func enkaRankLabel(_ c: EnkaChar, _ game: String) -> String? {
-    switch game {
-    case "genshin":
-        // 원신: C0=명함, CN=N돌 (기존 앱 표기와 통일 — '명좌'는 한자 음독이라 미사용)
-        if c.rank < 0 { return nil }
-        return c.rank == 0 ? "명함" : "\(c.rank)돌"
-    case "zzz":
-        return c.rank > 0 ? "형상 시네마 \(c.rank)" : nil
-    default:
-        return c.rank > 0 ? "\(c.rank)성혼" : nil
-    }
-}
-
-/// 3게임 모두 6단계다(운명의 자리 · 성혼 · 형상 시네마).
-let EnkaConstellationSteps = 6
-
-/// 정련 눈금 칸 수 — 원신 R1~R5 · 스타레일 중첩 1~5 · 젠레스 1~5 로 모두 5다.
-let EnkaRefineTicks = 5
-
-
-private func enkaGameLabel(_ game: String) -> String {
-    switch game {
-    case "genshin": return "원신"
-    case "hsr": return "스타레일"
-    case "zzz": return "젠레스"
-    default: return game
-    }
-}
+/// 돌파 단계 수 · 정련 눈금 칸 수 — 값은 공용 `CharDisplay.kt` 에 있다(Android 와 같은 상수).
+let EnkaConstellationSteps = Int(CharDisplayKt.RANK_STEPS)
+let EnkaRefineTicks = Int(CharDisplayKt.REFINE_TICKS)
 
 /// 게임정보 탭 섹션 — Enka 쇼케이스 로스터(게임당 한 줄).
 /// 원신·스타레일·젠레스를 게임별 블록으로 모두 표시. 캐릭터 탭 → [onOpen].
@@ -138,7 +113,7 @@ struct EnkaCharSection: View {
                 HStack(spacing: 7) {
                     // 게임 태그 — 예전엔 닷이 앱 강조색이라 세 게임이 전부 같은 색이었다(구분 불가).
                     GLGGameTag(game: game, size: .small)
-                    Text(enkaGameLabel(game)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text(CharDisplayKt.enkaGameLabel(gameKey: game)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     if !chars.isEmpty {
                         Text("\(chars.count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     }
@@ -266,8 +241,6 @@ private struct MoreSlot: View {
     }
 }
 
-/// 명좌 링 눈금 수 — 원신 6명좌 · 스타레일 6성혼 · 젠레스 6시네마로 모두 여섯이다.
-private let enkaConstellationSteps = 6
 
 /**
  로스터 카드 — 안드로이드 `RosterCard` 와 같은 구성이다.
@@ -360,7 +333,7 @@ private func enkaConstellationRing(
     _ c: EnkaChar, ink: Color, rarityColor: Color, side: CGFloat
 ) -> some View {
     // 비공개(rank<0)는 0 과 다르지만 링은 0 으로 둔다 — 숫자 배지가 대신 말한다.
-    let on = max(0, min(enkaConstellationSteps, Int(c.rank)))
+    let on = max(0, min(EnkaConstellationSteps, Int(c.rank)))
     let ringColor = enkaElementInk(c.element, 0.38)
     let badgeBg = enkaElementInk(c.element, 0.42)
 
@@ -368,7 +341,7 @@ private func enkaConstellationRing(
         Circle().stroke(Color.black.opacity(0.09), style: StrokeStyle(lineWidth: 3, lineCap: .round))
         if on > 0 {
             Circle()
-                .trim(from: 0, to: CGFloat(on) / CGFloat(enkaConstellationSteps))
+                .trim(from: 0, to: CGFloat(on) / CGFloat(EnkaConstellationSteps))
                 .stroke(ringColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
@@ -832,7 +805,7 @@ struct EnkaStatPageBody: View {
 
                 // ② 장비 — 무기/광추/W-엔진 + 장비 특성(정련 효과).
                 enkaPageSection {
-                    sectionHead(2, "장비", sub: game == "genshin" ? "무기" : game == "zzz" ? "W-엔진" : "광추")
+                    sectionHead(2, "장비", sub: CharDisplayKt.weaponTerm(gameKey: game))
                     if let w = char.weapon {
                         equipCard(w)
                             .task(id: w.id) { if w.id > 0 { onNeedRefinement(w.id, w.refinement) } }
@@ -846,7 +819,7 @@ struct EnkaStatPageBody: View {
                 enkaPageSection {
                     sectionHead(
                         3,
-                        game == "genshin" ? "성유물" : game == "zzz" ? "드라이브 디스크" : "유물",
+                        CharDisplayKt.relicTerm(gameKey: game),
                         sub: char.artifacts.isEmpty ? nil
                             : (CharDisplayKt.usesArtifactScore(gameKey: game)
                                ? "\(char.artifacts.count)칸 · \(artScore.metric.label) \(ArtifactScoring.shared.scoreLabel(value: artScore.total))"
@@ -1688,13 +1661,7 @@ struct EnkaStatPageBody: View {
     }
 
     /// 섹션 제목 — 원신 운명의 자리 · 스타레일 성혼 · 젠레스 형상 시네마.
-    private var effectsTitle: String {
-        switch game {
-        case "genshin": return "운명의 자리"
-        case "zzz": return "형상 시네마"
-        default: return "성혼"
-        }
-    }
+    private var effectsTitle: String { CharDisplayKt.rankTitle(gameKey: game) }
 
     /// 게임 강조색(인게임 톤): 원신 골드 · 스타레일 퍼플 · 젠레스 옐로.
     private var effectGameColor: Color {

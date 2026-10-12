@@ -16,7 +16,7 @@ import org.json.JSONObject
 /**
  * Android 예약형 알림 — **앱 프로세스가 죽어 있어도 정시에 발송한다.**
  *
- * 예전엔 [schedulesAhead] 가 false 라 WorkManager 주기 작업(4시간, [AndroidWorkScheduler])만 믿었다.
+ * 예전엔 사전 예약 없이 WorkManager 주기 작업(4시간, [AndroidWorkScheduler])만 믿었다.
  * 그러면 앱을 안 열어도 알림이 오긴 하지만 두 가지가 걸린다.
  * - **최대 4시간 지연.** 재화 가득참처럼 시각이 정해진 알림이 한참 지나서 왔다.
  * - **워커가 아예 안 도는 구간.** 강제 중지나 제조사 절전(삼성 앱 절전·샤오미 등)에 걸리면
@@ -33,8 +33,6 @@ import org.json.JSONObject
  * **재부팅·앱 업데이트는 알람을 지운다** → [AlertBootReceiver] 가 다시 깐다.
  */
 actual object AlertScheduler {
-
-    actual val schedulesAhead: Boolean = true
 
     /**
      * PendingIntent 요청 코드 베이스. 예약은 **슬롯 번호(0..MAX_PENDING-1)로 식별**한다.

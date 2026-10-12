@@ -20,6 +20,12 @@ data class HoyolabConfig(
 ) {
     val isLinked: Boolean get() = ltuid.isNotBlank() && ltoken.isNotBlank()
 
+    /** 게임 키(genshin · hsr · zzz) → UID. 안 적은 게임도 빈 값으로 들어 있다 — 대응을 여기 한 군데만 둔다(27.52.0). */
+    val uidByGame: Map<String, String> get() = mapOf("genshin" to genshinUid, "hsr" to hsrUid, "zzz" to zzzUid)
+
+    /** UID 를 적은 게임만. */
+    val linkedUids: Map<String, String> get() = uidByGame.filterValues { it.isNotBlank() }
+
     /** 붙여 넣은 값의 앞뒤 공백·줄바꿈을 걷는다 — 줄바꿈이 섞인 토큰은 인증에서 조용히 실패한다. */
     fun trimmed(): HoyolabConfig = copy(
         ltuid = ltuid.trim(), ltoken = ltoken.trim(),
