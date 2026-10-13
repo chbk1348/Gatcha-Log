@@ -68,6 +68,11 @@ data class GachaBanner(
      * 다른 소비처(홈·천장·콜라보)는 그대로 두고, 게임 일정 부제만 이걸 쓴다.
      */
     val lineup: List<String> = emptyList(),
+    /**
+     * [lineup] 과 **같은 순서 · 같은 길이**의 아이콘 URL(없는 항목은 빈 문자열). 게임 일정의 4성 박스용.
+     * 옛 캐시 · 수동 JSON 은 빈 목록 — 그때는 박스 대신 글자 부제로 보여 준다([pickupLineup]).
+     */
+    val lineupIcons: List<String> = emptyList(),
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -195,8 +200,14 @@ fun collabTitle(banner: GachaBanner): String? {
     }
 }
 
-/** 이벤트·정기 콘텐츠 보상 하나 — ennead `rewards[]` 항목. 수량 0 은 '수량 미표기'. */
-data class RewardItem(val name: String, val iconUrl: String, val amount: Int)
+/**
+ * 이벤트·정기 콘텐츠 보상 하나 — ennead `rewards[]` 항목. 수량 0 은 '수량 미표기'.
+ * 아이콘은 없을 수 있다(젠레스 폴리크롬은 숫자만 온다) — 그때 화면은 선물 아이콘을 세운다.
+ */
+data class RewardItem(val name: String, val iconUrl: String, val amount: Int) {
+    /** 보상 목록의 수량 표기 — "×600,000". 수량 미표기(0)면 빈 문자열. */
+    val amountLabel: String get() = if (amount > 0) "×${com.gatcha.log.util.num(amount.toLong())}" else ""
+}
 
 /** 진행 중인 게임 이벤트 (ennead.cc) */
 data class GameEvent(

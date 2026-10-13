@@ -783,6 +783,7 @@ class GatchaRepository(
                     iconUrl = o.optString("iconUrl", ""),
                     bannerName = o.optString("bannerName", ""),
                     lineup = o.optJSONArray("lineup")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList(),
+                    lineupIcons = o.optJSONArray("lineupIcons")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList(),
                 )
             }
         }.getOrDefault(emptyList())
@@ -796,7 +797,7 @@ class GatchaRepository(
                 put("game", b.game); put("name", b.name); put("type", b.type)
                 put("endMillis", b.endMillis); put("startMillis", b.startMillis); put("version", b.version)
                 put("iconUrl", b.iconUrl)
-                put("bannerName", b.bannerName); put("lineup", JSONArray(b.lineup))
+                put("bannerName", b.bannerName); put("lineup", JSONArray(b.lineup)); put("lineupIcons", JSONArray(b.lineupIcons))
             })
         }
         prefs.putString(KEY_BANNERS, arr.toString())
