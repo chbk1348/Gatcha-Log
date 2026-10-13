@@ -19,7 +19,7 @@ enum class PickGroupKind {
  * 「재화 선택」의 한 칸에 적는 글자. 서식을 여기서 끝내 두 플랫폼이 같은 글자를 그린다.
  *
  * @property headline 첫 줄 — 이름 묶음은 개수("300"), 「재화」 묶음 · 월정액 · 패스는 이름.
- * @property sub 둘째 줄 — "덤 +30" · "26개" · "월정액". 없으면 빈 글자(칸 높이를 맞추려고 자리는 남긴다).
+ * @property sub 둘째 줄 — "추가 +30" · "26개" · "월정액". 없으면 빈 글자(칸 높이를 맞추려고 자리는 남긴다).
  * @property price "6,500원".
  * @property pulls "약 2뽑" · "1뽑 미만". 개수를 모르는 상품(월정액 · 패스 · 개수 없는 재화)은 null.
  */
@@ -112,7 +112,7 @@ object PackagePick {
         // 개수는 상품명에 적힌 그대로 적는다("창세의 결정 6480") — 쉼표를 넣지 않는다.
         val headline = if (tier) p.count.toString() else p.name
         val sub = when {
-            tier -> if (p.bonusCount > 0) "덤 +${p.bonusCount}" else ""
+            tier -> if (p.bonusCount > 0) "추가 +${p.bonusCount}" else ""
             p.count > 0 -> "${p.count}개"
             else -> ""
         }

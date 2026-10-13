@@ -384,6 +384,8 @@ struct ContentView: View {
     @ViewBuilder
     private var authenticatedRoot: some View {
         mainTabs
+            // 지출 입력 페이지가 열려 있는 동안 탭바는 **서서히 사라지고**, 벗어나면 서서히 돌아온다(10/13 지시).
+            .background(GLGTabBarFade(hidden: spendingEditorOpen))
             // 지출 입력 페이지에 가린 동안에는 뒤 화면을 읽지 않는다 — 가려진 탭 · 버튼이 보이스오버에 잡혔다.
             .accessibilityHidden(spendingEditorOpen)
             // 탭바 · '추가' 버튼(FAB · iOS 18 오버레이)보다 **바깥**에 덮어야 그것들까지 가린다.
@@ -446,14 +448,19 @@ struct ContentView: View {
             // 하위 화면이 하단 바를 띄우면(굿즈 목록의 장바구니 바) 감춘다 — 같은 우측 하단이라
             // 「장바구니」 버튼이 '+' 에 가렸다(2026-09-18 iPad 지적).
             .overlay(alignment: .bottomTrailing) {
-                if usesFloatingAdd && !bottomChromeHidden && !store.hidesAddButton {
-                    fabAddButton
-                        .padding(.trailing, 24).padding(.bottom, 28)
-                        // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
-                        // 위로 올라가도 인셋은 남는다)를 그대로 쓰면 버튼이 허공에 뜬다
-                        // (2026-09-21 iPad 지적 — 바닥에서 100pt 가까이 떠 있었다).
-                        .ignoresSafeArea(.container, edges: .bottom)
+                ZStack {
+                    if usesFloatingAdd && !bottomChromeHidden && !store.hidesAddButton {
+                        fabAddButton
+                            .padding(.trailing, 24).padding(.bottom, 28)
+                            // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
+                            // 위로 올라가도 인셋은 남는다)를 그대로 쓰면 버튼이 허공에 뜬다
+                            // (2026-09-21 iPad 지적 — 바닥에서 100pt 가까이 떠 있었다).
+                            .ignoresSafeArea(.container, edges: .bottom)
+                            .transition(.opacity)
+                    }
                 }
+                // 탭바와 한 벌이다 — 지출 입력 페이지를 드나들 때 같이 서서히 사라지고 돌아온다.
+                .animation(GLGMotion.standard(GLGMotion.durationLong), value: bottomChromeHidden)
             }
             // iPhone Duo — 화면이 좁고 길어 바가 **세로로 설 때** 무엇을 남길지 고른다.
             //
@@ -494,13 +501,18 @@ struct ContentView: View {
                 // 하위 화면에서도 감춘다 — 홈은 `homeSubpageOpen`, 지출 탭은 [spendingTabSubpageOpen](27.52.0).
                 // 예전 조건의 `tabsWithSubPage` 는 선언만 있고 넣는 곳이 없어 늘 비어 있었고, 그래서 지출 상세 ·
                 // 캘린더 · 인사이트 위에 '+' 가 그대로 떠 있었다. 선택 모드도 지출 탭의 상태라 그 탭일 때만 본다.
+                ZStack {
                 if selectedTab <= 1 && !bottomChromeHidden && !store.hidesAddButton
                     && !(selectedTab == 0 && store.homeSubpageOpen)
                     && !(selectedTab == 1 && (spendingSelectionMode || spendingTabSubpageOpen)) {
                     legacyAddButton
                         .padding(.trailing, GLGLegacyAddButton.trailingInset)
                         .padding(.bottom, GLGLegacyAddButton.bottomInset)
+                        .transition(.opacity)
                 }
+                }
+                // 탭바와 한 벌이다 — 지출 입력 페이지를 드나들 때 같이 서서히 사라지고 돌아온다.
+                .animation(GLGMotion.standard(GLGMotion.durationLong), value: bottomChromeHidden)
             }
         }
     }
@@ -531,8 +543,11 @@ struct ContentView: View {
     ///     바뀌면 그 아래 `NavigationStack` 의 구조가 재구성돼 **push 애니메이션이 사라진다.**
     ///
     /// 그래서 모디파이어는 **항상 달아 두고 값만 바꾼다.** 값 변화는 전환에 실리고 구조는 그대로다.
+    ///
+    /// **지출 입력 페이지에서는 이 숨김을 쓰지 않는다**(10/13). 시스템 숨김은 사라지는 모양을 고를 수 없어서,
+    /// 그때는 탭바를 그대로 둔 채 투명도로 서서히 감춘다([GLGTabBarFade]) — 페이지가 화면 전체를 덮고 있어 눌리지도 않는다.
     private var tabBarVisibility: Visibility {
-        bottomChromeHidden ? .hidden : .visible
+        syncGateActive ? .hidden : .visible
     }
 
     /// 화면 하단 크롬(탭바·'추가' 버튼)을 감춰야 하는 상태 — **여기 한 곳에서만 판단한다.**
@@ -623,6 +638,43 @@ struct ContentView: View {
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
+    }
+}
+
+/**
+ 시스템 탭바를 **서서히** 감추고 드러낸다(10/13 지시 — 지출 입력 페이지를 드나들 때).
+
+ SwiftUI 의 `.toolbar(.hidden, for: .tabBar)` 는 사라지는 모양을 시스템이 정한다(미끄러져 내려가거나 접힌다).
+ 여기서는 탭바를 숨기지 않고 **투명도만** 움직인다 — 자리와 뒤 화면의 배치는 그대로라, 돌아올 때도 아무것도 밀리지 않는다.
+ 탭바가 다른 자리에 놓이는 기기(넓은 iPad 의 위쪽 바 등)에서 이 값이 먹지 않더라도, 페이지가 화면 전체를 덮고 있어 가려진다.
+ */
+private struct GLGTabBarFade: UIViewRepresentable {
+    let hidden: Bool
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        let target: CGFloat = hidden ? 0 : 1
+        // 창에 붙은 뒤에 찾는다 — 처음 그릴 때는 아직 창이 없다.
+        DispatchQueue.main.async {
+            guard let bar = Self.tabBarController(in: view.window?.rootViewController)?.tabBar, bar.alpha != target else { return }
+            UIView.animate(withDuration: GLGMotion.durationLong, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
+                bar.alpha = target
+            }
+        }
+    }
+
+    private static func tabBarController(in controller: UIViewController?) -> UITabBarController? {
+        guard let controller else { return nil }
+        if let tabs = controller as? UITabBarController { return tabs }
+        for child in controller.children {
+            if let tabs = tabBarController(in: child) { return tabs }
+        }
+        return nil
     }
 }
 

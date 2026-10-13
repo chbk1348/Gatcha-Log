@@ -4,14 +4,18 @@ import com.gatcha.log.ui.components.GldsSection
 import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,7 +32,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,10 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import com.gatcha.log.ui.components.GldsChip
-import com.gatcha.log.ui.components.GldsFieldLabel
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import com.gatcha.log.ui.components.GlgDropdownItem
@@ -52,6 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -63,10 +69,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
+import kotlinx.coroutines.launch
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GamePackage
+import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.PackageCatalog
+import com.gatcha.log.data.PickupOption
+import com.gatcha.log.data.SpendingPickups
 import com.gatcha.log.data.PackagePick
 import com.gatcha.log.data.PackagePickItem
 import com.gatcha.log.data.PackagePickSummary
@@ -77,8 +87,9 @@ import com.gatcha.log.data.FrequentItem
 import com.gatcha.log.data.SpendingDefaults
 import com.gatcha.log.data.SpendingEditLogic
 import com.gatcha.log.data.currencyAmountOrNull
-import com.gatcha.log.data.currencyPullsOrNull
 import com.gatcha.log.data.Spending
+import com.gatcha.log.ui.components.GldsAmountCard
+import com.gatcha.log.ui.components.GldsAmountCardDefaults
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.GlgChip
@@ -90,7 +101,6 @@ import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.components.ThousandsTransformation
-import com.gatcha.log.ui.theme.GlgCardReveal
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
@@ -115,8 +125,12 @@ fun AddSpendingModal(
     recentSpendings: List<Spending> = emptyList(),
     // 날짜도 넘긴다(27.52.0) — 지난달 날짜로 추가할 때는 이번 달 예산 경고를 내지 않는다.
     nudgeMessage: (game: Game, amount: Long, dateMillis: Long) -> String? = { _, _, _ -> null },
+    /** 같은 판정의 간결한 한 줄("평소보다 큰 지출" 등) — 게임 칩 옆에 늘 서 있는 표시가 쓴다. 경고할 것이 없으면 null. */
+    nudgeBadge: (game: Game, amount: Long, dateMillis: Long) -> String? = { _, _, _ -> null },
     /** 내 게임(계정 데이터 — 비어 있으면 전부). 게임 목록에서 위로 올린다. */
     myGames: Set<String> = emptySet(),
+    /** 지금 열린 픽업 배너 — 「지금 픽업 중」 섹션의 근거. 비어 있으면 그 섹션을 그리지 않는다. */
+    activeBanners: List<GachaBanner> = emptyList(),
     onDismiss: () -> Unit,
     /** 저장됐으면 true. false(검증 실패 — 안내는 VM 이 띄운다)면 페이지를 그대로 둔다. */
     onSave: (Spending) -> Boolean,
@@ -169,6 +183,11 @@ fun AddSpendingModal(
         // listSaver 를 쓰지 않는다 — 빈 목록은 저장하지 않아서, 칩을 전부 끈 뒤 복원되면 처음 태그가 되살아난다.
         saver = Saver<SnapshotStateList<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toMutableStateList() }),
     ) { tagSplit.selected.toMutableStateList() }
+    // 픽업 태그(10/13) — 「지금 픽업 중」에서 고른 이름들. 저장할 때 표식을 붙여 태그 목록 맨 뒤에 들어간다([PickupTag]).
+    val selectedPickups = rememberSaveable(
+        spendingToEdit,
+        saver = Saver<SnapshotStateList<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toMutableStateList() }),
+    ) { tagSplit.pickups.toMutableStateList() }
     // 수정 진입 시 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수를 복원 → 스텝퍼가 그대로 노출.
     // 되읽는 규칙은 공용 [SpendingEditLogic.restoreItem] 이다(27.52.0) — 목록에 없는 게임명이면 상품을 찾지 않는다.
     // 고른 상품은 **이름**으로 들고 있다(상품명은 한 게임 안에서 겹치지 않는다).
@@ -206,7 +225,7 @@ fun AddSpendingModal(
     var inlineNudge by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(amount, game, dateMillis) {
         kotlinx.coroutines.delay(450)
-        inlineNudge = nudgeMessage(game, amount.toLongOrNull() ?: 0L, dateMillis)
+        inlineNudge = nudgeBadge(game, amount.toLongOrNull() ?: 0L, dateMillis)
     }
 
     // 같은 게임에서 2회 이상 산 것만, 많이 산 순. 수정 진입에는 쓰지 않는다.
@@ -214,11 +233,24 @@ fun AddSpendingModal(
         if (editing) emptyList() else SpendingDefaults.frequentItems(recentSpendings, game.displayName, limit = 3)
     }
 
+    // 과소비 경고를 **지금** 다시 잰다 — 상품을 고르거나 횟수를 바꿔 금액이 한 번에 정해졌을 때(10/13, iOS 와 같다).
+    // 금액을 치는 동안에는 손이 멈춘 뒤(위 450ms)에 재지만, 고른 금액은 기다릴 이유가 없다. 기다리면 히어로에
+    // 상품명 · 환산 줄이 먼저 서고 한 박자 뒤 경고 줄이 끼어들어, 방금 누른 재화 칸이 뒤늦게 한 번 더 밀려 내려간다.
+    fun refreshNudgeNow() {
+        inlineNudge = nudgeBadge(game, amount.toLongOrNull() ?: 0L, dateMillis)
+    }
+
+    // 금액 굴림 신호(10/13 지시) — 상품을 고르거나 횟수를 바꿔 금액이 한 번에 정해질 때마다 올린다.
+    // 히어로가 이 값이 바뀐 것을 보고 큰 숫자를 이전 금액에서 새 금액까지 굴린다(직접 치는 동안에는 굴리지 않는다).
+    var amountRollTick by remember { mutableIntStateOf(0) }
+
     fun applyPackage(pkg: GamePackage) {
         selectedPackageName = pkg.name
         quantity = 1
         amount = pkg.price.toString()
         itemName = pkg.name
+        amountRollTick++
+        refreshNudgeNow()
     }
 
     // 구매 횟수 변경 — 선택된 상품 기준으로 금액·재화명을 N배로 다시 계산.
@@ -230,13 +262,15 @@ fun AddSpendingModal(
             val applied = SpendingEditLogic.applyQuantity(pkg.name, pkg.price, qty)
             amount = applied.amount.toString()
             itemName = applied.itemName
+            amountRollTick++
+            refreshNudgeNow()
         }
     }
 
     fun buildSpending(): Spending {
         val parsed = amount.toLongOrNull() ?: 0L
         // 칩 + 직접 입력 칸을 한 목록으로 — 쪼개기 · 다듬기 · 중복 제거는 공용 규칙(27.52.0, iOS 와 한 소스).
-        val tags = SpendingEditLogic.mergeTags(selectedTags, customTags)
+        val tags = SpendingEditLogic.mergeTags(selectedTags, customTags, selectedPickups)
         val base = spendingToEdit ?: Spending(gameName = game.displayName, amount = parsed)
         return base.copy(
             // 목록에 없는 게임명은 게임을 직접 바꾸지 않았으면 원래 이름 · 색 그대로 둔다(위 keepOriginalGame).
@@ -262,7 +296,7 @@ fun AddSpendingModal(
     // 목록에 없는 게임명은 원래 이름으로 센다 — 거기서 원신을 골라도(game 은 이미 원신이다) 바뀐 것으로 잡히게.
     fun fingerprint() = listOf(
         gameChosen, if (keepOriginalGame) unknownGameName else game.displayName, amount, dateMillis, paymentMethod, chargePlatform,
-        itemName, memo, customTags, selectedTags.joinToString(","),
+        itemName, memo, customTags, selectedTags.joinToString(","), selectedPickups.joinToString(","),
     ).joinToString("|")
     // 처음 지문도 같이 저장한다 — 복원된 뒤에 다시 뜨면 고친 값이 「처음」이 되어, 고쳐 놓고도 묻지 않고 닫혔을 것이다.
     // 수정 진입 때 직접 입력 칸에 채워 둔 기존 태그도 이 처음 값에 들어 있어 「바뀐 것」으로 잡히지 않는다.
@@ -311,6 +345,7 @@ fun AddSpendingModal(
                         selectedPackageName = null
                         quantity = 1
                         itemName = ""
+                        selectedPickups.clear()   // 픽업은 게임에 묶인 값이다
                         if (!editing) chargePlatform = SpendingDefaults.lastPlatform(recentSpendings, g.displayName) ?: ""
                     }
                     // 미선택 — 고르기 전에는 금액을 받지 않는다. 히어로 대신 게임 목록이 화면을 연다.
@@ -332,6 +367,7 @@ fun AddSpendingModal(
                         gameChosen = gameChosen,
                         onGameChange = chooseGame,
                         itemName = itemName,
+                        rollTick = amountRollTick,
                         nudge = inlineNudge,
                         unknownGameName = unknownGameName.takeIf { keepOriginalGame },
                         unknownGameColor = spendingToEdit?.gameColor,
@@ -340,13 +376,40 @@ fun AddSpendingModal(
 
                 // 게임을 고르기 전에는 나머지를 띄우지 않는다 — 상품 목록·기본값이 전부 게임에 묶여 있어
                 // 미선택 상태로 보여주면 어느 게임 것인지 알 수 없는 화면이 된다.
-                // 게임을 고르면 아래 카드가 **위에서부터 한 장씩** 밀려 내려온다(GlgCardReveal).
-                // 예전엔 `if (!gameChosen) return@LazyColumn` 으로 통째로 잘라내 세 장이 한꺼번에
-                // 튀어나왔고, 방금 누른 칩과 새로 생긴 입력란이 이어져 있다는 게 안 읽혔다.
+                //
+                // 게임을 고르면 아래 섹션들이 **제자리에 바로 선다**(10/13 지시, iOS 와 같다) — 예전엔 밀려 올라오며 나타났다.
+                // 이 페이지에 남긴 움직임은 넷이다: 「자세히」 접고 펴기 · 화살표 회전 · 섹션 높이 변화 · 과소비 경고가 뜨고 질 때.
+                // 페이지가 밀려 들어오고 나가는 전환은 이 바깥(HomeScreen)이라 그대로다.
+
+                // ── 지금 픽업 중(10/13) — 누구를 뽑으려고 썼는지 골라 두면 장식 태그로 남는다 ──
+                //
+                // 그 게임에서 지금 열린 최고 등급 픽업(캐릭터 · 무기)을 칩으로 늘어놓는다. 여러 개 고를 수 있다.
+                // 배너 데이터가 없는 게임(명조 · 엔드필드 · 이환)은 이 섹션이 통째로 빠진다.
+                // 이미 붙어 있던 지난 픽업은 뒤에 남겨, 고치는 화면에서 뗄 수 있게 한다([SpendingPickups.options]).
+                // 자리는 재화 선택 **위**다(같은 날 지시) — 누구를 위해 쓰는지를 먼저 고른다.
+                item {
+                    val pickups = remember(activeBanners, game, selectedPickups.toList()) {
+                        SpendingPickups.options(activeBanners, game, System.currentTimeMillis(), selectedPickups.toList())
+                    }
+                    if (gameChosen && pickups.isNotEmpty()) {
+                    FormSection {
+                        Text("지금 픽업 중", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("고르면 태그로 남아요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 3.dp))
+                        Spacer(Modifier.height(12.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(pickups, key = { it.name }) { option ->
+                                PickupChip(option, selected = option.name in selectedPickups) {
+                                    if (option.name in selectedPickups) selectedPickups.remove(option.name) else selectedPickups.add(option.name)
+                                }
+                            }
+                        }
+                    }
+                    }
+                }
 
                 // ── 상품 ──
                 item {
-                    GlgCardReveal(visible = gameChosen, order = 0) {
+                    if (gameChosen) {
                     FormSection {
                         // 재화 선택(10/13 개편, 시안 C) — 묶음 · 칸에 적는 글자는 공용 [PackagePick] 이 만든다(iOS 와 한 소스).
                         // 목록은 늘 펼쳐 둔다. 예전의 「전체 상품 보기 / 접기」 · 분류 칩은 걷었다 — 묶음 머리가 그 일을 한다.
@@ -368,6 +431,8 @@ fun AddSpendingModal(
                                     quantity = 1
                                     itemName = f.itemName
                                     amount = f.amount.toString()
+                                    amountRollTick++
+                                    refreshNudgeNow()
                                 }
                             }
                         } else {
@@ -424,7 +489,7 @@ fun AddSpendingModal(
 
                 // ── 날짜 ──
                 item {
-                    GlgCardReveal(visible = gameChosen, order = 1) {
+                    if (gameChosen) {
                     FormSection {
                         GldsTextField(
                             value = DateUtil.labelWithWeekday(dateMillis),
@@ -444,10 +509,11 @@ fun AddSpendingModal(
                 // 매번 바뀌는 값이 아니라 접어 두되, **접힌 채로도 현재 값 요약을 보여준다.**
                 // 안 보이면 확인하려고 매번 펴게 되고, 그러면 접은 의미가 없다.
                 item {
-                    GlgCardReveal(visible = gameChosen, order = 2) {
+                    if (gameChosen) {
                     FormSection {
                         // 요약 글자 · 강조 여부는 공용 계산(27.52.0) — iOS 는 공백뿐인 메모도 「메모」로 세고 있었다.
                         val summary = SpendingEditLogic.detailSummary(paymentMethod, chargePlatform, selectedTags, customTags, memo)
+                        val detailsScope = rememberCoroutineScope()
                         Row(
                             // clip 을 걸지 않는다. 리플이 없는 앱(PressScaleIndication)이라 모양을 깎을
                             // 이유가 없는데, `clip` 은 **자기 자식까지 깎는다** — 이 줄은 좌우 패딩이
@@ -455,29 +521,44 @@ fun AddSpendingModal(
                             // 왼쪽 위를 잘라 먹었다. 밀도가 높은 에뮬레이터에선 몇 px 라 안 보이고
                             // 실기기에서만 보였다.
                             Modifier.fillMaxWidth()
-                                .clickable { detailsExpanded = !detailsExpanded },
+                                .clickable {
+                                    val open = !detailsExpanded
+                                    detailsExpanded = open
+                                    // 펼칠 때는 **화면이 같이 올라간다**(10/13 지시, iOS 와 같다) — 넓어지는 동안 매 프레임 끝까지 따라가
+                                    // 펼친 칸이 끝까지 보인다. 접을 때는 목록 끝이 줄어드는 만큼 화면이 저절로 따라 내려온다.
+                                    if (open) detailsScope.launch {
+                                        val start = withFrameNanos { it }
+                                        while (true) {
+                                            val now = withFrameNanos { it }
+                                            listState.scrollBy(10_000f)
+                                            if (now - start > 600_000_000L) break
+                                        }
+                                    }
+                                },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             // 제목·요약 모두 한 줄로 끊되 **말줄임표로** 끊는다. 예전엔 maxLines 만
                             // 걸려 있어 "카드 · 태그 없음" 이 "카드 · 태그" 에서 그냥 잘렸다 —
                             // 글자가 잘린 것인지 원래 그 값인지 구분이 안 된다.
                             Column(Modifier.weight(1f)) {
+                                // 제목은 섹션 제목 크기(17 Bold)다(10/13 지시 — 그 전에는 13 이라 섹션 머리로 안 읽혔다).
                                 Text(
                                     "자세히",
-                                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                                    fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
                                     summary.text,
-                                    fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     // 기본값과 다른 값이 있으면 강조 — "뭔가 정해져 있다"가 보이게.
                                     color = if (summary.isCustom) LocalAccent.current else TextSecondary,
                                     modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
                             Spacer(Modifier.width(8.dp))
+                            // 접고 펴는 표시는 **화살표 하나를 돌린다**(iOS 와 같은 모양 — 10/13 지시로 글자 「▾」 대신 아이콘).
                             val arrow by animateFloatAsState(if (detailsExpanded) 180f else 0f, glgStandardSpec(), label = "detailsArrow")
-                            Text("▾", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.rotate(arrow))
+                            Icon(Icons.Default.KeyboardArrowDown, null, tint = TextSecondary, modifier = Modifier.size(18.dp).rotate(arrow))
                         }
                         // 접이식 — 위에서 아래로 펼쳐지고 같은 길로 접힌다(칩 줄과 같은 결).
                         AnimatedVisibility(
@@ -625,6 +706,8 @@ private fun AmountHero(
     gameChosen: Boolean,
     itemName: String,
     nudge: String?,
+    /** 금액 굴림 신호 — 값이 바뀌면 큰 숫자가 이전 금액에서 지금 금액까지 굴러간다(상품 고르기 · 횟수 바꾸기). */
+    rollTick: Int = 0,
     /**
      * 목록에 없는 게임명의 지출을 고치는 중이면 그 이름(게임을 직접 바꾸기 전까지) — 알약에 [game](원신으로
      * 떨어진 값) 대신 이 이름 · [unknownGameColor] 를 보여 준다. 아니면 null.
@@ -643,25 +726,26 @@ private fun AmountHero(
         Modifier.fillMaxWidth()
             .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
     ) {
+        // 게임 칩과 **과소비 표시**가 한 줄에 선다(10/13 지시, iOS 와 같다) — 왼쪽이 게임, 오른쪽이 표시.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         // 게임 — 알약을 누르면 **드롭다운 메뉴**로 고른다(iOS Menu 와 같다). 예전엔 칩 줄이 펼쳐졌다.
         Box {
+            // 크기는 **GLDS 칩 규격**이다(10/13 지시) — 높이 36 · 좌우 14 · 14 Bold · 화살표 18. 색은 게임색 그대로.
             Row(
-                Modifier.clip(CircleShape)
+                Modifier.height(36.dp)
+                    .clip(CircleShape)
                     .background(gameColor.copy(alpha = 0.12f))
                     .clickable { pickGame = true }
-                    .padding(horizontal = 11.dp, vertical = 5.dp),
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(7.dp).clip(CircleShape).background(gameColor))
                 Spacer(Modifier.width(6.dp))
-                Text(unknownGameName ?: game.shortName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = gameColor)
+                Text(unknownGameName ?: game.shortName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = gameColor, maxLines = 1)
                 Spacer(Modifier.width(4.dp))
-                // 화살표는 뒤집지 않고 **돌린다** — 글자를 바꾸면 순간이동처럼 보인다.
+                // 화살표는 뒤집지 않고 **돌린다** — 모양을 바꾸면 순간이동처럼 보인다.
                 val arrow by animateFloatAsState(if (pickGame) 180f else 0f, glgStandardSpec(), label = "gamePickArrow")
-                Text(
-                    "▾", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gameColor,
-                    modifier = Modifier.rotate(arrow),
-                )
+                Icon(Icons.Default.KeyboardArrowDown, null, tint = gameColor, modifier = Modifier.size(18.dp).rotate(arrow))
             }
             val pickerOrder = remember(myGames) { GameData.pickerGames(myGames).let { it.first + it.second } }
             GlgDropdownMenu(expanded = pickGame, onDismissRequest = { pickGame = false }) {
@@ -675,81 +759,80 @@ private fun AmountHero(
                 }
             }
         }
+        // 과소비 표시 — **늘 서 있다.** 큰 지출이면 간결한 경고가 강조되고(Bold · 주황), 아니면 강조 없이 선다.
+        // 금액이 비었으면 「금액을 입력해주세요」. 금액 카드 밖이라 문구가 바뀌어도 카드 · 아래 목록이 움직이지 않는다.
+        // 자세한 문구는 저장할 때의 확인창이 말한다.
+        val statusColor = if (nudge != null) GldsAmountCardDefaults.Warn else TextSecondary
+        Row(
+            Modifier.weight(1f).padding(start = 8.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 경고일 때만 앞에 **원 안의 느낌표**가 선다(10/13 지시 — 그 전에는 세모 「⚠」 글자였다).
+            if (nudge != null) {
+                Icon(Icons.Filled.Error, contentDescription = null, tint = statusColor, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(3.dp))
+            }
+            Text(
+                when {
+                    nudge != null -> nudge
+                    amount.isEmpty() -> "금액을 입력해주세요"
+                    else -> "평소 범위의 지출"
+                },
+                fontSize = 12.sp,
+                fontWeight = if (nudge != null) FontWeight.Bold else FontWeight.Normal,
+                color = statusColor,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+        }
+        }
         Spacer(Modifier.height(11.dp))
         // 치는 동안에도 **읽는 모양 그대로** — 세 자리 쉼표를 넣고 뒤에 「원」을 붙인다(iOS 와 같이,
         // 2026-09-21 지시). 쉼표는 보이는 글자에만 넣고([ThousandsTransformation]) 값은 숫자뿐이다.
         //
-        // 카드를 걷고 나니 **입력하는 곳인지** 안 읽혔다 — GLDS 입력필드 모양으로 둔다
-        // (라벨 · 채운 면 #F5F8F8 · 모서리 14 · 입력 중 흰 면 + 강조색 1.5 테두리). 큰 숫자라 높이만 내용에 맞춘다.
-        // 칸 어디를 눌러도 입력이 시작된다.
-        val accent = LocalAccent.current
+        // 금액 칸은 GLDS 「예산 금액 입력」 규격의 카드다(10/13 지시 — [GldsAmountCard]). 그 전에는 GLDS 입력필드 모양이었다.
+        // **과소비 경고가 떠 있는 동안은 주의 상태**다 — 면이 주황으로 바뀌고 한 번 흔들린 뒤 안쪽 테두리가 깜빡인다.
+        // 카드 어디를 눌러도 입력이 시작된다.
+        //
+        // 상품명 · 재화 환산 · 과소비 문구는 카드에 두지 않는다(같은 날 지시) — 과소비 표시는 위 게임 칩 줄에 선다.
         val amountFocus = remember { FocusRequester() }
-        val amountSource = remember { MutableInteractionSource() }
-        val amountFocused by amountSource.collectIsFocusedAsState()
-        val fieldShape = RoundedCornerShape(14.dp)
-        GldsFieldLabel("금액")
-        Row(
-            Modifier.fillMaxWidth()
-                .clip(fieldShape)
-                .background(if (amountFocused) Color.White else Color(0xFFF5F8F8))
-                .border(1.5.dp, if (amountFocused) accent else Color.Transparent, fieldShape)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { amountFocus.requestFocus() }
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
+        val warn = nudge != null
+        // 큰 숫자 굴림(10/13 지시) — 고른 금액은 이전 금액에서 0.45초 동안 굴러가 선다(100원 단위 · 끝에서 감속,
+        // 예산 화면의 금액 버튼과 같은 움직임). 직접 치는 동안과 처음 값은 굴리지 않는다. 굴리는 것은 **보이는 숫자뿐**이다 —
+        // 값(amount)은 바로 새 금액이라 아래 정보 줄 · 요약 · 경고가 중간 값으로 흔들리지 않는다.
+        val amountValue = amount.toLongOrNull() ?: 0L
+        var typing by remember { mutableStateOf(true) }
+        var seenRollTick by remember { mutableIntStateOf(rollTick) }
+        if (rollTick != seenRollTick) { seenRollTick = rollTick; typing = false }
+        val rolling = remember { Animatable(amountValue.toFloat()) }
+        LaunchedEffect(amountValue, typing) {
+            if (typing) rolling.snapTo(amountValue.toFloat())
+            else rolling.animateTo(amountValue.toFloat(), tween(450, easing = FastOutSlowInEasing))
+        }
+        // 굴림이 목표에 닿았으면 값 그대로 보인다 — 중간 값만 100원 단위로 끊는다(끝자리가 있는 금액이 잘리지 않게).
+        val shownAmount = if (typing || rolling.value == amountValue.toFloat()) amount else ((rolling.value / 100).toLong() * 100).toString()
+        GldsAmountCard(
+            label = "금액",
+            warn = warn,
+            onClick = { amountFocus.requestFocus() },
+        ) { color ->
+            val numberStyle = GldsAmountCardDefaults.numberStyle(LocalTextStyle.current, color)
             BasicTextField(
-                value = amount,
-                onValueChange = onAmountChange,
-                textStyle = LocalTextStyle.current.copy(
-                    fontSize = 30.sp, fontWeight = FontWeight.Black, color = TextPrimary,
-                ),
+                value = shownAmount,
+                onValueChange = { typing = true; onAmountChange(it) },
+                textStyle = numberStyle,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 visualTransformation = ThousandsTransformation,
                 singleLine = true,
-                interactionSource = amountSource,
-                cursorBrush = SolidColor(accent),
-                modifier = Modifier.width(IntrinsicSize.Min).alignByBaseline().focusRequester(amountFocus),
+                cursorBrush = SolidColor(color),
+                modifier = Modifier.width(IntrinsicSize.Min).widthIn(min = 24.dp).focusRequester(amountFocus),
                 decorationBox = { inner ->
-                    if (amount.isEmpty()) {
-                        Text("0", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color(0xFFA7B1AE))
+                    Box {
+                        if (amount.isEmpty()) Text("0", style = numberStyle.copy(color = color.copy(alpha = 0.3f)))
+                        inner()
                     }
-                    inner()
                 },
-            )
-            if (amount.isNotEmpty()) {
-                Text(
-                    "원", fontSize = 22.sp, fontWeight = FontWeight.Black, color = TextSecondary,
-                    modifier = Modifier.padding(start = 4.dp).alignByBaseline(),
-                )
-            }
-            Spacer(Modifier.weight(1f))
-        }
-        // 칸과 아래 안내 · 상품명 · 재화 줄 사이.
-        Spacer(Modifier.height(6.dp))
-        // 비어 있으면 무엇을 넣어야 하는지 한 줄로 말한다 — 자리표시자 「0」만으로는
-        // 이미 0 원을 적어 둔 것처럼 읽힌다(iOS 와 같이, 2026-09-21 지시).
-        if (amount.isEmpty()) {
-            Text("금액을 입력해주세요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 3.dp))
-        }
-        if (itemName.isNotBlank()) {
-            Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(itemName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-            }
-        }
-        // 재화 환산은 사는 순간에 보여야 의미가 있다.
-        val cur = currencyAmountOrNull(game.displayName, itemName)
-        if (cur != null) {
-            val pulls = currencyPullsOrNull(game.displayName, itemName)
-            Text(
-                if (pulls != null) "$cur · $pulls" else cur,
-                fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 3.dp),
-            )
-        }
-        if (nudge != null) {
-            Text(
-                "⚠ $nudge",
-                fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD97706),
-                modifier = Modifier.padding(top = 12.dp),
             )
         }
     }
@@ -757,7 +840,8 @@ private fun AmountHero(
 
 /**
  * 입력 섹션 — 카드 없이 화면 폭 그대로, 위에 10 띠를 얹어 앞 묶음과 가른다.
- * 좌우 20 · 위 22 · 아래 20(지출 상세 섹션과 같은 규격). 띠가 섹션 안에 있어 펼쳐 내려올 때 함께 나타난다.
+ * 좌우 20 · 위 22 · 아래 20(지출 상세 섹션과 같은 규격). 띠가 섹션 안에 있어 섹션과 함께 나타난다.
+ * 안쪽 내용이 바뀌어 높이가 달라지면 늘어나고 줄어드는 모습을 그린다.
  */
 @Composable
 private fun FormSection(content: @Composable ColumnScope.() -> Unit) {
@@ -844,6 +928,39 @@ private fun GameSelectRow(game: Game, onClick: () -> Unit) {
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     GldsChip(label, onClick, selected = selected)
+}
+
+/**
+ * 「지금 픽업 중」의 한 칸 — **GLDS 칩 규격**(높이 36 · 14 Bold · 흰 면 + 1 `#E3E5EA`, 고르면 강조색 1.5 테두리 + deep 글자)에
+ * 앞 초상(24 원)을 붙인 모양이다. 초상이 없으면 대체 아이콘(캐릭터 = 사람, 무기 = 별)이 선다.
+ */
+@Composable
+private fun PickupChip(option: PickupOption, selected: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    val deep = LocalAccentDeep.current
+    val shape = RoundedCornerShape(50)
+    Row(
+        Modifier.height(36.dp)
+            .clip(shape)
+            .background(Color.White)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) accent else Color(0xFFE3E5EA), shape)
+            .selectable(selected = selected, role = Role.Button, onClick = onClick)
+            .padding(start = 6.dp, end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(24.dp).clip(CircleShape).background(Color(0xFFF7F8FA)), contentAlignment = Alignment.Center) {
+            val fallback: @Composable () -> Unit = {
+                Icon(if (option.weapon) Icons.Default.Star else Icons.Default.Person, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+            }
+            if (option.iconUrl.isBlank()) fallback()
+            else SubcomposeAsyncImage(
+                model = option.iconUrl, contentDescription = null, contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(), loading = {}, error = { fallback() },
+            )
+        }
+        Text(option.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (selected) deep else TextPrimary, maxLines = 1)
+    }
 }
 
 // ── 재화 선택(시안 C, 10/13) ──────────────────────────────────────────────
@@ -958,7 +1075,7 @@ private fun CurrencyTile(
         modifier
             .pickTile(selected, LocalAccent.current, shape, idleBg = Color.White, idleRing = PickRing)
             .selectable(selected = selected, role = Role.Button, onClick = onClick)
-            // 칸 안의 글자는 조각나 있다("300" · "덤 +30") — 읽어 줄 때는 상품 이름으로 한 번에 말한다.
+            // 칸 안의 글자는 조각나 있다("300" · "추가 +30") — 읽어 줄 때는 상품 이름으로 한 번에 말한다.
             .clearAndSetSemantics {
                 contentDescription = listOf(item.pkg.name, item.sub.takeIf { tier }.orEmpty(), item.price, item.pulls.orEmpty())
                     .filter { it.isNotEmpty() }.joinToString(" ")

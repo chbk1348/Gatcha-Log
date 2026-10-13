@@ -35,6 +35,8 @@ data class SpendingTagSplit(
     val selected: List<String>,
     /** 직접 입력 칸에 채울 글자. */
     val custom: String,
+    /** 픽업 태그의 이름들([PickupTag]) — 「지금 픽업 중」 칸으로 켜 둘 것. */
+    val pickups: List<String> = emptyList(),
 )
 
 /** 접힌 「자세히」 줄. */
@@ -123,6 +125,13 @@ object SpendingEditLogic {
         (selected.map { it.trim() }.filter { it.isNotEmpty() } + customTagTokens(custom)).distinct()
 
     /**
+     * 위와 같되 **픽업 태그**까지 합친다(10/13) — [pickups] 는 「지금 픽업 중」에서 고른 이름들이고, 표식을 붙여 맨 뒤에 넣는다.
+     * 직접 입력 칸에 같은 꼴(「★이름」)을 적었으면 하나로 합쳐진다.
+     */
+    fun mergeTags(selected: List<String>, custom: String, pickups: List<String>): List<String> =
+        (mergeTags(selected, custom) + pickups.map { it.trim() }.filter { it.isNotEmpty() }.map(PickupTag::of)).distinct()
+
+    /**
      * 수정 진입 — 저장된 태그를 **추천 목록에 있는 것은 칩으로, 없는 것은 직접 입력 칸으로** 가른다.
      *
      * 전부 칩 선택에 담으면 직접 적었던 태그는 보이지도 않고 지울 길도 없다(칩은 추천 목록만 그린다).
@@ -130,9 +139,12 @@ object SpendingEditLogic {
      */
     fun splitTags(tags: List<String>): SpendingTagSplit {
         val suggested = GameData.suggestedTags
+        // 픽업 태그는 직접 입력 칸에 넣지 않는다 — 「지금 픽업 중」 칸이 따로 들고 있다.
+        val plain = tags.filterNot(PickupTag::isPickup)
         return SpendingTagSplit(
-            selected = tags.filter { it in suggested },
-            custom = tags.filter { it.isNotBlank() && it !in suggested }.joinToString(TAG_JOINER),
+            selected = plain.filter { it in suggested },
+            custom = plain.filter { it.isNotBlank() && it !in suggested }.joinToString(TAG_JOINER),
+            pickups = tags.filter(PickupTag::isPickup).map(PickupTag::nameOf).distinct(),
         )
     }
 

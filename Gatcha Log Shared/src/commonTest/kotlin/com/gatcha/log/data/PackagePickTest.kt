@@ -49,7 +49,7 @@ class PackagePickTest {
 
         val tiers = groups[0].items
         assertEquals(listOf("60", "300", "980", "1980", "3280", "6480"), tiers.map { it.headline })
-        assertEquals(listOf("", "덤 +30", "덤 +110", "덤 +260", "덤 +600", "덤 +1600"), tiers.map { it.sub })
+        assertEquals(listOf("", "추가 +30", "추가 +110", "추가 +260", "추가 +600", "추가 +1600"), tiers.map { it.sub })
         assertEquals(listOf("1,200원", "6,500원", "19,000원", "37,000원", "65,000원", "119,000원"), tiers.map { it.price })
         assertEquals(listOf("1뽑 미만", "약 2뽑", "약 6뽑", "약 14뽑", "약 24뽑", "약 50뽑"), tiers.map { it.pulls })
         assertEquals("창세의 결정 300", tiers[1].pkg.name)

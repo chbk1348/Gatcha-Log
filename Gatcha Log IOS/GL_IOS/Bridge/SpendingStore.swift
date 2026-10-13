@@ -393,6 +393,10 @@ final class SpendingStore {
     func overspendNudge(game: Game, amount: Int64, editingId: String?, dateMillis: Int64) -> String? {
         vm.overspendNudge(game: game, amount: amount, editingId: editingId, dateMillis: dateMillis)
     }
+    /// 같은 판정의 간결한 한 줄("평소보다 큰 지출" 등) — 지출 입력 화면의 게임 칩 옆 표시가 쓴다. 경고할 것이 없으면 nil.
+    func overspendBadge(game: Game, amount: Int64, editingId: String?, dateMillis: Int64) -> String? {
+        vm.overspendBadge(game: game, amount: amount, editingId: editingId, dateMillis: dateMillis)
+    }
     /// 지출 추가/수정 저장 (Spending 생성은 Kotlin 헬퍼).
     @discardableResult
     func saveSpending(editingId: String?, gameName: String, amount: Int64, dateMillis: Int64,
