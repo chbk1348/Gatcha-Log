@@ -9,11 +9,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -25,12 +25,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,7 +49,13 @@ import androidx.compose.ui.focus.FocusRequester
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -63,9 +67,12 @@ import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GamePackage
 import com.gatcha.log.data.PackageCatalog
+import com.gatcha.log.data.PackagePick
+import com.gatcha.log.data.PackagePickItem
+import com.gatcha.log.data.PackagePickSummary
+import com.gatcha.log.data.PickGroupKind
 import com.gatcha.log.data.PkgCategory
 import com.gatcha.log.data.api.PackageCatalogApi
-import com.gatcha.log.data.category
 import com.gatcha.log.data.FrequentItem
 import com.gatcha.log.data.SpendingDefaults
 import com.gatcha.log.data.SpendingEditLogic
@@ -89,6 +96,7 @@ import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.LocalAccentDeep
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
@@ -98,7 +106,6 @@ private val TextThird = androidx.compose.ui.graphics.Color(0xFF98A0AB)
 
 private val SheetBg = Color.White   // D · 모달 배경 흰색(연회색 카드와 대비)
 private val CardBg = Color.White
-private val ChipIdleBg = Color(0xFFF2F2F7)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -183,8 +190,6 @@ fun AddSpendingModal(
     val showDatePicker = remember { mutableStateOf(false) }
     // N6 과소비 넛지 — 저장 직전 경고 메시지(있으면 확인 다이얼로그 노출 후 그래도 추가 시 저장).
     var nudgeMsg by remember { mutableStateOf<String?>(null) }
-    /// '자주 사는 것' 아래 전체 상품 그리드를 폈는가.
-    var showAllPackages by remember(game) { mutableStateOf(false) }
     // '자세히'(결제·플랫폼·태그·메모·구독) — **수정 진입은 펼친 채 시작**한다(무엇을 고치러 왔는지 모른다).
     var detailsExpanded by rememberSaveable(spendingToEdit) { mutableStateOf(editing) }
 
@@ -343,108 +348,76 @@ fun AddSpendingModal(
                 item {
                     GlgCardReveal(visible = gameChosen, order = 0) {
                     FormSection {
-                        // 자주 사는 것 — 기록이 없는 게임은 이 블록이 통째로 빠지고 전체 그리드가 바로 열린다
+                        // 재화 선택(10/13 개편, 시안 C) — 묶음 · 칸에 적는 글자는 공용 [PackagePick] 이 만든다(iOS 와 한 소스).
+                        // 목록은 늘 펼쳐 둔다. 예전의 「전체 상품 보기 / 접기」 · 분류 칩은 걷었다 — 묶음 머리가 그 일을 한다.
+                        val packages = remember(game, catalogRev) { GameData.packagesFor(game) }
+                        val groups = remember(game, packages) { PackagePick.groups(game, packages) }
+                        val gameColor = game.color.toColor()
+                        // 자주 사는 것 — 기록이 없는 게임은 이 블록이 통째로 빠지고 안내 문구가 선다
                         // (빈도를 모르는데 임의로 셋을 고르면 그건 추천이 아니다).
                         if (frequent.isNotEmpty()) {
                             SectionRowLabel("자주 사는 것")
                             Spacer(Modifier.height(10.dp))
-                            frequent.forEach { f ->
-                                FrequentItemRow(
+                            PickGrid(frequent) { f, cell ->
+                                FrequentTile(
                                     item = f,
-                                    selected = itemName == f.itemName,
+                                    selected = PackagePick.isFrequentSelected(f.itemName, selectedPackageName, itemName),
+                                    modifier = cell,
                                 ) {
-                                    selectedPackageName = GameData.packagesFor(game).firstOrNull { p -> p.name == f.itemName }?.name
+                                    selectedPackageName = packages.firstOrNull { p -> p.name == f.itemName }?.name
                                     quantity = 1
                                     itemName = f.itemName
                                     amount = f.amount.toString()
                                 }
-                                Spacer(Modifier.height(7.dp))
                             }
-                            Text(
-                                if (showAllPackages) "접기 ⌃" else "전체 상품 보기 ▾",
-                                fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { showAllPackages = !showAllPackages }
-                                    .padding(vertical = 8.dp),
-                            )
                         } else {
                             SectionRowLabel("빠른 상품 선택")
-                            Text("선택하면 금액·재화명이 자동 입력돼요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+                            Text("선택하면 금액 · 재화명이 자동 입력돼요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
                         }
-                        // '자주 사는 것'이 없는 게임은 그리드가 처음부터 열려 있어 전환이 없다.
-                        AnimatedVisibility(
-                            visible = frequent.isEmpty() || showAllPackages,
-                            enter = expandVertically(glgStandardSpec()) + fadeIn(glgStandardSpec()),
-                            exit = shrinkVertically(glgShortSpec()) + fadeOut(glgShortSpec()),
-                        ) {
-                        Column {
-                        val allPackages = remember(game, catalogRev) { GameData.packagesFor(game) }
-                        // 카테고리 칩(월정액/패스/재화) — 게임이 가진 분류만 노출, 게임 바뀌면 전체로 리셋
-                        var pkgFilter by remember(game) { mutableStateOf(PkgCategory.ALL) }
-                        val pkgCategories = listOf(PkgCategory.ALL) +
-                            listOf(PkgCategory.MONTHLY, PkgCategory.PASS, PkgCategory.CURRENCY)
-                                .filter { c -> allPackages.any { it.category == c } }
-                        if (pkgCategories.size > 2) {
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(bottom = 10.dp),
-                            ) {
-                                items(pkgCategories) { cat ->
-                                    ChoiceChip(label = cat.label, selected = pkgFilter == cat) { pkgFilter = cat }
-                                }
-                            }
-                        }
-                        val packages = if (pkgFilter == PkgCategory.ALL) allPackages
-                            else allPackages.filter { it.category == pkgFilter }
-                        // 2열 — 카드를 넓혀 긴 상품명도 한 줄에 들어가고 가격이 안 잘리게
-                        val cols = 2
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            packages.chunked(cols).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    rowItems.forEach { pkg ->
-                                        PackageCard(
-                                            pkg = pkg,
-                                            isSelected = selectedPackage == pkg,
-                                            modifier = Modifier.weight(1f),
-                                        ) { applyPackage(pkg) }
+                        groups.forEachIndexed { i, group ->
+                            // 안내 문구 바로 아래 첫 묶음만 16, 나머지 머리는 18.
+                            Spacer(Modifier.height(if (i == 0 && frequent.isEmpty()) 16.dp else 18.dp))
+                            PickGroupHead(group.title, group.hint)
+                            Spacer(Modifier.height(10.dp))
+                            if (group.kind == PickGroupKind.PLAN) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    group.items.forEach { item ->
+                                        PlanRow(item, selected = selectedPackage == item.pkg, gameColor = gameColor) { applyPackage(item.pkg) }
                                     }
-                                    repeat(cols - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            } else {
+                                PickGrid(group.items) { item, cell ->
+                                    CurrencyTile(
+                                        item = item,
+                                        tier = group.kind == PickGroupKind.TIERS,
+                                        selected = selectedPackage == item.pkg,
+                                        gameColor = gameColor,
+                                        modifier = cell,
+                                    ) { applyPackage(item.pkg) }
                                 }
                             }
                         }
-                        }
-                        }
-                        // 구매 횟수 — 상품을 골랐을 때만. 한 번에 여러 번 산 경우 금액·재화를 곱한다.
+                        // 요약 면 — 상품을 골랐을 때만. 무엇을 몇 번 사서 얼마 · 재화 얼마인지와 횟수 스텝퍼를 한 면에 둔다.
                         selectedPackage?.let { pkg ->
-                            Spacer(Modifier.height(14.dp))
-                            QuantityStepper(
+                            Spacer(Modifier.height(16.dp))
+                            PickSummaryFace(
+                                summary = PackagePick.summary(game, pkg, quantity, amount.toLongOrNull() ?: 0L),
                                 quantity = quantity,
-                                unitPrice = pkg.price,
-                                currencyTotal = currencyAmountOrNull(game.displayName, itemName),
                                 onChange = { setQuantity(it) },
                             )
                         }
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(if (selectedPackage != null) 12.dp else 16.dp))
                         GldsTextField(
                             value = itemName,
                             onValueChange = { itemName = it },
                             label = "재화명",
                             placeholder = "결정석 60",
+                            // 환산이 깨지면 조용히 넘어가지 않고 이유를 말한다(막지는 않는다 — 환산은 편의다).
+                            helper = if (itemName.isNotBlank() && currencyAmountOrNull(game.displayName, itemName) == null) {
+                                "재화 환산이 안 돼요 — '결정석 60'처럼 이름 뒤에 숫자를 붙이면 뽑기 수까지 계산해요"
+                            } else null,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        // 환산이 깨지면 조용히 넘어가지 않고 이유를 말한다(막지는 않는다 — 환산은 편의다).
-                        if (itemName.isNotBlank() && currencyAmountOrNull(game.displayName, itemName) == null) {
-                            Text(
-                                "재화 환산이 안 돼요 — '결정석 60'처럼 이름 뒤에 숫자를 붙이면 뽑기 수까지 계산해요",
-                                fontSize = 10.5.sp, color = TextSecondary,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
                     }
                     }
                 }
@@ -782,32 +755,6 @@ private fun AmountHero(
     }
 }
 
-/** 자주 사는 것 한 줄 — 누르면 상품·금액·재화명이 한 번에 채워진다. */
-@Composable
-private fun FrequentItemRow(item: FrequentItem, selected: Boolean, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Row(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) accent.copy(alpha = 0.10f) else Color.White)
-            .border(1.dp, if (selected) accent else Color.Black.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 13.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(item.itemName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(6.dp))
-        Text(won(item.amount), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-        Spacer(Modifier.width(7.dp))
-        Text(
-            "${item.count}회", fontSize = 10.sp, fontWeight = FontWeight.Black, color = accent,
-            modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                .background(accent.copy(alpha = 0.13f))
-                .padding(horizontal = 7.dp, vertical = 2.dp),
-        )
-    }
-}
-
 /**
  * 입력 섹션 — 카드 없이 화면 폭 그대로, 위에 10 띠를 얹어 앞 묶음과 가른다.
  * 좌우 20 · 위 22 · 아래 20(지출 상세 섹션과 같은 규격). 띠가 섹션 안에 있어 펼쳐 내려올 때 함께 나타난다.
@@ -895,88 +842,238 @@ private fun GameSelectRow(game: Game, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Surface(
-        modifier = modifier.clickable { onClick() },
-        shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) accent.copy(alpha = 0.1f) else Color.White,
-        border = BorderStroke(1.dp, if (isSelected) accent else Color.Black.copy(alpha = 0.08f)),
-    ) {
-        // 컴팩트·깔끔 — 내용에 딱 맞는 높이(2열이라 이름 1줄, 모든 카드 구조 동일 → 자동 통일)
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                pkg.name,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                color = TextPrimary,
-            )
-            Spacer(Modifier.height(3.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                pkg.bonus?.let {
-                    Text(it, fontSize = 10.sp, color = accent, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Spacer(Modifier.width(5.dp))
-                }
-                Text(won(pkg.price), fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium, maxLines = 1)
-            }
-        }
-    }
-}
-
-@Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     GldsChip(label, onClick, selected = selected)
 }
 
-/** 구매 횟수 스텝퍼 — 단가·재화 총량을 함께 보여줘 '몇 번 사서 얼마·재화 얼마인지' 검증 가능하게. */
+// ── 재화 선택(시안 C, 10/13) ──────────────────────────────────────────────
+//
+// 색 · 치수는 시안 값 그대로다. 강조색은 테마를 따른다 — 면 · 테두리는 [LocalAccent], 글자 · 채운 바닥은 [LocalAccentDeep].
+
+/** 칸의 평소 테두리. */
+private val PickRing = Color(0xFFE3E6EA)
+
+/** 자주 사는 것 칸 · 가격 바닥의 채운 면 — GLDS 입력필드와 같은 색. */
+private val PickFace = Color(0xFFF5F8F8)
+
+/** 요약 면의 보조 글자. */
+private val PickSummarySub = Color(0xFF4A5159)
+
+/** 시안의 선 아이콘(24 격자 · 둥근 끝) — SVG 경로를 그대로 읽어 만든다. 색은 [Icon] 의 tint 로 입힌다. */
+private fun pickStrokeIcon(path: String, strokeWidth: Float): ImageVector =
+    ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+        .addPath(
+            pathData = addPathNodes(path),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = strokeWidth,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round,
+        )
+        .build()
+
+private val PickIconGem by lazy { pickStrokeIcon("M6 3h12l4 6-10 12L2 9zM2 9h20M9 3l-1.5 6L12 21l4.5-12L15 3", 2f) }
+private val PickIconCalendar by lazy { pickStrokeIcon("M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM4 10h16M8 3v4M16 3v4", 2f) }
+private val PickIconTicket by lazy { pickStrokeIcon("M3 9V6h18v3a3 3 0 0 0 0 6v3H3v-3a3 3 0 0 0 0-6zM14 6v12", 2f) }
+private val PickIconCheck by lazy { pickStrokeIcon("M20 6L9 17l-5-5", 3f) }
+private val PickIconMinus by lazy { pickStrokeIcon("M5 12h14", 2.2f) }
+private val PickIconPlus by lazy { pickStrokeIcon("M12 5v14M5 12h14", 2.2f) }
+
+/** 2열 격자(사이 8). 홀수면 마지막 칸은 왼쪽에 선다. */
 @Composable
-private fun QuantityStepper(quantity: Int, unitPrice: Long, currencyTotal: String?, onChange: (Int) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            SectionRowLabel("구매 횟수")
-            if (quantity > 1) {
-                Text(
-                    "${won(unitPrice)} × $quantity = ${won(unitPrice * quantity)}",
-                    fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-                // 재화 양도 확인 — 상품명 끝의 개수를 N배해 총 재화량을 명시.
-                currencyTotal?.let {
-                    Text("재화 총 $it", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 1.dp))
-                }
-            } else {
-                Text("한 번에 여러 번 샀다면 횟수를 올리세요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
+private fun <T> PickGrid(items: List<T>, cell: @Composable (T, Modifier) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.chunked(2).forEach { rowItems ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowItems.forEach { cell(it, Modifier.weight(1f)) }
+                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
             }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            StepperBtn(Icons.Default.Remove, enabled = quantity > SpendingEditLogic.MIN_QUANTITY) { onChange(quantity - 1) }
-            Text(
-                "$quantity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-                textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 28.dp),
-            )
-            StepperBtn(Icons.Default.Add, enabled = quantity < SpendingEditLogic.MAX_QUANTITY) { onChange(quantity + 1) }
         }
     }
 }
 
+/** 묶음 머리 — 왼쪽 이름, 오른쪽 환산("160개 = 1뽑"). */
 @Composable
-private fun StepperBtn(icon: ImageVector, enabled: Boolean, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Surface(
-        modifier = Modifier.size(34.dp).clickable(enabled = enabled) { onClick() },
-        shape = CircleShape,
-        color = if (enabled) accent.copy(alpha = 0.10f) else ChipIdleBg,
-        border = BorderStroke(1.dp, if (enabled) accent.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.06f)),
+private fun PickGroupHead(title: String, hint: String?) {
+    Row(Modifier.fillMaxWidth()) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.weight(1f).alignByBaseline())
+        hint?.let { Text(it, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.alignByBaseline()) }
+    }
+}
+
+/** 칸의 면과 테두리 — 고르면 강조색 8% 면 + 강조색 2 테두리. */
+private fun Modifier.pickTile(selected: Boolean, accent: Color, shape: RoundedCornerShape, idleBg: Color, idleRing: Color?): Modifier =
+    clip(shape)
+        .background(if (selected) accent.copy(alpha = 0.08f) else idleBg)
+        .then(
+            when {
+                selected -> Modifier.border(2.dp, accent, shape)
+                idleRing != null -> Modifier.border(1.dp, idleRing, shape)
+                else -> Modifier
+            },
+        )
+
+/** 게임색 12% 원(36) 안의 선 아이콘(20). */
+@Composable
+private fun PickIconCircle(icon: ImageVector, gameColor: Color) {
+    Box(Modifier.size(36.dp).clip(CircleShape).background(gameColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = gameColor, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** 자주 사는 것 한 칸 — 누르면 상품 · 금액 · 재화명이 한 번에 채워진다. */
+@Composable
+private fun FrequentTile(item: FrequentItem, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier
+            .pickTile(selected, LocalAccent.current, shape, idleBg = PickFace, idleRing = null)
+            .selectable(selected = selected, role = Role.Button, onClick = onClick)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = if (enabled) accent else TextSecondary.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
+        Text(item.itemName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(won(item.amount), fontSize = 12.sp, color = TextSecondary, maxLines = 1, modifier = Modifier.weight(1f))
+            Text("${item.count}회", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = LocalAccentDeep.current, maxLines = 1)
         }
+    }
+}
+
+/**
+ * 재화 한 칸 — [아이콘 · 첫 줄 · 둘째 줄] 아래에 가격 바닥.
+ * [tier] 면 첫 줄이 개수(17), 아니면 이름(14 · 한 줄 말줄임). 둘째 줄은 비어도 자리를 남겨 칸 높이를 맞춘다.
+ */
+@Composable
+private fun CurrencyTile(
+    item: PackagePickItem,
+    tier: Boolean,
+    selected: Boolean,
+    gameColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val deep = LocalAccentDeep.current
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier
+            .pickTile(selected, LocalAccent.current, shape, idleBg = Color.White, idleRing = PickRing)
+            .selectable(selected = selected, role = Role.Button, onClick = onClick)
+            // 칸 안의 글자는 조각나 있다("300" · "덤 +30") — 읽어 줄 때는 상품 이름으로 한 번에 말한다.
+            .clearAndSetSemantics {
+                contentDescription = listOf(item.pkg.name, item.sub.takeIf { tier }.orEmpty(), item.price, item.pulls.orEmpty())
+                    .filter { it.isNotEmpty() }.joinToString(" ")
+            }
+            .padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            PickIconCircle(PickIconGem, gameColor)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    item.headline,
+                    fontSize = if (tier) 17.sp else 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Box(Modifier.height(15.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(item.sub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = deep, maxLines = 1)
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().height(30.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(if (selected) deep else PickFace)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            if (selected) Icon(PickIconCheck, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            Text(
+                item.price, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                color = if (selected) Color.White else TextPrimary, maxLines = 1, modifier = Modifier.weight(1f),
+            )
+            item.pulls?.let { Text(it, fontSize = 12.sp, color = if (selected) Color.White else TextSecondary, maxLines = 1) }
+        }
+    }
+}
+
+/** 월정액 · 패스 한 줄 — [아이콘 · 이름 / 종류 · 가격]. 고르면 가격 앞에 체크가 서고 가격이 강조색이 된다. */
+@Composable
+private fun PlanRow(item: PackagePickItem, selected: Boolean, gameColor: Color, onClick: () -> Unit) {
+    val deep = LocalAccentDeep.current
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        Modifier.fillMaxWidth()
+            .pickTile(selected, LocalAccent.current, shape, idleBg = Color.White, idleRing = PickRing)
+            .selectable(selected = selected, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        PickIconCircle(if (item.pkg.kind == PkgCategory.MONTHLY) PickIconCalendar else PickIconTicket, gameColor)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(item.headline, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(item.sub, fontSize = 12.sp, color = TextSecondary)
+        }
+        if (selected) Icon(PickIconCheck, contentDescription = null, tint = deep, modifier = Modifier.size(16.dp))
+        Text(item.price, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = if (selected) deep else TextPrimary, maxLines = 1)
+    }
+}
+
+/**
+ * 고른 상품의 요약 면 — 위 줄에 [무엇을 몇 번 · 재화량] 과 횟수 스텝퍼, 선 아래에 [단가 × 횟수 · 합계].
+ * 한 번에 같은 상품을 여러 번 산 경우 횟수만큼 금액 · 재화를 곱해 한 건으로 기록한다.
+ */
+@Composable
+private fun PickSummaryFace(summary: PackagePickSummary, quantity: Int, onChange: (Int) -> Unit) {
+    val accent = LocalAccent.current
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(accent.copy(alpha = 0.10f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(summary.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                if (summary.sub.isNotEmpty()) {
+                    Text(summary.sub, fontSize = 12.sp, color = PickSummarySub, modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                StepperBtn(PickIconMinus, "횟수 줄이기", enabled = quantity > SpendingEditLogic.MIN_QUANTITY) { onChange(quantity - 1) }
+                Text(
+                    "$quantity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 28.dp),
+                )
+                StepperBtn(PickIconPlus, "횟수 늘리기", enabled = quantity < SpendingEditLogic.MAX_QUANTITY) { onChange(quantity + 1) }
+            }
+        }
+        Box(Modifier.padding(vertical = 10.dp).fillMaxWidth().height(1.dp).background(accent.copy(alpha = 0.22f)))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(summary.unitLine, fontSize = 12.sp, color = PickSummarySub, modifier = Modifier.weight(1f).alignByBaseline())
+            Text(summary.total, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, modifier = Modifier.alignByBaseline())
+        }
+    }
+}
+
+/** 스텝퍼 단추(34 원) — 흰 면 + 강조색 50% 테두리. 못 누르면 반투명 흰 면 + 옅은 테두리 · 흐린 아이콘. */
+@Composable
+private fun StepperBtn(icon: ImageVector, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Box(
+        Modifier.size(34.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = if (enabled) 1f else 0.5f))
+            .border(1.dp, if (enabled) accent.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.06f), CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = label, tint = if (enabled) accent else TextSecondary.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
     }
 }
 

@@ -12,7 +12,7 @@ import Shared
 /// 뷰 기반 `NavigationLink { ... }` 와 목적지 안의 `navigationDestination` 을 섞어 쓰다
 /// 스택이 교체되거나 루트로 튕기는 버그를 반복해서 냈다 — 경로 한 곳에서만 관리한다.
 /// 지출 탭 스택에 쌓이는 것 — **상세뿐**이다.
-/// 추가·수정은 경로가 아니라 시트로 연다(`ContentView.openAddSpending`).
+/// 추가·수정은 경로가 아니라 화면 전체를 덮는 페이지로 연다(`ContentView.spendingEditorPage`).
 enum SpendingRoute: Hashable {
     case detail(String)   // 지출 id
 }
