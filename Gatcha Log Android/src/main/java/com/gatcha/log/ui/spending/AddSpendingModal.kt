@@ -62,7 +62,9 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GamePackage
+import com.gatcha.log.data.PackageCatalog
 import com.gatcha.log.data.PkgCategory
+import com.gatcha.log.data.api.PackageCatalogApi
 import com.gatcha.log.data.category
 import com.gatcha.log.data.FrequentItem
 import com.gatcha.log.data.SpendingDefaults
@@ -167,7 +169,13 @@ fun AddSpendingModal(
         spendingToEdit?.let { SpendingEditLogic.restoreItem(it.gameName, it.itemName) }
     }
     var selectedPackageName by rememberSaveable(spendingToEdit) { mutableStateOf(restoredItem?.packageName) }
-    val selectedPackage = selectedPackageName?.let { name -> GameData.packagesFor(game).firstOrNull { it.name == name } }
+    // 재화 목록은 어드민이 정한다(10/13) — 화면을 열 때 한 번 받아 보고, 목록이 갈리면([PackageCatalog.revision])
+    // 열려 있는 채로 다시 읽는다. 못 받으면 직전에 받은 값 · 앱 내장값 그대로다.
+    val catalogRev by PackageCatalog.revision.collectAsState()
+    LaunchedEffect(Unit) { PackageCatalogApi.load() }
+    val selectedPackage = remember(selectedPackageName, game, catalogRev) {
+        selectedPackageName?.let { name -> GameData.packagesFor(game).firstOrNull { it.name == name } }
+    }
     // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
     var quantity by rememberSaveable(spendingToEdit) {
         mutableIntStateOf(restoredItem?.quantity ?: SpendingEditLogic.MIN_QUANTITY)
@@ -372,7 +380,7 @@ fun AddSpendingModal(
                             exit = shrinkVertically(glgShortSpec()) + fadeOut(glgShortSpec()),
                         ) {
                         Column {
-                        val allPackages = GameData.packagesFor(game)
+                        val allPackages = remember(game, catalogRev) { GameData.packagesFor(game) }
                         // 카테고리 칩(월정액/패스/재화) — 게임이 가진 분류만 노출, 게임 바뀌면 전체로 리셋
                         var pkgFilter by remember(game) { mutableStateOf(PkgCategory.ALL) }
                         val pkgCategories = listOf(PkgCategory.ALL) +

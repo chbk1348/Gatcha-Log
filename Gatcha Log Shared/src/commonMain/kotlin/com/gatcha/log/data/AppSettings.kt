@@ -278,6 +278,11 @@ class AppSettings {
         get() = prefs.getString(KEY_APP_NOTICES, "") ?: ""
         set(v) { prefs.putString(KEY_APP_NOTICES, v) }
 
+    /** 마지막으로 받아 온 재화 목록 원문(JSON) — 다음 실행의 첫 화면도 어드민 값으로 서게 남긴다(PackageCatalog). */
+    var packageCatalogRaw: String
+        get() = prefs.getString(KEY_PACKAGE_CATALOG, "") ?: ""
+        set(v) { prefs.putString(KEY_PACKAGE_CATALOG, v) }
+
     /** 개발자 메뉴 「API Ping 조회」의 최근 기록 — 한 회차가 한 줄(ApiPing.encode). */
     var pingLog: String
         get() = prefs.getString(KEY_PING_LOG, "") ?: ""
@@ -310,6 +315,7 @@ class AppSettings {
         private const val KEY_HOYOLAND_CONFIG = "hoyoland_config_raw"
         private const val KEY_HOYOLAND_PAST = "hoyoland_past_raw"
         private const val KEY_APP_NOTICES = "app_notices_raw"
+        private const val KEY_PACKAGE_CATALOG = "package_catalog_raw"
         private const val KEY_PING_LOG = "dev_ping_log"
         private const val KEY_AUTO_CHECKIN = "auto_checkin"
         private const val KEY_NOTIFY_RESIN = "notify_resin"
