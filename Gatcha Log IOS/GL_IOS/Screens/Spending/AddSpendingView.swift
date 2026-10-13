@@ -2,15 +2,14 @@ import SwiftUI
 import Shared
 
 // 지출 추가/수정 폼 — 게임·빠른상품·금액·재화명·날짜·결제수단·태그·메모·구독 + 과소비 넛지.
-// (Compose AddSpendingModal 대응) ⚠️ 빠른상품 카테고리 필터는 생략(전체 표시). Spending 생성은 Kotlin saveSpending.
+// (Compose AddSpendingModal 대응) Spending 생성은 Kotlin saveSpending.
+//
+// **화면 전체를 덮는 페이지다**(10/13 — 예전엔 시트였다). ContentView 가 탭 화면 위에 오른쪽에서 밀어 넣고,
+// 여기는 자기 머리(뒤로 · 제목 · 저장)를 갖는다. 어느 탭의 스택에도 들어가지 않으므로 뒤 화면은 그대로 남는다.
+// 나가는 길은 셋 — 왼쪽 위 뒤로, 왼쪽 끝에서 쓸기, 저장. 고친 것이 있으면 앞의 둘은 한 번 묻는다.
 struct AddSpendingView: View {
     var store: SpendingStore
     let editing: Spending?
-    /// 네비게이션 스택에 **밀려 들어온** 상태(상세 페이지 형식)인가.
-    ///
-    /// true 면 자기 `NavigationStack` 을 만들지 않는다 — 이미 스택 안이라 중첩하면 뒤로가기가
-    /// 두 겹이 된다. '닫기' 버튼도 달지 않는다(왼쪽 위 뒤로가기가 그 일을 한다).
-    var pushed: Bool = false
     let onClose: () -> Void
     @Environment(\.glgAccent) private var accent
 
@@ -28,14 +27,14 @@ struct AddSpendingView: View {
     @State private var quantity: Int = 1
     @State private var showDate = false
     @State private var nudgeMsg: String? = nil
-    /// 한 번만 저장한다 — 시트가 닫히는 동안 버튼이 살아 있어, 빠르게 두 번 누르면 두 건이 들어갔다.
+    /// 한 번만 저장한다 — 페이지가 닫히는 동안 버튼이 살아 있어, 빠르게 두 번 누르면 두 건이 들어갔다.
     @State private var saved = false
-    /// 처음 채운 입력의 지문 — 바뀌었으면 쓸어 닫기를 막고 취소에서 한 번 묻는다(입력이 경고 없이 날아갔다).
+    /// 처음 채운 입력의 지문 — 바뀌었으면 뒤로 · 쓸어 나가기에서 한 번 묻는다(입력이 경고 없이 날아갔다).
     @State private var initialFingerprint: String? = nil
     @State private var confirmDiscard = false
     @State private var didInit = false
-    /// '자주 사는 것' 아래 전체 상품 그리드를 폈는가.
-    @State private var showAllPackages = false
+    /// 왼쪽 끝에서 쓸어 나가는 중에 페이지가 손가락을 따라 밀린 거리.
+    @State private var backDrag: CGFloat = 0
     /// 재화 목록이 갈린 횟수 — 어드민 값을 새로 받으면 올려서 상품 칸을 다시 그린다(10/13).
     @State private var catalogRev = 0
     /// '자세히'(결제·플랫폼·태그·메모·구독)를 폈는가. **수정 진입은 펼친 채 시작**한다.
@@ -102,10 +101,14 @@ struct AddSpendingView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(editing == nil ? "지출 추가" : "지출 수정")
         .navigationBarTitleDisplayMode(.inline)
-        // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정) — 닫기(X) · 저장/수정. 못 누르면 시스템 비활성.
+        // 왼쪽 끝에서 오른쪽으로 쓸면 뒤로 간다 — 밀려 들어온 페이지라 시스템 뒤로 쓸기와 같은 손짓을 받는다.
+        .overlay(alignment: .leading) { backSwipeStrip }
+        // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정) — 뒤로(‹) · 저장/수정. 못 누르면 시스템 비활성.
+        // 왼쪽은 ✕ 가 아니라 **뒤로**다(10/13) — 시트가 아니라 앞 화면에서 밀려 들어온 하위 페이지다.
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button { requestDismiss() } label: { Image(systemName: "xmark") }
+                Button { requestDismiss() } label: { Image(systemName: "chevron.backward") }
+                    .accessibilityLabel("뒤로")
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button(editing == nil ? "저장" : "수정") { attemptSave() }.disabled(!canSave || saved)
@@ -117,21 +120,40 @@ struct AddSpendingView: View {
             Button("계속 입력", role: .cancel) {}.glgAlertTint()
             Button("버리기", role: .destructive) { onClose() }
         }
-        // 입력 화면에서는 하단 탭바를 감춘다 — 저장/취소 바가 이미 하단을 쓰고 있어 두 겹이 되고,
-        // 폼을 채우다 탭을 눌러 나가면 입력이 날아간다. (Android 는 루트를 스왑해 애초에 탭바가 없다.)
+        // 입력 화면에서는 하단 탭바 · '추가' 버튼이 보이지 않는다 — 폼을 채우다 탭을 눌러 나가면 입력이 날아간다.
+        // (Android 는 루트를 스왑해 애초에 탭바가 없다.)
         //
-        // 추가(탭 스택 루트에서 push)든 수정(지출 상세 위로 push)이든 같은 자리에서 처리된다 —
-        // 화면이 자기 상태를 선언하므로 어느 경로로 들어와도 새는 곳이 없다.
-        // 숨김은 **여기서 선언하지 않는다.** 화면이 직접 걸면 pop 되는 순간 선언이 사라져
-        // 탭바가 애니메이션 없이 튀어나온다("짠" 하고 등장).
-        // ContentView 가 상태(spendingSheet·spendingEditorOpen)로 들고 있어야
-        // 값 변화가 전환에 실려 사라질 때와 같은 결로 돌아온다.
+        // 숨김은 **여기서 선언하지 않는다.** ContentView 가 상태(spendingEditor)로 들고 있다 —
+        // 이 페이지가 화면 전체를 덮고, 그 아래 탭바도 같은 상태로 감췄다가 페이지를 벗어나면 다시 보인다.
+    }
+
+    /// 왼쪽 끝 띠 — 여기서 시작한 가로 끌기만 「뒤로」로 받는다(가로 칩 줄 · 세로 스크롤과 겹치지 않게).
+    private var backSwipeStrip: some View {
+        Color.clear
+            .frame(width: 16)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                    .onChanged { v in backDrag = max(0, v.translation.width) }
+                    .onEnded { v in
+                        let leave = v.translation.width > 100 || v.predictedEndTranslation.width > 240
+                        // 고친 것이 없으면 그대로 나간다 — 남은 거리는 ContentView 의 전환이 밀어낸다.
+                        if leave && !isDirty { onClose(); return }
+                        withAnimation(GLGMotion.standard()) { backDrag = 0 }
+                        if leave { confirmDiscard = true }
+                    }
+            )
+            .accessibilityHidden(true)
     }
 
     var body: some View {
-        Group {
-            if pushed { form } else { NavigationStack { form } }
-        }
+        NavigationStack { form }
+        // 페이지가 화면 끝까지 흰 면으로 덮는다 — 뒤의 탭 화면 · 탭바가 비치지 않게.
+        .background(Color.white.ignoresSafeArea())
+        .offset(x: backDrag)
+        // 뒤 화면이 그대로 살아 있으므로, 읽어 주는 범위를 이 페이지로 묶는다.
+        .accessibilityAddTraits(.isModal)
         .onAppear {
             prefill()
             if initialFingerprint == nil { initialFingerprint = fingerprint }
@@ -141,7 +163,6 @@ struct AddSpendingView: View {
         .task {
             if (try? await PackageCatalogApi.shared.load(force: false))?.boolValue == true { catalogRev += 1 }
         }
-        .interactiveDismissDisabled(isDirty)
         // 날짜 선택 — Android `GlgDatePickerDialog` 와 같은 가운데 모달(시스템 그래픽 달력 시트 대신).
         .overlay {
             if showDate {
@@ -382,50 +403,67 @@ struct AddSpendingView: View {
         if first { withAnimation(GLGMotion.standard()) { gameChosen = true } }
     }
 
+    // ── 재화 선택(10/13 개편, 시안 C) ──
+    //
+    // 묶음 · 칸에 적는 글자는 공용 PackagePick 이 만든다(Android 와 한 소스). 목록은 늘 펼쳐 둔다 —
+    // 예전의 「전체 상품 보기 / 접기」는 걷었다. 색 · 치수는 시안 값 그대로이고, 강조색만 테마를 따른다
+    // (면 · 테두리는 primary, 글자 · 채운 바닥은 deep).
     private var productCard: some View {
         sectionCard {
             // catalogRev 를 읽어 두면 목록이 갈릴 때 이 칸이 다시 그려진다.
             let _ = catalogRev
             let packages = GameData.shared.packagesFor(game: game)
+            let groups = PackagePick.shared.groups(game: game, packages: packages)
+            let gameColor = Color(argb64: game.color)
 
             // 자주 사는 것 — 같은 게임에서 2회 이상 산 것만, 많이 산 순.
-            // 기록이 없는 게임은 이 블록이 통째로 빠지고 예전처럼 전체 그리드가 바로 열린다
+            // 기록이 없는 게임은 이 블록이 통째로 빠지고 안내 문구가 선다
             // (빈도를 모르는데 임의로 셋을 고르면 그건 추천이 아니다).
             if !frequent.isEmpty {
                 label("자주 사는 것")
-                VStack(spacing: 7) {
+                LazyVGrid(columns: Self.pickCols, spacing: 8) {
                     ForEach(Array(frequent.enumerated()), id: \.offset) { _, f in
-                        frequentRow(f, packages: packages)
+                        frequentTile(f, packages: packages)
                     }
                 }
                 .padding(.top, 10)
-                Button { withAnimation(.easeInOut(duration: 0.2)) { showAllPackages.toggle() } } label: {
-                    Text(showAllPackages ? "접기 ⌃" : "전체 상품 보기 ▾")
-                        .font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                        .frame(maxWidth: .infinity).padding(.top, 10)
-                }
-                .buttonStyle(.plain)
             } else {
                 label("빠른 상품 선택")
-                Text("선택하면 금액·재화명이 자동 입력돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
+                Text("선택하면 금액 · 재화명이 자동 입력돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
             }
 
-            if frequent.isEmpty || showAllPackages {
-                packageGrid(packages)
+            ForEach(Array(groups.enumerated()), id: \.offset) { i, group in
+                // 안내 문구 바로 아래 첫 묶음만 16, 나머지 머리는 18.
+                pickGroupHead(group).padding(.top, i == 0 && frequent.isEmpty ? 16 : 18)
+                if group.kind == .plan {
+                    VStack(spacing: 8) {
+                        ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
+                            planRow(item, gameColor: gameColor)
+                        }
+                    }
+                    .padding(.top, 10)
+                } else {
+                    LazyVGrid(columns: Self.pickCols, spacing: 8) {
+                        ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
+                            currencyTile(item, tier: group.kind == .tiers, gameColor: gameColor)
+                        }
+                    }
+                    .padding(.top, 10)
+                }
             }
+
+            // 요약 면 — 상품을 골랐을 때만. 무엇을 몇 번 사서 얼마 · 재화 얼마인지와 횟수 스텝퍼를 한 면에 둔다.
             if let pkg = selectedPackage {
-                quantityStepper(pkg).padding(.top, 14)
+                summaryFace(pkg).padding(.top, 16)
             }
-            field("재화명", "결정석 60", $itemName).padding(.top, 12)
             // 환산이 깨지면 조용히 넘어가지 않고 이유를 말한다(막지는 않는다 — 환산은 편의다).
-            if !itemName.isEmpty && currencyLine == nil {
-                Text("재화 환산이 안 돼요 — '결정석 60'처럼 이름 뒤에 숫자를 붙이면 뽑기 수까지 계산해요")
-                    .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
-            }
+            GldsTextField(label: "재화명", placeholder: "결정석 60", text: $itemName,
+                          helper: !itemName.isEmpty && currencyLine == nil
+                              ? "재화 환산이 안 돼요 — '결정석 60'처럼 이름 뒤에 숫자를 붙이면 뽑기 수까지 계산해요" : nil)
+                .padding(.top, selectedPackage != nil ? 12 : 16)
         }
         // 자주 사는 것은 게임이 바뀔 때만 다시 센다 — body 안에서 세면 글자 하나 칠 때마다 전체 지출을 훑었다.
-        // initial: true — 첫 그리기 전에 채워 전체 그리드가 한 프레임 떴다 접히지 않게(.task 는 한 박자 늦다).
+        // initial: true — 첫 그리기 전에 채워 안내 문구가 한 프레임 떴다 바뀌지 않게(.task 는 한 박자 늦다).
         .onChange(of: gameName, initial: true) {
             frequent = editing == nil
                 ? SpendingDefaults.shared.frequentItems(spendings: store.spendings, gameName: gameName, limit: 3)
@@ -433,92 +471,177 @@ struct AddSpendingView: View {
         }
     }
 
-    /// 자주 사는 것 한 줄 — 누르면 상품·금액·재화명이 한 번에 채워진다.
-    private func frequentRow(_ f: FrequentItem, packages: [GamePackage]) -> some View {
-        let sel = selectedPkg == f.itemName
+    /// 2열 격자(사이 8). 홀수면 마지막 칸은 왼쪽에 선다.
+    private static let pickCols = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+    /// 칸의 평소 테두리.
+    private static let pickRing = Color(hex: 0xFFE3E6EA)
+    /// 자주 사는 것 칸 · 가격 바닥의 채운 면 — GLDS 입력필드와 같은 색.
+    private static let pickFace = Color(hex: 0xFFF5F8F8)
+    /// 요약 면의 보조 글자.
+    private static let pickSummarySub = Color(hex: 0xFF4A5159)
+
+    /// 상품을 고른다 — 금액 · 재화명을 채우고 횟수를 1 로 되돌린다.
+    private func applyPackage(_ pkg: GamePackage) {
+        selectedPkg = pkg.name; quantity = 1; setAmount(pkg.price); itemName = pkg.name
+    }
+
+    /// 묶음 머리 — 왼쪽 이름, 오른쪽 환산("160개 = 1뽑").
+    private func pickGroupHead(_ group: PackagePickGroup) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            label(group.title).frame(maxWidth: .infinity, alignment: .leading)
+            if let hint = group.hint {
+                Text(hint).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            }
+        }
+    }
+
+    /// 게임색 12% 원(36) 안의 선 아이콘(20).
+    private func pickIconCircle(_ icon: PickIcon, _ gameColor: Color) -> some View {
+        PickIconView(icon: icon, size: 20, lineWidth: 2, color: gameColor)
+            .frame(width: 36, height: 36)
+            .background(gameColor.opacity(0.12), in: Circle())
+    }
+
+    /// 자주 사는 것 한 칸 — 누르면 상품 · 금액 · 재화명이 한 번에 채워진다.
+    private func frequentTile(_ f: FrequentItem, packages: [GamePackage]) -> some View {
+        let sel = PackagePick.shared.isFrequentSelected(itemName: f.itemName, selectedPackageName: selectedPkg, currentItemName: itemName)
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
         return Button {
-            selectedPkg = f.itemName
+            // 목록에 있는 상품이면 그 상품을 고른 것으로 본다(요약 면 · 스텝퍼가 선다). 없으면 재화명만 채운다.
+            selectedPkg = packages.first { $0.name == f.itemName }?.name
             quantity = 1
             itemName = f.itemName
             setAmount(f.amount)
         } label: {
-            HStack(spacing: 9) {
-                Text(f.itemName).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    .lineLimit(1)
-                Spacer(minLength: 6)
-                Text(won(f.amount)).font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                Text("\(f.count)회").font(.pretendard(size: 10, weight: .black))
-                    .foregroundStyle(accent.primary)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(accent.primary.opacity(0.13), in: RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(f.itemName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    .lineLimit(1).truncationMode(.tail)
+                HStack(spacing: 0) {
+                    Text(won(f.amount)).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                        .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                    Text("\(f.count)회").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.deep).lineLimit(1)
+                }
             }
-            .padding(.horizontal, 13).padding(.vertical, 11)
-            .background(sel ? accent.primary.opacity(0.10) : Color.white, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(sel ? accent.primary : Color.black.opacity(0.08), lineWidth: 1))
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(sel ? accent.primary.opacity(0.08) : Self.pickFace, in: shape)
+            .overlay(shape.strokeBorder(sel ? accent.primary : .clear, lineWidth: 2))
+            .contentShape(shape)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(sel ? .isSelected : [])
     }
 
-    private func packageGrid(_ packages: [GamePackage]) -> some View {
-        Group {
-            let cols = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
-            LazyVGrid(columns: cols, spacing: 8) {
-                ForEach(Array(packages.enumerated()), id: \.offset) { _, pkg in
-                    let sel = selectedPkg == pkg.name
-                    Button {
-                        selectedPkg = pkg.name; quantity = 1; setAmount(pkg.price); itemName = pkg.name
-                    } label: {
-                        VStack(spacing: 3) {
-                            Text(pkg.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                            HStack(spacing: 5) {
-                                if let b = pkg.bonus { Text(b).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(accent.primary) }
-                                Text(won(pkg.price)).font(.pretendard(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity).padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(sel ? accent.primary.opacity(0.1) : Color.white, in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(sel ? accent.primary : Color.black.opacity(0.08), lineWidth: 1))
-                    }.buttonStyle(.plain)
-                }
-            }
-            .padding(.top, 10)
-        }
-    }
-
-    // 구매 횟수 스텝퍼 — 단가·재화 총량을 함께 보여줘 '몇 번 사서 얼마·재화 얼마인지' 검증 가능하게.
-    private func quantityStepper(_ pkg: GamePackage) -> some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("구매 횟수").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                if quantity > 1 {
-                    Text("\(won(pkg.price)) × \(quantity) = \(won(pkg.price * Int64(quantity)))")
-                        .font(.pretendard(size: 12, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
-                    // 재화 양도 확인 — 상품명 끝의 개수 × 횟수 + 보너스 재화까지 총량 명시.
-                    if let cur = GameDataKt.currencyAmountOrNull(gameName: gameName, itemName: itemName) {
-                        Text("재화 총 \(cur)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+    /// 재화 한 칸 — [아이콘 · 첫 줄 · 둘째 줄] 아래에 가격 바닥.
+    /// `tier` 면 첫 줄이 개수(17), 아니면 이름(14 · 한 줄 말줄임). 둘째 줄은 비어도 자리를 남겨 칸 높이를 맞춘다.
+    private func currencyTile(_ item: PackagePickItem, tier: Bool, gameColor: Color) -> some View {
+        let sel = selectedPkg == item.pkg.name
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        return Button { applyPackage(item.pkg) } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    pickIconCircle(.gem, gameColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.headline).font(.pretendard(size: tier ? 17 : 14, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary).lineLimit(1).truncationMode(.tail)
+                        Text(item.sub).font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.deep)
+                            .lineLimit(1).frame(height: 15, alignment: .leading)
                     }
-                } else {
-                    Text("한 번에 여러 번 샀다면 횟수를 올리세요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .padding(.horizontal, 4)
+                HStack(spacing: 5) {
+                    if sel { PickIconView(icon: .check, size: 14, lineWidth: 3, color: .white) }
+                    Text(item.price).font(.pretendard(size: 13, weight: .bold))
+                        .foregroundStyle(sel ? Color.white : GLGColor.textPrimary)
+                        .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                    if let pulls = item.pulls {
+                        Text(pulls).font(.pretendard(size: 12)).foregroundStyle(sel ? Color.white : GLGColor.textSecondary).lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(sel ? accent.deep : Self.pickFace, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             }
-            Spacer(minLength: 8)
-            HStack(spacing: 6) {
-                stepperBtn("minus", enabled: quantity > Int(SpendingEditLogic.shared.MIN_QUANTITY)) { setQuantity(quantity - 1) }
-                Text("\(quantity)").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textPrimary).frame(minWidth: 28)
-                stepperBtn("plus", enabled: quantity < Int(SpendingEditLogic.shared.MAX_QUANTITY)) { setQuantity(quantity + 1) }
-            }
+            .padding(.top, 12).padding(.horizontal, 8).padding(.bottom, 8)
+            .background(sel ? accent.primary.opacity(0.08) : Color.white, in: shape)
+            .overlay(shape.strokeBorder(sel ? accent.primary : Self.pickRing, lineWidth: sel ? 2 : 1))
+            .contentShape(shape)
         }
+        .buttonStyle(.plain)
+        // 칸 안의 글자는 조각나 있다("300" · "덤 +30") — 읽어 줄 때는 상품 이름으로 한 번에 말한다.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([item.pkg.name, tier ? item.sub : "", item.price, item.pulls ?? ""].filter { !$0.isEmpty }.joined(separator: " "))
+        .accessibilityAddTraits(sel ? [.isButton, .isSelected] : .isButton)
     }
 
-    private func stepperBtn(_ symbol: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+    /// 월정액 · 패스 한 줄 — [아이콘 · 이름 / 종류 · 가격]. 고르면 가격 앞에 체크가 서고 가격이 강조색이 된다.
+    private func planRow(_ item: PackagePickItem, gameColor: Color) -> some View {
+        let sel = selectedPkg == item.pkg.name
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        return Button { applyPackage(item.pkg) } label: {
+            HStack(spacing: 10) {
+                pickIconCircle(item.pkg.kind == .monthly ? .calendar : .ticket, gameColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.headline).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text(item.sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if sel { PickIconView(icon: .check, size: 16, lineWidth: 3, color: accent.deep) }
+                Text(item.price).font(.pretendard(size: 15, weight: .bold))
+                    .foregroundStyle(sel ? accent.deep : GLGColor.textPrimary).lineLimit(1)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(sel ? accent.primary.opacity(0.08) : Color.white, in: shape)
+            .overlay(shape.strokeBorder(sel ? accent.primary : Self.pickRing, lineWidth: sel ? 2 : 1))
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(sel ? .isSelected : [])
+    }
+
+    /// 고른 상품의 요약 면 — 위 줄에 [무엇을 몇 번 · 재화량] 과 횟수 스텝퍼, 선 아래에 [단가 × 횟수 · 합계].
+    /// 한 번에 같은 상품을 여러 번 산 경우 횟수만큼 금액 · 재화를 곱해 한 건으로 기록한다.
+    private func summaryFace(_ pkg: GamePackage) -> some View {
+        let s = PackagePick.shared.summary(game: game, pkg: pkg, quantity: Int32(quantity), amount: Int64(amount) ?? 0)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(s.title).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !s.sub.isEmpty {
+                        Text(s.sub).font(.pretendard(size: 12)).foregroundStyle(Self.pickSummarySub)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 6) {
+                    stepperBtn(.minus, "횟수 줄이기", enabled: quantity > Int(SpendingEditLogic.shared.MIN_QUANTITY)) { setQuantity(quantity - 1) }
+                    Text("\(quantity)").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textPrimary).frame(minWidth: 28)
+                    stepperBtn(.plus, "횟수 늘리기", enabled: quantity < Int(SpendingEditLogic.shared.MAX_QUANTITY)) { setQuantity(quantity + 1) }
+                }
+            }
+            accent.primary.opacity(0.22).frame(height: 1).padding(.vertical, 10)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(s.unitLine).font(.pretendard(size: 12)).foregroundStyle(Self.pickSummarySub)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(s.total).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(accent.primary.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// 스텝퍼 단추(34 원) — 흰 면 + 강조색 50% 테두리. 못 누르면 반투명 흰 면 + 옅은 테두리 · 흐린 아이콘.
+    private func stepperBtn(_ icon: PickIcon, _ label: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(enabled ? accent.primary : GLGColor.textSecondary.opacity(0.4))
+            PickIconView(icon: icon, size: 18, lineWidth: 2.2, color: enabled ? accent.primary : GLGColor.textSecondary.opacity(0.4))
                 .frame(width: 34, height: 34)
-                .background(enabled ? accent.primary.opacity(0.10) : Color(.systemGray6), in: Circle())
-                .overlay(Circle().stroke(enabled ? accent.primary.opacity(0.5) : Color.black.opacity(0.06), lineWidth: 1))
+                .background(Color.white.opacity(enabled ? 1 : 0.5), in: Circle())
+                .overlay(Circle().strokeBorder(enabled ? accent.primary.opacity(0.5) : Color.black.opacity(0.06), lineWidth: 1))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain).disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     private var dateCard: some View {
@@ -691,6 +814,66 @@ struct AddSpendingView: View {
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
         GldsChip(label: label, selected: selected, action: action)
+    }
+}
+
+/// 「재화 선택」의 선 아이콘 — 시안의 SVG 경로(24 격자 · 둥근 끝)를 그대로 옮겼다. Android 는 같은 경로 글자를 읽어 그린다.
+private enum PickIcon { case gem, calendar, ticket, check, minus, plus }
+
+private struct PickIconShape: Shape {
+    let icon: PickIcon
+
+    func path(in rect: CGRect) -> Path {
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
+        var p = Path()
+        switch icon {
+        case .gem:
+            // M6 3h12l4 6-10 12L2 9z  M2 9h20  M9 3l-1.5 6L12 21l4.5-12L15 3
+            p.move(to: pt(6, 3)); p.addLine(to: pt(18, 3)); p.addLine(to: pt(22, 9)); p.addLine(to: pt(12, 21)); p.addLine(to: pt(2, 9)); p.closeSubpath()
+            p.move(to: pt(2, 9)); p.addLine(to: pt(22, 9))
+            p.move(to: pt(9, 3)); p.addLine(to: pt(7.5, 9)); p.addLine(to: pt(12, 21)); p.addLine(to: pt(16.5, 9)); p.addLine(to: pt(15, 3))
+        case .calendar:
+            // M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z  M4 10h16  M8 3v4  M16 3v4
+            p.addRoundedRect(in: CGRect(x: 4, y: 5, width: 16, height: 16), cornerSize: CGSize(width: 1, height: 1), style: .circular)
+            p.move(to: pt(4, 10)); p.addLine(to: pt(20, 10))
+            p.move(to: pt(8, 3)); p.addLine(to: pt(8, 7))
+            p.move(to: pt(16, 3)); p.addLine(to: pt(16, 7))
+        case .ticket:
+            // M3 9V6h18v3a3 3 0 0 0 0 6v3H3v-3a3 3 0 0 0 0-6z  M14 6v12 — 양옆이 안쪽으로 반원(반지름 3)만큼 파인다.
+            p.move(to: pt(3, 9)); p.addLine(to: pt(3, 6)); p.addLine(to: pt(21, 6)); p.addLine(to: pt(21, 9))
+            p.addRelativeArc(center: pt(21, 12), radius: 3, startAngle: .degrees(-90), delta: .degrees(-180))
+            p.addLine(to: pt(21, 18)); p.addLine(to: pt(3, 18)); p.addLine(to: pt(3, 15))
+            p.addRelativeArc(center: pt(3, 12), radius: 3, startAngle: .degrees(90), delta: .degrees(-180))
+            p.closeSubpath()
+            p.move(to: pt(14, 6)); p.addLine(to: pt(14, 18))
+        case .check:
+            // M20 6L9 17l-5-5
+            p.move(to: pt(20, 6)); p.addLine(to: pt(9, 17)); p.addLine(to: pt(4, 12))
+        case .minus:
+            // M5 12h14
+            p.move(to: pt(5, 12)); p.addLine(to: pt(19, 12))
+        case .plus:
+            // M12 5v14  M5 12h14
+            p.move(to: pt(12, 5)); p.addLine(to: pt(12, 19))
+            p.move(to: pt(5, 12)); p.addLine(to: pt(19, 12))
+        }
+        let scale = min(rect.width, rect.height) / 24
+        return p.applying(CGAffineTransform(scaleX: scale, y: scale))
+    }
+}
+
+/// 선 아이콘 한 개 — `lineWidth` 는 24 격자 기준 굵기라 크기에 맞춰 함께 줄인다(SVG 와 같다).
+private struct PickIconView: View {
+    let icon: PickIcon
+    let size: CGFloat
+    let lineWidth: CGFloat
+    let color: Color
+
+    var body: some View {
+        PickIconShape(icon: icon)
+            .stroke(color, style: StrokeStyle(lineWidth: lineWidth * size / 24, lineCap: .round, lineJoin: .round))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 

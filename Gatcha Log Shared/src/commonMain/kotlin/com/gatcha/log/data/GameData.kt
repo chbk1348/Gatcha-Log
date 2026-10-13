@@ -14,7 +14,7 @@ private val RE_TRAILING_NUM = Regex("(\\d+)\\s*$")          // 끝의 숫자 = �
  * 지출 항목명 + 게임에서 재화 총량과 환산 뽑기 수를 계산 — 지출 상세 '재화양' + N번 구매 총량 표시.
  *
  * label: "창세의 결정 330"(기본 300 + 보너스 30), "창세의 결정 990"(×3 구매), "오리지늄 세트 26"(엔드필드)
- * pulls: "약 6뽑 가능"(재화 ÷ 1뽑 재화). 뽑기 1회 미만이면 null.
+ * pulls: "약 6뽑 가능"(재화 → 뽑기 환산, [PullRate]). 뽑기 1회 미만이면 null.
  * 재화 개수를 못 구하면(패스·월정액) 전체 null.
  *
  * 개수는 **상품 목록의 값**([GamePackage.count] · [GamePackage.bonusCount])이 먼저다(10/13) — 예전엔 꼬리표
@@ -46,9 +46,9 @@ private fun currencyCalc(gameName: String, itemName: String): CurrencyAmountCalc
     val totalCount = unitCount * mult
     val label = if (name.isEmpty()) num(totalCount) else "$name ${num(totalCount)}"
 
-    // 약 N뽑 — 게임 1뽑 재화(perPull)로 환산. 뽑기 1회 미만이면 생략.
-    val perPull = game?.key?.let { GachaRateData.byKey(it)?.character?.perPull } ?: 160
-    val pulls = if (perPull > 0) totalCount / perPull else 0L
+    // 약 N뽑 — 게임의 환산 비율([PullRate])로. 뽑기 1회 미만이면 생략.
+    // 엔드필드는 충전 재화(오리지늄)가 뽑기 재화(오로베릴)로 75배 바뀐 뒤 500개에 1뽑이다(10/13).
+    val pulls = GachaRateData.pullRate(game?.key).pullsOf(totalCount)
     return CurrencyAmountCalc(label, if (pulls >= 1) "약 ${pulls}뽑 가능" else null)
 }
 

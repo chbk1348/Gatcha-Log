@@ -34,22 +34,23 @@ struct ContentView: View {
     @State private var showExperimentAlert = false
     #endif
 
-    /// 지출 추가/수정 시트 — **표시 여부와 대상을 한 상태로 합쳤다**(nil = 닫힘).
+    /// 지출 추가/수정 페이지 — **표시 여부와 대상을 한 상태로 합쳤다**(nil = 닫힘).
     ///
-    /// 예전엔 showAddSpending(Bool) + editingSpending(Spending?) 두 개였는데, `.sheet(isPresented:)` 는
-    /// 표시 시점에 내용을 만들면서 아직 반영되지 않은 editingSpending(=nil)을 집어갈 수 있었다.
-    /// 그러면 '수정'을 눌렀는데 빈 '추가' 폼이 뜬다 — 타이밍에 따라 갈려 간헐적으로 재현됐다.
-    /// AddSpendingView 의 didInit 가드가 nil 로 한 번 초기화되면 필드를 다시 채우지 않아 증상이 굳었다.
-    /// `.sheet(item:)` 은 대상 값을 표시 시점에 확정해 넘기므로 이 경합 자체가 성립하지 않는다.
-    @State private var spendingSheet: SpendingSheetTarget? = nil
+    /// 예전엔 showAddSpending(Bool) + editingSpending(Spending?) 두 개였는데, 표시 시점에 내용을 만들면서
+    /// 아직 반영되지 않은 editingSpending(=nil)을 집어갈 수 있었다. 그러면 '수정'을 눌렀는데 빈 '추가' 폼이 뜬다 —
+    /// 타이밍에 따라 갈려 간헐적으로 재현됐다. AddSpendingView 의 didInit 가드가 nil 로 한 번 초기화되면
+    /// 필드를 다시 채우지 않아 증상이 굳었다. 대상을 값으로 들고 있으면 이 경합 자체가 성립하지 않는다.
+    ///
+    /// 이 값이 있으면 [spendingEditorPage] 가 **탭 화면 전체를 덮는 페이지**를 오른쪽에서 밀어 넣는다(10/13 —
+    /// 그 전에는 탭마다 물린 시트였다).
+    @State private var spendingEditor: SpendingEditorTarget? = nil
 
-    /// 지출 편집 페이지의 대상. `.sheet(item:)`·`.navigationDestination(item:)` 에 넘기기 위해
-    /// Identifiable + Hashable.
+    /// 지출 편집 페이지의 대상. 값이 바뀐 것을 전환의 계기로 삼으려고 Identifiable + Hashable.
     ///
     /// 동등성·해시는 **[id] 로만** 판단한다. Kotlin `Spending` 은 Swift 쪽에서 값 동등성이
     /// 보장되지 않아 그대로 해싱하면 같은 대상이 매번 달라 보일 수 있고, 그러면
-    /// 네비게이션이 목적지를 새로 밀어 넣는다.
-    private enum SpendingSheetTarget: Identifiable, Hashable {
+    /// 페이지를 새로 밀어 넣는다.
+    private enum SpendingEditorTarget: Identifiable, Hashable {
         case add
         case edit(Spending)
 
@@ -70,14 +71,14 @@ struct ContentView: View {
             }
         }
     }
-    /// 지출 입력 시트가 떠 있는 동안 들어온 **탭 전환 요청** — 시트가 닫히면 적용한다(27.52.0, [requestTab]).
+    /// 지출 입력 페이지가 떠 있는 동안 들어온 **탭 전환 요청** — 페이지를 벗어나면 적용한다(27.52.0, [requestTab]).
     @State private var deferredTab: Int? = nil
 
-    /// 지출 탭 스택 경로 — 목록 → 상세 → 수정이 여기 쌓인다.
+    /// 지출 탭 스택 경로 — 목록 → 상세가 여기 쌓인다(추가 · 수정은 스택 밖의 페이지다 — [spendingEditorPage]).
     @State private var spendingPath: [SpendingRoute] = []
 
-    /// 지출 입력(추가·수정)이 열려 있는가 — 이제 **시트**라 경로가 아니라 이 상태를 본다.
-    private var spendingEditorOpen: Bool { spendingSheet != nil }
+    /// 지출 입력(추가·수정)이 열려 있는가 — 탭 스택의 경로가 아니라 이 상태를 본다.
+    private var spendingEditorOpen: Bool { spendingEditor != nil }
 
     /// 지출 탭에서 하위 화면이 열려 있는가 — iOS 18(탭바 위 '+' 오버레이)에서 그동안 '추가'를 감춘다.
     /// 상세는 경로([spendingPath])에 쌓여 여기서 보이지만, 캘린더 · 인사이트는 뷰 기반 `NavigationLink` 라
@@ -187,7 +188,11 @@ struct ContentView: View {
         // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
         .animation(GLGMotion.standard(), value: rootPhase)
         // 홈이 뜨기 전(온보딩 · 로그인 · 불러오기)에는 알림을 붙잡았다가 홈에서 보낸다(9/29).
-        .task(id: rootPhase) { store.setRootReady(rootPhase == .tabs) }
+        .task(id: rootPhase) {
+            store.setRootReady(rootPhase == .tabs)
+            // 탭 화면을 떠나면(로그아웃 등) 열려 있던 지출 입력도 접는다 — 남겨 두면 다시 들어왔을 때 빈 폼이 덮고 뜬다.
+            if rootPhase != .tabs { spendingEditor = nil }
+        }
         .onAppear {
             // 테마(액센트) 변경 구독 — 마이페이지에서 테마를 바꾸면 탭바 틴트도 즉시 반영
             MainViewControllerKt.observeAccentColor { argb in
@@ -225,9 +230,9 @@ struct ContentView: View {
                 requestTab(tab)
             }
         }
-        // 보류해 둔 탭 전환 — 지출 입력 시트가 닫히는 순간에 적용한다([requestTab]).
-        .onChange(of: spendingSheet) { _, sheet in
-            if sheet == nil, let tab = deferredTab {
+        // 보류해 둔 탭 전환 — 지출 입력 페이지를 벗어나는 순간에 적용한다([requestTab]).
+        .onChange(of: spendingEditor) { _, editor in
+            if editor == nil, let tab = deferredTab {
                 deferredTab = nil
                 selectedTab = tab
             }
@@ -255,7 +260,7 @@ struct ContentView: View {
                 + "설정 > 앱 버전에 빨간 EXPERIMENT 표시가 있으면 이 빌드입니다.")
         }
         // 강조색을 **최상위에서** 주입한다. 예전엔 탭 콘텐츠에만 걸어서, 탭 바깥에 붙는 것들
-        // (지출 추가/수정 시트·전역 토스트·네트워크 얼럿)이 주입이 없는 환경을 물려받아
+        // (지출 추가/수정 페이지·전역 토스트·네트워크 얼럿)이 주입이 없는 환경을 물려받아
         // 사용자가 무슨 테마를 골랐든 항상 기본 민트로 떴다.
         // 로그인 전 화면은 더 안쪽에서 preLoginAccent 로 덮어쓰므로(가까운 쪽이 이긴다) 그대로 민트로 남는다.
         .glgAccent(index: store.accentIndex)
@@ -277,61 +282,55 @@ struct ContentView: View {
     }
 
     /**
-     알림 · 딥링크가 요청한 탭 전환. **지출 입력 시트가 떠 있으면 보류했다가 닫힐 때 적용한다**(27.52.0).
+     알림 · 딥링크가 요청한 탭 전환. **지출 입력 페이지가 떠 있으면 보류했다가 벗어날 때 적용한다**(27.52.0).
 
-     시트는 「지금 보고 있는 탭」에만 물려 있다([spendingEditorBinding] — `selectedTab == tab` 일 때만 값을 준다).
-     그래서 시트가 뜬 채로 `selectedTab` 이 바뀌면 원래 탭의 시트는 닫히고 새 탭에서 **빈 폼으로 다시 떴다** —
-     지출을 적다가 알림을 누르면 입력이 통째로 날아갔다. 요청은 버리지 않는다(마지막 것 하나만 남긴다).
+     페이지가 화면 전체를 덮고 있어, 그 아래에서 탭을 바꾸면 사용자는 아무것도 못 본 채 나왔을 때 엉뚱한 탭에 서게 된다.
+     적던 입력을 마치거나 버린 뒤에 옮긴다. 요청은 버리지 않는다(마지막 것 하나만 남긴다).
+     (시트이던 때는 더 급했다 — 시트가 「보고 있는 탭」에 물려 있어 탭이 바뀌면 빈 폼으로 다시 떴다.)
      */
     private func requestTab(_ tab: Int) {
-        if spendingSheet != nil { deferredTab = tab } else { selectedTab = tab }
+        if spendingEditor != nil { deferredTab = tab } else { selectedTab = tab }
     }
 
-    /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
+    /// '+' (지출 추가) 페이지 열기 — 신규 추가(편집 대상 없음).
     private func openAddSpending() {
-        // 탭을 옮기지 않는다 — **보고 있던 탭 위에** 밀어 넣는다.
+        // 탭을 옮기지 않는다 — **보고 있던 화면 위에** 덮는다.
         // (예전엔 지출 탭으로 강제 이동시켰는데, 홈에서 '+'를 눌렀다가 닫으면 엉뚱하게 지출 탭에 남았다.)
-        //
-        // **어느 탭이든 시트다.** 예전엔 지출 탭만 경로에 페이지로 쌓았는데,
-        //  · 넓은 창에서는 그 탭이 좌 목록 / 우 상세로 갈려 있어 바깥 경로를 밀어 넣는 순간
-        //    SwiftUI 가 `NavigationColumnState.boundPathChange` 에서 죽었고(2026-09-21 크래시),
-        //  · 들어가는 모양도 탭마다 달랐다(어디선 페이지, 어디선 시트).
-        // 추가·수정은 그 화면의 다음 단계가 아니라 **끼어드는 별개 작업**이라 시트가 맞다.
-        spendingSheet = .add
+        spendingEditor = .add
     }
 
     /**
-     지출 편집 페이지를 **지금 보고 있는 탭의 스택**에만 밀어 넣기 위한 바인딩.
+     지출 추가 · 수정 **페이지** — 탭 화면 전체를 덮고 오른쪽에서 밀려 들어온다(10/13, 그 전에는 시트).
 
-     네 탭이 각자 `NavigationStack` 을 갖고 있고 TabView 는 보이지 않는 탭도 살려 둔다.
-     같은 상태를 네 스택에 그대로 물리면 **네 곳이 동시에** 목적지를 밀어 넣어, 나중에 다른 탭으로
-     가면 거기에도 추가 페이지가 쌓여 있다. 그래서 현재 탭이 아니면 항상 nil 을 돌려준다.
-     */
-    private func spendingEditorBinding(tab: Int) -> Binding<SpendingSheetTarget?> {
-        Binding(
-            get: { selectedTab == tab ? spendingSheet : nil },
-            set: { newValue in if selectedTab == tab { spendingSheet = newValue } }
-        )
-    }
+     **어느 탭의 `NavigationStack` 에도 넣지 않는다.** 스택에 밀어 넣던 때 두 번 깨졌다.
+      · 넓은 창에서는 지출 탭이 좌 목록 / 우 상세로 갈려 있어 바깥 경로를 밀어 넣는 순간
+        SwiftUI 가 `NavigationColumnState.boundPathChange` 에서 죽었다(2026-09-21 크래시).
+      · 같은 뷰에 `navigationDestination` 이 둘이면 동시에 살 수 없다. 홈은 호요랜드도 그렇게 여는데,
+        하위 페이지를 보다 '+' 를 누르면 지출 페이지가 그 push 를 밀어내고 올라왔고, 취소하면
+        호요랜드가 아니라 루트(홈)로 떨어졌다(2026-09-10 제보).
 
-    /**
-     지출 편집을 **시트로** 띄운다(지출 탭 제외 — 거긴 경로에 쌓는다).
+     탭 화면([mainTabs]) 위에 덮는 층이라 스택을 건드리지 않는다 — 어느 화면(상세 · 호요랜드 · 설정) 위에서 열든
+     **뒤 화면이 그대로 남고**, 뒤로 가면 보던 자리로 돌아온다. 넓은 창 · 세로 탭바(Duo)에서도 같은 모양이다.
 
-     예전엔 탭 스택 루트에 `navigationDestination(item:)` 으로 걸어 상세처럼 밀어 넣었다.
-     그런데 **같은 뷰에 navigationDestination 이 둘이면 동시에 살 수 없다.** 홈은 호요랜드도
-     `navigationDestination(isPresented:)` 로 여는데, 하위 페이지를 보다 '+' 를 누르면 지출
-     페이지가 그 push 를 밀어내고 올라왔다 — 취소하면 호요랜드가 아니라 **루트(홈)로 떨어졌다**
-     (2026-09-10 제보).
-
-     시트는 스택을 건드리지 않으므로 어느 화면 위에서 열든 **뒤 화면이 그대로 유지된다.**
-     의미상으로도 맞다 — 홈·게임정보·마이페이지에서 '+' 는 그 화면의 다음 단계가 아니라
-     **끼어드는 별개 작업**이다(지출 탭의 목록 → 추가와 다르다).
+     하위 페이지로 읽히게 하는 것은 셋이다 — 오른쪽에서 밀려 들어오는 전환, 왼쪽 위 뒤로(‹), 왼쪽 끝에서 쓸어 나가기.
+     탭바 · '추가' 버튼은 이 층에 가리고, 그 아래에서도 [bottomChromeHidden] 으로 감췄다가 페이지를 벗어나면 다시 보인다.
      */
     @ViewBuilder
-    private func spendingEditorSheet<V: View>(tab: Int, _ content: V) -> some View {
-        content.sheet(item: spendingEditorBinding(tab: tab)) { target in
-            AddSpendingView(store: store, editing: target.spending) { spendingSheet = nil }
+    private var spendingEditorPage: some View {
+        ZStack {
+            if let target = spendingEditor {
+                // 뒤 화면을 살짝 눌러 앞뒤를 가른다 — 흰 페이지가 흰 화면 위로 밀려 들어오면 경계가 안 보인다.
+                Color.black.opacity(0.12).ignoresSafeArea()
+                    .transition(.opacity)
+                    .zIndex(0)
+                AddSpendingView(store: store, editing: target.spending) { spendingEditor = nil }
+                    // 대상이 바뀌면 새 페이지다 — 앞 대상의 입력이 남지 않게.
+                    .id(target.id)
+                    .transition(.move(edge: .trailing))
+                    .zIndex(1)
+            }
         }
+        .animation(GLGMotion.standard(GLGMotion.durationLong), value: spendingEditor)
     }
 
     /**
@@ -379,12 +378,16 @@ struct ContentView: View {
     /// '추가' 를 우측 하단 FAB 로 뗄 것인가 — **넓은 창의 iPad 만.** 좁게 줄인 iPad 창은 탭바가
     /// 아래로 내려오므로 iPhone 처럼 탭바 옆 '+' 로 돌려야 FAB 가 마지막 탭을 덮지 않는다.
     private var usesFloatingAdd: Bool { isPad && !isCompactWindow }
-    /// 넓은 창인가 — 지출 탭이 좌/우로 갈리는 폭이면 '추가' 를 경로가 아니라 시트로 연다.
+    /// 넓은 창인가 — 지출 탭이 좌/우로 갈리는 폭.
     private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
 
     @ViewBuilder
     private var authenticatedRoot: some View {
         mainTabs
+            // 지출 입력 페이지에 가린 동안에는 뒤 화면을 읽지 않는다 — 가려진 탭 · 버튼이 보이스오버에 잡혔다.
+            .accessibilityHidden(spendingEditorOpen)
+            // 탭바 · '추가' 버튼(FAB · iOS 18 오버레이)보다 **바깥**에 덮어야 그것들까지 가린다.
+            .overlay { spendingEditorPage }
     }
 
     // ── 탭 구성 (iPhone·iPad 공통 시스템 탭바) ────────────────────────────
@@ -443,7 +446,7 @@ struct ContentView: View {
             // 하위 화면이 하단 바를 띄우면(굿즈 목록의 장바구니 바) 감춘다 — 같은 우측 하단이라
             // 「장바구니」 버튼이 '+' 에 가렸다(2026-09-18 iPad 지적).
             .overlay(alignment: .bottomTrailing) {
-                if usesFloatingAdd && !syncGateActive && !store.hidesAddButton {
+                if usesFloatingAdd && !bottomChromeHidden && !store.hidesAddButton {
                     fabAddButton
                         .padding(.trailing, 24).padding(.bottom, 28)
                         // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
@@ -459,7 +462,7 @@ struct ContentView: View {
             .modifier(GLGVerticalBarPrefersTabs())
             .onChange(of: selectedTab) { oldValue, newValue in
                 if newValue == 4 {
-                    // "추가" 는 탭이 아니라 액션 — 모달 열고 이전 탭으로 복귀
+                    // "추가" 는 탭이 아니라 액션 — 페이지를 열고 이전 탭으로 복귀
                     selectedTab = oldValue
                     openAddSpending()
                 }
@@ -538,7 +541,7 @@ struct ContentView: View {
     /// 페이지에서 **탭바는 사라지는데 '+' 만 남아** 입력 폼 위에 떠 있었다. 둘은 같이 나타나고
     /// 같이 사라져야 하는 한 벌이라 신호를 하나로 묶는다.
     private var bottomChromeHidden: Bool {
-        syncGateActive || spendingSheet != nil || spendingEditorOpen
+        syncGateActive || spendingEditorOpen
     }
 
     // ── 탭 콘텐츠 (네이티브 SwiftUI) ──────────────────────────────────
@@ -546,13 +549,13 @@ struct ContentView: View {
     // Phase 5 — SwiftUI 네이티브 홈. 시작 로직(refreshGameInfo)은 HomeView.task 에서 트리거.
     private var homeTabContent: some View {
         NavigationStack {
-            spendingEditorSheet(tab: 0, HomeView(store: store, onSwitchTab: { selectedTab = $0 }))
+            HomeView(store: store, onSwitchTab: { selectedTab = $0 })
         }
         .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility, for: .tabBar)
     }
 
-    // Phase 3 — SwiftUI 네이티브 지출(목록·분석·달력·상세). 수정 시 편집 대상 설정 후 기존 AddSpending 시트(Compose interim)를 연다.
+    // Phase 3 — SwiftUI 네이티브 지출(목록·분석·달력·상세). 수정은 편집 대상을 정해 지출 입력 페이지를 연다.
     private var spendingTabContent: some View {
         // **경로 기반 스택.** 목록 → 상세 → 수정이 한 경로 위에 쌓인다.
         //
@@ -560,27 +563,27 @@ struct ContentView: View {
         // `navigationDestination(수정)` 이 섞여 있었다. 목적지 안에서 목적지를 등록하면
         // SwiftUI 가 스택을 초기화해 **수정 버튼이 목록으로 튕겼다.**
         // 목적지는 여기서 한 번만 등록하고, 각 화면은 경로에 값을 밀어 넣기만 한다.
-        // 경로에는 **상세만** 쌓인다 — 추가·수정은 시트로 연다(→ [openAddSpending]).
-        spendingEditorSheet(tab: 1, NavigationStack(path: $spendingPath) {
+        // 경로에는 **상세만** 쌓인다 — 추가·수정은 스택 밖의 페이지로 연다(→ [spendingEditorPage]).
+        NavigationStack(path: $spendingPath) {
             SpendingView(store: store, onEdit: { spending in
-                spendingSheet = .edit(spending)
+                spendingEditor = .edit(spending)
             }, selectionMode: $spendingSelectionMode)
             .navigationDestination(for: SpendingRoute.self) { route in
                 switch route {
                 case .detail(let id):
                     SpendingDetailView(store: store, spendingId: id, onEdit: { s in
-                        spendingSheet = .edit(s)
+                        spendingEditor = .edit(s)
                     })
                 }
             }
-        })
+        }
         .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility, for: .tabBar)
     }
 
     // Phase 4 chunk ② — SwiftUI 게임정보(데일리·배너/전투/일지·패치·위시·천장·이벤트). 가챠 도구는 chunk ③.
     private var gameInfoTabContent: some View {
-        NavigationStack { spendingEditorSheet(tab: 2, GameInfoView(store: store)) }
+        NavigationStack { GameInfoView(store: store) }
             .glgAccent(index: store.accentIndex)
             .toolbar(tabBarVisibility, for: .tabBar)
     }
@@ -589,7 +592,7 @@ struct ContentView: View {
     // 설정은 NavigationStack push(시스템 슬라이드·뒤로가기), 탭바 숨김은 SettingsView 가 .toolbar(.hidden) 로 처리.
     private var myPageTabContent: some View {
         NavigationStack {
-            spendingEditorSheet(tab: 3, MyPageView(store: store))
+            MyPageView(store: store)
         }
         .glgAccent(index: store.accentIndex)
         // 초기 동기화 게이트(로딩) 중에는 탭바 숨김 — 서브페이지(설정)에서는 노출 유지
