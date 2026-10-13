@@ -36,6 +36,8 @@ struct AddSpendingView: View {
     @State private var didInit = false
     /// '자주 사는 것' 아래 전체 상품 그리드를 폈는가.
     @State private var showAllPackages = false
+    /// 재화 목록이 갈린 횟수 — 어드민 값을 새로 받으면 올려서 상품 칸을 다시 그린다(10/13).
+    @State private var catalogRev = 0
     /// '자세히'(결제·플랫폼·태그·메모·구독)를 폈는가. **수정 진입은 펼친 채 시작**한다.
     @State private var detailsExpanded = false
     /// 히어로에 바로 뜨는 과소비 경고 — 저장을 누른 뒤가 아니라 금액이 정해지는 순간에 알린다.
@@ -133,6 +135,11 @@ struct AddSpendingView: View {
         .onAppear {
             prefill()
             if initialFingerprint == nil { initialFingerprint = fingerprint }
+        }
+        // 재화 목록은 어드민이 정한다(10/13) — 화면을 열 때 한 번 받아 보고, 바뀌었으면 상품 칸을 다시 그린다.
+        // 못 받으면 직전에 받은 값 · 앱 내장값 그대로다(PackageCatalog).
+        .task {
+            if (try? await PackageCatalogApi.shared.load(force: false))?.boolValue == true { catalogRev += 1 }
         }
         .interactiveDismissDisabled(isDirty)
         // 날짜 선택 — Android `GlgDatePickerDialog` 와 같은 가운데 모달(시스템 그래픽 달력 시트 대신).
@@ -377,6 +384,8 @@ struct AddSpendingView: View {
 
     private var productCard: some View {
         sectionCard {
+            // catalogRev 를 읽어 두면 목록이 갈릴 때 이 칸이 다시 그려진다.
+            let _ = catalogRev
             let packages = GameData.shared.packagesFor(game: game)
 
             // 자주 사는 것 — 같은 게임에서 2회 이상 산 것만, 많이 산 순.
