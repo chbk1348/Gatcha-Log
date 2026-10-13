@@ -818,7 +818,17 @@ struct SpendingRow: View {
 struct TagChip: View {
     let tag: String
     var body: some View {
-        GLGChip(label: tag, variant: .tag)
+        // 픽업 태그(「누구를 뽑으려고 썼는지」)는 **장식된 모양**으로 그린다(10/13) — 일반 태그(#)와 같은 크기에 금색 면 · 별.
+        // 색은 게임 일정의 최고 등급 뱃지와 같다(면 #D8A12E 14% · 글자 #9C6F12).
+        if PickupTag.shared.isPickup(tag: tag) {
+            Text("★ \(PickupTag.shared.nameOf(tag: tag))")
+                .font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(Color(hex: 0xFF9C6F12))
+                .lineLimit(1)
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Color(hex: 0xFFD8A12E).opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        } else {
+            GLGChip(label: tag, variant: .tag)
+        }
     }
 }
 

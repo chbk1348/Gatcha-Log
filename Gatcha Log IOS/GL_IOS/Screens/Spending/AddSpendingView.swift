@@ -22,6 +22,8 @@ struct AddSpendingView: View {
     @State private var memo: String = ""
     @State private var customTags: String = ""
     @State private var selectedTags: [String] = []
+    /// 픽업 태그(10/13) — 「지금 픽업 중」에서 고른 이름들. 저장할 때 표식을 붙여 태그 목록 맨 뒤에 들어간다(PickupTag).
+    @State private var selectedPickups: [String] = []
     @State private var selectedPkg: String? = nil
     // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
     @State private var quantity: Int = 1
@@ -39,7 +41,7 @@ struct AddSpendingView: View {
     @State private var catalogRev = 0
     /// '자세히'(결제·플랫폼·태그·메모·구독)를 폈는가. **수정 진입은 펼친 채 시작**한다.
     @State private var detailsExpanded = false
-    /// 히어로에 바로 뜨는 과소비 경고 — 저장을 누른 뒤가 아니라 금액이 정해지는 순간에 알린다.
+    /// 히어로에 바로 뜨는 과소비 경고(간결한 한 줄) — 저장을 누른 뒤가 아니라 금액이 정해지는 순간에 알린다. 경고할 것이 없으면 nil.
     @State private var inlineNudge: String? = nil
     /// 자주 사는 것(productCard) 캐시 — gameName 이 바뀔 때만 다시 계산한다.
     @State private var frequent: [FrequentItem] = []
@@ -61,10 +63,36 @@ struct AddSpendingView: View {
     @State private var amountText: String = ""
     @FocusState private var amountFocused: Bool
 
+    /// 금액 굴림(아래 setAmount) — 도는 동안 보이는 글자는 **중간 값**이라 입력으로 받지 않는다(onChange 가 비켜 선다).
+    @State private var amountRolling = false
+    @State private var rollTask: Task<Void, Never>? = nil
+
     /// 금액을 **두 벌 다** 맞춘다 — 저장값(숫자)과 보이는 글자(쉼표).
-    private func setAmount(_ value: Int64) {
+    ///
+    /// `roll` 이면 보이는 숫자가 이전 금액에서 새 금액까지 **0.45초 동안 굴러간다**(끝에서 감속, 100원 단위 —
+    /// 예산 화면의 금액 버튼과 같은 움직임, 10/13 지시). 상품을 고르거나 횟수를 바꿔 금액이 한 번에 정해질 때 쓴다.
+    /// 저장값은 굴리지 않고 바로 새 금액이다 — 아래 정보 줄 · 요약 · 경고가 중간 값으로 흔들리지 않는다.
+    private func setAmount(_ value: Int64, roll: Bool = false) {
+        let from = Int64(amount) ?? 0
         amount = value > 0 ? "\(value)" : ""
-        amountText = value > 0 ? grouped(value) : ""
+        rollTask?.cancel()
+        guard roll, value > 0, from != value else {
+            amountRolling = false
+            amountText = value > 0 ? grouped(value) : ""
+            return
+        }
+        amountRolling = true
+        rollTask = Task { @MainActor in
+            let start = Date()
+            while !Task.isCancelled {
+                let p = min(1, Date().timeIntervalSince(start) / 0.45)
+                let e = 1 - pow(1 - p, 3)
+                let v = Int64((Double(from) + Double(value - from) * e) / 100) * 100
+                amountText = p < 1 ? grouped(v) : grouped(value)
+                if p >= 1 { amountRolling = false; break }
+                try? await Task.sleep(nanoseconds: 16_000_000)
+            }
+        }
     }
     /// 상한도 버튼에서 막는다(Android 와 같이) — 넘으면 store 가 거절해 누를 때마다 토스트만 뜬다.
     private var amountTooBig: Bool { (Int64(amount) ?? 0) > Spending.companion.MAX_AMOUNT }
@@ -76,6 +104,9 @@ struct AddSpendingView: View {
         if !amountValid { return "금액을 입력하세요" }
         return editing == nil ? "저장하기" : "수정하기"
     }
+
+    /// 폼의 스크롤 위치 — 「자세히」를 접고 펼 때 화면이 내용의 끝을 따라가게 한다(toggleDetails).
+    @State private var formScroll = ScrollPosition()
 
     private var form: some View {
         ScrollView {
@@ -89,14 +120,21 @@ struct AddSpendingView: View {
                 }
                 // 게임을 고르기 전에는 나머지를 띄우지 않는다 — 상품 목록·기본값이 전부 게임에 묶여 있어
                 // 미선택 상태로 보여주면 어느 게임 것인지 알 수 없는 화면이 된다.
+                // 섹션들은 제자리에 바로 선다(10/13 지시 — 예전엔 살짝 밀려 올라오며 나타났다).
+                // 이 페이지에 남긴 움직임은 셋이다: 「자세히」 접고 펴기, 금액 숫자 굴림, 금액 카드의 주의 표시(색 · 흔들림 · 깜빡임).
+                // 과소비 경고는 카드 안에서만 바뀐다 — 화면 전체에 애니메이션을 걸면 같은 순간의 고른 표시까지 늦게 번졌다.
+                // 페이지가 밀려 들어오고 나가는 전환은 이 바깥(ContentView)이라 그대로다.
                 if gameChosen {
-                    productCard.transition(cardReveal)
-                    dateCard.transition(cardReveal)
-                    detailsCard.transition(cardReveal)
+                    // 「지금 픽업 중」은 재화 선택 **위**다(10/13 지시) — 누구를 위해 쓰는지를 먼저 고른다.
+                    pickupCard
+                    productCard
+                    dateCard
+                    detailsCard
                 }
             }
             .glgReadableWidth(640)
         }
+        .scrollPosition($formScroll)
         .background(Color.white)
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(editing == nil ? "지출 추가" : "지출 수정")
@@ -155,7 +193,10 @@ struct AddSpendingView: View {
         // 뒤 화면이 그대로 살아 있으므로, 읽어 주는 범위를 이 페이지로 묶는다.
         .accessibilityAddTraits(.isModal)
         .onAppear {
-            prefill()
+            // 처음 채우는 값은 움직이지 않게 넣는다 — 페이지가 밀려 들어오는 전환에 실리면 수정 진입의 섹션들이 따로 움직인다.
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { prefill() }
             if initialFingerprint == nil { initialFingerprint = fingerprint }
         }
         // 재화 목록은 어드민이 정한다(10/13) — 화면을 열 때 한 번 받아 보고, 바뀌었으면 상품 칸을 다시 그린다.
@@ -171,10 +212,8 @@ struct AddSpendingView: View {
                     onDismiss: { showDate = false },
                     onConfirm: { dateMillis = $0; showDate = false }
                 )
-                .transition(.opacity)
             }
         }
-        .animation(GLGMotion.standard(), value: showDate)
         .alert("잠깐, 다시 한 번 볼까요?", isPresented: Binding(get: { nudgeMsg != nil }, set: { if !$0 { nudgeMsg = nil } })) {
             Button("다시 볼게요", role: .cancel) { nudgeMsg = nil }.glgAlertTint()
             Button("그래도 추가") { doSave() }.glgAlertTint()
@@ -195,20 +234,27 @@ struct AddSpendingView: View {
         let gameColor = gameChosen ? Color(argb64: game.color) : GLGColor.textSecondary
         return VStack(alignment: .leading, spacing: 0) {
             if gameChosen {
+                // 게임 칩과 **과소비 표시**가 한 줄에 선다(10/13 지시) — 왼쪽이 게임, 오른쪽이 표시(spendStatus).
+                HStack(spacing: 8) {
                 // 게임 — 칩 줄을 늘어놓지 않고 메뉴로 접었다(히어로가 금액을 가리면 안 된다).
                 Menu {
                     ForEach(pickerMine + pickerOthers, id: \.key) { g in
                         Button(g.displayName) { selectGame(g.displayName) }
                     }
                 } label: {
-                    HStack(spacing: 6) {
-                        Circle().fill(gameColor).frame(width: 7, height: 7)
+                    // 크기는 **GLDS 칩 규격**이다(10/13 지시) — 높이 36 · 좌우 14 · 14 Bold · 화살표 11. 색은 게임색 그대로.
+                    HStack(spacing: 4) {
+                        Circle().fill(gameColor).frame(width: 7, height: 7).padding(.trailing, 2)
                         Text(GameData.shared.byName(name: gameName).shortName)
-                            .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(gameColor)
-                        Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(gameColor)
+                            .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(gameColor).lineLimit(1)
+                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(gameColor)
                     }
-                    .padding(.horizontal, 11).padding(.vertical, 5)
+                    .padding(.horizontal, 14)
+                    .frame(height: 36)
                     .background(gameColor.opacity(0.12), in: Capsule())
+                }
+                Spacer(minLength: 0)
+                spendStatus
                 }
             }
 
@@ -219,19 +265,21 @@ struct AddSpendingView: View {
             // 붙인다(2026-09-21 지시). 저장하는 값은 숫자뿐이라, 넣을 때 쉼표를 넣고 받을 때
             // 숫자만 거른다.
             //
-            // 카드를 걷고 나니 **입력하는 곳인지** 안 읽혔다 — GLDS 입력필드 모양으로 둔다
-            // (라벨 · 채운 면 #F5F8F8 · 모서리 14 · 입력 중 흰 면 + 강조색 1.5 테두리). 큰 숫자라 높이만 내용에 맞춘다.
-            // 칸 어디를 눌러도 입력이 시작된다(Android 와 같다).
-            GldsFieldLabel(text: "금액").padding(.top, 11)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                TextField("", text: $amountText, prompt: Text("0").foregroundStyle(Color(hex: 0xFFA7B1AE)))
+            // 금액 칸은 GLDS 「예산 금액 입력」 규격의 카드다(10/13 지시 — `GldsAmountCard`). 그 전에는 GLDS 입력필드 모양이었다.
+            // **과소비 경고가 떠 있는 동안은 주의 상태**다 — 면이 주황으로 바뀌고 한 번 흔들린 뒤 안쪽 테두리가 깜빡인다.
+            // 카드 어디를 눌러도 입력이 시작된다(Android 와 같다).
+            GldsAmountCard(label: "금액", warn: inlineNudge != nil) { color in
+                TextField("", text: $amountText, prompt: Text("0").foregroundStyle(color.opacity(0.3)))
                     .textFieldStyle(.plain)
-                    .font(.pretendard(size: 30, weight: .black))
+                    .font(GldsAmountCardStyle.numberFont)
+                    .foregroundStyle(color)
                     .keyboardType(.numberPad)
                     .focused($amountFocused)
-                    .tint(accent.primary)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .tint(color)
+                    .fixedSize()
                     .onChange(of: amountText) { _, newValue in
+                        // 굴러가는 중의 글자는 우리가 쓴 중간 값이다 — 입력으로 받으면 금액이 그 값으로 바뀌고 고른 상품이 풀린다.
+                        guard !amountRolling else { return }
                         // 11자리(999억)까지만 — 더 긴 붙여넣기는 조용히 0 이 됐다. 상한(100억)은 저장할 때 VM 이 막는다.
                         let digits = String(newValue.filter(\.isNumber).prefix(11))
                         if digits != amount {
@@ -242,46 +290,10 @@ struct AddSpendingView: View {
                         let shown = digits.isEmpty ? "" : grouped(Int64(digits) ?? 0)
                         if shown != newValue { amountText = shown }
                     }
-                if !amount.isEmpty {
-                    Text("원").font(.pretendard(size: 22, weight: .black))
-                        .foregroundStyle(GLGColor.textSecondary)
-                }
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(amountFocused ? Color.white : Color(hex: 0xFFF5F8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(amountFocused ? accent.primary : .clear, lineWidth: 1.5))
             .contentShape(Rectangle())
             .onTapGesture { amountFocused = true }
-            .animation(.easeOut(duration: 0.15), value: amountFocused)
-            // 칸과 아래 안내 · 상품명 · 재화 줄 사이.
-            .padding(.bottom, 6)
-
-            // 비어 있으면 **무엇을 넣어야 하는지** 한 줄로 말한다. 자리표시자 「0」만으로는
-            // 이미 0 원을 적어 둔 것처럼 읽힌다(2026-09-21 지시).
-            if amount.isEmpty {
-                Text("금액을 입력해주세요")
-                    .font(.pretendard(size: 12))
-                    .foregroundStyle(GLGColor.textSecondary)
-                    .padding(.top, 3)
-            }
-
-            if !itemName.isEmpty {
-                HStack(spacing: 6) {
-                    Text(itemName).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
-                }
-                .padding(.top, 3)
-            }
-            if let conv = currencyLine {
-                Text(conv).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 3)
-            }
-            if let nudge = inlineNudge {
-                Text("⚠ \(nudge)")
-                    .font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(Color(hex: 0xFFD97706))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 12)
-            }
+            .padding(.top, 11)
             }   // gameChosen
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -295,8 +307,31 @@ struct AddSpendingView: View {
         .task(id: nudgeKey) {
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard !Task.isCancelled else { return }
-            inlineNudge = store.overspendNudge(game: game, amount: Int64(amount) ?? 0, editingId: editing?.id, dateMillis: dateMillis)
+            inlineNudge = store.overspendBadge(game: game, amount: Int64(amount) ?? 0, editingId: editing?.id, dateMillis: dateMillis)
         }
+    }
+
+    /// 과소비 표시 — 게임 칩 오른쪽에 **늘 서 있는** 한 줄(10/13 지시).
+    ///
+    ///  - 큰 지출이면 간결한 경고가 **강조**된다(Bold · 주황) — 「평소보다 큰 지출」 · 「이번 달 예산 초과」 · 「원신 한도 초과」.
+    ///  - 아니면 같은 자리에 강조 없이(Regular · 흐린 색) 선다. 금액이 비었으면 「금액을 입력해주세요」.
+    ///
+    /// 금액 카드 밖에 있어 문구가 바뀌어도 카드 높이 · 아래 목록이 움직이지 않는다. 자세한 문구는 저장할 때의 확인창이 말한다.
+    private var spendStatus: some View {
+        let warn = inlineNudge != nil
+        let text = inlineNudge ?? (amount.isEmpty ? "금액을 입력해주세요" : "평소 범위의 지출")
+        return HStack(spacing: 3) {
+            // 경고일 때만 앞에 **원 안의 느낌표**가 선다(10/13 지시 — 그 전에는 세모 「⚠」 글자였다).
+            if warn {
+                Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13, weight: .semibold))
+                    .accessibilityHidden(true)
+            }
+            Text(text)
+                .font(.pretendard(size: 12, weight: warn ? .bold : .regular))
+                .lineLimit(1)
+        }
+        .foregroundStyle(warn ? GldsAmountCardStyle.warn : GLGColor.textSecondary)
+        .accessibilityElement(children: .combine)
     }
 
     /// 과소비 경고를 다시 계산할 계기 — 금액 · 게임. 본문 밖에서 조립한다(뷰 빌더 안의 보간은 타입 추론이 무겁다).
@@ -309,16 +344,6 @@ struct AddSpendingView: View {
             return "\(amountLabel) · \(pulls)"
         }
         return amountLabel
-    }
-
-    /// 게임 변경 — 상품·수량은 게임에 묶인 값이라 함께 초기화하고, 플랫폼 기본값을 다시 고른다.
-    /// 게임을 고른 뒤 아래로 펼쳐지는 카드의 등장 — 살짝 아래에서 밀려 올라오며 나타난다.
-    ///
-    /// ⚠️ **`transition` 안에 `.animation(_:)` 을 붙이지 말 것.** 카드마다 `staggerStep` 만큼
-    /// 지연을 줘 순서를 만들려고 그렇게 했더니, 지연이 그대로 걸리지 않고 첫 카드가 1초쯤
-    /// 늦게 내려왔다. 타이밍은 바깥 `withAnimation` 하나가 정하고, 여기서는 **모양만** 정한다.
-    private var cardReveal: AnyTransition {
-        .asymmetric(insertion: .opacity.combined(with: .offset(y: 14)), removal: .opacity)
     }
 
     /// 게임 고르기 — 지출 추가의 첫 화면. 카드 없이 화면 폭 목록(헤어라인 구분)이다. Compose `GamePickSection` 과 패리티.
@@ -351,7 +376,7 @@ struct AddSpendingView: View {
             ForEach(Array(games.enumerated()), id: \.element.key) { i, g in
                 if i > 0 { Color(hex: 0xFFEEF0F2).frame(height: 1).padding(.horizontal, 20) }
                 Button { selectGame(g.displayName) } label: { gameSelectRow(g) }
-                    .buttonStyle(.plain)
+                    .buttonStyle(StillButtonStyle())
             }
         }
     }
@@ -385,22 +410,24 @@ struct AddSpendingView: View {
         .contentShape(Rectangle())
     }
 
+    /// 게임 변경 — 상품·수량은 게임에 묶인 값이라 함께 초기화하고, 플랫폼 기본값을 다시 고른다.
     private func selectGame(_ name: String) {
         let first = !gameChosen
         guard name != gameName || first else { return }
-        // 값 변경은 **애니메이션 밖**에서 한다.
-        //
-        // 한때 이걸 통째로 `withAnimation` 에 넣었더니, 카드가 펼쳐지는 전환에 **카드 안쪽
-        // 레이아웃 변화까지 딸려 들어갔다.** 상품 그리드가 게임에 따라 줄 수가 달라지는데,
-        // 그 크기 변화가 전환에 실려 안쪽 버튼이 한참 뒤에 따라왔다.
         gameName = name
         selectedPkg = nil; quantity = 1; itemName = ""
+        selectedPickups = []   // 픽업은 게임에 묶인 값이다
+        // 자주 사는 것은 **게임을 고르는 이 자리에서** 센다(10/13). 예전엔 섹션이 나타난 뒤(onChange)에 세어,
+        // 첫 그림은 안내 문구로 섰다가 한 박자 뒤 「자주 사는 것」이 끼어들며 아래 재화 칸이 밀려 내려갔다.
+        // 수정 진입은 보여 주지 않는다(빈 목록 그대로). body 안에서 세지 않는 것은 그대로다 — 글자 하나 칠 때마다 전체 지출을 훑게 된다.
+        frequent = editing == nil
+            ? SpendingDefaults.shared.frequentItems(spendings: store.spendings, gameName: name, limit: 3)
+            : []
         if editing == nil {
             chargePlatform = SpendingDefaults.shared.lastPlatform(spendings: store.spendings, gameName: name) ?? ""
         }
-        // 애니메이션은 **카드가 생겼다 사라지는 것**에만 건다(cardReveal). 이미 펼쳐진 뒤
-        // 게임만 바꾸는 경우엔 `gameChosen` 이 그대로라 아무것도 움직이지 않는다.
-        if first { withAnimation(GLGMotion.standard()) { gameChosen = true } }
+        // 아래 섹션들은 움직이지 않고 바로 선다(10/13) — 예전엔 살짝 밀려 올라오며 나타났다.
+        if first { gameChosen = true }
     }
 
     // ── 재화 선택(10/13 개편, 시안 C) ──
@@ -409,7 +436,7 @@ struct AddSpendingView: View {
     // 예전의 「전체 상품 보기 / 접기」는 걷었다. 색 · 치수는 시안 값 그대로이고, 강조색만 테마를 따른다
     // (면 · 테두리는 primary, 글자 · 채운 바닥은 deep).
     private var productCard: some View {
-        sectionCard {
+        VStack(alignment: .leading, spacing: 0) {
             // catalogRev 를 읽어 두면 목록이 갈릴 때 이 칸이 다시 그려진다.
             let _ = catalogRev
             let packages = GameData.shared.packagesFor(game: game)
@@ -421,12 +448,8 @@ struct AddSpendingView: View {
             // (빈도를 모르는데 임의로 셋을 고르면 그건 추천이 아니다).
             if !frequent.isEmpty {
                 label("자주 사는 것")
-                LazyVGrid(columns: Self.pickCols, spacing: 8) {
-                    ForEach(Array(frequent.enumerated()), id: \.offset) { _, f in
-                        frequentTile(f, packages: packages)
-                    }
-                }
-                .padding(.top, 10)
+                pickGrid(frequent) { f in frequentTile(f, packages: packages) }
+                    .padding(.top, 10)
             } else {
                 label("빠른 상품 선택")
                 Text("선택하면 금액 · 재화명이 자동 입력돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
@@ -443,12 +466,8 @@ struct AddSpendingView: View {
                     }
                     .padding(.top, 10)
                 } else {
-                    LazyVGrid(columns: Self.pickCols, spacing: 8) {
-                        ForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
-                            currencyTile(item, tier: group.kind == .tiers, gameColor: gameColor)
-                        }
-                    }
-                    .padding(.top, 10)
+                    pickGrid(group.items) { item in currencyTile(item, tier: group.kind == .tiers, gameColor: gameColor) }
+                        .padding(.top, 10)
                 }
             }
 
@@ -462,17 +481,27 @@ struct AddSpendingView: View {
                               ? "재화 환산이 안 돼요 — '결정석 60'처럼 이름 뒤에 숫자를 붙이면 뽑기 수까지 계산해요" : nil)
                 .padding(.top, selectedPackage != nil ? 12 : 16)
         }
-        // 자주 사는 것은 게임이 바뀔 때만 다시 센다 — body 안에서 세면 글자 하나 칠 때마다 전체 지출을 훑었다.
-        // initial: true — 첫 그리기 전에 채워 안내 문구가 한 프레임 떴다 바뀌지 않게(.task 는 한 박자 늦다).
-        .onChange(of: gameName, initial: true) {
-            frequent = editing == nil
-                ? SpendingDefaults.shared.frequentItems(spendings: store.spendings, gameName: gameName, limit: 3)
-                : []
-        }
+        .formSection()
     }
 
     /// 2열 격자(사이 8). 홀수면 마지막 칸은 왼쪽에 선다.
-    private static let pickCols = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+    ///
+    /// `LazyVGrid` 를 쓰지 않는다(10/13). 게임을 골라 섹션이 펼쳐지는 전환 안에서 칸이 한 박자 늦게 놓여,
+    /// 칸마다 제자리로 날아 들어오는 것처럼 보였다. 칸 수가 많지 않아 줄을 그냥 쌓는다(Android 와 같은 짜임).
+    private func pickGrid<Item, Cell: View>(_ items: [Item], @ViewBuilder cell: @escaping (Item) -> Cell) -> some View {
+        VStack(spacing: 8) {
+            ForEach(Array(stride(from: 0, to: items.count, by: 2)), id: \.self) { i in
+                HStack(alignment: .top, spacing: 8) {
+                    cell(items[i]).frame(maxWidth: .infinity)
+                    if i + 1 < items.count {
+                        cell(items[i + 1]).frame(maxWidth: .infinity)
+                    } else {
+                        Color.clear.frame(maxWidth: .infinity).frame(height: 0)
+                    }
+                }
+            }
+        }
+    }
     /// 칸의 평소 테두리.
     private static let pickRing = Color(hex: 0xFFE3E6EA)
     /// 자주 사는 것 칸 · 가격 바닥의 채운 면 — GLDS 입력필드와 같은 색.
@@ -482,7 +511,16 @@ struct AddSpendingView: View {
 
     /// 상품을 고른다 — 금액 · 재화명을 채우고 횟수를 1 로 되돌린다.
     private func applyPackage(_ pkg: GamePackage) {
-        selectedPkg = pkg.name; quantity = 1; setAmount(pkg.price); itemName = pkg.name
+        selectedPkg = pkg.name; quantity = 1; setAmount(pkg.price, roll: true); itemName = pkg.name
+        refreshNudgeNow()
+    }
+
+    /// 과소비 경고를 **지금** 다시 잰다 — 상품을 고르거나 횟수를 바꿔 금액이 한 번에 정해졌을 때(10/13).
+    ///
+    /// 금액을 치는 동안에는 손이 멈춘 뒤(0.45초)에 재지만, 고른 금액은 기다릴 이유가 없다. 기다리면 히어로에
+    /// 상품명 · 환산 줄이 먼저 서고 **한 박자 뒤 경고 줄이 끼어들어**, 방금 누른 재화 칸이 뒤늦게 한 번 더 밀려 내려갔다.
+    private func refreshNudgeNow() {
+        inlineNudge = store.overspendBadge(game: game, amount: Int64(amount) ?? 0, editingId: editing?.id, dateMillis: dateMillis)
     }
 
     /// 묶음 머리 — 왼쪽 이름, 오른쪽 환산("160개 = 1뽑").
@@ -511,7 +549,8 @@ struct AddSpendingView: View {
             selectedPkg = packages.first { $0.name == f.itemName }?.name
             quantity = 1
             itemName = f.itemName
-            setAmount(f.amount)
+            setAmount(f.amount, roll: true)
+            refreshNudgeNow()
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(f.itemName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
@@ -528,7 +567,7 @@ struct AddSpendingView: View {
             .overlay(shape.strokeBorder(sel ? accent.primary : .clear, lineWidth: 2))
             .contentShape(shape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StillButtonStyle())
         .accessibilityAddTraits(sel ? .isSelected : [])
     }
 
@@ -568,8 +607,8 @@ struct AddSpendingView: View {
             .overlay(shape.strokeBorder(sel ? accent.primary : Self.pickRing, lineWidth: sel ? 2 : 1))
             .contentShape(shape)
         }
-        .buttonStyle(.plain)
-        // 칸 안의 글자는 조각나 있다("300" · "덤 +30") — 읽어 줄 때는 상품 이름으로 한 번에 말한다.
+        .buttonStyle(StillButtonStyle())
+        // 칸 안의 글자는 조각나 있다("300" · "추가 +30") — 읽어 줄 때는 상품 이름으로 한 번에 말한다.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel([item.pkg.name, tier ? item.sub : "", item.price, item.pulls ?? ""].filter { !$0.isEmpty }.joined(separator: " "))
         .accessibilityAddTraits(sel ? [.isButton, .isSelected] : .isButton)
@@ -596,7 +635,7 @@ struct AddSpendingView: View {
             .overlay(shape.strokeBorder(sel ? accent.primary : Self.pickRing, lineWidth: sel ? 2 : 1))
             .contentShape(shape)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StillButtonStyle())
         .accessibilityAddTraits(sel ? .isSelected : [])
     }
 
@@ -640,7 +679,7 @@ struct AddSpendingView: View {
                 .overlay(Circle().strokeBorder(enabled ? accent.primary.opacity(0.5) : Color.black.opacity(0.06), lineWidth: 1))
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain).disabled(!enabled)
+        .buttonStyle(StillButtonStyle()).disabled(!enabled)
         .accessibilityLabel(label)
     }
 
@@ -652,6 +691,62 @@ struct AddSpendingView: View {
         }
     }
 
+    // ── 지금 픽업 중(10/13) — 누구를 뽑으려고 썼는지 골라 두면 장식 태그로 남는다 ──
+    //
+    // 그 게임에서 지금 열린 최고 등급 픽업(캐릭터 · 무기)을 칩으로 늘어놓는다. 여러 개 고를 수 있다.
+    // 배너 데이터가 없는 게임(명조 · 엔드필드 · 이환)은 이 섹션이 통째로 빠진다.
+    // 이미 붙어 있던 지난 픽업은 뒤에 남겨, 고치는 화면에서 뗄 수 있게 한다(SpendingPickups.options).
+    @ViewBuilder private var pickupCard: some View {
+        let options = SpendingPickups.shared.options(banners: store.activeBanners, game: game, nowMillis: nowMs(), selected: selectedPickups)
+        if !options.isEmpty {
+            sectionCard {
+                Text("지금 픽업 중").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("고르면 태그로 남아요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 3)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(options, id: \.name) { option in pickupChip(option) }
+                    }
+                }
+                .padding(.top, 12)
+            }
+        }
+    }
+
+    /// 「지금 픽업 중」의 한 칸 — **GLDS 칩 규격**(높이 36 · 14 Bold · 흰 면 + 1 `#E3E5EA`, 고르면 강조색 1.5 테두리 + deep 글자)에
+    /// 앞 초상(24 원)을 붙인 모양이다. 초상이 없으면 대체 아이콘(캐릭터 = 사람, 무기 = 별)이 선다.
+    private func pickupChip(_ option: PickupOption) -> some View {
+        let sel = selectedPickups.contains(option.name)
+        let fallback = Image(systemName: option.weapon ? "star.fill" : "person.fill")
+            .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+        return Button {
+            if let i = selectedPickups.firstIndex(of: option.name) { selectedPickups.remove(at: i) } else { selectedPickups.append(option.name) }
+        } label: {
+            HStack(spacing: 6) {
+                Group {
+                    if option.iconUrl.isEmpty {
+                        fallback
+                    } else {
+                        AsyncImage(url: URL(string: option.iconUrl)) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() } else { fallback }
+                        }
+                    }
+                }
+                .frame(width: 24, height: 24)
+                .background(Color(hex: 0xFFF7F8FA), in: Circle())
+                .clipShape(Circle())
+                Text(option.name).font(.pretendard(size: 14, weight: .bold))
+                    .foregroundStyle(sel ? accent.deep : GLGColor.textPrimary).lineLimit(1)
+            }
+            .padding(.leading, 6).padding(.trailing, 14)
+            .frame(height: 36)
+            .background(Color.white, in: Capsule())
+            .overlay(Capsule().strokeBorder(sel ? accent.primary : Color(hex: 0xFFE3E5EA), lineWidth: sel ? 1.5 : 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(StillButtonStyle())
+        .accessibilityAddTraits(sel ? .isSelected : [])
+    }
+
     // ── 자세히 — 결제수단·플랫폼·태그·메모·구독을 하나로 접는다 ──
     //
     // 매번 바뀌는 값이 아니라 접어 두되, **접힌 채로도 현재 값 요약을 보여준다.**
@@ -660,25 +755,44 @@ struct AddSpendingView: View {
     private var detailsCard: some View {
         let summary = detailSummary
         return VStack(alignment: .leading, spacing: 0) {
-            Button { withAnimation(.easeInOut(duration: 0.2)) { detailsExpanded.toggle() } } label: {
+            Button { toggleDetails() } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("자세히").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        // 제목은 섹션 제목 크기(17 Bold)다(10/13 지시 — 그 전에는 13 이라 섹션 머리로 안 읽혔다).
+                        Text("자세히").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                         Text(summary.text)
-                            .font(.pretendard(size: 11.5))
+                            .font(.pretendard(size: 12))
                             .foregroundStyle(summary.isCustom ? accent.primary : GLGColor.textSecondary)
                             .lineLimit(1)
                     }
                     Spacer()
-                    Text(detailsExpanded ? "⌃" : "▾").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    // 접고 펴는 표시는 **화살표 하나를 돌린다**(10/13 지시, Android 와 같다) — 그 전에는 「▾」 · 「⌃」 글자를 바꿔 끼웠다.
+                    Image(systemName: "chevron.down").font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .rotationEffect(.degrees(detailsExpanded ? 180 : 0))
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StillButtonStyle())
 
             if detailsExpanded { detailFields.padding(.top, 14) }
         }
         .formSection()
+    }
+
+    /// 「자세히」 접고 펴기 — **화면이 같이 움직인다**(10/13 지시).
+    ///
+    ///  - 펼칠 때: 내용이 넓어지는 만큼 화면이 따라 올라가, 펼친 칸이 끝까지 보인다.
+    ///  - 접을 때: 영역이 닫히는 것과 함께 화면이 접힌 끝으로 내려온다.
+    ///
+    /// 「자세히」는 폼의 마지막 섹션이라 두 경우 모두 **내용의 끝**으로 가면 된다. 접고 펴는 것과 스크롤을 **한 애니메이션**에 싣는다 —
+    /// 스크롤 위치를 「끝」으로 적어 두면 같은 순서에서 새 높이로 계산된다. 예전엔 표식까지 스크롤을 따로 불렀는데,
+    /// 처음 펼칠 때는 배치가 늦어 빠졌고, 여러 번 다시 부르게 하니 애니메이션이 끊겨 뚝뚝 열렸다(같은 날 지적 두 번).
+    private func toggleDetails() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            detailsExpanded.toggle()
+            formScroll.scrollTo(edge: .bottom)
+        }
     }
 
     /// 접힌 상태에서 보여줄 한 줄("카카오페이 · 구글플레이 · 태그 2")과, 기본값에서 벗어난 값이 있는지(요약 강조 여부).
@@ -732,8 +846,9 @@ struct AddSpendingView: View {
         quantity = qty
         if let pkg = selectedPackage {
             let applied = SpendingEditLogic.shared.applyQuantity(baseName: pkg.name, unitPrice: pkg.price, quantity: Int32(qty))
-            setAmount(applied.amount)
+            setAmount(applied.amount, roll: true)
             itemName = applied.itemName
+            refreshNudgeNow()
         }
     }
 
@@ -753,6 +868,7 @@ struct AddSpendingView: View {
             let tagSplit = SpendingEditLogic.shared.splitTags(tags: e.tags)
             selectedTags = tagSplit.selected
             customTags = tagSplit.custom
+            selectedPickups = tagSplit.pickups
             // 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수 복원 → 스텝퍼 노출.
             // 공용 restoreItem(27.52.0) — **목록에 없는 게임명이면 상품을 찾지 않는다.** 예전엔 여기서 byName 으로
             // 원신에 떨어뜨려 맞춰 봐서, 다른 게임의 지출에 원신 단가로 곱하는 스텝퍼가 붙을 수 있었다(Android 는 안 붙였다).
@@ -784,7 +900,7 @@ struct AddSpendingView: View {
     /// 입력 지문 — 이 값이 처음과 다르면 "고친 게 있다".
     private var fingerprint: String {
         [gameName, amount, "\(dateMillis)", paymentMethod, chargePlatform, itemName, memo, customTags,
-         selectedTags.joined(separator: ",")].joined(separator: "|")
+         selectedTags.joined(separator: ","), selectedPickups.joined(separator: ",")].joined(separator: "|")
     }
     private var isDirty: Bool { initialFingerprint != nil && fingerprint != initialFingerprint }
     private func requestDismiss() { if isDirty { confirmDiscard = true } else { onClose() } }
@@ -796,7 +912,7 @@ struct AddSpendingView: View {
         let parsed = Int64(amount) ?? 0
         // 칩 + 직접 입력 칸을 한 목록으로 — 쪼개기 · 다듬기 · 중복 제거는 공용 규칙(27.52.0, Android 와 한 소스).
         // 예전엔 여기서 공백 · 탭만 떼어 내, 붙여 넣은 글자에 줄바꿈이 있으면 태그에 남을 수 있었다(Android 는 떼어 냈다).
-        let tags = SpendingEditLogic.shared.mergeTags(selected: selectedTags, custom: customTags)
+        let tags = SpendingEditLogic.shared.mergeTags(selected: selectedTags, custom: customTags, pickups: selectedPickups)
         // 거절(금액 상한 초과 등)이면 폼을 닫지 않는다 — 닫으면 입력한 게 통째로 사라졌다.
         guard store.saveSpending(editingId: editing?.id, gameName: gameName, amount: parsed, dateMillis: dateMillis,
                                  paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)
@@ -814,6 +930,19 @@ struct AddSpendingView: View {
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
         GldsChip(label: label, selected: selected, action: action)
+    }
+}
+
+/// 지출 추가 · 수정 페이지의 단추 모양 — 누르는 동안만 살짝 흐려지고, **제 애니메이션이 없다**(10/13).
+///
+/// 시스템 `.plain` 은 손을 떼는 순간 제 라벨에 애니메이션을 건다. 그 순간에 고른 상품이 바뀌어 화면이 다시 짜이면
+/// (금액 영역의 줄 수가 달라져 목록이 위아래로 밀린다) **방금 누른 칸만** 그 애니메이션에 실려, 다른 칸은 바로 옮겨 갔는데
+/// 혼자 0.4초쯤 늦게 따라왔다 — 고른 표시도 그동안 서서히 떴다(Duo 화면 녹화로 확인).
+///
+/// 여기서 애니메이션을 **끊지는 않는다** — 바깥에서 건 움직임(과소비 경고가 나타날 때)은 다른 칸과 똑같이 따라가야 한다.
+private struct StillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 
@@ -878,8 +1007,9 @@ private struct PickIconView: View {
 }
 
 /// 입력 섹션 — 카드 없이 화면 폭 그대로, 위에 10 띠를 얹어 앞 묶음과 가른다.
-/// 좌우 20 · 위 22 · 아래 20(지출 상세 섹션과 같은 규격). 띠가 섹션 안에 있어 펼쳐 내려올 때 함께 나타난다.
+/// 좌우 20 · 위 22 · 아래 20(지출 상세 섹션과 같은 규격). 띠가 섹션 안에 있어 섹션과 함께 나타난다.
 private extension View {
+
     func formSection() -> some View {
         VStack(spacing: 0) {
             GldsBand()
@@ -967,7 +1097,7 @@ struct GLGDatePickerDialog: View {
                 .frame(width: 36, height: 36)
                 .background(Color(hex: 0xFFF2F2F6), in: Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StillButtonStyle())
         .accessibilityLabel(label)
     }
 
@@ -1007,7 +1137,7 @@ struct GLGDatePickerDialog: View {
                             .frame(maxWidth: .infinity, minHeight: 40)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(StillButtonStyle())
                 } else {
                     Color.clear.frame(maxWidth: .infinity, minHeight: 40)
                 }

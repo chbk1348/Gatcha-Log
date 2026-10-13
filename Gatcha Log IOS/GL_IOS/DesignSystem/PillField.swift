@@ -93,3 +93,69 @@ struct GldsFieldLabel: View {
         Text(text).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
     }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// GLDS 금액 카드 (2026-10-13) — Android `GldsAmountCard` 와 값이 같다.
+// 가이드 「예산 금액 입력」(`BudgetAmountEditor`)의 **면**만 떼어 낸 것으로, 지출 추가 · 수정의 금액 칸이 쓴다.
+// 온보딩 ③ · 설정 ▸ 예산 관리의 `BudgetAmountEditor` 와 값이 같다.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 색은 **틸 고정**이다(테마 강조색을 따르지 않는다).
+///  - 카드: `#EEF8F8 → #DCF0EE` · 반경 22 · 안쪽 20 / 20 / 22.
+///  - 라벨: 13 Bold `#177881`.
+///  - 숫자: 40 Bold `#0F1A33` · 폭은 내용 · 자리표시자는 30%(`GldsAmountCardStyle.numberFont`).
+///  - 「원」: 20 Bold · 숫자와 4 · 글자 밑선 맞춤.
+///  - 주의(`warn`): `#FFF4E8 → #FFE2C7` · 라벨 · 숫자 · 「원」 `#C2410C` · 한 번 흔들린 뒤 안쪽 테두리(5 · `#EA580C` 16%)가 900ms 로 깜빡인다.
+///
+/// `amount` 는 숫자 자리(입력칸)다. 넘겨받는 색으로 글자를 칠한다.
+struct GldsAmountCard<Amount: View>: View {
+    let label: String
+    let warn: Bool
+    @ViewBuilder var amount: (Color) -> Amount
+
+    @State private var shake: CGFloat = 0
+    @State private var glow = false
+
+    var body: some View {
+        let color = warn ? GldsAmountCardStyle.warn : GldsAmountCardStyle.ink
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(warn ? GldsAmountCardStyle.warn : GldsAmountCardStyle.teal)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                amount(color)
+                Text("원").font(.pretendard(size: 20, weight: .bold)).foregroundStyle(color)
+            }
+            .padding(.top, 6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 22)
+        .background(LinearGradient(colors: warn ? [Color(hex: 0xFFFFF4E8), Color(hex: 0xFFFFE2C7)] : [Color(hex: 0xFFEEF8F8), Color(hex: 0xFFDCF0EE)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: shape)
+        .overlay(shape.strokeBorder(Color(hex: 0xFFEA580C).opacity(warn && glow ? 0.16 : 0), lineWidth: 5))
+        .offset(x: shake)
+        .animation(.easeInOut(duration: 0.3), value: warn)
+        .onChange(of: warn) { _, w in
+            guard w else { glow = false; return }
+            // 한 번 흔들림 + 테두리 깜빡임
+            Task { @MainActor in
+                for x in [-6.0, 5, -3, 2, 0] as [CGFloat] {
+                    withAnimation(.easeInOut(duration: 0.084)) { shake = x }
+                    try? await Task.sleep(nanoseconds: 84_000_000)
+                }
+                // 흔들리는 사이 주의가 풀렸으면 깜빡이지 않는다.
+                guard warn else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { glow = true }
+            }
+        }
+    }
+}
+
+/// `GldsAmountCard` 의 색 · 글자 모양.
+enum GldsAmountCardStyle {
+    static let ink = Color(hex: 0xFF0F1A33)
+    static let teal = Color(hex: 0xFF177881)
+    static let warn = Color(hex: 0xFFC2410C)
+    /// 숫자 글자 모양 — 40 Bold.
+    static let numberFont = Font.pretendard(size: 40, weight: .bold)
+}

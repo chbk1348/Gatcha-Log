@@ -2,6 +2,7 @@ package com.gatcha.log.ui.spending
 
 import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
+import com.gatcha.log.data.PickupTag
 import com.gatcha.log.data.SpendingViewModel
 
 import androidx.activity.compose.BackHandler
@@ -717,6 +718,17 @@ private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Bo
 /** 지출 내역 태그 칩 — 강조색 옅은 배경 + 강조색 글자로 가독성 확보. */
 @Composable
 internal fun TagChip(tag: String) {
+    // 픽업 태그(「누구를 뽑으려고 썼는지」)는 **장식된 모양**으로 그린다(10/13) — 일반 태그(#)와 같은 크기에 금색 면 · 별.
+    // 색은 게임 일정의 최고 등급 뱃지와 같다(면 #D8A12E 14% · 글자 #9C6F12).
+    if (PickupTag.isPickup(tag)) {
+        Surface(color = Color(0xFFD8A12E).copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
+            Text(
+                "★ ${PickupTag.nameOf(tag)}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF9C6F12),
+                maxLines = 1, modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            )
+        }
+        return
+    }
     GlgChip(label = tag, variant = GlgChipVariant.Tag)
 }
 

@@ -305,6 +305,34 @@ class SpendingViewModel : ViewModel() {
      *   지난달 날짜로 추가해도 「이번 달 이미 N원 썼어요」가 떴다. 단건 큰 금액 경고는 날짜와 무관하게 본다.
      */
     fun overspendNudge(game: Game, amount: Long, editingId: String?, dateMillis: Long): String? {
+        val hit = nudgeHit(game, amount, editingId, dateMillis) ?: return null
+        return when (hit.kind) {
+            NudgeKind.GAME_LIMIT -> "${game.shortName}에 이번 달 이미 ${won(hit.gameNow)} 썼어요.\n추가하면 한도 ${won(hit.gameLimit)}을 넘어요."
+            NudgeKind.BUDGET -> "이번 달 이미 ${won(hit.monthNow)} 썼어요.\n추가하면 예산 ${won(hit.overall)}을 넘어요."
+            NudgeKind.LARGE -> "${won(amount)}은 평소보다 큰 지출이에요.\n정말 추가할까요?"
+        }
+    }
+
+    /**
+     * 같은 판정의 **간결한 한 줄**(10/13) — 지출 입력 화면의 게임 칩 옆에 늘 서 있는 표시가 쓴다.
+     * 경고가 필요하면 "원신 한도 초과" · "이번 달 예산 초과" · "평소보다 큰 지출", 아니면 null(화면이 강조 없는 문구를 세운다).
+     * 저장 직전의 확인창은 자세한 문구([overspendNudge])를 그대로 쓴다.
+     */
+    fun overspendBadge(game: Game, amount: Long, editingId: String?, dateMillis: Long): String? {
+        val hit = nudgeHit(game, amount, editingId, dateMillis) ?: return null
+        return when (hit.kind) {
+            NudgeKind.GAME_LIMIT -> "${game.shortName} 한도 초과"
+            NudgeKind.BUDGET -> "이번 달 예산 초과"
+            NudgeKind.LARGE -> "평소보다 큰 지출"
+        }
+    }
+
+    private enum class NudgeKind { GAME_LIMIT, BUDGET, LARGE }
+
+    private class NudgeHit(val kind: NudgeKind, val gameNow: Long, val gameLimit: Long, val monthNow: Long, val overall: Long)
+
+    /** 과소비 판정 — [overspendNudge] · [overspendBadge] 가 같은 결과를 쓴다. 경고할 것이 없으면 null. */
+    private fun nudgeHit(game: Game, amount: Long, editingId: String?, dateMillis: Long): NudgeHit? {
         if (!appSettings.nudgeOverspend || amount <= 0) return null
         val inThisMonth = DateUtil.isSameMonth(dateMillis, currentYear, currentMonth)
         val editRecord = editingId?.let { id -> _spendings.value.firstOrNull { it.id == id } }
@@ -322,15 +350,13 @@ class SpendingViewModel : ViewModel() {
         val gameLimit = _gameBudgets.value[game.key] ?: 0L
         val overall = _budget.value
         val threshold = appSettings.nudgeThreshold
-        return when {
-            inThisMonth && gameLimit > 0 && projectedGame > gameLimit ->
-                "${game.shortName}에 이번 달 이미 ${won(gameNow)} 썼어요.\n추가하면 한도 ${won(gameLimit)}을 넘어요."
-            inThisMonth && overall > 0 && projectedMonth > overall ->
-                "이번 달 이미 ${won(monthNow)} 썼어요.\n추가하면 예산 ${won(overall)}을 넘어요."
-            threshold > 0 && amount >= threshold ->
-                "${won(amount)}은 평소보다 큰 지출이에요.\n정말 추가할까요?"
-            else -> null
+        val kind = when {
+            inThisMonth && gameLimit > 0 && projectedGame > gameLimit -> NudgeKind.GAME_LIMIT
+            inThisMonth && overall > 0 && projectedMonth > overall -> NudgeKind.BUDGET
+            threshold > 0 && amount >= threshold -> NudgeKind.LARGE
+            else -> return null
         }
+        return NudgeHit(kind, gameNow, gameLimit, monthNow, overall)
     }
 
     fun setNotifyBudget(v: Boolean) { notify.setNotifyBudget(v) }
