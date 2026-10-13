@@ -223,20 +223,6 @@
       "count": 6480,
       "bonus": 1600,
       "price": 119000
-    },
-    {
-      "kind": "currency",
-      "name": "달빛",
-      "count": 32400,
-      "bonus": 8000,
-      "price": 595000
-    },
-    {
-      "kind": "currency",
-      "name": "달빛",
-      "count": 64800,
-      "bonus": 16000,
-      "price": 1190000
     }
   ],
   "endfield": [
