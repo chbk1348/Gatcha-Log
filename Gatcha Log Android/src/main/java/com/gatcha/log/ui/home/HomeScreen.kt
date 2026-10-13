@@ -14,14 +14,12 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -262,14 +260,12 @@ fun HomeScreen(
                 bottomBar = {
                     // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김.
                     //
-                    // **돌아올 때만 물방울처럼 튄다** — 아래에서 올라와 살짝 넘쳤다가 자리를 잡는다.
-                    // 곧은 tween 은 목표에 닿으면 그냥 멈춰서 "제자리로 돌아왔다"가 잘 안 읽힌다.
-                    // 퇴장은 스프링을 쓰지 않는다(나가면서 튀면 화면이 산만하다).
+                    // **돌아올 때는 숨을 때의 정반대**로 올라온다(10/13) — 같은 곡선 · 같은 길이로 아래에서 제자리까지.
+                    // 예전엔 스프링 + 확대로 튀어 올라와 살짝 넘쳤다가 자리를 잡았는데, 페이지에서 나올 때마다
+                    // 하단 바가 튀어나와 거슬렸다.
                     AnimatedVisibility(
                         visible = !subPageActive,
-                        enter = slideInVertically(glgReturnSpring()) { it } +
-                            scaleIn(glgReturnSpring(), initialScale = 0.90f, transformOrigin = TransformOrigin(0.5f, 1f)) +
-                            fadeIn(glgStandardSpec()),
+                        enter = slideInVertically(glgStandardSpec()) { it } + fadeIn(glgShortSpec()),
                         exit = slideOutVertically(glgStandardSpec()) { it } + fadeOut(glgShortSpec()),
                     ) {
                         BottomNavBar(
