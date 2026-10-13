@@ -1,0 +1,366 @@
+{
+  "genshin": [
+    {
+      "kind": "monthly",
+      "name": "공월의 축복",
+      "price": 5900
+    },
+    {
+      "kind": "pass",
+      "name": "기행",
+      "price": 12000
+    },
+    {
+      "kind": "pass",
+      "name": "진주의 노래",
+      "price": 25000
+    },
+    {
+      "kind": "currency",
+      "name": "창세의 결정",
+      "count": 60,
+      "bonus": 0,
+      "price": 1200
+    },
+    {
+      "kind": "currency",
+      "name": "창세의 결정",
+      "count": 300,
+      "bonus": 30,
+      "price": 6500
+    },
+    {
+      "kind": "currency",
+      "name": "창세의 결정",
+      "count": 980,
+      "bonus": 110,
+      "price": 19000
+    },
+    {
+      "kind": "currency",
+      "name": "창세의 결정",
+      "count": 1980,
+      "bonus": 260,
+      "price": 37000
+    },
+    {
+      "kind": "currency",
+      "name": "창세의 결정",
+      "count": 3280,
+      "bonus": 600,
+      "price": 65000
+    },
+    {
+      "kind": "currency",
+      "name": "창세의 결정",
+      "count": 6480,
+      "bonus": 1600,
+      "price": 119000
+    }
+  ],
+  "hsr": [
+    {
+      "kind": "monthly",
+      "name": "열차 보급 허가증ㄹㄹ",
+      "price": 5900
+    },
+    {
+      "kind": "pass",
+      "name": "무명의 영광",
+      "price": 12000
+    },
+    {
+      "kind": "pass",
+      "name": "무명객의 휘장",
+      "price": 25000
+    },
+    {
+      "kind": "currency",
+      "name": "오래된 꿈",
+      "count": 60,
+      "bonus": 0,
+      "price": 1200
+    },
+    {
+      "kind": "currency",
+      "name": "오래된 꿈",
+      "count": 300,
+      "bonus": 30,
+      "price": 6500
+    },
+    {
+      "kind": "currency",
+      "name": "오래된 꿈",
+      "count": 980,
+      "bonus": 110,
+      "price": 19000
+    },
+    {
+      "kind": "currency",
+      "name": "오래된 꿈",
+      "count": 1980,
+      "bonus": 260,
+      "price": 37000
+    },
+    {
+      "kind": "currency",
+      "name": "오래된 꿈",
+      "count": 3280,
+      "bonus": 600,
+      "price": 65000
+    },
+    {
+      "kind": "currency",
+      "name": "오래된 꿈",
+      "count": 6480,
+      "bonus": 1600,
+      "price": 119000
+    }
+  ],
+  "zzz": [
+    {
+      "kind": "monthly",
+      "name": "인터노트 멤버십",
+      "price": 5900
+    },
+    {
+      "kind": "pass",
+      "name": "정시 보너스",
+      "price": 12000
+    },
+    {
+      "kind": "pass",
+      "name": "정시 보너스 프리미엄",
+      "price": 25000
+    },
+    {
+      "kind": "currency",
+      "name": "모노크롬",
+      "count": 60,
+      "bonus": 0,
+      "price": 1200
+    },
+    {
+      "kind": "currency",
+      "name": "모노크롬",
+      "count": 300,
+      "bonus": 30,
+      "price": 6500
+    },
+    {
+      "kind": "currency",
+      "name": "모노크롬",
+      "count": 980,
+      "bonus": 110,
+      "price": 19000
+    },
+    {
+      "kind": "currency",
+      "name": "모노크롬",
+      "count": 1980,
+      "bonus": 260,
+      "price": 37000
+    },
+    {
+      "kind": "currency",
+      "name": "모노크롬",
+      "count": 3280,
+      "bonus": 600,
+      "price": 65000
+    },
+    {
+      "kind": "currency",
+      "name": "모노크롬",
+      "count": 6480,
+      "bonus": 1600,
+      "price": 119000
+    }
+  ],
+  "wuwa": [
+    {
+      "kind": "monthly",
+      "name": "달빛 관측 카드",
+      "price": 5900
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 60,
+      "bonus": 0,
+      "price": 1200
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 300,
+      "bonus": 30,
+      "price": 5900
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 980,
+      "bonus": 110,
+      "price": 19000
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 1980,
+      "bonus": 260,
+      "price": 37000
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 3280,
+      "bonus": 600,
+      "price": 65000
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 6480,
+      "bonus": 1600,
+      "price": 119000
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 32400,
+      "bonus": 8000,
+      "price": 595000
+    },
+    {
+      "kind": "currency",
+      "name": "달빛",
+      "count": 64800,
+      "bonus": 16000,
+      "price": 1190000
+    }
+  ],
+  "endfield": [
+    {
+      "kind": "monthly",
+      "name": "프라임 액세스",
+      "price": 5900
+    },
+    {
+      "kind": "currency",
+      "name": "오리지늄 조각",
+      "count": 6,
+      "bonus": 0,
+      "price": 2700
+    },
+    {
+      "kind": "currency",
+      "name": "오리지늄 세트",
+      "count": 26,
+      "bonus": 0,
+      "price": 11500
+    },
+    {
+      "kind": "currency",
+      "name": "오리지늄 더미",
+      "count": 40,
+      "bonus": 0,
+      "price": 17000
+    },
+    {
+      "kind": "currency",
+      "name": "오리지늄 자루",
+      "count": 68,
+      "bonus": 0,
+      "price": 28000
+    },
+    {
+      "kind": "currency",
+      "name": "오리지늄 통",
+      "count": 112,
+      "bonus": 0,
+      "price": 45000
+    },
+    {
+      "kind": "currency",
+      "name": "오리지늄 상자",
+      "count": 388,
+      "bonus": 0,
+      "price": 93000
+    },
+    {
+      "kind": "currency",
+      "name": "오리지늄 수레",
+      "count": 400,
+      "bonus": 0,
+      "price": 153000
+    }
+  ],
+  "nte": [
+    {
+      "kind": "monthly",
+      "name": "이상 수정 채굴증",
+      "price": 5900
+    },
+    {
+      "kind": "pass",
+      "name": "헌터 레벨업 보급",
+      "price": 13000
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 60,
+      "bonus": 0,
+      "price": 1200
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 300,
+      "bonus": 0,
+      "price": 5900
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 980,
+      "bonus": 0,
+      "price": 19000
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 1980,
+      "bonus": 0,
+      "price": 37000
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 3280,
+      "bonus": 0,
+      "price": 63000
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 6480,
+      "bonus": 0,
+      "price": 119000
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 32400,
+      "bonus": 0,
+      "price": 595000
+    },
+    {
+      "kind": "currency",
+      "name": "이상 수정",
+      "count": 64800,
+      "bonus": 0,
+      "price": 1190000
+    }
+  ]
+}
