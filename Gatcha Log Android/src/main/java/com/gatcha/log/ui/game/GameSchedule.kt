@@ -64,10 +64,17 @@ import com.gatcha.log.data.GameScheduleLine
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.ScheduleEntry
 import com.gatcha.log.data.RewardItem
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.outlined.CardGiftcard
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import com.gatcha.log.data.LineupGroup
+import com.gatcha.log.data.LineupItem
+import com.gatcha.log.data.REWARD_COLLAPSED_COUNT
+import com.gatcha.log.data.pickupLineup
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.data.ScheduleLogic
 import com.gatcha.log.data.ScheduleMark
 import com.gatcha.log.data.ScheduleWeek
@@ -94,7 +101,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Person
 import coil.compose.SubcomposeAsyncImage
-import com.gatcha.log.data.weaponLabelOf
+import com.gatcha.log.data.pickupBadgeLabel
+import androidx.compose.ui.unit.Dp
 import androidx.compose.material.icons.outlined.Info
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -467,6 +475,26 @@ private val DDayBadgeHeight = 20.dp
  */
 private val WeekCellHeight = 46.dp
 
+/**
+ * 일정 한 줄 **안쪽**의 구분선 — 머리 ↔ 픽업, 5성 ↔ 4성, 캐릭터 ↔ 무기. 뱃지 칸을 건너 **초상 칸 아래에만** 긋는다(10/13).
+ * 안쪽 선까지 화면 폭으로 그으니 일정과 일정 사이 선과 똑같아져, 어디서 다음 게임의 일정이 시작하는지 안 읽혔다.
+ * 전체 폭 선은 일정 사이에만 남기고 그쪽은 한 단 진하게 긋는다([ScheduleEntryHair]). iOS `pickupInnerHair` 와 같이 고쳐야 한다.
+ */
+@Composable
+private fun PickupInnerHair(labelWidth: Dp) {
+    Box(
+        Modifier.padding(start = labelWidth + 6.dp, top = 9.dp, bottom = 9.dp)
+            .fillMaxWidth().height(1.dp).background(ScheduleHair),
+    )
+}
+
+/**
+ * 일정과 일정 **사이**의 선 — 안쪽 선([ScheduleHair])보다 한 단 진하다(10/13).
+ * 픽업 일정이 뱃지 줄 넷으로 길어지자, 같은 옅은 선으로는 어디서 다른 게임의 일정이 시작하는지 안 읽혔다.
+ * 게임색 바탕을 깔아 봤다가 걷고 선을 진하게 하는 쪽으로 정했다. iOS `glEntryHair`.
+ */
+private val ScheduleEntryHair = Color(0xFFD8D8DE)
+
 /** 카드 없는 일정 페이지의 줄 구분 헤어라인(10/1) — 마이페이지 · 지출과 같은 #EEF0F2. iOS `glHair`. */
 private val ScheduleHair = Color(0xFFEEF0F2)
 
@@ -518,9 +546,10 @@ private fun WeekEntries(w: ScheduleWeek, now: Long) {
         return
     }
     // 카드 나열 대신 헤어라인 목록(10/1) — 줄 위아래 12 + 끝 8 = 섹션 아래 20.
+    // 일정과 일정 사이는 **한 단 진한 선**([ScheduleEntryHair])으로 가른다(10/13) — 일정 안쪽의 옅은 선과 급을 나눈다.
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 8.dp)) {
         w.entries.forEachIndexed { i, e ->
-            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(ScheduleHair))
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(ScheduleEntryHair))
             ScheduleRow(e, now)
         }
     }
@@ -577,6 +606,10 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
         ScheduleMark.END -> Urgent
     }
     val d = e.dDay(now)
+    // 4성 박스 묶음 — 아이콘을 못 받은 옛 캐시면 비고, 그때는 아래 글자 부제를 그대로 쓴다.
+    val lineupGroups = remember(e.pickups) { pickupLineup(e.pickups) }
+    // 보상 목록 펼침 — 줄마다 따로 기억한다(접힌 채가 기본).
+    var rewardsOpen by rememberSaveable(e.gameKey, e.title, e.target) { mutableStateOf(false) }
     // 카드 면을 걷고 헤어라인 목록의 한 줄로(10/1) — 좌우는 섹션 20 이 준다.
     // 글자 크기 10/1 — 제목 12.5 → 14 · 부제 10.5 → 12 · 종류 9 → 11 · 남은 시간 10.5 → 12 · 날짜 9.5 → 12.
     Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
@@ -606,8 +639,8 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 // 초상 단(아래)은 5성만이라 픽업 줄도 글자로 함께 둔다. 길어서 최대 3줄.
                 // 픽업 부제는 종류별 한 줄씩("4성 캐릭터  디오나 · 파루잔") — 머리는 회색 굵게,
                 // 이름은 본문색으로 갈라 한눈에 읽히게 한다(10/1).
-                // 보상 박스가 있으면 같은 내용의 글자 부제는 숨긴다(박스가 이름을 접근성 라벨로 갖는다).
-                if (e.sub.isNotBlank() && e.rewardItems.isEmpty()) {
+                // 보상 목록 · 4성 박스가 있으면 같은 내용의 글자 부제는 숨긴다(10/13 — 목록과 박스가 이름을 글자로 보여 준다).
+                if (e.sub.isNotBlank() && e.rewardItems.isEmpty() && lineupGroups.isEmpty()) {
                     Spacer(Modifier.height(2.dp))
                     e.sub.lines().forEach { line ->
                         val cut = line.indexOf("  ")
@@ -679,7 +712,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 )
             }
         }
-        if (e.rewardItems.isNotEmpty()) RewardBoxes(e.rewardItems)
+        if (e.rewardItems.isNotEmpty()) RewardList(e.rewardItems, rewardsOpen) { rewardsOpen = !rewardsOpen }
         // 픽업은 **한 단 아래**로 내린다. 제목 칸 안에 두면 초상 44dp 가 제목·D-day 와 같은
         // 줄에 얹혀 카드가 세로로 눌린 것처럼 보이고, 얼굴이 글자 사이에 끼여 잘 안 읽힌다.
         //
@@ -689,65 +722,207 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
         if (e.pickups.isNotEmpty()) {
             // 구분선 — 일정 한 줄과 픽업은 다른 종류의 정보다. 여백만으로 나누면 초상이
             // 그 줄에 딸린 건지 다음 줄로 넘어간 건지 애매하다.
-            Box(Modifier.padding(vertical = 9.dp).fillMaxWidth().height(1.dp).background(ScheduleHair))
+            PickupInnerHair(pickupLabelWidth(e.gameKey))
             // 캐릭터와 무기는 **다른 줄**로 가른다. 한 줄에 섞으면 어느 쪽이 캐릭터 픽업인지
             // 초상만 보고는 알 수 없다(무기도 같은 원형 초상으로 온다).
             val chars = e.pickups.filter { it.type != "weapon" }
             val weapons = e.pickups.filter { it.type == "weapon" }
             // 줄마다 **무엇을 세운 줄인지** 왼쪽에 적는다. 초상만 보면 캐릭터와 무기가
             // 구분되지 않고, 무기는 게임마다 부르는 이름도 다르다(광추·W-엔진).
-            val gameOf = GameData.byNameOrNull(e.pickups.first().game)
+            val pickupGame = e.pickups.first().game
+            val labelWidth = pickupLabelWidth(e.gameKey)
             // 젠존제는 W-엔진 픽업을 싣지 않는다([EnneadApi.fetchZzz]) — 상류가 신규 엔진의
             // 이름을 빈 문자열로 주거나 원문 직역으로 보내서, 그대로 띄우면 없는 이름을
             // 앱이 주장하게 된다. **빠졌다는 사실 자체는 알려야** 해서 안내를 단다.
             val zzzHidesWEngine = e.gameKey == Game.ZZZ.key
-            if (chars.isNotEmpty()) PickupRow("캐릭터", chars, showInfo = zzzHidesWEngine)
+            if (chars.isNotEmpty()) {
+                PickupRow(
+                    pickupBadgeLabel(pickupGame, weapon = false, topGrade = true), chars, labelWidth,
+                    lineupGroups.firstOrNull { !it.weapon }, showInfo = zzzHidesWEngine,
+                )
+            }
             if (weapons.isNotEmpty()) {
                 if (chars.isNotEmpty()) {
-                    Box(Modifier.padding(vertical = 9.dp).fillMaxWidth().height(1.dp).background(ScheduleHair))
+                    PickupInnerHair(labelWidth)
                 }
-                PickupRow(weaponLabelOf(gameOf), weapons)
+                PickupRow(
+                    pickupBadgeLabel(pickupGame, weapon = true, topGrade = true), weapons, labelWidth,
+                    lineupGroups.firstOrNull { it.weapon },
+                )
             }
         }
     }
 }
 
 /**
- * 이벤트·콘텐츠 보상 — 박스 하나 = 보상 하나, API 순서로 가로 한 줄(넘치면 가로 스크롤).
- * 시작선은 제목 글자(게임 배지 30 + 간격 10). 이름은 글자로 넣지 않고 접근성 라벨로만 단다.
- * 수치는 iOS `RewardBoxes` 와 같다 — 박스 52 · 모서리 10 · 아이콘 32 · 수량 11 SemiBold · 사이 6 · 위 8.
+ * 이벤트·콘텐츠 보상 — 작은 박스 + 이름 + 수량을 **두 열 목록**으로(10/13). 가로로 늘어놓은 박스 줄은
+ * 이름이 안 보여 낯선 아이콘이 무엇인지 알 수 없었다. [REWARD_COLLAPSED_COUNT] 개까지만 보이고
+ * 넘치면 「N개 더 보기」로 편다. 시작선은 제목 글자(게임 배지 30 + 간격 10).
+ * 수치는 iOS `RewardList` 와 같다 — 박스 28 · 모서리 8 · 아이콘 22 · 이름 12 · 수량 12 Bold · 열 사이 12 · 줄 사이 6 · 위 8.
  */
 @Composable
-private fun RewardBoxes(items: List<RewardItem>) {
-    Row(
-        Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 40.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        items.forEach { r ->
-            Column(
-                Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(RewardBoxBg)
-                    .semantics(mergeDescendants = true) {
-                        contentDescription = if (r.amount > 0) "${r.name} ${r.amount}개" else r.name
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                AsyncImage(r.iconUrl, null, Modifier.size(32.dp), contentScale = ContentScale.Fit)
-                if (r.amount > 0) {
-                    Text(
-                        "×${r.amount}", fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary, maxLines = 1,
-                    )
+private fun RewardList(items: List<RewardItem>, expanded: Boolean, onToggle: () -> Unit) {
+    val shown = if (expanded) items else items.take(REWARD_COLLAPSED_COUNT)
+    // 접고 펼 때 높이를 이어 준다 — 뚝 끊기면 아래 줄들이 순간 이동해 어디가 늘었는지 놓친다.
+    Column(Modifier.padding(top = 8.dp).fillMaxWidth().animateContentSize()) {
+        Column(Modifier.padding(start = 40.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            shown.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEach { RewardCell(it, Modifier.weight(1f)) }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
+        if (items.size > REWARD_COLLAPSED_COUNT) {
+            // 버튼 글자가 목록 시작선(40)에 서도록 버튼 좌우 여백(12)만큼 당긴다.
+            GldsButton(
+                if (expanded) "접기" else "${items.size - REWARD_COLLAPSED_COUNT}개 더 보기",
+                onToggle,
+                Modifier.padding(start = 28.dp, top = 4.dp),
+                variant = GldsVariant.Text, size = GldsSize.XS,
+            )
+        }
     }
+}
+
+/** 보상 한 칸 — 박스(아이콘) + 이름 + 수량. 아이콘이 없는 보상(젠레스 폴리크롬)은 선물 아이콘을 세운다. */
+@Composable
+private fun RewardCell(r: RewardItem, modifier: Modifier = Modifier) {
+    Row(
+        modifier.clearAndSetSemantics { contentDescription = if (r.amount > 0) "${r.name} ${r.amount}개" else r.name },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(RewardBoxBg),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (r.iconUrl.isBlank()) {
+                Icon(Icons.Outlined.CardGiftcard, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+            } else {
+                AsyncImage(r.iconUrl, null, Modifier.size(22.dp), contentScale = ContentScale.Fit)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            r.name, fontSize = 12.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (r.amount > 0) {
+            Spacer(Modifier.width(8.dp))
+            Text(r.amountLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * 픽업 줄의 4성 — **5성과 같은 배열 규칙**으로 세운다(10/13): 하나면 초상 옆에 이름, 그 밖은 한 줄 [PICKUP_LINE_SLOTS] 칸
+ * 균등 분할(초상 위 · 이름 아래 · 가운데). 처음엔 이름을 옆에 둔 두 열 목록이었는데, 바로 위 5성 줄과 칸이 어긋나
+ * 다른 종류의 정보처럼 읽혔다. 5성과 달리 **수를 자르지 않는다** — 4성은 다섯을 넘는 배너가 있고, 말없이 빠지면 안 된다.
+ * 글자 부제로 두던 때는 제목 칸이 좁아 무기 이름이 두 줄 제한에 잘렸다. 이름은 자르지 않는다.
+ * 수치는 iOS `LineupBoxes` 와 같다 — 원 32 · 이름 12 · 초상 → 이름 5 · 칸 사이 8 · 줄 사이 10.
+ */
+@Composable
+private fun LineupBoxes(group: LineupGroup, labelWidth: Dp, reserveInfo: Boolean = false) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        // 뱃지를 초상(32)의 세로 가운데에 — (32 − 20) / 2.
+        Box(Modifier.width(labelWidth).padding(top = 6.dp)) { GradeBadge(group.label, topGrade = false) }
+        Spacer(Modifier.width(6.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (group.items.size == 1) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    LineupAvatar(group.items[0], group.weapon)
+                    Spacer(Modifier.width(9.dp))
+                    Text(group.items[0].name, fontSize = 12.sp, lineHeight = 15.sp, color = TextPrimary)
+                }
+            } else {
+                group.items.chunked(PICKUP_LINE_SLOTS).forEach { line ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        line.forEach { LineupSlot(it, group.weapon, Modifier.weight(1f)) }
+                        repeat(PICKUP_LINE_SLOTS - line.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+        // 5성 줄에 안내 버튼(젠존제)이 서 있으면 **같은 폭을 비워 둔다** — 안 그러면 4성 줄만 칸이 넓어져
+        // 위아래 초상의 세로축이 어긋난다(10/13 기기에서 확인). 간격 6 + 아이콘 [InfoTipSize].
+        if (reserveInfo) Spacer(Modifier.width(6.dp + InfoTipSize))
+    }
+}
+
+/** 4성 한 칸 — 원형 초상 위, 이름 아래. 5성 [PickupSlot] 과 같은 짜임이고 초상만 한 단 작다. */
+@Composable
+private fun LineupSlot(item: LineupItem, isWeapon: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        LineupAvatar(item, isWeapon)
+        Spacer(Modifier.height(5.dp))
+        Text(item.name, fontSize = 12.sp, lineHeight = 15.sp, color = TextPrimary, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * 4성 **원형** 초상. 5성 초상([PickupAvatar])과 같은 원으로 맞춘다(사각 박스였다가 10/13 에 바꿈) —
+ * 한 줄 위아래로 모양이 다르면 다른 종류의 정보처럼 읽힌다. 면은 등급색 없이 중립 회색(등급은 왼쪽 뱃지가 말한다).
+ * 아이콘을 못 받은 칸은 5성과 같은 실루엣(무기면 별)을 회색으로 세운다.
+ */
+@Composable
+private fun LineupAvatar(item: LineupItem, isWeapon: Boolean) {
+    Box(
+        Modifier.size(32.dp).clip(CircleShape).background(RewardBoxBg),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (item.iconUrl.isBlank()) {
+            LineupFallbackIcon(isWeapon)
+        } else {
+            SubcomposeAsyncImage(
+                model = item.iconUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = {},
+                error = { LineupFallbackIcon(isWeapon) },
+            )
+        }
+    }
+}
+
+/**
+ * 픽업 줄 왼쪽의 **등급 뱃지** — "5성 캐릭터" · "4성 무기" · "S급 에이전트"(10/13, 회색 글자 라벨 「캐릭터」 · 「4성」 에서 바꿈).
+ * 모양은 같은 줄의 D-day 알약과 같다(높이 [DDayBadgeHeight] · 모서리 6 · 좌우 7 · 12 Bold). 색은 등급색 —
+ * 5성 금(면 14% · 금색 글자는 흰 바탕에서 옅어 한 단 어두운 금), 4성 보라(면 14% · 글자 보라).
+ * iOS `GradeBadge` 와 같이 고쳐야 한다.
+ */
+@Composable
+private fun GradeBadge(label: String, topGrade: Boolean) {
+    val face = if (topGrade) PickupGold else PickupPurple
+    Box(
+        Modifier.height(DDayBadgeHeight).clip(RoundedCornerShape(6.dp))
+            .background(face.copy(alpha = 0.14f)).padding(horizontal = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        GlgBadgeText(label, 12.sp, if (topGrade) PickupGoldInk else PickupPurple)
+    }
+}
+
+@Composable
+private fun LineupFallbackIcon(isWeapon: Boolean) {
+    Icon(
+        if (isWeapon) Icons.Default.Star else Icons.Default.Person,
+        contentDescription = null,
+        tint = TextSecondary,
+        modifier = Modifier.size(17.dp),
+    )
 }
 
 private val RewardBoxBg = Color(0xFFF7F8FA)
 
 /** 5성 픽업 바탕색 — '내 캐릭터' 로스터와 같은 값. */
 private val PickupGold = Color(0xFFD8A12E)
+
+/** 5성 뱃지 글자 — 금색 면 위 글자는 옅어서 한 단 어두운 금(로스터 장비 글자와 같은 값). */
+private val PickupGoldInk = Color(0xFF9C6F12)
+
+/** 4성 등급색 — '내 캐릭터' 로스터와 같은 값. */
+private val PickupPurple = Color(0xFF9B6BD6)
 
 /**
  * 젠존제 픽업 줄 우상단의 안내 — **W-엔진이 왜 안 보이는지**.
@@ -785,11 +960,14 @@ private fun WEngineInfoTip(modifier: Modifier = Modifier) {
             Icons.Outlined.Info,
             contentDescription = "W-엔진이 안 보이는 이유",
             tint = TextSecondary.copy(alpha = 0.7f),
-            modifier = Modifier.size(15.dp).clip(CircleShape)
+            modifier = Modifier.size(InfoTipSize).clip(CircleShape)
                 .clickable { scope.launch { state.show() } },
         )
     }
 }
+
+/** 안내 아이콘의 크기 — 4성 줄이 같은 폭을 비워 두므로([LineupBoxes]) 한 값으로 묶는다. */
+private val InfoTipSize = 15.dp
 
 /** 툴팁을 화면 가장자리에서 이만큼 띄운다. */
 private val TOOLTIP_MARGIN = 12.dp
@@ -848,19 +1026,20 @@ private const val PICKUP_LINE_SLOTS = 3
  * 가운데에 선다. 인원이 적으면 칸이 그만큼 넓어져 이름도 덜 접힌다.
  */
 @Composable
-private fun PickupRow(label: String, list: List<GachaBanner>, showInfo: Boolean = false) {
+private fun PickupRow(
+    label: String,
+    list: List<GachaBanner>,
+    labelWidth: Dp,
+    lineup: LineupGroup? = null,
+    showInfo: Boolean = false,
+) {
     val shown = list.take(PICKUP_SLOTS)
+    Column(Modifier.fillMaxWidth()) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        // 라벨 폭은 **고정**이다("캐릭터"·"광추"·"W-엔진" 길이가 제각각) — 안 그러면
-        // 캐릭터 줄과 무기 줄의 초상이 세로로 어긋난다.
-        //
-        // 라벨도 자르지 않는다. 'W-엔진'처럼 폭에 꽉 차는 말이 있어서 한 줄로 묶으면
-        // 게임에 따라 끝이 잘린다 — 무엇을 세운 줄인지 알리는 말이 잘리면 뜻이 없다.
-        Text(
-            label,
-            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
-            modifier = Modifier.width(PickupLabelWidth).padding(top = 12.dp),
-        )
+        // 뱃지 칸의 폭은 **고정**이다("5성 캐릭터"·"5성 광추"·"S급 에이전트" 길이가 제각각) — 안 그러면
+        // 캐릭터 줄과 무기 줄, 5성 줄과 4성 줄의 초상이 세로로 어긋난다([pickupLabelWidth]).
+        // 뱃지를 초상(38)의 세로 가운데에 — (38 − 20) / 2.
+        Box(Modifier.width(labelWidth).padding(top = 9.dp)) { GradeBadge(label, topGrade = true) }
         Spacer(Modifier.width(6.dp))
         // 칸 수에 따라 짜임을 바꾼다 — 균등 분할 하나로 1~5 를 다 감당하면 양끝이 다 무너진다.
         //
@@ -885,10 +1064,21 @@ private fun PickupRow(label: String, list: List<GachaBanner>, showInfo: Boolean 
             WEngineInfoTip(Modifier.padding(top = 10.dp))
         }
     }
+    // 5성 초상 아래에 그 종류의 4성을 잇는다(10/13). 사이는 캐릭터 · 무기 사이와 같은 안쪽 구분선(위아래 9) —
+    // 뱃지가 줄마다 「등급 + 종류」를 말하므로 네 줄이 같은 급의 표 줄로 읽힌다.
+    if (lineup != null) {
+        PickupInnerHair(labelWidth)
+        LineupBoxes(lineup, labelWidth, reserveInfo = showInfo)
+    }
+    }
 }
 
-/** 픽업 줄 왼쪽 라벨의 폭 — iOS `PickupRow.labelWidth` 와 같이 고쳐야 한다. 라벨 9.5 → 11 로 키우며 42 → 46(10/1). */
-private val PickupLabelWidth = 46.dp
+/**
+ * 픽업 줄 왼쪽 **뱃지 칸**의 폭 — iOS `pickupLabelWidth` 와 같이 고쳐야 한다.
+ * 글자 라벨(46)에서 등급 뱃지로 바꾸며 넓혔다(10/13). 가장 긴 뱃지가 한 줄에 들어오는 값 —
+ * 「5성 캐릭터」 · 「4성 캐릭터」 기준 74, 젠레스는 「S급 에이전트」 가 더 길어 80.
+ */
+private fun pickupLabelWidth(gameKey: String): Dp = if (gameKey == Game.ZZZ.key) 80.dp else 74.dp
 
 /**
  * 초상 지름 — '내 캐릭터' 로스터(44)보다 한 단계 작다.

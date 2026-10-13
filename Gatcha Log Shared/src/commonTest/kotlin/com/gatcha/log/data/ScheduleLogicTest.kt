@@ -215,6 +215,19 @@ class ScheduleLogicTest {
     }
 
     @Test
+    fun gameLineShowsHoursWhenLessThanADayIsLeft() {
+        val hour = day / 24
+        fun label(end: Long) = ScheduleLogic.gameLines(listOf(banner("A", 5, "6.7").copy(endMillis = end)), emptyList(), base).single().remainLabel
+        assertEquals("6시간", label(base + 6 * hour + 30 * 60_000L))   // 내림
+        assertEquals("40분", label(base + 40 * 60_000L))
+        assertEquals("23시간", label(base + day - 1))
+        assertEquals("D-1", label(base + day))                        // 꼭 24시간이면 아직 D-N
+        // 픽업이 없는 게임의 줄도 같은 규칙.
+        val e = ScheduleEntry("zzz", "젠레스", 0xFFF5A623L, "이벤트", "이벤트", "", base + 3 * hour, false)
+        assertEquals("3시간", ScheduleLogic.gameLines(emptyList(), listOf(e), base).single().remainLabel)
+    }
+
+    @Test
     fun gameLineSkipsGamesWithoutPickups() {
         // 젠레스는 상류에 픽업 데이터가 없다 → 줄 자체를 만들지 않는다.
         val lines = ScheduleLogic.gameLines(listOf(banner("A", 5, "6.7")), emptyList(), base)

@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * 게임 일정 보상 박스 — ennead `rewards[]` 를 항목으로 받는 규칙(2026-10-06 실응답 모양).
+ * 게임 일정 보상 목록 — ennead `rewards[]` 를 항목으로 받는 규칙(2026-10-06 실응답 모양).
  * 원신은 대표 보상(원석)이 `rewards` 에 없어 맨 앞에 붙이고, 스타레일은 이미 있어 중복하지 않는다.
  */
 class EnneadRewardTest {
@@ -37,8 +37,18 @@ class EnneadRewardTest {
     }
 
     @Test
-    fun polychromeOnlyHasNoItems() {
-        assertTrue(EnneadApi.rewardItemsOf(JSONObject("""{"polychrome":800}""")).isEmpty())
+    fun polychromeOnlyBecomesIconlessItem() {
+        // 젠레스는 숫자 필드뿐 — 아이콘 없는 항목 하나로 실어 다른 게임과 같은 목록에 넣는다(10/13).
+        assertEquals(listOf(RewardItem("폴리크롬", "", 800)), EnneadApi.rewardItemsOf(JSONObject("""{"polychrome":800}""")))
+        assertTrue(EnneadApi.rewardItemsOf(JSONObject("""{"polychrome":0}""")).isEmpty())
+        assertTrue(EnneadApi.rewardItemsOf(JSONObject("""{}""")).isEmpty())
+    }
+
+    @Test
+    fun amountLabelGroupsThousandsAndHidesZero() {
+        assertEquals("×420", RewardItem("원석", "u", 420).amountLabel)
+        assertEquals("×600,000", RewardItem("모라", "u", 600000).amountLabel)
+        assertEquals("", RewardItem("영웅의 경험", "u", 0).amountLabel)
     }
 
     @Test
