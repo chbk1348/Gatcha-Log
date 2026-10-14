@@ -257,7 +257,8 @@ struct SpendingView: View {
                 }
                 // iOS 26+ 는 시스템 글래스 원형, iOS 18 은 불투명 흰 원(→ glgFloatingCircleButton).
                 // 지름은 바로 아래 '추가' 버튼과 같게 맞춘다 — 우측 하단에 세로로 나란히 뜬다.
-                // iOS 18 아이폰은 아래 '추가' 원(떠 있는 탭 툴바)과 **같은 모양**으로 그린다 — 크기는 48 그대로(10/14).
+                // iOS 18 아이폰은 아래 '추가' 원(떠 있는 탭 툴바)과 **같은 모양**으로 그린다 — 크기는 48 그대로, 아이콘은 강조색
+                // (iOS 26 · Android 와 같다, 10/14).
                 .modifier(ScrollTopStyle(tint: accent.primary))
                 // 우측 자리도 '추가' 버튼에 맞춘다 — 두 원이 세로로 정확히 겹쳐 보여야 한다.
                 // iOS 26+ 아이폰은 '추가'가 탭 바 옆의 시스템 원이고 이 버튼(시스템 글래스)과 지름이 달라, 오른쪽 여백만
@@ -281,7 +282,7 @@ struct SpendingView: View {
         let tint: Color
         func body(content: Content) -> some View {
             if GLGFloatingTabBar.isActive {
-                content.buttonStyle(.plain).foregroundStyle(GLGColor.textPrimary).glgTabBarCircle(diameter: GLGLegacyAddButton.size)
+                content.buttonStyle(.plain).foregroundStyle(tint).glgTabBarCircle(diameter: GLGLegacyAddButton.size)
             } else {
                 content.glgFloatingCircleButton(tint: tint, diameter: GLGLegacyAddButton.size)
             }
