@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
  * 점만 반지름 1.1 로 채운다. 선택해도 채우지 않는다 — 선택은 색(강조색)으로만 보인다.
  *
  * 하단 툴바와 헤더가 한 벌로 보여야 해서 한 객체에 둔다(예전 `GlgTabIcons` 를 넓혔다) — 규격 · 그리는 함수가 하나다.
- * iOS 에만 있는 그림(알림 · 필터 배지, 더보기, 2열 · 3열)은 Android 에서 쓰지 않아 여기 두지 않는다 —
+ * iOS 에만 있는 그림(알림 배지, 필터 — 보유 캐릭터, 더보기, 2열 · 3열)은 Android 에서 쓰지 않아 여기 두지 않는다 —
  * Android 는 배지를 숫자 원([GlgCircleIconButton] 의 badgeCount)으로 단다.
  */
 internal object GlgLineIcons {
@@ -117,14 +117,6 @@ internal object GlgLineIcons {
         "M13 6.5H21",
         "M13 12.5H21",
         "M13 18.5H21",
-    )
-
-    /** 필터 — 지출 헤더 오른쪽 · 보유 캐릭터(iOS). */
-    val Filter: ImageVector = line(
-        "IconFilter",
-        "M3 5.25H21",
-        "M6.38 12H17.62",
-        "M9.75 18.75H14.25",
     )
 
     /** 수정 — 지출 상세 헤더. */
