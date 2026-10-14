@@ -396,12 +396,13 @@ struct ContentView: View {
 
     /// 마이페이지 탭의 라벨 — 프로필 사진이 있으면 그 사진, 없으면 사람 아이콘(10/12 지시).
     /// 홈 왼쪽 위 프로필 알약 · 마이페이지 머리와 같은 사진이다.
+    /// 탭 이름은 「My」다(10/13 지시 — 그 전에는 「마이페이지」). 화면 안의 제목은 그대로 「마이페이지」다.
     @ViewBuilder
     private var myPageTabLabel: some View {
         if let icon = myPageTabIcon {
-            Label { Text("마이페이지") } icon: { Image(uiImage: icon) }
+            Label { Text("My") } icon: { Image(uiImage: icon) }
         } else {
-            Label("마이페이지", systemImage: "person.fill")
+            Label("My", systemImage: "person.fill")
         }
     }
 
