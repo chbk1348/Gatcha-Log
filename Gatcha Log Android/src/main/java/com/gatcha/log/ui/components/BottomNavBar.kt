@@ -40,7 +40,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
@@ -114,9 +116,12 @@ private const val TAB_COUNT = 4
 /** 화면 아래 끝에서 탭바까지 보장하는 최소 여백. 인셋이 이보다 작게 오는 기기에서만 발동한다. */
 private val BOTTOM_MIN = 20.dp
 
-private val LIFT_BLUR = 10.dp
-private val LIFT_AMBIENT = Color.Black.copy(alpha = 0.04f)
-private val LIFT_SPOT = Color.Black.copy(alpha = 0.06f)
+/**
+ * 들뜸 그림자 — **iOS 18 떠 있는 탭 툴바와 같은 값**(검정 6% · 퍼짐 10 · 아래로 2, 10/14 「And는 티가 안나서」).
+ * 예전엔 높이 그림자(`Modifier.shadow`, ambient 4% · spot 6%)라 흰 바탕에서 거의 보이지 않았다. 퍼지는 그림자로 바꿔
+ * iOS(SwiftUI `.shadow(radius: 10, y: 2)`)와 같은 모양이 되게 한다.
+ */
+private val LiftShadow = Shadow(radius = 10.dp, color = Color.Black.copy(alpha = 0.06f), offset = DpOffset(0.dp, 2.dp))
 
 @Composable
 fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, showFab: Boolean, profilePhotoUrl: String? = null) {
@@ -155,7 +160,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                     toolbarContainerColor = Color.White,
                     toolbarContentColor = NavUnselected,
                 ),
-                // 컴포넌트 그림자는 끄고 아래 modifier 에서 직접 그린다(LIFT_* 주석 참고).
+                // 컴포넌트 그림자는 끄고 아래 modifier 에서 직접 그린다([LiftShadow] 주석 참고).
                 expandedShadowElevation = 0.dp,
                 collapsedShadowElevation = 0.dp,
                 // 안쪽 여백 0 — 탭 칸이 캡슐 폭을 다 쓰게 한다. 선택 알약을 칸 가운데에 두고 캡슐 끝과의 틈을
@@ -176,7 +181,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                     // FAB 는 ContainerSize(64dp) 라 나란히 뒀을 때 크기가 어긋난다(2026-08-03 지적).
                     // 둘 다 같은 토큰을 쓰게 해서 규격을 맞춘다.
                     .height(FloatingToolbarDefaults.ContainerSize)
-                    .shadow(LIFT_BLUR, toolbarShape, clip = false, ambientColor = LIFT_AMBIENT, spotColor = LIFT_SPOT)
+                    .dropShadow(toolbarShape, LiftShadow)
                     .border(1.dp, DividerColor, toolbarShape),
             ) {
                 TabStrip(selectedTab, accent, profilePhotoUrl, onTabSelected)
@@ -200,7 +205,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                 // 나란히 뒀을 때 아래위가 어긋나 보였다. ContainerSize = 툴바 컨테이너 높이 토큰.
                 modifier = Modifier
                     .size(FloatingToolbarDefaults.ContainerSize)
-                    .shadow(LIFT_BLUR, CircleShape, clip = false, ambientColor = LIFT_AMBIENT, spotColor = LIFT_SPOT)
+                    .dropShadow(CircleShape, LiftShadow)
                     .border(1.dp, DividerColor, CircleShape),
             ) {
                 Icon(GlgLineIcons.Add, contentDescription = "지출 추가", modifier = Modifier.size(TAB_ICON))
@@ -221,7 +226,7 @@ fun GlgTabBarCircleButton(icon: ImageVector, contentDescription: String, modifie
         contentAlignment = Alignment.Center,
         modifier = modifier
             .size(TAB_FLOAT_CIRCLE)
-            .shadow(LIFT_BLUR, CircleShape, clip = false, ambientColor = LIFT_AMBIENT, spotColor = LIFT_SPOT)
+            .dropShadow(CircleShape, LiftShadow)
             .clip(CircleShape)
             .background(Color.White)
             .border(1.dp, DividerColor, CircleShape)
