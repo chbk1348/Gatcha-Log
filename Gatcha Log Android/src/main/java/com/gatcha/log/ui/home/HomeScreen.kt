@@ -276,6 +276,8 @@ fun HomeScreen(
                             onAddClick = { openEditor(null) },
                             accent = accent,
                             showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
+                            // My 탭 아이콘 = 구글 프로필 사진(10/14). 게스트는 사진이 없어 사람 아이콘이다.
+                            profilePhotoUrl = viewModel.account.collectAsStateWithLifecycle().value.let { if (it.isGuest) null else it.photoUrl },
                         )
                     }
                 },

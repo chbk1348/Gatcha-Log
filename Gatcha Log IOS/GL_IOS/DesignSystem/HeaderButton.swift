@@ -24,6 +24,30 @@ extension View {
     }
 }
 
+/**
+ GLDS **라인 아이콘**(10/14) — 에셋 `Icon*`(24 칸 SVG 템플릿). Android `GlgLineIcons`(`ui/components/LineIcons.kt`)와
+ **같은 경로**다 — 한쪽을 고치면 다른 쪽도 고친다. 규격: 선 두께 2 · 둥근 끝 · 둥근 꺾임 · 채우지 않음(점만 채움).
+
+ 헤더(툴바) 자리는 22pt — 예전 SF Symbol 이 툴바에서 보이던 크기와 맞췄다. 색은 버튼의 틴트를 그대로 받는다.
+ [label] 이 없으면 꾸밈 그림으로 둔다(버튼에 `accessibilityLabel` 이 따로 있거나 옆에 글자가 있는 자리).
+ */
+struct GLGLineIcon: View {
+    private let name: String
+    private let size: CGFloat
+    private let label: String?
+
+    init(_ name: String, size: CGFloat = 22, label: String? = nil) {
+        self.name = name; self.size = size; self.label = label
+    }
+
+    var body: some View {
+        (label.map { Image(name, label: Text($0)) } ?? Image(decorative: name))
+            .renderingMode(.template)
+            .resizable()
+            .frame(width: size, height: size)
+    }
+}
+
 extension View {
     /// 콘텐츠 **위에 떠 있는** 원형 아이콘 버튼 — 지출 리스트의 '맨 위로'처럼 스크롤되는
     /// 배경 위에 얹히는 자리에 쓴다. (툴바 안에 앉는 헤더 버튼은 `glgGlassButton` 쪽)
@@ -38,10 +62,13 @@ extension View {
     @ViewBuilder
     func glgFloatingCircleButton(tint: Color, diameter: CGFloat = 48) -> some View {
         if #available(iOS 26.0, *) {
-            self.buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .controlSize(.large)
-                .tint(tint)
+            // 지름을 [diameter] 로 **고정**하고 유리를 입힌다(10/14 「IOS26 이상도 크기 동일하게」) — 시스템 글래스 버튼
+            // (`.buttonStyle(.glass)` · `.large`)은 크기를 스스로 정해 iOS 18(48)보다 컸다.
+            self.buttonStyle(.plain)
+                .foregroundStyle(tint)
+                .frame(width: diameter, height: diameter)
+                .contentShape(Circle())
+                .glassEffect(.regular.interactive(), in: Circle())
         } else {
             self.buttonStyle(.plain)
                 .foregroundStyle(tint)
@@ -85,7 +112,7 @@ struct GLGSheetCloseButton: View {
             Button(role: .close, action: action)
         } else {
             Button(action: action) {
-                Image(systemName: "xmark").font(.system(size: 15, weight: .semibold))
+                GLGLineIcon("IconClose")
             }
             .accessibilityLabel("닫기")
         }

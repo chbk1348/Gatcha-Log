@@ -560,7 +560,7 @@ struct EnkaRosterPage: View {
             // 열 전환 — 선택은 남는다(매번 바꾸게 하면 안 쓴다).
             ToolbarItem(placement: .topBarTrailing) {
                 Button { colCount = colCount >= 3 ? 2 : 3 } label: {
-                    Image(systemName: colCount >= 3 ? "square.grid.3x3" : "square.grid.2x2")
+                    GLGLineIcon(colCount >= 3 ? "IconGrid3" : "IconGrid2")
                 }
                 .accessibilityLabel(colCount >= 3 ? "2열로 보기" : "3열로 보기")
             }
@@ -584,7 +584,7 @@ struct EnkaRosterPage: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
+                    GLGLineIcon("IconFilter", label: "필터")
                 }
             }
         }
@@ -773,7 +773,7 @@ struct EnkaStatPageBody: View {
             if CharDisplayKt.usesArtifactScore(gameKey: game) {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { basisOpen = true } label: {
-                        Image(systemName: "slider.horizontal.3")
+                        GLGLineIcon("IconAdjust")
                     }
                     .accessibilityLabel("점수 기준")
                 }

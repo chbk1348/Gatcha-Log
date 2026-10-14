@@ -148,7 +148,7 @@ struct NewsDetailView: View {
                     // 카카오톡 공유 확장이 "Failed to load URL" 로 실패했다(10/1) — UIKit 공유 창에
                     // NSURL 하나만 그대로 넘긴다.
                     Button { shareNewsURL(u) } label: {
-                        Image(systemName: "square.and.arrow.up")
+                        GLGLineIcon("IconShare", label: "공유")
                     }
                 }
                 if #available(iOS 26.0, *) {
@@ -156,7 +156,7 @@ struct NewsDetailView: View {
                 }
                 // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { openURL(u) } label: { Image(systemName: "safari") }
+                    Button { openURL(u) } label: { GLGLineIcon("IconExternal", label: "브라우저에서 보기") }
                 }
             }
         }

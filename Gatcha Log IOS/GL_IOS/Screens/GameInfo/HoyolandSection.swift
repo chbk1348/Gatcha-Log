@@ -531,7 +531,7 @@ struct HoyolandDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { entrySheetOpen = true } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: "ticket").font(.system(size: 13, weight: .semibold))
+                            GLGLineIcon("IconTicket", size: 16)
                             Text(days == 0 ? "내 입장권" : "\(days)일")
                                 .font(.pretendard(size: 12, weight: .black))
                         }

@@ -182,7 +182,7 @@ struct HoyolandGoodsView: View {
         .toolbar {
             if !event.goodsGuide.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showGuide = true } label: { Image(systemName: "info.circle") }
+                    Button { showGuide = true } label: { GLGLineIcon("IconInfo", label: "굿즈존 이용 안내") }
                 }
             }
         }

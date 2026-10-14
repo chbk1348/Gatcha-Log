@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Checklist
@@ -106,6 +105,7 @@ import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.theme.DangerBackground
@@ -183,7 +183,7 @@ fun HomeHeader(
         }
         Spacer(Modifier.weight(1f))
         GlgCircleIconButton(
-            Icons.Default.NotificationsNone,
+            GlgLineIcons.Bell,
             contentDescription = "알림",
             badgeCount = alertCount,
             outlined = true,

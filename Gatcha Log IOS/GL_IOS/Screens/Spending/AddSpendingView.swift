@@ -145,7 +145,7 @@ struct AddSpendingView: View {
         // 왼쪽은 ✕ 가 아니라 **뒤로**다(10/13) — 시트가 아니라 앞 화면에서 밀려 들어온 하위 페이지다.
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button { requestDismiss() } label: { Image(systemName: "chevron.backward") }
+                Button { requestDismiss() } label: { GLGLineIcon("IconBack") }
                     .accessibilityLabel("뒤로")
             }
             ToolbarItem(placement: .confirmationAction) {

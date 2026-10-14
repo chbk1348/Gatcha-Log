@@ -42,6 +42,7 @@ import com.gatcha.log.data.SpendingDetailStats
 import com.gatcha.log.data.currencyAmountOrNull
 import com.gatcha.log.data.currencyPullsOrNull
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.glgDetailContentTop
@@ -115,12 +116,12 @@ fun SpendingDetailScreen(
             // 수정 · 삭제를 「더보기」 메뉴에 접지 않고 버튼 두 개로 바로 둔다(Android, 10/1 지시).
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GlgCircleIconButton(
-                    Icons.Default.Edit, "수정",
+                    GlgLineIcons.Edit, "수정",
                     outlined = true, solidBackground = true,
                     tint = heroTint, background = heroBg,
                 ) { onEdit() }
                 GlgCircleIconButton(
-                    Icons.Default.Delete, "삭제",
+                    GlgLineIcons.Delete, "삭제",
                     outlined = true, solidBackground = true,
                     tint = heroTint, background = heroBg,
                 ) { confirmDelete = true }

@@ -543,7 +543,7 @@ struct BudgetSettingsView: View {
         .glgPageTitle("예산 관리")
         .navigationBarTitleDisplayMode(.inline)
         // 입력 페이지라 하단 탭바를 숨긴다(업데이트 로그와 같은 처리).
-        .toolbar(.hidden, for: .tabBar)
+        .glgHidesTabBar()
         .onAppear {
             guard !loaded else { return }
             loaded = true
