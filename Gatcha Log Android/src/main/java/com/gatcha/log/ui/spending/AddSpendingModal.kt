@@ -29,7 +29,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
@@ -99,6 +98,7 @@ import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgSwitch
+import com.gatcha.log.ui.components.GldsIcon
 import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.components.ThousandsTransformation
 import com.gatcha.log.ui.theme.DividerColor
@@ -496,7 +496,7 @@ fun AddSpendingModal(
                             onValueChange = {},
                             label = "날짜",
                             readOnly = true,
-                            trailingIcon = Icons.Default.CalendarToday,
+                            trailingIcon = GldsIcon.Calendar,
                             onClick = { showDatePicker.value = true },
                             modifier = Modifier.fillMaxWidth(),
                         )

@@ -34,8 +34,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -165,18 +171,58 @@ fun GldsButton(
     }
 }
 
-/** 입력필드 크기 — M 은 폼 기본, S 는 목록 행 안의 짧은 숫자칸. */
+/**
+ * 입력필드 크기 — M 은 폼 기본, S 는 목록 행 안의 짧은 숫자칸.
+ * GLDS 2.1 입력필드(1-C) 에서 L 은 두지 않기로 했다 — 큰 입력은 금액 카드([GldsAmountCard])가 맡는다.
+ * 값의 이름은 `size/field/m` · `radius/field/m` · `type/field/m` · `space/field/pad-m`(S 도 같은 꼴).
+ */
 enum class GldsFieldSize(val height: Dp, val radius: Dp, val font: TextUnit, val padH: Dp) {
     M(48.dp, 14.dp, 16.sp, 14.dp),
     S(38.dp, 12.dp, 14.sp, 12.dp),
 }
 
-private val GldsFieldBg = Color(0xFFF5F8F8)
-private val GldsFieldPlaceholder = Color(0xFFA7B1AE)
+/**
+ * 입력필드 값 — GLDS 2.1 입력필드(7-A) 의 역할 경로 이름을 그대로 옮겼다(`color/field/bg` → [Bg]). iOS `GldsField` 와 이름 · 값이 같다.
+ * 크기마다 다른 값은 [GldsFieldSize] 가, 글자 · 오류 · 강조색(`color/text/primary` · `secondary` · `color/danger/text` ·
+ * `color/accent/primary`)은 앱 공용 색([TextPrimary] · [TextSecondary] · [DangerText] · [LocalAccent])이 갖는다.
+ */
+object GldsField {
+    /** `color/field/bg` — 평소 면. */
+    val Bg = Color(0xFFF5F8F8)
+    /** `color/field/bg-focused` — 포커스 · 오류 때 면. */
+    val BgFocused = Color.White
+    /** Disabled 면(2-B) — 버튼 Neutral 면과 같은 색이라 「면이 바뀌면 못 누른다」가 버튼과 같은 말로 읽힌다. 7-A 표에는 이름이 없다. */
+    val BgDisabled = GldsNeutralBg
+    /** `color/field/placeholder` — 자리표시자. Disabled 아이콘 · 지우기 ✕ 도 이 색이다(2-B · 5-A). */
+    val Placeholder = Color(0xFFA7B1AE)
+    /** `space/field/label` — 라벨 아래. */
+    val SpaceLabel = 6.dp
+    /** `space/field/fix` — Prefix 뒤 · Suffix 앞. */
+    val SpaceFix = 4.dp
+    /** `space/field/icon` — Leading Icon 뒤 · 지우기 ✕ · Trailing Icon 앞. */
+    val SpaceIcon = 8.dp
+    /** `type/field/label` — 13 SemiBold. */
+    val TypeLabel = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+    /** `type/field/helper` — 12. */
+    val TypeHelper = TextStyle(fontSize = 12.sp)
+}
+
+/**
+ * 입력필드 안에 넣을 수 있는 아이콘 목록(GLDS 2.1 입력필드 6-A) — 피그마 Instance swap 과 같은 이름을 쓴다.
+ * 그림은 플랫폼 것(Material ↔ iOS SF Symbol)이고, 목록 밖 아이콘은 가이드에 먼저 올린 뒤 여기에 더한다. iOS `GldsIcon` 과 같다.
+ */
+enum class GldsIcon(val vector: ImageVector) {
+    Calendar(Icons.Default.CalendarToday),   // iOS calendar
+    Search(Icons.Default.Search),            // iOS magnifyingglass
+    Clear(Icons.Default.Cancel),             // iOS xmark.circle.fill — 지우기 ✕(5-A)
+}
 
 /**
  * GLDS 입력필드 — 채운 면(#F5F8F8), 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
- * [suffix] 는 값 뒤에 붙는 단위(「원」), [trailingIcon] 은 오른쪽 끝 아이콘, [onClick] 을 주면 누르는 필드(날짜 등).
+ * 한 줄 순서는 [leadingIcon] → [prefix] → 값 → [suffix] → 지우기 ✕ → [trailingIcon].
+ * [prefix] · [suffix] 는 값 앞뒤에 붙는 글자(「#」 · 「원」)로 값이 있을 때만 보인다. [onClick] 을 주면 누르는 필드(날짜 등).
+ * [clearable] 이면 포커스 중이고 값이 있을 때 ✕ 를 띄워 값을 비운다(5-A).
+ * [enabled] 가 false 면 면 #ECEFF4 · 값 #6C727A · 아이콘 #A7B1AE 로 바뀌고, [error] 보다 먼저라 오류 대신 [helper] 를 보인다(2-B).
  * [secure] 면 값을 점으로 가린다(토큰) — iOS `GldsTextField(secure:)` 와 같다.
  * [visualTransformation] 은 값은 그대로 두고 보이는 글자만 바꾼다(금액 쉼표 — [ThousandsTransformation]). [secure] 가 먼저다.
  */
@@ -189,8 +235,11 @@ fun GldsTextField(
     label: String? = null,
     placeholder: String = "",
     size: GldsFieldSize = GldsFieldSize.M,
+    leadingIcon: GldsIcon? = null,
+    prefix: String? = null,
     suffix: String? = null,
-    trailingIcon: ImageVector? = null,
+    clearable: Boolean = false,
+    trailingIcon: GldsIcon? = null,
     helper: String? = null,
     error: String? = null,
     textAlign: TextAlign = TextAlign.Start,
@@ -205,11 +254,17 @@ fun GldsTextField(
 ) {
     val accent = LocalAccent.current
     val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
+    val focused = interaction.collectIsFocusedAsState().value && enabled
+    // Disabled 가 오류보다 먼저다(2-B) — 고칠 수 없는 칸에 오류를 띄우면 할 수 있는 일이 없다.
+    val shownError = error?.takeIf { enabled }
     val borderColor by animateColorAsState(
-        when { error != null -> DangerText; focused -> accent; else -> Color.Transparent }, label = "gldsFieldBorder",
+        when { shownError != null -> DangerText; focused -> accent; else -> Color.Transparent }, label = "gldsFieldBorder",
     )
-    val bg by animateColorAsState(if (focused || error != null) Color.White else GldsFieldBg, label = "gldsFieldBg")
+    val bg by animateColorAsState(
+        when { !enabled -> GldsField.BgDisabled; focused || shownError != null -> GldsField.BgFocused; else -> GldsField.Bg },
+        label = "gldsFieldBg",
+    )
+    val iconTint = if (enabled) TextSecondary else GldsField.Placeholder
     val shape = RoundedCornerShape(size.radius)
     // 포커스 · 키보드가 뜨면 **입력칸 전체**(라벨 · 테두리 · 도움말)를 보이는 곳까지 스크롤한다(9/30).
     // 텍스트필드 기본 동작은 커서가 있는 글자 줄만 보이게 해서, 칸 테두리가 하단 바에 붙거나 가렸다.
@@ -222,7 +277,7 @@ fun GldsTextField(
         }
     }
     val style = LocalTextStyle.current.copy(
-        color = TextPrimary, fontSize = size.font, textAlign = textAlign,
+        color = if (enabled) TextPrimary else TextSecondary, fontSize = size.font, textAlign = textAlign,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
     )
 
@@ -236,12 +291,17 @@ fun GldsTextField(
                 .clip(shape)
                 .background(bg)
                 .border(1.5.dp, borderColor, shape)
-                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+                .then(if (onClick != null) Modifier.clickable(enabled = enabled) { onClick() } else Modifier)
                 .padding(horizontal = size.padH, vertical = if (singleLine) 0.dp else 12.dp),
         ) {
+            leadingIcon?.let { GldsFieldIcon(it, iconTint, Modifier.padding(end = GldsField.SpaceIcon)) }
+            // Prefix 는 Suffix 의 거울이다(4-A) — 값이 비면 숨겨 placeholder 와 한 문장처럼 붙지 않게 한다.
+            if (prefix != null && value.isNotEmpty()) {
+                Text(prefix, style = style.copy(color = TextSecondary, fontWeight = FontWeight.Bold), modifier = Modifier.padding(end = GldsField.SpaceFix))
+            }
             Box(Modifier.weight(1f), contentAlignment = if (textAlign == TextAlign.End) Alignment.CenterEnd else Alignment.CenterStart) {
                 if (value.isEmpty() && placeholder.isNotEmpty()) {
-                    Text(placeholder, style = style.copy(color = GldsFieldPlaceholder), modifier = Modifier.fillMaxWidth())
+                    Text(placeholder, style = style.copy(color = GldsField.Placeholder), modifier = Modifier.fillMaxWidth())
                 }
                 // 누르는 필드(날짜 등)는 입력 위젯을 두지 않는다 — 비활성 텍스트필드가 탭을 먹어 필드가 안 눌렸다.
                 if (onClick != null) Text(value, style = style, maxLines = 1, modifier = Modifier.fillMaxWidth())
@@ -261,22 +321,48 @@ fun GldsTextField(
                 )
             }
             if (suffix != null && value.isNotEmpty()) {
-                Text(suffix, style = style.copy(color = TextSecondary, fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = 4.dp))
+                Text(suffix, style = style.copy(color = TextSecondary, fontWeight = FontWeight.Bold), modifier = Modifier.padding(start = GldsField.SpaceFix))
             }
-            trailingIcon?.let {
-                Icon(it, contentDescription = null, tint = TextSecondary, modifier = Modifier.padding(start = 8.dp).size(18.dp))
+            // ✕ 는 Trailing Icon 앞이다(5-A) — 나타나도 오른쪽 끝 아이콘 자리가 흔들리지 않는다.
+            if (clearable && focused && value.isNotEmpty()) {
+                Box(
+                    Modifier
+                        .padding(start = GldsField.SpaceIcon)
+                        // 누름 영역은 44(버튼 M 높이)인데 자리는 그림(18)만큼만 차지한다 — 44 상자를 18 자리 가운데에 겹쳐 놓는다.
+                        .layout { measurable, _ ->
+                            val hit = 44.dp.roundToPx()
+                            val slot = 18.dp.roundToPx()
+                            val placeable = measurable.measure(Constraints.fixed(hit, hit))
+                            layout(slot, slot) { placeable.place((slot - hit) / 2, (slot - hit) / 2) }
+                        }
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onValueChange("") },
+                    contentAlignment = Alignment.Center,
+                ) { GldsFieldIcon(GldsIcon.Clear, GldsField.Placeholder) }
             }
+            trailingIcon?.let { GldsFieldIcon(it, iconTint, Modifier.padding(start = GldsField.SpaceIcon)) }
         }
-        (error ?: helper)?.let {
-            Text(it, fontSize = 12.sp, color = if (error != null) DangerText else TextSecondary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+        (shownError ?: helper)?.let {
+            Text(
+                it, style = LocalTextStyle.current.merge(GldsField.TypeHelper), color = if (shownError != null) DangerText else TextSecondary,
+                modifier = Modifier.padding(top = 6.dp, start = 2.dp),
+            )
         }
     }
 }
 
-/** 입력필드 위 라벨 — 13 SemiBold #6C727A, 아래 6. */
+/** 칸 안 아이콘 — Leading · Trailing · 지우기 ✕ 모두 18(GLDS 2.1 입력필드 8-A). iOS 는 SF Symbol 15pt 를 18 틀에 담는다. */
+@Composable
+private fun GldsFieldIcon(icon: GldsIcon, tint: Color, modifier: Modifier = Modifier) {
+    Icon(icon.vector, contentDescription = null, tint = tint, modifier = modifier.size(18.dp))
+}
+
+/** 입력필드 위 라벨 — 13 SemiBold #6C727A, 아래 6. Disabled 여도 색은 그대로다(2-B). */
 @Composable
 fun GldsFieldLabel(text: String, modifier: Modifier = Modifier) {
-    Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, modifier = modifier.padding(bottom = 6.dp))
+    Text(
+        text, style = LocalTextStyle.current.merge(GldsField.TypeLabel), color = TextSecondary,
+        modifier = modifier.padding(bottom = GldsField.SpaceLabel),
+    )
 }
 
 /**

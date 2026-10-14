@@ -91,6 +91,7 @@ import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsIcon
 import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.RosterSkeleton
@@ -295,7 +296,7 @@ fun EnkaRosterPage(
                         value = query,
                         onValueChange = { query = it },
                         placeholder = "캐릭터 이름 검색",
-                        trailingIcon = Icons.Default.Search,
+                        trailingIcon = GldsIcon.Search,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 10.dp)

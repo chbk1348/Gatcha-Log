@@ -687,7 +687,7 @@ struct AddSpendingView: View {
         sectionCard {
             // 누르는 필드 — 모양은 GLDS 입력필드, 탭하면 날짜 시트(Android GldsTextField(onClick) 와 같이).
             GldsTextField(label: "날짜", placeholder: "", text: .constant(DateUtil.shared.labelWithWeekday(millis: dateMillis)),
-                         trailingSystemImage: "calendar", onTap: { showDate = true })
+                         trailingIcon: .calendar, onTap: { showDate = true })
         }
     }
 
