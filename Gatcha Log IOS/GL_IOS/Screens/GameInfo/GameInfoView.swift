@@ -603,6 +603,11 @@ struct GameSchedulePage: View {
     @State private var tab = 0
     @State private var sched = SchedulePageData()
     @State private var showHoyoland = false
+    /// 보상 목록을 펼쳐 둔 일정들(열쇠는 게임 · 제목 · 시각 — Android `rememberSaveable(e.gameKey, e.title, e.target)` 과 같다).
+    ///
+    /// **줄이 아니라 페이지가 든다**(10/13). 줄은 `LazyVStack` 안에 있어 화면 밖으로 나가거나 목록이 다시 짜이면 새로 만들어지는데,
+    /// 펼침을 줄의 `@State` 로 두면 그때 접힌 값으로 되돌아간다 — iOS 18 에서 「N개 더 보기」를 눌러도 펼쳐지지 않는다는 지적이 있었다.
+    @State private var openRewards: Set<String> = []
 
     private var scheduleTitle: some View {
         Text("시작 · 종료")
@@ -648,7 +653,7 @@ struct GameSchedulePage: View {
                 if !sched.weeks.isEmpty { GiBand() }
                 ForEach(Array(sched.weeks.enumerated()), id: \.offset) { i, w in
                     Section {
-                        WeekEntries(week: w)
+                        WeekEntries(week: w, openRewards: $openRewards)
                         // 주 사이 띠는 **앞 주의 몸 끝**에 둔다(10/1) — 헤더 앞에 두면 고정 헤더와 같이 붙어 버린다.
                         if i < sched.weeks.count - 1 { GiBand() }
                     } header: {
@@ -770,6 +775,17 @@ private struct WeekHeader: View {
 /// 한 주의 **몸** — 그 주 항목 목록. 헤더가 고정된 채 이쪽만 흐른다.
 private struct WeekEntries: View {
     let week: ScheduleWeek
+    /// 보상 목록을 펼쳐 둔 일정들 — 페이지가 들고 있다(`GameSchedulePage.openRewards`).
+    @Binding var openRewards: Set<String>
+
+    /// 한 일정의 펼침 — 페이지의 묶음에서 그 열쇠만 읽고 쓴다.
+    private func rewardsOpen(_ e: ScheduleEntry) -> Binding<Bool> {
+        let key = "\(e.gameKey)|\(e.title)|\(e.target)"
+        return Binding(
+            get: { openRewards.contains(key) },
+            set: { open in if open { openRewards.insert(key) } else { openRewards.remove(key) } }
+        )
+    }
 
     var body: some View {
         // 빈 주도 **말을 해야 한다.** buildWeeks 는 일부러 빈 주를 남기는데(언제 한가한지도 정보다)
@@ -787,7 +803,7 @@ private struct WeekEntries: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(week.entries.enumerated()), id: \.offset) { i, e in
                     if i > 0 { Rectangle().fill(glEntryHair).frame(height: 1) }
-                    ScheduleRow(entry: e)
+                    ScheduleRow(entry: e, rewardsOpen: rewardsOpen(e))
                 }
             }
             .padding(.horizontal, 20).padding(.bottom, 8)
@@ -1046,8 +1062,8 @@ private struct PickupSlot: View {
 private struct ScheduleRow: View {
     let entry: ScheduleEntry
     @Environment(\.glgAccent) private var accent
-    /// 보상 목록 펼침 — 줄마다 따로 기억한다(접힌 채가 기본).
-    @State private var rewardsOpen = false
+    /// 보상 목록 펼침 — 일정마다 따로 기억한다(접힌 채가 기본). 값은 페이지가 들고 있다(`GameSchedulePage.openRewards`).
+    @Binding var rewardsOpen: Bool
 
     var body: some View {
         let mark = ScheduleLogicKt.scheduleMarkOf(entry: entry)

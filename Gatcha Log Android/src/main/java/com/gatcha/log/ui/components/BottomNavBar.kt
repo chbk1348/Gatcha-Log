@@ -229,7 +229,8 @@ private fun tabButtons(selectedTab: Int, accent: Color, onTabSelected: (Int) -> 
     tabButton(Icons.Outlined.Home, "홈", selectedTab == 0, accent) { onTabSelected(0) }
     tabButton(Icons.Outlined.AccountBalanceWallet, "지출", selectedTab == 1, accent) { onTabSelected(1) }
     tabButton(Icons.Outlined.SportsEsports, "게임 정보", selectedTab == 2, accent) { onTabSelected(2) }
-    tabButton(Icons.Outlined.Person, "마이페이지", selectedTab == 3, accent) { onTabSelected(3) }
+    // 탭 이름은 「My」다(10/13 지시 — 그 전에는 「마이페이지」, iOS 와 같다). 화면 안의 제목은 그대로다.
+    tabButton(Icons.Outlined.Person, "My", selectedTab == 3, accent) { onTabSelected(3) }
 }
 
 /**
