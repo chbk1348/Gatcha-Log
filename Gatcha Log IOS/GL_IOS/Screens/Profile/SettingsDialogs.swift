@@ -2,43 +2,48 @@ import SwiftUI
 import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
-// 설정 시트 — 업데이트 로그 · 출처. 예산은 BudgetSettingsView 페이지, 넛지 기준은 SettingsView 의 NudgeThresholdSheet.
+// 설정 화면의 하위 뷰 — 업데이트 로그 · 출처(가운데 모달). 예산은 BudgetSettingsView 페이지, 넛지 기준은 SettingsView 의 NudgeThresholdDialog(가운데 모달).
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── 출처 · 저작권 ─────────────────────────────────────────────────────────────
 
-struct CreditsSheet: View {
-    @Environment(\.dismiss) private var dismiss
+/// 출처 · 저작권 — **가운데 모달**(10/14). Android `CreditsDialog`(GlgDialog) 와 같은 모양 · 같은 값: 확인 버튼 하나, 본문은 420 까지 보이고 넘치면 스크롤.
+/// 그 전에는 시트였다.
+struct CreditsDialog: View {
+    let onDismiss: () -> Void
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                // 문구는 공유 정본(Credits)에서 읽는다 — Android 와 한 글자도 다르지 않아야 한다.
-                // 예전엔 양쪽에 따로 박혀 있어, 출처를 늘릴 때 한쪽만 고쳐질 위험이 있었다.
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(Credits.shared.disclaimer)
-                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    ForEach(Credits.shared.sections, id: \.label) { creditRow($0.label, $0.body) }
-                    Text(Credits.shared.notice)
-                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                }
-                .padding(20)
+        GlgDialog(title: "출처 · 저작권", confirmText: "확인", dismissText: nil, onDismiss: onDismiss, onConfirm: onDismiss) {
+            // 출처를 전부 적으니 한 화면에 안 들어간다 — 높이를 제한하고 스크롤을 준다(Android 와 같다).
+            ViewThatFits(in: .vertical) {
+                list
+                ScrollView { list }
             }
-            .background(GLGBackground { Color.clear })
-            .navigationTitle("출처 · 저작권")
-            .navigationBarTitleDisplayMode(.inline)
-            // 「확인」은 하단 GLDS 버튼(9/30) — Android CreditsDialog 와 같은 자리.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                GldsButton(title: "확인") { dismiss() }.padding(.horizontal, 20).padding(.vertical, 12)
-            }
+            .frame(maxHeight: 420)
         }
+    }
+
+    // 문구는 공유 정본(Credits)에서 읽는다 — Android 와 한 글자도 다르지 않아야 한다.
+    // 예전엔 양쪽에 따로 박혀 있어, 출처를 늘릴 때 한쪽만 고쳐질 위험이 있었다.
+    private var list: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(Credits.shared.disclaimer)
+                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(Credits.shared.sections, id: \.label) { creditRow($0.label, $0.body) }
+            Text(Credits.shared.notice)
+                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func creditRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
             Text(value).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

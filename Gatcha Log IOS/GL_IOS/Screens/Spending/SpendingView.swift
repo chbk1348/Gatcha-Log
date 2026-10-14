@@ -44,6 +44,8 @@ struct SpendingView: View {
     // 기간 지정(직접 범위) — 기본값은 '최근 한 달'. 시작>끝이면 판정에서 뒤집어 쓴다.
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customEnd: Date = Date()
+    /// 상세 필터의 기간 지정에서 달력 모달이 고르는 쪽 — 0 시작 · 1 종료 · nil 닫힘.
+    @State private var filterPickTarget: Int? = nil
     @State private var showStartPicker = false
     @State private var showEndPicker = false
     @State private var showScrollTop = false
@@ -380,13 +382,23 @@ struct SpendingView: View {
             GldsButton(title: "취소", variant: .neutral, size: .s, fullWidth: false) { selectionMode = false; selectedIds = [] }
             GldsButton(title: "삭제", variant: .danger, size: .s, fullWidth: false) {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") }
-                else { confirmBulkDelete = true }
+                else { glgDialogStill { confirmBulkDelete = true } }
             }
-            .confirmationDialog("\(selectedIds.count)건을 삭제할까요?", isPresented: $confirmBulkDelete, titleVisibility: .visible) {
-                Button("삭제", role: .destructive) {
-                    store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = []
+            // 가운데 모달(10/14) — Android 의 GlgDialog 와 같은 모양 · 같은 글. 그 전에는 액션 시트였는데,
+            // iPad · Duo 에서는 누른 자리 옆 팝오버로 떠 위치가 기기마다 달랐다(입력 버리기 확인과 같은 이유).
+            .glgDialogCover(isPresented: $confirmBulkDelete) {
+                GlgDialog(
+                    title: "\(selectedIds.count)건을 삭제할까요?", confirmText: "삭제",
+                    onDismiss: { glgDialogStill { confirmBulkDelete = false } },
+                    onConfirm: {
+                        glgDialogStill { confirmBulkDelete = false }
+                        store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = []
+                    }
+                ) {
+                    Text("삭제한 지출은 되돌릴 수 없어요.").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } message: { Text("삭제한 지출은 되돌릴 수 없어요.") }
+            }
             GldsButton(title: "일괄 편집", size: .s, fullWidth: false) {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") } else { showBulkEdit = true }
             }
@@ -625,18 +637,28 @@ struct SpendingView: View {
     }
 
     // 기간 지정 — 시작·종료 날짜. 종료일은 **그날 전체를 포함**한다(자정 경계에서 하루가 빠져 보이지 않게).
+    // 칩 둘(「시작 …」 · 「종료 …」)을 누르면 앱 공통 달력 모달이 시트 위에 뜬다(10/14) — Android 상세 필터와 같은 구성이다.
+    // 그 전에는 시스템 날짜 컨트롤 두 줄이었다.
     private var customRangePickers: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            DatePicker(selection: $customStart, displayedComponents: .date) {
-                Text("시작").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            }
-            DatePicker(selection: $customEnd, displayedComponents: .date) {
-                Text("종료").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            }
+        HStack(spacing: 8) {
+            GldsChip(label: "시작 \(DateUtil.shared.dayKey(millis: millis(customStart)))") { glgDialogStill { filterPickTarget = 0 } }
+            GldsChip(label: "종료 \(DateUtil.shared.dayKey(millis: millis(customEnd)))") { glgDialogStill { filterPickTarget = 1 } }
         }
-        .datePickerStyle(.compact)
-        .tint(accent.primary)
+        .glgDialogCover(isPresented: Binding(get: { filterPickTarget != nil }, set: { if !$0 { filterPickTarget = nil } })) {
+            let target = filterPickTarget ?? 0
+            GLGDatePickerDialog(
+                initialMillis: millis(target == 0 ? customStart : customEnd),
+                onDismiss: { glgDialogStill { filterPickTarget = nil } },
+                onConfirm: { m in
+                    let picked = Date(timeIntervalSince1970: Double(m) / 1000)
+                    if target == 0 { customStart = picked } else { customEnd = picked }
+                    glgDialogStill { filterPickTarget = nil }
+                }
+            )
+        }
     }
+
+    private func millis(_ d: Date) -> Int64 { Int64(d.timeIntervalSince1970 * 1000) }
 
     /// 기간 지정 범위를 밀리초 [시작, 끝) 으로. 시작>끝이면 뒤집어 준다(빈 결과 대신 의도대로).
     private var customRangeMillis: (Int64, Int64) {
@@ -884,7 +906,7 @@ private struct BulkEditSheet: View {
                     }
                     section("날짜") {
                         HStack(spacing: 8) {
-                            GamePill(label: date.map { label($0) } ?? "변경 안 함", selected: date != nil, accent: accent.primary) { showDate = true }
+                            GamePill(label: date.map { label($0) } ?? "변경 안 함", selected: date != nil, accent: accent.primary) { glgDialogStill { showDate = true } }
                             if date != nil { GamePill(label: "지우기", selected: false, accent: accent.primary) { date = nil } }
                         }
                     }
@@ -909,17 +931,17 @@ private struct BulkEditSheet: View {
                         .disabled(game == nil && date == nil && tags.isEmpty)
                 }
             }
-            .sheet(isPresented: $showDate) {
-                NavigationStack {
-                    DatePicker("날짜", selection: Binding(get: { date ?? Date() }, set: { date = $0 }), displayedComponents: .date)
-                        .datePickerStyle(.graphical).padding()
-                        // 보이는 값(오늘)을 그대로 확인해도 적용되게 — 안 건드리면 date 가 nil 로 남아 '변경 안 함'이었다.
-                        .onAppear { if date == nil { date = Date() } }
-                        .navigationTitle("날짜 선택").navigationBarTitleDisplayMode(.inline)
-                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { showDate = false } } }
-                }
-                .presentationDetents([.medium])
-                .presentationBackground(Color.white)
+            // 날짜 선택 — 앱 공통 달력 모달이 시트 위에 뜬다(10/14, Android 일괄 편집과 같다). 그 전에는 시스템 달력 시트였다.
+            // 보이는 값(오늘)을 그대로 확인해도 적용된다 — 취소하면 '변경 안 함' 그대로다.
+            .glgDialogCover(isPresented: $showDate) {
+                GLGDatePickerDialog(
+                    initialMillis: Int64((date ?? Date()).timeIntervalSince1970 * 1000),
+                    onDismiss: { glgDialogStill { showDate = false } },
+                    onConfirm: { m in
+                        date = Date(timeIntervalSince1970: Double(m) / 1000)
+                        glgDialogStill { showDate = false }
+                    }
+                )
             }
         }
         .presentationDetents([.medium, .large])
