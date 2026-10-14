@@ -83,7 +83,7 @@ struct HoyolandMapView: View {
                     Button { withAnimation(.spring(duration: 0.45, bounce: 0.12)) { rotated.toggle() } } label: {
                         // `rotate.right` 는 화살표가 한쪽 모서리에 붙은 비대칭 기호라 원형 버튼 안에서 왼쪽 아래로
                         // 쏠려 보였다(윤곽 -4 · 무게중심 +3.5 / 64pt, 2026-09-28 지적). 가운데가 맞는 기호로 바꾼다.
-                        Image(systemName: "rectangle.portrait.rotate")
+                        GLGLineIcon("IconRotate")
                     }
                     .accessibilityLabel(rotated ? "세로로 보기" : "가로로 보기")
                 }

@@ -58,12 +58,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ShoppingBag
@@ -547,7 +545,7 @@ fun HoyolandDetailPage(
                         if (e.goodsGuide.isNotBlank()) {
                             com.gatcha.log.ui.components.GlgCircleIconButton(
                                 // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
-                                Icons.Outlined.Info, "굿즈존 이용 안내", outlined = true, solidBackground = true,
+                                com.gatcha.log.ui.components.GlgLineIcons.Info, "굿즈존 이용 안내", outlined = true, solidBackground = true,
                             ) { goodsGuideOpen = true }
                         }
                     },
@@ -600,7 +598,7 @@ fun HoyolandDetailPage(
                     // 화면 돌리기 — 가로로 긴 도면을 눕혀 페이지를 꽉 채운다. 돌린 동안은 스크롤하지 않는다.
                     actions = {
                         GlgCircleIconButton(
-                            Icons.Outlined.ScreenRotation,
+                            com.gatcha.log.ui.components.GlgLineIcons.Rotate,
                             if (mapRotated) "세로로 보기" else "가로로 보기",
                             // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
                             outlined = true, solidBackground = true,
@@ -684,7 +682,7 @@ fun HoyolandDetailPage(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
-                                    Icons.Default.ConfirmationNumber,
+                                    com.gatcha.log.ui.components.GlgLineIcons.Ticket,
                                     contentDescription = null,
                                     tint = if (entryDays == 0) TextSecondary else accentDeep,
                                     modifier = Modifier.size(17.dp),

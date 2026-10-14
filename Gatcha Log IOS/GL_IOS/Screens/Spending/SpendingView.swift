@@ -44,16 +44,11 @@ struct SpendingView: View {
     // 기간 지정(직접 범위) — 기본값은 '최근 한 달'. 시작>끝이면 판정에서 뒤집어 쓴다.
     @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var customEnd: Date = Date()
-    /// 상세 필터의 기간 지정에서 달력 모달이 고르는 쪽 — 0 시작 · 1 종료 · nil 닫힘.
-    @State private var filterPickTarget: Int? = nil
     @State private var showStartPicker = false
     @State private var showEndPicker = false
     @State private var showScrollTop = false
     @State private var paymentFilter: String? = nil
     @State private var sortOrder: SortOrder = .dateDesc
-    @State private var showFilter = false
-    /// 열려 있는 퀵필터 드롭다운("period" · "game" · "sort"). nil 이면 닫힘.
-    @State private var openQuickMenu: String? = nil
     @State private var selectedIds: Set<String> = []
     @State private var showBulkEdit = false
     /// 일괄 삭제 확인 — 예전엔 누르는 즉시 지워졌다(단건 삭제는 묻는데 여기만 빠져 있었다).
@@ -62,11 +57,6 @@ struct SpendingView: View {
     // 다시 필터·정렬·그룹하지 않는다. 데이터/필터/정렬이 바뀔 때만 recompute 로 갱신.
     @State private var displayGroups: [DayGroup] = []
     @State private var listIsEmpty = true
-
-    private var activeFilterCount: Int {
-        [!gameFilters.isEmpty, period != .all, paymentFilter != nil, sortOrder != .dateDesc]
-            .filter { $0 }.count
-    }
 
     /// iPad = 좌 목록 / 우 상세. iPhone = 기존 단일 목록(누르면 push).
     var body: some View {
@@ -142,8 +132,6 @@ struct SpendingView: View {
         .scrollIndicators(.hidden)
         // 퀵필터 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다(9/30) — 자르지 않는다.
         .scrollClipDisabled()
-        // 퀵필터 드롭다운은 목록 위 층에 그린다 — 줄에 가리거나 잘리지 않고, 바깥을 누르면 닫힌다.
-        .gldsDropdownHost(open: $openQuickMenu) { quickMenuItems($0) }
         .refreshable {
             store.refreshSpending()
             // 동기화가 끝날 때까지 스피너를 붙잡는다 — 바로 돌아오면 끝나기도 전에 스피너가 걷혔다.
@@ -202,7 +190,7 @@ struct SpendingView: View {
                         CalendarView(store: store)
                             .onAppear { store.spendingSubpageOpen = true }
                             .onDisappear { store.spendingSubpageOpen = false }
-                    } label: { Image(systemName: "calendar") }
+                    } label: { GLGLineIcon("IconCalendar", label: "캘린더") }
                 }
                 if #available(iOS 26.0, *) {
                     ToolbarSpacer(.fixed, placement: .topBarLeading)
@@ -212,40 +200,16 @@ struct SpendingView: View {
                         SpendingInsightView(store: store)
                             .onAppear { store.spendingSubpageOpen = true }
                             .onDisappear { store.spendingSubpageOpen = false }
-                    } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
+                    } label: { GLGLineIcon("IconInsight", label: "인사이트") }
                 }
             }
 
             // 선택 모드의 「취소」는 하단 선택 바에 있다 — 여기엔 아무것도 두지 않는다.
-            if !selectionMode && isDuo && !isWideCanvas {
-                // 접은 iPhone Duo 는 **우리 메뉴 하나로 접는다.** 세로 바에 자리가 모자라 시스템이
-                // 선택·필터를 `•••` 로 접는데, 그 메뉴가 열리지 않았다(2026-09-28 — 상세 화면 2026-09-21 과
-                // 같은 증상, SpendingDetailView 참고). 항목을 하나로 줄여 시스템이 접을 일을 없앤다.
+            // 필터 버튼은 없앴다(10/14 「상세 필터 버튼 제거 후 퀵필터로 기능 이관」) — 걸 수 있는 조건은 모두 목록 위 퀵필터에 있다.
+            // 오른쪽이 「선택」 하나라 접은 iPhone Duo 에서도 시스템이 `•••` 로 접을 일이 없다(예전엔 둘이라 우리 메뉴로 묶었다).
+            if !selectionMode {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button { selectionMode = true; selectedIds = [] } label: {
-                            Label("선택", systemImage: "checklist")
-                        }
-                        Button { showFilter = true } label: {
-                            Label(activeFilterCount > 0 ? "필터 (\(activeFilterCount))" : "필터",
-                                  systemImage: "line.3.horizontal.decrease.circle")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                    }
-                }
-            } else if !selectionMode {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { selectionMode = true; selectedIds = [] } label: { Image(systemName: "checklist") }
-                }
-                if #available(iOS 26.0, *) {
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    // 필터 — 활성 시 채움 아이콘.
-                    Button { showFilter = true } label: {
-                        Image(systemName: activeFilterCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                    }
+                    Button { selectionMode = true; selectedIds = [] } label: { GLGLineIcon("IconSelect", label: "선택") }
                 }
             }
         }
@@ -257,7 +221,6 @@ struct SpendingView: View {
             }
         }
         .animation(GLGMotion.standard(), value: selectionMode)
-        .sheet(isPresented: $showFilter) { filterSheet }
         .sheet(isPresented: $showBulkEdit) {
             BulkEditSheet(store: store, count: selectedIds.count) { game, dateMillis, tags in
                 store.bulkEditSpendings(ids: selectedIds, gameName: game, dateMillis: dateMillis, addTags: tags)
@@ -294,7 +257,8 @@ struct SpendingView: View {
                 }
                 // iOS 26+ 는 시스템 글래스 원형, iOS 18 은 불투명 흰 원(→ glgFloatingCircleButton).
                 // 지름은 바로 아래 '추가' 버튼과 같게 맞춘다 — 우측 하단에 세로로 나란히 뜬다.
-                .glgFloatingCircleButton(tint: accent.primary, diameter: GLGLegacyAddButton.size)
+                // iOS 18 아이폰은 아래 '추가' 원(떠 있는 탭 툴바)과 **같은 모양**으로 그린다 — 크기는 48 그대로(10/14).
+                .modifier(ScrollTopStyle(tint: accent.primary))
                 // 우측 자리도 '추가' 버튼에 맞춘다 — 두 원이 세로로 정확히 겹쳐 보여야 한다.
                 // iOS 26+ 아이폰은 '추가'가 탭 바 옆의 시스템 원이고 이 버튼(시스템 글래스)과 지름이 달라, 오른쪽 여백만
                 // 같게 두면 가운데가 4pt 어긋났다(10/12 지적). '추가' 원과 같은 폭의 칸을 잡고 그 가운데에 세운다.
@@ -304,10 +268,23 @@ struct SpendingView: View {
                 // 기준 좌표계가 서로 달라(추가=TabView 바깥/여긴 탭 안쪽) 눈으로는 둘 다
                 // "바닥에서 조금 띄운" 값인데 실제 높이가 같아진다. 그만큼 위로 비켜난다.
                 // iOS 26+ 는 '추가'가 탭바 안이라 여백이 0 이고 배치도 그대로다.
-                .padding(.bottom, 12 + GLGLegacyAddButton.contentClearanceIfNeeded)
+                // iOS 18 아이폰은 탭 화면이 이미 툴바 위 [GLGFloatingTabBar.contentGap](= 캡슐과 '추가' 원 사이)에서 끝나므로 0.
+                .padding(.bottom, GLGFloatingTabBar.isActive ? 0 : 12 + GLGLegacyAddButton.contentClearanceIfNeeded)
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
+        }
+    }
+
+    /// 맨 위로 버튼 모양 — iOS 18 아이폰은 떠 있는 탭 툴바의 '추가' 원과 같게([glgTabBarCircle]), 그 밖은 예전 그대로.
+    private struct ScrollTopStyle: ViewModifier {
+        let tint: Color
+        func body(content: Content) -> some View {
+            if GLGFloatingTabBar.isActive {
+                content.buttonStyle(.plain).foregroundStyle(GLGColor.textPrimary).glgTabBarCircle(diameter: GLGLegacyAddButton.size)
+            } else {
+                content.glgFloatingCircleButton(tint: tint, diameter: GLGLegacyAddButton.size)
+            }
         }
     }
 
@@ -317,7 +294,8 @@ struct SpendingView: View {
     /// '맨 위로'를 탭 바의 '추가' 원에 가운데 맞추는가 — iOS 26+ **아이폰만**. 듀오 · 아이패드는 '추가'가 옆 · 위에 있다.
     private var alignsScrollTopWithTabBarAdd: Bool {
         if #available(iOS 26.0, *) { return GLGFormFactor.current == .phone }
-        return false
+        // iOS 18 아이폰도 '추가'가 떠 있는 탭 툴바 옆 원이다(10/14, [GLGFloatingTabBar]) — 같은 자리 · 같은 지름.
+        return GLGFloatingTabBar.isActive
     }
 
 
@@ -411,18 +389,6 @@ struct SpendingView: View {
     }
 
 
-    // 게임 칩(필터 시트) — 다중 선택. '전체'=선택 해제, 게임=토글(선택 색은 게임별 대표색).
-    @ViewBuilder private func gameChip(_ key: String) -> some View {
-        if key.isEmpty {
-            GamePill(label: "전체", selected: gameFilters.isEmpty, accent: accent.primary) { gameFilters = [] }
-        } else if let g = GameData.shared.byNameOrNull(name: key) {
-            GamePill(label: g.shortName, selected: gameFilters.contains(g.displayName), accent: Color(argb64: g.color)) {
-                if gameFilters.contains(g.displayName) { gameFilters.remove(g.displayName) }
-                else { gameFilters.insert(g.displayName) }
-            }
-        }
-    }
-
     private var emptyState: some View {
         VStack(spacing: 6) {
             Image(systemName: "doc.text").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
@@ -443,24 +409,20 @@ struct SpendingView: View {
 
     // ── 퀵필터 (리스트 상단) ──
     //
-    // **드롭다운 3개**(기간·게임·정렬) + 걸린 나머지 필터 해제 줄.
+    // **드롭다운 4개**(기간·게임·결제·정렬) — 지출 목록에 거는 조건은 **여기가 전부다**(10/14, 상세 필터 시트를 없애고 옮겼다).
     // 칩을 축마다 늘어놓으면 기간만 5개라 줄이 금방 넘쳤다. 축 하나당 알약 하나로 접고, 열면
     // 시스템 메뉴에서 고른다. 알약 라벨은 **기본값이면 축 이름, 아니면 고른 값** — 접힌 상태에서도
     // 지금 뭐가 걸렸는지 읽힌다.
-    //
-    // 결제 수단·구분은 드롭다운으로 두지 않는다(자주 안 바뀐다). 걸려 있으면 아랫줄에 해제 칩으로 뜬다.
     private var quickFilters: some View {
         VStack(alignment: .leading, spacing: 6) {
             // 스크롤뷰에 넣지 않는다(9/30) — iOS 26 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다.
-            // GLDS 칩 3개라 한 줄에 들어간다.
-                HStack(spacing: 6) {
-                    // 기간 — 단일 선택. 항목은 [quickMenuItems] 가 그린다.
-                    quickMenu("period", label: period == .all ? "기간" : period.rawValue, active: period != .all)
-                    // 날짜 두 칸은 이 줄에 두지 않는다 — '기간 지정'일 때만 아랫줄로 펼친다.
-                    // 게임 — 다중 선택이라 고를 때마다 닫지 않는다(Android 와 같다).
-                    quickMenu("game", label: gameMenuLabel, active: !gameFilters.isEmpty)
-                    // 정렬 — 거르는 게 아니라 늘어놓는 방식이지만, 기간만큼 자주 바꾼다.
-                    quickMenu("sort", label: sortOrder == .dateDesc ? "정렬" : sortOrder.rawValue, active: sortOrder != .dateDesc)
+            // 한 줄에 넘치면(고른 값이 긴 라벨일 때 · 좁은 화면) 두 줄로 나눈다.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) { periodMenu; gameMenu; paymentMenu; sortMenu }
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) { periodMenu; gameMenu }
+                        HStack(spacing: 6) { paymentMenu; sortMenu }
+                    }
                 }
                 .padding(.vertical, 4)
                 // 라벨이 바뀌며 칩 폭이 변할 때 줄 전체가 미끄러지지 않게 — 레이아웃 애니메이션을 끊는다.
@@ -478,27 +440,20 @@ struct SpendingView: View {
                     ),
                 )
             }
-
-            // 드롭다운에 없는 필터가 걸려 있으면 해제 칩. 없으면 줄 자체가 사라져 공간을 안 먹는다.
-            if hasOtherFilters {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 6) {
-                        if let m = paymentFilter {
-                            GldsChip(label: m, selected: true, removable: true) { paymentFilter = nil }
-                        }
-                    }
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 1)
-                }
-                .scrollIndicators(.hidden)
-                .scrollClipDisabled()
-                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-            }
         }
         .padding(.bottom, 4)
         .animation(GLGMotion.standard(), value: period)
         // clipped() 는 쓰지 않는다 — 글래스 버튼의 하이라이트까지 잘려 위아래가 깎여 보인다.
     }
+
+    // 기간 — 단일 선택. 날짜 두 칸은 이 줄에 두지 않는다 — '기간 지정'일 때만 아랫줄로 펼친다.
+    private var periodMenu: some View { quickMenu("period", label: period == .all ? "기간" : period.rawValue, active: period != .all) }
+    // 게임 — 다중 선택이라 고를 때마다 닫지 않는다(Android 와 같다).
+    private var gameMenu: some View { quickMenu("game", label: gameMenuLabel, active: !gameFilters.isEmpty) }
+    // 결제 수단 — 단일 선택(10/14 상세 필터에서 옮김).
+    private var paymentMenu: some View { quickMenu("payment", label: paymentFilter ?? "결제", active: paymentFilter != nil) }
+    // 정렬 — 거르는 게 아니라 늘어놓는 방식이지만, 기간만큼 자주 바꾼다.
+    private var sortMenu: some View { quickMenu("sort", label: sortOrder == .dateDesc ? "정렬" : sortOrder.rawValue, active: sortOrder != .dateDesc) }
 
     /// 기간 지정 줄 — 시작 ~ 종료.
     ///
@@ -538,40 +493,49 @@ struct SpendingView: View {
     }()
     private func dateChipLabel(_ d: Date) -> String { Self.dateChipFormatter.string(from: d) }
 
-    /// 퀵필터 알약 하나 — 누르면 GLDS 드롭다운이 그 아래에 열린다([quickMenuItems]).
+    /// 퀵필터 알약 하나 — 누르면 **시스템 메뉴**가 알약에서 열린다([quickMenuItems]).
     ///
-    /// 예전엔 시스템 `Menu` 였다. 항목 글자가 시스템 크기(17)라 앱의 다른 글자보다 크게 떴고 바꿀 방법이 없어,
-    /// Android 와 같은 드롭다운(항목 14)을 직접 그린다(10/12 「지출 필터 폰트크기가 너무 큼」).
+    /// 10/12 에 「지출 필터 폰트크기가 너무 큼」으로 GLDS 드롭다운(항목 14)을 직접 그렸다가, 10/14 지시로 시스템 메뉴로
+    /// 되돌렸다 — 항목 글자는 시스템 크기(17)다. 알약 모양은 그대로 GLDS 칩([GldsChipLabel])이다.
     private func quickMenu(_ id: String, label: String, active: Bool) -> some View {
-        GldsChip(label: label, selected: active, dropdown: true) {
-            openQuickMenu = openQuickMenu == id ? nil : id
+        Menu {
+            quickMenuItems(id)
+        } label: {
+            GldsChipLabel(label: label, selected: active, dropdown: true)
         }
         .fixedSize()
-        .gldsMenuAnchor(id)
     }
 
-    /// 열린 퀵필터 드롭다운의 항목 — Android `QuickFilterBar` 와 같은 목록 · 같은 닫힘 규칙
-    /// (단일 선택 축은 고르면 닫고, 게임은 여러 개를 연달아 켜도록 열어 둔다).
+    /// 퀵필터 메뉴 항목 — Android `QuickFilterBar` 와 같은 목록 · 같은 닫힘 규칙
+    /// (단일 선택 축은 고르면 닫고, 게임은 여러 개를 연달아 켜도록 열어 둔다). 고른 항목은 시스템 체크 표시로 보인다.
     @ViewBuilder
     private func quickMenuItems(_ id: String) -> some View {
         switch id {
         case "period":
-            ForEach(PeriodFilter.allCases, id: \.self) { p in
-                GldsDropdownItem(text: p.rawValue, selected: period == p) { period = p; openQuickMenu = nil }
+            Picker("기간", selection: $period) {
+                ForEach(PeriodFilter.allCases, id: \.self) { p in Text(p.rawValue).tag(p) }
             }
         case "game":
-            GldsDropdownItem(text: "전체", selected: gameFilters.isEmpty) { gameFilters = []; openQuickMenu = nil }
+            Button { gameFilters = [] } label: {
+                if gameFilters.isEmpty { Label("전체", systemImage: "checkmark") } else { Text("전체") }
+            }
             ForEach(GLGGames.keys, id: \.self) { key in
                 if let g = GameData.shared.byNameOrNull(name: key) {
-                    GldsDropdownItem(text: g.shortName, selected: gameFilters.contains(g.displayName)) {
-                        if gameFilters.contains(g.displayName) { gameFilters.remove(g.displayName) }
-                        else { gameFilters.insert(g.displayName) }
-                    }
+                    Toggle(g.shortName, isOn: Binding(
+                        get: { gameFilters.contains(g.displayName) },
+                        set: { on in if on { gameFilters.insert(g.displayName) } else { gameFilters.remove(g.displayName) } },
+                    ))
+                    .menuActionDismissBehavior(.disabled)
                 }
             }
+        case "payment":
+            Picker("결제 수단", selection: $paymentFilter) {
+                Text("전체").tag(String?.none)
+                ForEach(GameData.shared.paymentMethods, id: \.self) { m in Text(m).tag(Optional(m)) }
+            }
         default:
-            ForEach(SortOrder.allCases, id: \.self) { s in
-                GldsDropdownItem(text: s.rawValue, selected: sortOrder == s) { sortOrder = s; openQuickMenu = nil }
+            Picker("정렬", selection: $sortOrder) {
+                ForEach(SortOrder.allCases, id: \.self) { s in Text(s.rawValue).tag(s) }
             }
         }
     }
@@ -585,79 +549,6 @@ struct SpendingView: View {
         return "게임 \(gameFilters.count)"
     }
 
-    /// 드롭다운이 안 다루는 필터가 걸려 있는가 — 없으면 해제 줄을 아예 그리지 않는다.
-    private var hasOtherFilters: Bool {
-        paymentFilter != nil
-    }
-
-    // ── 필터 시트 ──
-    private var filterSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    // 게임 — 다중 선택(헤더 필터버튼 → 시트). 인라인 게임필터 행 폐지.
-                    filterSection("게임") {
-                        FlexibleRow([""] + GLGGames.keys) { key in gameChip(key) }
-                    }
-                    filterSection("기간") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            pillWrap(PeriodFilter.allCases, period) { period = $0 } label: { $0.rawValue }
-                            // '기간 지정'을 고른 경우에만 날짜 두 칸을 편다 — 평소엔 시트가 길어지지 않는다.
-                            if period == .custom {
-                                Divider().overlay(GLGColor.divider)
-                                customRangePickers
-                            }
-                        }
-                    }
-                    filterSection("결제 수단") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack { GamePill(label: "전체", selected: paymentFilter == nil, accent: accent.primary) { paymentFilter = nil }; Spacer() }
-                            pillWrapStr(GameData.shared.paymentMethods, paymentFilter) { paymentFilter = $0 }
-                        }
-                    }
-                    filterSection("정렬") { pillWrap(SortOrder.allCases, sortOrder) { sortOrder = $0 } label: { $0.rawValue } }
-                }
-                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
-            }
-            .scrollIndicators(.hidden)
-            .background(Color.white)
-            .navigationTitle("상세 필터")
-            .navigationBarTitleDisplayMode(.inline)
-            // 초기화 · 적용은 시트 아래 GLDS 버튼 쌍(Android 와 같이, 폭 1 : 1.4).
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                SpendingButtonPair(secondary: "초기화", primary: "적용", ratio: 1.4, onSecondary: {
-                    gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
-                    customStart = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
-                    customEnd = Date()
-                }, onPrimary: { showFilter = false })
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .presentationBackground(Color.white)
-    }
-
-    // 기간 지정 — 시작·종료 날짜. 종료일은 **그날 전체를 포함**한다(자정 경계에서 하루가 빠져 보이지 않게).
-    // 칩 둘(「시작 …」 · 「종료 …」)을 누르면 앱 공통 달력 모달이 시트 위에 뜬다(10/14) — Android 상세 필터와 같은 구성이다.
-    // 그 전에는 시스템 날짜 컨트롤 두 줄이었다.
-    private var customRangePickers: some View {
-        HStack(spacing: 8) {
-            GldsChip(label: "시작 \(DateUtil.shared.dayKey(millis: millis(customStart)))") { glgDialogStill { filterPickTarget = 0 } }
-            GldsChip(label: "종료 \(DateUtil.shared.dayKey(millis: millis(customEnd)))") { glgDialogStill { filterPickTarget = 1 } }
-        }
-        .glgDialogCover(isPresented: Binding(get: { filterPickTarget != nil }, set: { if !$0 { filterPickTarget = nil } })) {
-            let target = filterPickTarget ?? 0
-            GLGDatePickerDialog(
-                initialMillis: millis(target == 0 ? customStart : customEnd),
-                onDismiss: { glgDialogStill { filterPickTarget = nil } },
-                onConfirm: { m in
-                    let picked = Date(timeIntervalSince1970: Double(m) / 1000)
-                    if target == 0 { customStart = picked } else { customEnd = picked }
-                    glgDialogStill { filterPickTarget = nil }
-                }
-            )
-        }
-    }
-
     private func millis(_ d: Date) -> Int64 { Int64(d.timeIntervalSince1970 * 1000) }
 
     /// 기간 지정 범위를 밀리초 [시작, 끝) 으로. 시작>끝이면 뒤집어 준다(빈 결과 대신 의도대로).
@@ -669,30 +560,6 @@ struct SpendingView: View {
         let hiDay = max(a, b)
         let hi = cal.date(byAdding: .day, value: 1, to: hiDay) ?? hiDay
         return (Int64(lo.timeIntervalSince1970 * 1000), Int64(hi.timeIntervalSince1970 * 1000))
-    }
-
-    // 필터 섹션 카드 — 제목(카드 위) + 연회색 카드(지출 추가 모달 sectionCard·Android FilterGroup 과 동일 규격).
-    @ViewBuilder
-    private func filterSection<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(title).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
-    }
-
-    private func pillWrap<T: Equatable & Hashable>(_ all: [T], _ sel: T, _ set: @escaping (T) -> Void,
-                                                   label: @escaping (T) -> String) -> some View {
-        FlexibleRow(all) { item in
-            GamePill(label: label(item), selected: item == sel, accent: accent.primary) { set(item) }
-        }
-    }
-    private func pillWrapStr(_ all: [String], _ sel: String?, _ set: @escaping (String) -> Void) -> some View {
-        FlexibleRow(all) { item in
-            GamePill(label: item, selected: item == sel, accent: accent.primary) { set(item) }
-        }
     }
 
     // ── 필터링 ──
@@ -975,7 +842,6 @@ struct FlexibleRow<Data: RandomAccessCollection, Content: View>: View where Data
 }
 
 /// 화면 · 시트 아래 GLDS 버튼 쌍 — 보조(Secondary) : 주(Primary) 폭을 Android Row weight 와 같은 비율로 나눈다.
-/// 지출 추가 · 상세 필터 · 일괄 편집이 같이 쓴다.
 struct SpendingButtonPair: View {
     let secondary: String
     let primary: String

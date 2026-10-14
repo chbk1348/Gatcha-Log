@@ -110,7 +110,7 @@ struct GameInfoView: View {
                         // 지웠다 다시 그려져 누를 때마다 사라졌다 나타났다.
                         Button { store.refreshCombatClears(force: true) } label: {
                             ZStack {
-                                Image(systemName: "arrow.clockwise").opacity(store.combatClearsLoading ? 0 : 1)
+                                GLGLineIcon("IconRefresh", label: "새로고침").opacity(store.combatClearsLoading ? 0 : 1)
                                 if store.combatClearsLoading { GldsSpinner(size: 17, lineWidth: 2) }
                             }
                         }
@@ -203,26 +203,26 @@ struct GameInfoView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         if store.hoyolabConfig.isLinked {
-                            Button { showGift = true } label: { Label("리딤코드", systemImage: "gift") }
+                            Button { showGift = true } label: { Label("리딤코드", image: "IconGift") }
                         }
-                        Button { showHoyolab = true } label: { Label("HoYoLAB 연동", systemImage: "key.fill") }
+                        Button { showHoyolab = true } label: { Label("HoYoLAB 연동", image: "IconLink") }
                     } label: {
-                        Image(systemName: "ellipsis")
+                        GLGLineIcon("IconMore", label: "더보기")
                     }
                 }
             } else {
             if store.hoyolabConfig.isLinked {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showGift = true } label: { Image(systemName: "gift") }
+                    Button { showGift = true } label: { GLGLineIcon("IconGift", label: "리딤코드") }
                 }
                 if #available(iOS 26.0, *) {
                     ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                // 톱니는 마이페이지의 '설정'과 겹친다 — 여기서 여는 건 앱 설정이 아니라
-                // **HoYoLAB 쿠키를 넣는 곳**이라 열쇠를 쓴다. (Android `Icons.Default.Key` 와 파리티)
-                Button { showHoyolab = true } label: { Image(systemName: "key.fill") }
+                // 톱니는 마이페이지의 '설정'과 겹친다 — 여기서 여는 건 앱 설정이 아니라 HoYoLAB 연동이라
+                // 맞물린 고리 둘을 쓴다(10/14, 열쇠는 선이 가늘어 보여 바꿨다). Android `GlgLineIcons.Link` 와 같은 그림.
+                Button { showHoyolab = true } label: { GLGLineIcon("IconLink", label: "HoYoLAB 연동") }
             }
             }
     }
@@ -235,7 +235,7 @@ struct GameInfoView: View {
                 // 아이콘과 스피너를 **겹쳐 두고 보이기만** 바꾼다 — 내용을 갈아 끼우면 헤더 글래스 버튼이
                 // 지웠다 다시 그려져 사라졌다 나타났다(9/30). 스피너는 Android 와 같은 GldsSpinner.
                 ZStack {
-                    Image(systemName: "arrow.clockwise").opacity(store.isRefreshing ? 0 : 1)
+                    GLGLineIcon("IconRefresh", label: "새로고침").opacity(store.isRefreshing ? 0 : 1)
                     if store.isRefreshing { GldsSpinner(size: 17, lineWidth: 2) }
                 }
             }

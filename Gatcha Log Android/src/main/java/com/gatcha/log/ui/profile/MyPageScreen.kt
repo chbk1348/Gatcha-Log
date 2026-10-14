@@ -55,6 +55,7 @@ import com.gatcha.log.data.TaskStats
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
@@ -212,7 +213,7 @@ fun MyPageScreen(
             // 제목도 헤더 버튼 톤의 불투명 알약(콘텐츠 비침 방지) — 하위 페이지 헤더와 같은 컴포넌트.
             leading = { GlgHeaderTitlePill("마이페이지") },
         ) {
-            GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true, solidBackground = true) { showSettings.value = true }
+            GlgCircleIconButton(GlgLineIcons.Settings, "설정", outlined = true, solidBackground = true) { showSettings.value = true }
         }
     }
     }

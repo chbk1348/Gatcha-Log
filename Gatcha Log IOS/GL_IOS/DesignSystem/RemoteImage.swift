@@ -207,3 +207,27 @@ extension GLGRemoteImage where Placeholder == Color {
         self.init(url: url, side: side, contentMode: contentMode) { Color.clear }
     }
 }
+
+/// 하단 탭의 프로필 사진 치수(10/14) — 라인 원(두께 2) + 틈 1.5 + 사진 19 = 바깥 26. Android `BottomNavBar` 의 `TAB_PHOTO_*` 와 같다.
+enum GLGTabPhoto {
+    /// 탭 아이콘(26 — 10/14 「약간만 더 키워」, `Tab*` 에셋)과 같다 — 28 이었을 때 다른 탭 아이콘보다 눈에 띄게 컸다(10/14 「툴바 아이콘 크기는 모두 동일」).
+    static let outer: CGFloat = 26
+    static let ring: CGFloat = 2
+    static let gap: CGFloat = 1.5
+    static var photo: CGFloat { outer - 2 * (ring + gap) }
+}
+
+/// 원형 사진을 [ring] 색 라인 원으로 감싼 탭 아이콘 이미지. 사진은 [GLGTabPhoto.photo] 크기의 원형이어야 한다.
+func glgRingedTabPhoto(_ photo: UIImage, ring: UIColor) -> UIImage {
+    let side = GLGTabPhoto.outer
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = photo.scale
+    return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
+        let inset = GLGTabPhoto.ring + GLGTabPhoto.gap
+        photo.draw(in: CGRect(x: inset, y: inset, width: GLGTabPhoto.photo, height: GLGTabPhoto.photo))
+        let path = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: side, height: side).insetBy(dx: GLGTabPhoto.ring / 2, dy: GLGTabPhoto.ring / 2))
+        path.lineWidth = GLGTabPhoto.ring
+        ring.setStroke()
+        path.stroke()
+    }.withRenderingMode(.alwaysOriginal)
+}

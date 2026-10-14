@@ -1,15 +1,19 @@
 package com.gatcha.log.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import com.gatcha.log.ui.theme.TextPrimary
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,33 +26,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.LocalAccent
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.gatcha.log.ui.theme.NavUnselected
 import com.gatcha.log.ui.theme.glgStandardSpec
 
@@ -79,39 +79,29 @@ import com.gatcha.log.ui.theme.glgStandardSpec
  * `Modifier.blur` 는 자기 콘텐츠를 흐리는 것이지 뒤를 흐리는 게 아니다).
  * 하려면 Haze 같은 서드파티나 AGSL 셰이더를 직접 써야 한다.
  */
-/** 탭 좌우 여백 — 알약이 서로 붙지 않을 만큼만. 폭 배분은 SpaceEvenly 가 맡는다. */
-private val TAB_H_PADDING = 10.dp
-
 /**
- * 선택 면 · 눌림 연출을 알약 좌우로 이만큼 **더 넓게** 그린다(2026-10-12 요청 — "많이 넓게, 다른 탭 영역까지 가도 됨").
+ * 선택 알약 — **iOS 26 시스템 탭바와 같은 크기 · 같은 색**(2026-10-14, iPhone 17 Pro Max 캡처에서 잼).
+ * iOS 는 62.7pt 캡슐 안에 85 × 48.7 알약을 위아래 7 만 남기고 거의 꽉 차게 깐다. 64dp 캡슐에 같은 여백 7 을 주면 높이 50 이다.
  *
- * 탭의 자리(레이아웃 폭)는 그대로 두고 **그리는 면만** 밖으로 낸다. 폭 자체를 키우면 좁은 기기에서 네 탭이 캡슐을
- * 넘쳐 위 지뢰 1번(`maxWidth must be >= than minWidth`)으로 돌아간다. 처음엔 16(360dp 기기에서 옆 탭 아이콘을
- * 덮지 않는 최대치)으로 잡았다가 "너무 뚱뚱하다"는 지적으로 12 → 10 으로 두 번 줄였다. 가장자리 탭에서는 캡슐 끝에서 잘린다.
+ * 가로는 **iOS 의 비율을 그대로** 옮긴다. iOS 캡슐(328.7)은 양 끝에 8.35(2.54%)를 비우고 넷으로 나눈 칸(78) 가운데에
+ * 칸보다 넓은 알약(85, 25.9%)을 깐다 — 알약이 이웃 칸에 조금 걸치고, 양 끝 칸에서도 캡슐 끝에서 4.8 떨어진다.
+ * Android 캡슐은 옆에 + 원이 붙어 더 좁으니 85 를 그대로 쓰면 넘친다. 그렇다고 칸 안에 가두면(「칸 − 9」) iOS 보다
+ * 눈에 띄게 좁아진다(10/14 「선택됨 연출이 iOS26 연출과 달라졌어요」). 안쪽으로 밀어 넣으면 알약과 아이콘의 가운데가
+ * 어긋난다(10/14 「My 탭 … 중앙 정렬이 아님」). 그래서 알약 폭은 캡슐 폭에 대한 iOS 비율로 정하고 알약은 늘 칸 가운데에 둔다.
+ *
+ * 양 끝 칸의 알약은 **캡슐 끝과 왼쪽(오른쪽) · 위 · 아래 간격이 같다**(10/14 지시) — 모두 [TAB_PILL_END_GAP].
+ * 알약이 칸 가운데라 이 간격은 칸 배치로 정한다: 캡슐 양 끝을 비우는 폭(side)을 거꾸로 풀어 낸다([TabStrip]).
  */
-private val TAB_SELECT_OUTSET = 10.dp
+private const val TAB_PILL_RATIO = 85f / 328.7f
+private val TAB_PILL_MAX_W = 85.dp
+private val TAB_PILL_H = 50.dp
+/** 양 끝 알약과 캡슐 바깥선 사이 — 위아래 간격((64 − 50) / 2 = 7)과 같다. */
+private val TAB_PILL_END_GAP = (FloatingToolbarDefaults.ContainerSize - TAB_PILL_H) / 2
 
-/**
- * 선택 면을 위아래로도 이만큼 키운다 — **캡슐 높이에 맞춘다**(2026-10-12 요청 — "위아래 높낮이에 맞게 넓게").
- * 탭 알약은 40dp(아이콘 20 + 위아래 10)인데 캡슐은 64dp 라 위아래로 12씩 떠 있었다. 4 를 더해 48dp —
- * 캡슐 안쪽에 8dp 를 남긴다. 처음엔 56dp(안쪽 4)로 캡슐을 거의 채웠는데 "너무 뚱뚱하다"는 지적으로 50 → 48 로 두 번 줄였다.
- */
-private val TAB_SELECT_OUTSET_V = 4.dp
+/** 알약 색 — iOS 선택 면의 실측값(#F6F6F6, 무채색). 예전엔 강조색 12% 였다. */
+private val TabPillColor = Color(0xFFF6F6F6)
 
-/** 자리는 그대로 두고 좌우 [h] · 위아래 [v] 만큼 넓게 재서 그린다 — 넘친 만큼은 이웃 위에 겹쳐 그려진다. */
-private fun Modifier.outset(h: Dp, v: Dp): Modifier = layout { measurable, constraints ->
-    val ox = h.roundToPx()
-    val oy = v.roundToPx()
-    val wide = measurable.measure(
-        constraints.copy(
-            minWidth = constraints.minWidth + ox * 2,
-            maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + ox * 2 else constraints.maxWidth,
-            minHeight = constraints.minHeight + oy * 2,
-            maxHeight = if (constraints.hasBoundedHeight) constraints.maxHeight + oy * 2 else constraints.maxHeight,
-        ),
-    )
-    layout((wide.width - ox * 2).coerceAtLeast(0), (wide.height - oy * 2).coerceAtLeast(0)) { wide.place(-ox, -oy) }
-}
+private const val TAB_COUNT = 4
 
 /**
  * 툴바·FAB 공통 들뜸 — "살짝 떠 있는" 정도만(2026-08-03 요청).
@@ -129,7 +119,7 @@ private val LIFT_AMBIENT = Color.Black.copy(alpha = 0.04f)
 private val LIFT_SPOT = Color.Black.copy(alpha = 0.06f)
 
 @Composable
-fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, showFab: Boolean) {
+fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, showFab: Boolean, profilePhotoUrl: String? = null) {
     // 툴바가 실제로 쓰는 모양 토큰 — 아웃라인도 같은 모양으로 그려야 캡슐과 어긋나지 않는다.
     val toolbarShape = FloatingToolbarDefaults.ContainerShape
     // 바닥 최소 여백 — 아래 여백이 **인셋 + 4dp** 뿐이라 인셋이 작게 오는 기기에서 바가 화면
@@ -168,6 +158,9 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                 // 컴포넌트 그림자는 끄고 아래 modifier 에서 직접 그린다(LIFT_* 주석 참고).
                 expandedShadowElevation = 0.dp,
                 collapsedShadowElevation = 0.dp,
+                // 안쪽 여백 0 — 탭 칸이 캡슐 폭을 다 쓰게 한다. 선택 알약을 칸 가운데에 두고 캡슐 끝과의 틈을
+                // iOS 처럼 맞추려면 칸이 캡슐 끝에서 시작해야 한다([TabStrip]).
+                contentPadding = PaddingValues(0.dp),
                 // ⚠️ **남는 폭을 전부 차지한다**(FAB 를 뺀 나머지). 폭을 콘텐츠에 맡기면
                 // 선택 탭에만 라벨이 붙는 구조라 탭마다 폭이 다르고, 전환 중엔 옛 라벨이 줄고 새 라벨이
                 // 늘며 폭이 한 번 좁아졌다 넓어져 바가 통째로 흔들린다(2026-08-03 지적).
@@ -186,15 +179,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                     .shadow(LIFT_BLUR, toolbarShape, clip = false, ambientColor = LIFT_AMBIENT, spotColor = LIFT_SPOT)
                     .border(1.dp, DividerColor, toolbarShape),
             ) {
-                // 툴바 폭이 고정이라 내용이 그보다 좁으면 가운데로 뭉친다(2026-08-03 지적).
-                // 고정 폭을 꽉 채우고 4개를 고르게 벌린다 — 캡슐 안에서 균형이 잡힌다.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    tabButtons(selectedTab, accent, onTabSelected)
-                }
+                TabStrip(selectedTab, accent, profilePhotoUrl, onTabSelected)
             }
             Spacer(Modifier.width(8.dp))
             // 툴바와 같은 규격: 흰 배경 + 아웃라인, 그림자 없음. `+` 만 강조색(2026-08-03 요청).
@@ -218,83 +203,147 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                     .shadow(LIFT_BLUR, CircleShape, clip = false, ambientColor = LIFT_AMBIENT, spotColor = LIFT_SPOT)
                     .border(1.dp, DividerColor, CircleShape),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "지출 추가")
+                Icon(GlgLineIcons.Add, contentDescription = "지출 추가", modifier = Modifier.size(TAB_ICON))
             }
         }
     }
-}
-
-@Composable
-private fun tabButtons(selectedTab: Int, accent: Color, onTabSelected: (Int) -> Unit) {
-    tabButton(Icons.Outlined.Home, "홈", selectedTab == 0, accent) { onTabSelected(0) }
-    tabButton(Icons.Outlined.AccountBalanceWallet, "지출", selectedTab == 1, accent) { onTabSelected(1) }
-    tabButton(Icons.Outlined.SportsEsports, "게임 정보", selectedTab == 2, accent) { onTabSelected(2) }
-    // 탭 이름은 「My」다(10/13 지시 — 그 전에는 「마이페이지」, iOS 와 같다). 화면 안의 제목은 그대로다.
-    tabButton(Icons.Outlined.Person, "My", selectedTab == 3, accent) { onTabSelected(3) }
 }
 
 /**
- * 선택 = 아이콘 + **오른쪽 라벨** 이 붙은 옅은 회색 알약(문구는 앱 강조색) / 비선택 = 아이콘만.
+ * 탭 툴바의 + 원 **바로 위에 서는 원 버튼** — 지출 목록의 '맨 위로'(10/14 「디자인 통일 후 위치, 크기 통일」).
  *
- * **선택/비선택을 `if` 로 갈라 서로 다른 뷰를 만들지 않는다.** 갈라 놓으면 전환마다 뷰가 교체돼
- * 애니메이션이 끊기고, 값이 아니라 구조가 바뀌어 폭이 튄다. 하나의 Row 를 두고 **색은
- * `animateColorAsState`(값), 라벨은 `AnimatedVisibility`(가로 확장/축소)** 로 굴린다.
- *
- * ⚠️ `fillMaxHeight()` 금지 — 툴바가 화면 높이까지 늘어난다(위 지뢰 2번). 높이는 콘텐츠가 정한다.
+ * + 원과 같은 모양(흰 원 · 테두리 · 옅은 그림자 · 강조색 아이콘)에 크기만 작다(48, iOS 와 같다).
+ * 자리는 + 원과 가운데를 맞추고, 둘 사이는 캡슐과 + 원 사이(8)와 같다 — [glgAboveTabBarFabEnd] · [glgAboveTabBarFabBottom].
  */
 @Composable
-private fun tabButton(icon: ImageVector, label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
-    // ⚠️ 비선택 배경을 `Color.Transparent` 로 두지 말 것.
-    // `Color.Transparent` 는 **알파 0의 검정**이라, 밝은 배경으로 보간하면 중간 구간이
-    // 반투명 검정을 지나며 순간적으로 탁하고 어둡게 뜬다(2026-08-03 "선택될 때 색이 이질적").
-    // 같은 색의 알파만 0으로 두면 색상은 그대로고 투명도만 오르내린다.
-    //
-    // 알약 배경도 강조색을 옅게 깐다(중립 회색이 아니라) — 아이콘·라벨만 강조색이면 선택된 탭이
-    // 배경과 따로 놀아 보였다. 12% 는 라벨의 강조색을 덮지 않으면서 선택 영역만 물들이는 농도다.
-    val bg by animateColorAsState(
-        targetValue = accent.copy(alpha = if (selected) 0.12f else 0f),
-        animationSpec = glgStandardSpec(),
-        label = "tabBg",
-    )
+fun GlgTabBarCircleButton(icon: ImageVector, contentDescription: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(TAB_FLOAT_CIRCLE)
+            .shadow(LIFT_BLUR, CircleShape, clip = false, ambientColor = LIFT_AMBIENT, spotColor = LIFT_SPOT)
+            .clip(CircleShape)
+            .background(Color.White)
+            .border(1.dp, DividerColor, CircleShape)
+            .clickable(onClick = onClick),
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = LocalAccent.current, modifier = Modifier.size(24.dp))
+    }
+}
+
+/** 떠 있는 원 버튼([GlgTabBarCircleButton]) 지름 — iOS 지출 목록 '맨 위로'와 같은 48. */
+private val TAB_FLOAT_CIRCLE = 48.dp
+
+/** [GlgTabBarCircleButton] 의 오른쪽 여백 — + 원(64, 화면 끝에서 ScreenOffset)과 가운데를 맞춘다. */
+val glgAboveTabBarFabEnd: Dp = FloatingToolbarDefaults.ScreenOffset + (FloatingToolbarDefaults.ContainerSize - TAB_FLOAT_CIRCLE) / 2
+
+/**
+ * [GlgTabBarCircleButton] 의 아래 여백(화면 바닥 기준) — + 원 윗변에서 캡슐과 + 원 사이(8)만큼 위.
+ * + 원 윗변 = 탭바가 가리는 높이([glgTabContentBottom]) − 바 위 여백(4).
+ */
+@Composable
+fun glgAboveTabBarFabBottom(): Dp = glgTabContentBottom() - 4.dp + 8.dp
+
+/**
+ * 하단 탭 넷 — **iOS 26 시스템 탭바와 같은 선택 연출**(2026-10-14 지시).
+ *
+ * - 칸은 넷이 똑같이 나눈다. 아이콘은 라인형([GlgLineIcons]), 탭 이름은 그리지 않는다(10/14) — 이름은 읽기 도구에만 남는다.
+ * - 선택 면은 칸마다 따로 켜지는 게 아니라 **하나의 알약이 고른 칸으로 미끄러져 간다**(iOS 와 같다). 알약은 늘 칸 가운데다 —
+ *   크기 · 색은 [TAB_PILL_MAX_W] 참고.
+ * - 아이콘 색: 선택 = 강조색, 나머지 = 본문 검정(iOS 미선택 아이콘은 실측 #121212 — GLDS 본문 색 #1A1C1E 를 쓴다).
+ * - My 칸은 구글 프로필 사진(10/14). 사진은 물들일 수 없어 선택은 알약으로만 보인다.
+ */
+@Composable
+private fun TabStrip(selectedTab: Int, accent: Color, profilePhotoUrl: String?, onTabSelected: (Int) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+        val pillW = (maxWidth * TAB_PILL_RATIO).coerceAtMost(TAB_PILL_MAX_W)
+        // 양 끝 알약이 캡슐 끝에서 [TAB_PILL_END_GAP] 떨어지게 하는 side — side + (cell − pillW) / 2 = 간격, cell = (폭 − 2·side) / 4 를 푼 값.
+        val side = ((TAB_PILL_END_GAP + pillW / 2 - maxWidth / (TAB_COUNT * 2)) * (TAB_COUNT / (TAB_COUNT - 1f))).coerceAtLeast(0.dp)
+        val cell = (maxWidth - side * 2) / TAB_COUNT
+        val index = selectedTab.coerceIn(0, TAB_COUNT - 1)
+        // My 칸(사진)은 사진이 안쪽으로 [TAB_PHOTO_NUDGE] 만큼 옮겨 가 있다 — 그 상수 설명 참고. 알약은 **바깥 끝을 그대로 두고
+        // 안쪽으로 그만큼씩 두 번 넓힌다.** 그래야 캡슐 끝과 알약 사이가 홈 선택 때와 같고, 사진도 알약 가운데에 남는다.
+        val widen = if (index == TAB_COUNT - 1 && !profilePhotoUrl.isNullOrBlank()) TAB_PHOTO_NUDGE * 2 else 0.dp
+        val pillSpec = spring<Dp>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+        val pillX by animateDpAsState(side + cell * index + (cell - pillW) / 2 - widen, pillSpec, label = "tabPill")
+        val pillWidth by animateDpAsState(pillW + widen, pillSpec, label = "tabPillW")
+        Box(Modifier.offset(x = pillX).size(pillWidth, TAB_PILL_H).clip(CircleShape).background(TabPillColor))
+        Row(Modifier.fillMaxWidth().padding(horizontal = side), verticalAlignment = Alignment.CenterVertically) {
+            TabCell(GlgLineIcons.Home, "홈", index == 0, accent) { onTabSelected(0) }
+            TabCell(GlgLineIcons.Spending, "지출", index == 1, accent) { onTabSelected(1) }
+            TabCell(GlgLineIcons.Game, "게임 정보", index == 2, accent) { onTabSelected(2) }
+            TabCell(GlgLineIcons.Person, "My", index == 3, accent, photoUrl = profilePhotoUrl?.takeIf { it.isNotBlank() }, contentOffset = -TAB_PHOTO_NUDGE) { onTabSelected(3) }
+        }
+    }
+}
+
+/** 탭 한 칸 — 누르는 자리는 칸 전체(알약 높이). 눌림 물결은 없다(iOS 처럼 알약이 옮겨 가는 것으로 답한다). */
+@Composable
+private fun RowScope.TabCell(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    photoUrl: String? = null,
+    /** 사진일 때만 내용을 가로로 옮긴다([TAB_PHOTO_NUDGE]). 아이콘이면 쓰지 않는다. */
+    contentOffset: Dp = 0.dp,
+    onClick: () -> Unit,
+) {
     val fg by animateColorAsState(
-        targetValue = if (selected) accent else NavUnselected,
+        targetValue = if (selected) accent else TextPrimary,
         animationSpec = glgStandardSpec(),
         label = "tabFg",
     )
-    // 누르는 자리와 접근성 이름은 이 Box(=탭의 원래 자리)가 갖고, **보이는 면**(선택 색 · 눌림 연출)은
-    // 그 밑에 좌우 · 위아래로 넓힌 층이 그린다([TAB_SELECT_OUTSET] · [TAB_SELECT_OUTSET_V]). 눌림 연출이 같은 interactionSource 를 읽어 넓은 면 전체에 퍼진다.
-    val interaction = remember { MutableInteractionSource() }
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.clickable(interactionSource = interaction, indication = null) { onClick() },
+        modifier = Modifier
+            .weight(1f)
+            .height(TAB_PILL_H)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() },
     ) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .outset(TAB_SELECT_OUTSET, TAB_SELECT_OUTSET_V)
-                .clip(CircleShape)
-                .background(bg)
-                .indication(interaction, LocalIndication.current),
-        )
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = TAB_H_PADDING, vertical = 10.dp),
-    ) {
-        Icon(icon, contentDescription = label, tint = fg, modifier = Modifier.size(20.dp))
-        // Row 안의 AnimatedVisibility 는 기본 전환이 가로 확장/축소 + 페이드다 — 알약이 스르륵 늘어난다.
-        AnimatedVisibility(visible = selected) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    label,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = fg,
-                    maxLines = 1,
-                    softWrap = false,
-                )
+        if (photoUrl != null) {
+            // 사진을 **라인 원**으로 감싼다(10/14 지시) — 원 색은 다른 탭 아이콘과 같다(선택 = 강조색, 나머지 = 본문 검정).
+            //
+            // 치수는 **정수 픽셀로 맞춘다.** dp 그대로(26 · 2 · 1.5)면 기기 배율에서 소수점이 생겨 반올림이 한쪽으로 쏠리고,
+            // 사진이 원 안에서 1px 치우쳤다(10/14 Galaxy S23 실측: 틈 왼쪽 · 위 4px, 오른쪽 · 아래 3px). 바깥과 사진의 차이를
+            // 짝수 픽셀로 만들고, 원도 같은 상자 안에서(가운데 기준) 그려 두 원의 중심을 맞춘다.
+            val density = LocalDensity.current
+            val outerPx = with(density) { TAB_PHOTO_OUTER.roundToPx() }
+            val ringPx = with(density) { TAB_PHOTO_RING.roundToPx() }.coerceAtLeast(1)
+            val gapPx = with(density) { TAB_PHOTO_GAP.roundToPx() }
+            val innerPx = outerPx - (ringPx + gapPx) * 2
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset(x = contentOffset)
+                    .size(with(density) { outerPx.toDp() })
+                    .drawBehind { drawCircle(color = fg, radius = (size.minDimension - ringPx) / 2f, style = Stroke(ringPx.toFloat())) }
+                    .semantics { contentDescription = label },
+            ) {
+                ProfileAvatar(photoUrl = photoUrl, size = with(density) { innerPx.toDp() })
             }
+        } else {
+            Icon(icon, contentDescription = label, tint = fg, modifier = Modifier.size(TAB_ICON))
         }
     }
-    }
 }
+
+/** 아이콘 크기 — 26(10/14 「약간만 더 키워」, 24 에서). iOS 탭 아이콘 · + 와 같다. 선 두께는 [GlgLineIcons] 가 2 로 맞춘다. */
+private val TAB_ICON = 26.dp
+
+/**
+ * 프로필 사진(10/14) — 라인 원(두께 2, 아이콘 선과 같다) + 틈 1.5 + 사진 19 = 바깥 26. iOS `GLGTabPhoto` 와 같다.
+ * 바깥을 아이콘 크기([TAB_ICON])에 맞춘다 — 28 이었을 때 다른 탭 아이콘보다 눈에 띄게 컸다(10/14 「툴바 아이콘 크기는 모두 동일」).
+ */
+private val TAB_PHOTO_OUTER = TAB_ICON
+private val TAB_PHOTO_RING = 2.dp
+private val TAB_PHOTO_GAP = 1.5.dp
+
+/**
+ * My 칸 사진을 안쪽으로 옮기는 거리 — **양 끝 여백을 눈에 맞춘다**(10/14 「홈탭, 프로필 탭 좌우 마진 통일」).
+ * 칸 가운데에 두면 캡슐 끝에서 그림 가장자리까지가 홈과 My 가 달랐다(링 28 때 Galaxy S23 실측 92px · 79px) — 홈 라인
+ * 아이콘의 그림 폭은 칸의 18/24(선 두께 포함)인데 사진 링은 [TAB_PHOTO_OUTER] 라서다. 그 차이의 절반만큼 옮겨 두 여백을 같게 한다.
+ * 선택 알약은 바깥 끝을 홈과 같은 간격에 두고 안쪽으로 이 거리의 두 배만큼 넓어진다(사진이 알약 가운데). 사진이 없으면
+ * (사람 아이콘) 옮기지도 넓히지도 않는다.
+ */
+private val TAB_PHOTO_NUDGE = (TAB_PHOTO_OUTER - TAB_ICON * 18 / 24) / 2

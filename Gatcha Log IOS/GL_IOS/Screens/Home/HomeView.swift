@@ -92,7 +92,7 @@ struct HomeView: View {
                                            onDismiss: { store.dismissAlert($0.key) },
                                            onDismissAll: { store.dismissAlerts(alerts.map { $0.key }) })
                 } label: {
-                    Image(systemName: unread > 0 ? "bell.badge" : "bell")
+                    GLGLineIcon(unread > 0 ? "IconBellBadge" : "IconBell", label: "알림")
                 }
                 .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
             }

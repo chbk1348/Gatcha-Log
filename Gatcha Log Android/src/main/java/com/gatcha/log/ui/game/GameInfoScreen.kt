@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
@@ -62,6 +61,7 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.data.AttendanceLogic
 import com.gatcha.log.data.GameInfoAnchor
@@ -359,7 +359,7 @@ fun GameInfoScreen(
                 // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
                 actions = {
                     GlgCircleIconButton(
-                        Icons.Default.Refresh, "새로고침",
+                        GlgLineIcons.Refresh, "새로고침",
                         loading = combatClearsLoading,
                         enabled = hoyolab.isLinked && !combatClearsLoading,
                         // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
@@ -410,11 +410,11 @@ fun GameInfoScreen(
                         // 공유 — 제목 + 링크(NewsLogic.shareText). 링크만 보내면 메신저에 URL 만
                         // 덩그러니 뜬다 — HoYoLab 은 og: 태그가 없어 미리보기가 안 잡힌다.
                         // solidBackground — 본문(공지 이미지)이 헤더 아래를 지나가므로 버튼이 비치면 안 된다.
-                        GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true, solidBackground = true) {
+                        GlgCircleIconButton(GlgLineIcons.Share, "공유", outlined = true, solidBackground = true) {
                             shareText(context, NewsLogic.shareText(n))
                         }
                         // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
-                        GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true, solidBackground = true) {
+                        GlgCircleIconButton(GlgLineIcons.External, "브라우저에서 보기", outlined = true, solidBackground = true) {
                             openExternalLink(context, NewsLogic.shareUrl(n))
                         }
                     }
@@ -565,14 +565,14 @@ fun GameInfoScreen(
                     // 순서: 새로고침 → 리딤코드 → HoYoLAB 연동.
                     // 연동 버튼에 톱니를 쓰면 마이페이지의 '설정'과 같은 아이콘이 되어, 같은 곳으로
                     // 가는 줄 안다. 여기서 여는 건 앱 설정이 아니라 **HoYoLAB 쿠키를 넣는 곳**이라
-                    // 열쇠를 쓴다(앱 안에서 이 아이콘은 여기뿐이다).
-                    GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
+                    // 맞물린 고리를 쓴다(10/14, 열쇠는 선이 가늘어 보여 바꿨다 — 앱 안에서 이 아이콘은 여기뿐이다).
+                    GlgCircleIconButton(GlgLineIcons.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
                         viewModel.refreshGameInfo(force = true)
                     }
                     if (hoyolab.isLinked) {
-                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
+                        GlgCircleIconButton(GlgLineIcons.Gift, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
                     }
-                    GlgCircleIconButton(Icons.Default.Key, "HoYoLAB 연동", outlined = true, solidBackground = true) {
+                    GlgCircleIconButton(GlgLineIcons.Link, "HoYoLAB 연동", outlined = true, solidBackground = true) {
                         subPage = GiSub.HoyoLink
                     }
                 }

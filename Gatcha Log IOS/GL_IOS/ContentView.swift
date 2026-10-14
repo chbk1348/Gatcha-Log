@@ -16,6 +16,10 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     /// 탭 바의 마이페이지 아이콘 — 로그인한 계정의 구글 프로필 사진(원형). 게스트이거나 못 받았으면 nil → 사람 아이콘.
     @State private var myPageTabIcon: UIImage? = nil
+    /// iOS 18 아이폰의 떠 있는 탭 툴바([GLGFloatingTabBar])를 숨기라고 한 화면 수 — 예산 관리 · 업데이트 로그([glgHidesTabBar]).
+    @State private var floatingTabBarHideDepth = 0
+    /// 화면 아래 안전 영역(홈 인디케이터) — 떠 있는 툴바를 화면 바닥 기준으로 놓고, 탭 화면 아래 여백을 정하는 데 쓴다.
+    @State private var windowSafeBottom: CGFloat = 0
     /// 지출 목록이 다중 선택 중인가 — 선택 하단바가 떠 있는 동안 '추가' 버튼을 감춘다.
     /// (SpendingView 의 로컬 상태로 두면 TabView 오버레이인 그 버튼이 볼 수 없다)
     ///
@@ -399,12 +403,32 @@ struct ContentView: View {
     /// 탭 이름은 「My」다(10/13 지시 — 그 전에는 「마이페이지」). 화면 안의 제목은 그대로 「마이페이지」다.
     @ViewBuilder
     private var myPageTabLabel: some View {
-        if let icon = myPageTabIcon {
-            Label { Text("My") } icon: { Image(uiImage: icon) }
+        if let photo = myPageTabIcon {
+            // 사진을 **라인 원**으로 감싼다(10/14 지시) — 원 색은 다른 탭 아이콘과 같다(선택 = 강조색, 나머지 = 미선택 아이콘 색).
+            // 탭 이미지는 원본 그대로 그려져(물들일 수 없다) 고른 탭에 따라 원을 직접 그려 넣는다.
+            Label { Text(tabTitle("My")) } icon: { Image(uiImage: glgRingedTabPhoto(photo, ring: selectedTab == 3 ? UIColor(accent) : tabIdleIconColor)) }
         } else {
-            Label("My", systemImage: "person.fill")
+            Label(tabTitle("My"), image: "TabPerson")
         }
     }
+
+    /// 탭 이름을 글자로 그리는가 — **iOS 26 이상 아이폰은 아이콘만**(10/14 지시, Android 하단 툴바와 통일).
+    /// iOS 18 은 그대로 둔다(10/14 「IOS 18은 유지」). 펼친 듀오 · 아이패드도 바가 옆 · 위에 서고 칸이 넉넉해 이름을
+    /// 그대로 둔다(10/12 「듀오, 아이패드는 변경 X」와 같은 선).
+    ///
+    /// 시스템 탭바에는 이름을 숨기는 설정이 없어 **빈 이름**을 준다 — 10/12 에 확인한 방법이다(`Label` 을 `Image` 로
+    /// 바꾸거나 접근성 이름을 달면 그 글자가 도로 이름으로 그려졌다). 그래서 보이스오버도 탭 이름을 읽지 않는다.
+    /// 미선택 탭 아이콘 색 — 시스템 탭바와 같게(iOS 26+ 본문 색 · iOS 18 회색). 프로필 사진의 라인 원이 쓴다.
+    private var tabIdleIconColor: UIColor {
+        if #available(iOS 26.0, *) { return .label }
+        return .systemGray
+    }
+
+    private var showsTabTitles: Bool {
+        if #available(iOS 26.0, *) { return GLGFormFactor.current != .phone }
+        return true
+    }
+    private func tabTitle(_ title: String) -> String { showsTabTitles ? title : "" }
 
     /// 탭 아이콘으로 쓸 사진 주소. 게스트는 빈 값 — 계정이 바뀌면 다시 받는다.
     private var myPagePhotoUrl: String { store.account.isGuest ? "" : store.account.photoUrl }
@@ -412,7 +436,7 @@ struct ContentView: View {
     private func loadMyPageTabIcon() async {
         guard let url = URL(string: myPagePhotoUrl), !myPagePhotoUrl.isEmpty else { myPageTabIcon = nil; return }
         // 시스템 탭 아이콘과 같은 자리 크기. 못 받으면 사람 아이콘 그대로 둔다.
-        myPageTabIcon = await glgCircularImage(url: url, side: 28)
+        myPageTabIcon = await glgCircularImage(url: url, side: GLGTabPhoto.photo)
     }
 
     @ViewBuilder
@@ -421,10 +445,11 @@ struct ContentView: View {
             // iOS 26: Tab API — "추가" 버튼은 .search 역할로 탭바에서 분리된 원형 글래스 버튼
             // (Mail 의 컴포즈 버튼과 동일한 시스템 배치 — 탭바 캡슐 우측, 같은 높이)
             TabView(selection: $selectedTab) {
-                // 라벨(문구) 노출 — 표준 시스템 탭뷰 (시스템 탭바 높이는 고정이라 아이콘전용 이점이 없어 라벨 복귀)
-                Tab("홈", systemImage: "house.fill", value: 0) { homeTabContent }
-                Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
-                Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
+                // 아이폰은 아이콘만(10/14, [tabTitle]) — 듀오 · 아이패드 · iOS 18 은 이름을 그대로 둔다.
+                // 아이콘은 라인형(10/14 지시, 새로 그림 · iOS 18 부터 모두) — 에셋 `Tab*` 은 Android `GlgTabIcons` 와 같은 경로다.
+                Tab(tabTitle("홈"), image: "TabHome", value: 0) { homeTabContent }
+                Tab(tabTitle("지출"), image: "TabSpending", value: 1) { spendingTabContent }
+                Tab(tabTitle("게임 정보"), image: "TabGame", value: 2) { gameInfoTabContent }
                 Tab(value: 3) { myPageTabContent } label: { myPageTabLabel }
                 // '추가' 는 **시스템 바에 맡긴다** — 좁은 창이면 하단 탭바 옆 원형 버튼,
                 // 펼친 iPhone Duo 면 세로로 선 바에서 **4탭 아래**에 선다(iOS 27.1).
@@ -434,14 +459,14 @@ struct ContentView: View {
                 // 초기 동기화 게이트 동안에는 어느 쪽도 표시하지 않는다.
                 if !syncGateActive && !usesFloatingAdd {
                     Tab(value: 4, role: separatedActionRole) { Color.clear } label: {
-                        Label("추가", systemImage: "plus")
+                        Label("추가", image: "TabAdd")
                     }
                 }
             }
             .tint(accent)
             .glgMeasureCanvas($canvasWidth)
             // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지). 10/12 에 시스템 축소(`.onScrollDown` — 탭 넷이 하나로 접힌다)와
-            // 「이름 글자만 숨기기」를 차례로 시도했다가 둘 다 되돌렸다.
+            // 「스크롤할 때만 이름 숨기기」를 차례로 시도했다가 둘 다 되돌렸다. 10/14 부터 아이폰은 이름을 늘 숨긴다([tabTitle]).
             .tabBarMinimizeBehavior(.never)
             .task(id: myPagePhotoUrl) { await loadMyPageTabIcon() }
             // iPad: 탭바에서 뗀 '추가' 를 우측 하단에 둔다.
@@ -478,15 +503,15 @@ struct ContentView: View {
         } else {
             // iOS 16~25: 기존 tabItem API + 오버레이 글래스 FAB
             TabView(selection: $selectedTab) {
-                // 라벨(문구) 노출 — 표준 시스템 탭뷰
+                // 라벨(문구) 노출 — 표준 시스템 탭뷰(iOS 18 은 이름을 그대로 둔다, 10/14). 아이콘은 라인형 에셋(10/14).
                 homeTabContent
-                    .tabItem { Label("홈", systemImage: "house.fill") }
+                    .tabItem { Label("홈", image: "TabHome") }
                     .tag(0)
                 spendingTabContent
-                    .tabItem { Label("지출", systemImage: "creditcard.fill") }
+                    .tabItem { Label("지출", image: "TabSpending") }
                     .tag(1)
                 gameInfoTabContent
-                    .tabItem { Label("게임 정보", systemImage: "gamecontroller.fill") }
+                    .tabItem { Label("게임 정보", image: "TabGame") }
                     .tag(2)
                 myPageTabContent
                     .tabItem { myPageTabLabel }
@@ -494,6 +519,32 @@ struct ContentView: View {
             }
             .tint(accent)
             .task(id: myPagePhotoUrl) { await loadMyPageTabIcon() }
+            .environment(\.glgTabBarHide) { hide in floatingTabBarHideDepth = max(0, floatingTabBarHideDepth + (hide ? 1 : -1)) }
+            // 탭 화면 아래 여백 — 떠 있는 툴바에 목록 끝이 가리지 않게 **탭 컨테이너의 안전 영역**을 늘린다(시스템 탭바가 하던 일).
+            // 탭 화면에 `.safeAreaInset` 을 거는 방식은 iOS 18 에서 탭 컨테이너 안으로 전달되지 않아 끝까지 내리면 겹쳤다(10/14).
+            .background(GLGTabSafeAreaInset(bottom: floatingTabBarClearance))
+            // iOS 18 아이폰은 시스템 탭바를 숨기고 iOS 26 과 같은 **떠 있는 캡슐 툴바**를 직접 그린다(10/14 「IOS18도 26과 같은 경험」).
+            .overlay {
+                if GLGFloatingTabBar.isActive {
+                    GeometryReader { geo in
+                        VStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            GLGFloatingTabBar(selection: $selectedTab, accent: accent, photo: myPageTabIcon,
+                                              onReselect: { tab in if tab == 1 { spendingPath = [] } },
+                                              onAdd: { openAddSpending() })
+                                // 화면 바닥에서 [GLGFloatingTabBar.bottomGap] — 안전 영역 안쪽으로 내려 앉힌다(iOS 26 실측과 같은 자리).
+                                .padding(.bottom, max(0, GLGFloatingTabBar.bottomGap - geo.safeAreaInsets.bottom))
+                                .offset(y: max(0, geo.safeAreaInsets.bottom - GLGFloatingTabBar.bottomGap))
+                        }
+                        .opacity(floatingTabBarHidden ? 0 : 1)
+                        .allowsHitTesting(!floatingTabBarHidden)
+                        .animation(GLGMotion.standard(GLGMotion.durationLong), value: floatingTabBarHidden)
+                        .onAppear { windowSafeBottom = geo.safeAreaInsets.bottom }
+                        .onChange(of: geo.safeAreaInsets.bottom) { _, v in windowSafeBottom = v }
+                    }
+                    .ignoresSafeArea(.keyboard)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 // 선택 모드에서는 감춘다 — 선택 하단바('N건 선택 · 삭제 · 일괄 편집')와 자리가 겹쳐
                 // '일괄 편집'이 '+' 에 가려 눌리지 않았다. 같은 이유로 '맨 위로'도 이미 숨긴다.
@@ -503,7 +554,7 @@ struct ContentView: View {
                 // 예전 조건의 `tabsWithSubPage` 는 선언만 있고 넣는 곳이 없어 늘 비어 있었고, 그래서 지출 상세 ·
                 // 캘린더 · 인사이트 위에 '+' 가 그대로 떠 있었다. 선택 모드도 지출 탭의 상태라 그 탭일 때만 본다.
                 ZStack {
-                if selectedTab <= 1 && !bottomChromeHidden && !store.hidesAddButton
+                if !GLGFloatingTabBar.isActive && selectedTab <= 1 && !bottomChromeHidden && !store.hidesAddButton
                     && !(selectedTab == 0 && store.homeSubpageOpen)
                     && !(selectedTab == 1 && (spendingSelectionMode || spendingTabSubpageOpen)) {
                     legacyAddButton
@@ -548,7 +599,20 @@ struct ContentView: View {
     /// **지출 입력 페이지에서는 이 숨김을 쓰지 않는다**(10/13). 시스템 숨김은 사라지는 모양을 고를 수 없어서,
     /// 그때는 탭바를 그대로 둔 채 투명도로 서서히 감춘다([GLGTabBarFade]) — 페이지가 화면 전체를 덮고 있어 눌리지도 않는다.
     private var tabBarVisibility: Visibility {
-        syncGateActive ? .hidden : .visible
+        // iOS 18 아이폰은 시스템 탭바를 늘 숨긴다 — 대신 [GLGFloatingTabBar] 를 그린다.
+        if GLGFloatingTabBar.isActive { return .hidden }
+        return syncGateActive ? .hidden : .visible
+    }
+
+    /// 떠 있는 탭 툴바(iOS 18 아이폰)를 감출 때 — 하단 크롬을 감출 때와, 탭바를 숨기는 화면에 들어갔을 때.
+    private var floatingTabBarHidden: Bool {
+        bottomChromeHidden || floatingTabBarHideDepth > 0
+    }
+
+    /// 탭 화면 아래에 비워 둘 높이 — 떠 있는 툴바에 목록 끝이 가리지 않게. 툴바가 없거나 숨었으면 0([GLGTabSafeAreaInset]).
+    private var floatingTabBarClearance: CGFloat {
+        guard GLGFloatingTabBar.isActive, !floatingTabBarHidden else { return 0 }
+        return max(0, GLGFloatingTabBar.bottomGap + GLGFloatingTabBar.height + GLGFloatingTabBar.contentGap - windowSafeBottom)
     }
 
     /// 화면 하단 크롬(탭바·'추가' 버튼)을 감춰야 하는 상태 — **여기 한 곳에서만 판단한다.**
@@ -621,8 +685,7 @@ struct ContentView: View {
         // 강조색으로 채운 원 + 흰 '+' — iPad FAB 와 같은 모양(GLGFabStyle 의 iOS 26 미만 갈래).
         // 반투명 흰 원은 흰 카드 위에 뜨면 윤곽이 묻혀 버튼으로 잘 안 읽혔다(2026-09-28 지적).
         Button(action: { openAddSpending() }) {
-            Image(systemName: "plus")
-                .font(.system(size: 20, weight: .semibold))
+            Image("TabAdd")
                 .frame(width: GLGLegacyAddButton.size, height: GLGLegacyAddButton.size)
         }
         .accessibilityLabel("지출 추가")
@@ -632,13 +695,184 @@ struct ContentView: View {
     // ── iPad: 우측 하단 지출 추가 FAB (강조색 채움 원형 + 흰 '+') ─────────────
     private var fabAddButton: some View {
         Button(action: { openAddSpending() }) {
-            Image(systemName: "plus")
+            Image("TabAdd")
                 // 60pt 는 글래스 버튼이 제 여백을 더 얹어 화면에서 과하게 컸다(2026-09-21 지적).
-                .font(.system(size: 20, weight: .semibold))
                 .frame(width: 48, height: 48)
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
+    }
+}
+
+/**
+ iOS 18 아이폰의 **떠 있는 탭 툴바** — iOS 26 시스템 탭바와 같은 모양 · 같은 자리를 직접 그린다(10/14 「IOS18도 26과 같은 경험」).
+
+ iOS 18 시스템 탭바는 화면 아래에 붙은 바라 캡슐 · 미끄러지는 알약 · 옆의 추가 원을 켤 수 없다. 그래서 시스템 탭바는 숨기고
+ (`TabView` 는 그대로 — 탭마다 화면 상태가 남는다) 이 툴바를 위에 얹는다.
+
+ - 치수는 iOS 26 실측(iPhone 17 Pro Max): 캡슐 · 추가 원 높이 62.7, 둘 사이 7.3, 양옆 20.7, 화면 바닥에서 20.7.
+ - 선택 알약은 Android `TabStrip` 과 같은 규칙(GLDS 하단 툴바) — #F6F6F6 · 높이 48.7 · 폭은 캡슐의 85/328.7(최대 85),
+   양 끝 칸 알약은 캡슐 끝과 왼쪽(오른쪽) · 위 · 아래 간격이 같다. 알약은 고른 칸으로 미끄러져 간다.
+ - 아이콘은 `Tab*` 에셋(26), 선택 = 강조색 · 나머지 = 본문 색. My 칸은 프로필 사진 + 라인 원, 홈과 끝 여백이 같도록 안쪽으로 옮긴다.
+ - 추가 원은 iOS 26 처럼 캡슐 옆에 따로 선다(아이콘 본문 색).
+ iPad · iOS 26 이상은 쓰지 않는다([isActive]).
+ */
+struct GLGFloatingTabBar: View {
+    @Binding var selection: Int
+    let accent: Color
+    let photo: UIImage?
+    /// 이미 고른 탭을 다시 눌렀을 때 — 지출 탭은 목록으로 돌아간다(시스템 탭바가 하던 일).
+    let onReselect: (Int) -> Void
+    let onAdd: () -> Void
+
+    /// 이 툴바를 쓰는가 — iOS 26 미만 아이폰만.
+    static var isActive: Bool {
+        if #available(iOS 26.0, *) { return false }
+        return GLGFormFactor.current == .phone
+    }
+    static let height: CGFloat = GLGTabBarAddButton.diameter
+    static let bottomGap: CGFloat = GLGTabBarAddButton.trailingInset
+    static let sideInset: CGFloat = GLGTabBarAddButton.trailingInset
+    /// 캡슐과 '추가' 원 사이(iOS 26 실측 7.3).
+    static let gap: CGFloat = 22.0 / 3
+    /// 툴바 위로 목록이 더 비워 둘 틈 — 캡슐과 '추가' 원 사이와 같다. 지출 목록의 '맨 위로' 원도 이 틈을 두고 '추가' 원 위에 선다.
+    static let contentGap: CGFloat = gap
+    private static let pillH: CGFloat = 48.7
+    private static let pillRatio: CGFloat = 85 / 328.7
+    private static let pillMaxW: CGFloat = 85
+    private static let pillColor = Color(hex: 0xFFF6F6F6)
+    private static let icon: CGFloat = 26
+    /// My 칸 사진을 안쪽으로 옮기는 거리 — (링 26 − 아이콘 그림 폭 26 × 18/24) / 2. Android `TAB_PHOTO_NUDGE` 와 같다.
+    private static let photoNudge: CGFloat = (GLGTabPhoto.outer - icon * 18 / 24) / 2
+    private static let count = 4
+
+    var body: some View {
+        HStack(spacing: Self.gap) {
+            tabs
+            Button(action: onAdd) {
+                Image("TabAdd").renderingMode(.template)
+                    .foregroundStyle(GLGColor.textPrimary)
+            }
+            .buttonStyle(.plain)
+            .glgTabBarCircle()
+            .accessibilityLabel("지출 추가")
+        }
+        .padding(.horizontal, Self.sideInset)
+    }
+
+    private var tabs: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let pillW = min(w * Self.pillRatio, Self.pillMaxW)
+            let endGap = (Self.height - Self.pillH) / 2
+            // 양 끝 알약이 캡슐 끝에서 endGap 떨어지게 하는 양옆 여백 — side + (cell − pillW) / 2 = endGap 을 푼 값(Android 와 같다).
+            let side = max(0, (endGap + pillW / 2 - w / CGFloat(Self.count * 2)) * CGFloat(Self.count) / CGFloat(Self.count - 1))
+            let cell = (w - side * 2) / CGFloat(Self.count)
+            let index = min(max(selection, 0), Self.count - 1)
+            // My 칸(사진)은 사진이 안쪽으로 옮겨 가 있어, 알약은 바깥 끝을 그대로 두고 안쪽으로 두 배만큼 넓힌다.
+            let widen: CGFloat = (index == Self.count - 1 && photo != nil) ? Self.photoNudge * 2 : 0
+            ZStack(alignment: .leading) {
+                Capsule().fill(Self.pillColor)
+                    .frame(width: pillW + widen, height: Self.pillH)
+                    .offset(x: side + cell * CGFloat(index) + (cell - pillW) / 2 - widen)
+                HStack(spacing: 0) {
+                    cellButton(0, image: "TabHome", label: "홈")
+                    cellButton(1, image: "TabSpending", label: "지출")
+                    cellButton(2, image: "TabGame", label: "게임 정보")
+                    cellButton(3, image: "TabPerson", label: "My")
+                }
+                .padding(.horizontal, side)
+            }
+            .frame(width: w, height: Self.height)
+            .animation(.spring(response: 0.38, dampingFraction: 0.8), value: selection)
+        }
+        .frame(height: Self.height)
+        // 그림자는 바탕 캡슐에만 — 통째로 주면 알약 · 아이콘마다 그림자가 따로 비쳤다.
+        .background(Capsule().fill(Color.white).shadow(color: .black.opacity(0.06), radius: 10, y: 2))
+        .overlay(Capsule().strokeBorder(GLGColor.divider, lineWidth: 1))
+    }
+
+    private func cellButton(_ tab: Int, image: String, label: String) -> some View {
+        let selected = selection == tab
+        let fg = selected ? accent : GLGColor.textPrimary
+        return Button {
+            if selected { onReselect(tab) } else { selection = tab }
+        } label: {
+            Group {
+                if tab == 3, let photo {
+                    Image(uiImage: glgRingedTabPhoto(photo, ring: UIColor(fg)))
+                        .offset(x: -Self.photoNudge)
+                } else {
+                    Image(image).renderingMode(.template).foregroundStyle(fg)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+extension View {
+    /// 떠 있는 탭 툴바의 원 버튼 모양 — 흰 원 · 테두리 1 · 옅은 그림자. 지름 기본은 [GLGFloatingTabBar.height](62.7, '추가' 원).
+    /// 지출 목록의 '맨 위로' 원(iOS 18 아이폰)도 같은 모양으로 쓰되 크기는 예전 그대로 48 이다(10/14 「같은 형식 · 크기는 좀 작게」).
+    func glgTabBarCircle(diameter: CGFloat = GLGFloatingTabBar.height) -> some View {
+        self
+            .frame(width: diameter, height: diameter)
+            // 그림자는 바탕 원에만 — 버튼 전체에 주면 아이콘 선마다 그림자가 따로 진다.
+            .background(Circle().fill(Color.white).shadow(color: .black.opacity(0.06), radius: 10, y: 2))
+            .overlay(Circle().strokeBorder(GLGColor.divider, lineWidth: 1))
+            .contentShape(Circle())
+    }
+}
+
+/// 탭 컨테이너(`UITabBarController`)의 아래 안전 영역을 [bottom] 만큼 늘린다 — 떠 있는 탭 툴바([GLGFloatingTabBar]) 자리.
+/// 탭마다의 화면 · 밀어 넣은 하위 화면까지 모두 그만큼 위에서 끝난다. 시스템 탭바를 숨긴 iOS 18 아이폰에서만 0 이 아니다.
+private struct GLGTabSafeAreaInset: UIViewRepresentable {
+    let bottom: CGFloat
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        // 창에 붙은 뒤에 찾는다 — 처음 그릴 때는 아직 창이 없다.
+        DispatchQueue.main.async {
+            guard let tabs = GLGTabBarFade.tabBarController(in: view.window?.rootViewController),
+                  tabs.additionalSafeAreaInsets.bottom != bottom else { return }
+            tabs.additionalSafeAreaInsets.bottom = bottom
+        }
+    }
+}
+
+/// 떠 있는 탭 툴바를 숨기라고 알리는 통로 — true 는 들어옴, false 는 나감([glgHidesTabBar]).
+private struct GLGTabBarHideKey: EnvironmentKey {
+    static let defaultValue: @Sendable @MainActor (Bool) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    var glgTabBarHide: @Sendable @MainActor (Bool) -> Void {
+        get { self[GLGTabBarHideKey.self] }
+        set { self[GLGTabBarHideKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// 하단 탭바를 숨기는 화면 — 시스템 탭바(iOS 26)와 떠 있는 탭 툴바(iOS 18 아이폰, [GLGFloatingTabBar]) 둘 다 숨긴다.
+    func glgHidesTabBar() -> some View { modifier(GLGHidesTabBar()) }
+}
+
+private struct GLGHidesTabBar: ViewModifier {
+    @Environment(\.glgTabBarHide) private var hide
+    func body(content: Content) -> some View {
+        content
+            .toolbar(.hidden, for: .tabBar)
+            .onAppear { hide(true) }
+            .onDisappear { hide(false) }
     }
 }
 
@@ -669,7 +903,7 @@ private struct GLGTabBarFade: UIViewRepresentable {
         }
     }
 
-    private static func tabBarController(in controller: UIViewController?) -> UITabBarController? {
+    static func tabBarController(in controller: UIViewController?) -> UITabBarController? {
         guard let controller else { return nil }
         if let tabs = controller as? UITabBarController { return tabs }
         for child in controller.children {
@@ -708,6 +942,8 @@ enum GLGLegacyAddButton {
     /// iOS 26+ 는 '추가'가 탭바 캡슐 안(`.prominent`)이라 겹칠 일이 없다 → 0.
     static var contentClearanceIfNeeded: CGFloat {
         if #available(iOS 26.0, *) { return 0 }
+        // iOS 18 아이폰은 떠 있는 탭 툴바가 탭 화면 아래 여백을 이미 잡는다(10/14, [GLGFloatingTabBar]).
+        if GLGFloatingTabBar.isActive { return 0 }
         return contentClearance
     }
 }

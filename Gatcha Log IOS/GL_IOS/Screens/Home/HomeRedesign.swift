@@ -176,9 +176,14 @@ struct HomeTopBarStyle: ViewModifier {
     func body(content: Content) -> some View {
         if isWide {
             content
-        } else {
+        } else if #available(iOS 26.0, *) {
             content
                 .toolbarBackground(.hidden, for: .navigationBar)
+        } else {
+            // iOS 18 은 숨기지 않는다(10/14 「홈 스크롤시 헤더에 배경이 사라짐」) — iOS 26 은 스크롤하면 시스템 흐림이 바 밑에
+            // 깔리지만 iOS 18 엔 그게 없어, 바탕을 숨기면 본문이 헤더 버튼 뒤로 그대로 비쳤다. 시스템 기본(맨 위는 투명 ·
+            // 스크롤하면 바탕)을 쓴다.
+            content
         }
     }
 }

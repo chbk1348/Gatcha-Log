@@ -31,7 +31,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.Lock
@@ -89,6 +88,7 @@ import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.GldsIcon
@@ -376,7 +376,7 @@ fun EnkaRosterPage(
     GlgDetailHeaderOverlay(title, onBack, scrolled) {
         // 게임정보 계열 헤더 버튼은 전부 `outlined + solidBackground` 다 — 여기만 다르면 튄다.
         GlgCircleIconButton(
-            icon = if (searchOpen) Icons.Default.Close else Icons.Default.Search,
+            icon = if (searchOpen) GlgLineIcons.Close else GlgLineIcons.Search,
             contentDescription = if (searchOpen) "검색 닫기" else "이름으로 검색",
             outlined = true,
             solidBackground = true,
@@ -688,7 +688,7 @@ fun EnkaStatPage(
             // 점수를 안 쓰는 게임(젠레스)에는 없다.
             if (usesArtifactScore(game)) {
                 GlgCircleIconButton(
-                    icon = Icons.Default.Tune,
+                    icon = GlgLineIcons.Adjust,
                     contentDescription = "점수 기준",
                     outlined = true,
                     solidBackground = heroBg == null,

@@ -124,7 +124,9 @@ struct GLGHiddenToolbarBackground: ViewModifier {
                 // 히어로를 벗어나면 되살린다 — 그때는 흰 콘텐츠가 바 아래를 지나므로 띠가 제 몫을 한다.
                 .scrollEdgeEffectHidden(hidden, for: .top)
         } else {
-            content.toolbarBackground(hidden ? .hidden : .automatic, for: .navigationBar)
+            // iOS 18 은 히어로를 지나면 바탕을 **확실히 켠다**(10/14 「지출 상세 페이지도 그러네요」) — `.automatic` 으로
+            // 되돌리면 숨김에서 풀리지 않아, 스크롤해도 헤더 바탕 없이 본문이 버튼 뒤로 비쳤다.
+            content.toolbarBackground(hidden ? .hidden : .visible, for: .navigationBar)
         }
     }
 }

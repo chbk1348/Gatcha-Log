@@ -132,24 +132,24 @@ struct SpendingDetailView: View {
             if isWideCanvas {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button { onEdit(s) } label: { Label("수정", systemImage: "pencil") }
+                        Button { onEdit(s) } label: { Label("수정", image: "IconEdit") }
                         Button(role: .destructive) { confirmDelete = true } label: {
-                            Label("삭제", systemImage: "trash")
+                            Label("삭제", image: "IconDelete")
                         }
                     } label: {
-                        Image(systemName: "ellipsis")
+                        GLGLineIcon("IconMore", label: "더보기")
                     }
                 }
             }
             if !isWideCanvas {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { onEdit(s) } label: { Image(systemName: "pencil") }
+                    Button { onEdit(s) } label: { GLGLineIcon("IconEdit", label: "수정") }
                 }
                 if #available(iOS 26.0, *) {
                     ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
+                    Button(role: .destructive) { confirmDelete = true } label: { GLGLineIcon("IconDelete", label: "삭제") }
                         // 삭제만 위험색으로 가른다 — `role: .destructive` 는 툴바에서 색까지 바꿔 주지
                         // 않아서, 수정과 똑같은 색으로 나란히 놓여 있었다.
                         .tint(needsBarTint ? GLGColor.dangerText : nil)

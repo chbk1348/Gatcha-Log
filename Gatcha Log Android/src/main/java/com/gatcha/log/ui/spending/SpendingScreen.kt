@@ -37,6 +37,10 @@ import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GldsChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
+import com.gatcha.log.ui.components.GlgTabBarCircleButton
+import com.gatcha.log.ui.components.glgAboveTabBarFabBottom
+import com.gatcha.log.ui.components.glgAboveTabBarFabEnd
 import com.gatcha.log.ui.components.GlgDatePickerDialog
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
@@ -117,7 +121,6 @@ fun SpendingScreen(
     var quickPickTarget by remember { mutableStateOf<Int?>(null) }
     var paymentFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var sortOrder by rememberSaveable { mutableStateOf(SortOrder.DATE_DESC) }
-    val showFilterSheet = remember { mutableStateOf(false) }
     // 선택 모드(다중 선택) — 일괄 편집/삭제용.
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -150,12 +153,6 @@ fun SpendingScreen(
     // 앱을 켠 채 달이 바뀌면 틀린 달을 가리켰다.
     val (lastY, lastM) = if (viewModel.displayMonth == 1) (viewModel.displayYear - 1) to 12
                          else viewModel.displayYear to (viewModel.displayMonth - 1)
-    val activeFilterCount = listOf(
-        selectedGames.isNotEmpty(),
-        period != PeriodFilter.ALL,
-        paymentFilter != null,
-        sortOrder != SortOrder.DATE_DESC,
-    ).count { it }
 
     AnimatedContent(
         targetState = nav,
@@ -281,7 +278,7 @@ fun SpendingScreen(
                             sortOrder = sortOrder,
                             onSort = { sortOrder = it },
                             paymentFilter = paymentFilter,
-                            onPaymentClear = { paymentFilter = null },
+                            onPayment = { paymentFilter = it },
                         )
                         }
                     }
@@ -358,12 +355,12 @@ fun SpendingScreen(
                     leading = {
                         // 나가기 전에 선택 모드를 푼다(27.52.0) — 켠 채로 나가면 선택 바는 안 보이는데 뒤로가기 첫 번째가
                         // 그 안 보이는 선택 모드를 푸는 데 먹혀, 두 번 눌러야 목록으로 돌아왔다.
-                        GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Calendar }
-                        GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Insight }
+                        GlgCircleIconButton(GlgLineIcons.Calendar, "캘린더", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Calendar }
+                        GlgCircleIconButton(GlgLineIcons.Insight, "인사이트", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Insight }
                     },
                 ) {
-                    GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true, solidBackground = true) { selectionMode = true; selectedIds = emptySet() }
-                    GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount, solidBackground = true) { showFilterSheet.value = true }
+                    // 필터 버튼은 없앴다(10/14 「상세 필터 버튼 제거 후 퀵필터로 기능 이관」) — 조건은 모두 목록 위 퀵필터에 있다.
+                    GlgCircleIconButton(GlgLineIcons.Select, "선택", outlined = true, solidBackground = true) { selectionMode = true; selectedIds = emptySet() }
                 }
             }
         }
@@ -378,16 +375,12 @@ fun SpendingScreen(
             visible = showScrollTop && !selectionMode,
             enter = fadeIn(glgStandardSpec()) + scaleIn(glgStandardSpec(), initialScale = 0.8f),
             exit = fadeOut(glgShortSpec()) + scaleOut(glgShortSpec(), targetScale = 0.8f),
+            // + 원 바로 위, 가운데를 맞춰 선다 — 모양 · 크기 · 자리를 iOS 와 통일(10/14).
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = glgTabContentBottom() + 16.dp), // 탭바 위 16 띄움(헬퍼가 바 높이만 비키게 된 뒤 위치 유지)
+                .padding(end = glgAboveTabBarFabEnd, bottom = glgAboveTabBarFabBottom()),
         ) {
-            GlgCircleIconButton(
-                Icons.Default.KeyboardArrowUp,
-                "맨 위로",
-                outlined = true,
-                solidBackground = true,
-            ) {
+            GlgTabBarCircleButton(Icons.Default.KeyboardArrowUp, "맨 위로") {
                 scrollScope.launch { listState.animateScrollToItem(0) }
             }
         }
@@ -437,26 +430,6 @@ fun SpendingScreen(
         )
     }
 
-    if (showFilterSheet.value) {
-        SpendingFilterSheet(
-            selectedGames = selectedGames,
-            onGameToggle = { g -> selectedGames = if (g in selectedGames) selectedGames - g else selectedGames + g },
-            onGamesClear = { selectedGames = emptySet() },
-            period = period, onPeriod = { period = it },
-            customStart = customStart, onCustomStart = { customStart = it },
-            customEnd = customEnd, onCustomEnd = { customEnd = it },
-            paymentFilter = paymentFilter, onPayment = { paymentFilter = it },
-            sortOrder = sortOrder, onSort = { sortOrder = it },
-            onReset = {
-                selectedGames = emptySet(); period = PeriodFilter.ALL
-                paymentFilter = null; sortOrder = SortOrder.DATE_DESC
-                customStart = System.currentTimeMillis() - 30 * DAY_MS
-                customEnd = System.currentTimeMillis()
-            },
-            onDismiss = { showFilterSheet.value = false },
-        )
-    }
-
     if (showBulkEdit.value) {
         BulkEditSheet(
             count = selectedIds.size,
@@ -476,14 +449,12 @@ internal fun FilterPill(label: String, selected: Boolean, accent: Color, onClick
 }
 
 /**
- * 지출 리스트 상단 퀵필터 — **드롭다운 3개**(기간·게임·정렬) + 걸린 나머지 필터 해제 줄.
+ * 지출 리스트 상단 퀵필터 — **드롭다운 4개**(기간·게임·결제·정렬). 지출 목록에 거는 조건은 **여기가 전부다**
+ * (10/14, 상세 필터 시트를 없애고 옮겼다 — iOS 와 같다).
  *
  * 칩을 축마다 늘어놓으면 기간만 5개라 줄이 금방 넘쳤다. 축 하나당 알약 하나로 접고,
  * 열면 목록에서 고른다. 알약 라벨은 **기본값이면 축 이름, 아니면 고른 값** — 접힌 상태에서도
  * 지금 뭐가 걸렸는지 읽힌다.
- *
- * 결제 수단·구분은 드롭다운으로 두지 않는다(자주 안 바뀐다). 대신 걸려 있으면 아랫줄에
- * **해제 칩**으로 뜬다 — 무엇을 걸지는 필터 시트, 뗄 때는 여기.
  */
 @Composable
 private fun SpendingQuickFilters(
@@ -499,10 +470,8 @@ private fun SpendingQuickFilters(
     sortOrder: SortOrder,
     onSort: (SortOrder) -> Unit,
     paymentFilter: String?,
-    onPaymentClear: () -> Unit,
+    onPayment: (String?) -> Unit,
 ) {
-    val accent = LocalAccent.current
-    val hasOthers = paymentFilter != null
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         // ① 축별 드롭다운 — 가로 스크롤(알약이 넘치면 잘리지 않고 밀린다).
         Row(
@@ -538,6 +507,13 @@ private fun SpendingQuickFilters(
                     )
                 }
             }
+            // 결제 수단 — 단일 선택(10/14 상세 필터에서 옮김).
+            QuickFilterMenu(label = paymentFilter ?: "결제", active = paymentFilter != null) { close ->
+                GlgDropdownItem(text = "전체", selected = paymentFilter == null, onClick = { onPayment(null); close() })
+                GameData.paymentMethods.forEach { m ->
+                    GlgDropdownItem(text = m, selected = paymentFilter == m, onClick = { onPayment(m); close() })
+                }
+            }
             // 정렬 — 거르는 게 아니라 늘어놓는 방식이지만, 기간만큼 자주 바꾼다.
             QuickFilterMenu(
                 label = if (sortOrder == SortOrder.DATE_DESC) "정렬" else sortOrder.label,
@@ -562,19 +538,6 @@ private fun SpendingQuickFilters(
                 GldsChip(DateUtil.dayKey(customStart), onPickStart, selected = true)
                 Text("~", fontSize = 12.sp, color = TextSecondary)
                 GldsChip(DateUtil.dayKey(customEnd), onPickEnd, selected = true)
-            }
-        }
-        // ③ 드롭다운에 없는 필터가 걸려 있으면 해제 칩. 없으면 줄 자체가 사라져 공간을 안 먹는다.
-        if (hasOthers) {
-            Spacer(Modifier.height(6.dp))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                paymentFilter?.let { m ->
-                    GldsChip(m, { onPaymentClear() }, selected = true, removable = true)
-                }
             }
         }
     }
@@ -730,102 +693,6 @@ internal fun TagChip(tag: String) {
         return
     }
     GlgChip(label = tag, variant = GlgChipVariant.Tag)
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun SpendingFilterSheet(
-    selectedGames: Set<String>, onGameToggle: (String) -> Unit, onGamesClear: () -> Unit,
-    period: PeriodFilter, onPeriod: (PeriodFilter) -> Unit,
-    customStart: Long, onCustomStart: (Long) -> Unit,
-    customEnd: Long, onCustomEnd: (Long) -> Unit,
-    paymentFilter: String?, onPayment: (String?) -> Unit,
-    sortOrder: SortOrder, onSort: (SortOrder) -> Unit,
-    onReset: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    // 기간 지정 날짜 선택 대상 — null=닫힘, 0=시작, 1=종료.
-    var pickTarget by remember { mutableStateOf<Int?>(null) }
-    // '적용'은 onDismiss 를 바로 호출하면 시트가 애니메이션 없이 사라진다 →
-    // sheetState.hide() 로 슬라이드다운 애니메이션 후 닫는다(스크림/드래그 닫힘과 동일한 모션).
-    val animatedDismiss = {
-        scope.launch { sheetState.hide() }.invokeOnCompletion { if (!sheetState.isVisible) onDismiss() }
-        Unit
-    }
-    // 시트가 상태바를 침범하지 않도록 콘텐츠 높이에 상한을 둔다.
-    // ModalBottomSheet 의 content 슬롯은 wrap-content(높이 무제한)라, 상한이 없으면
-    // skipPartiallyExpanded 로 시트가 화면 끝(상태바 위)까지 자라고 weight 스크롤도 동작하지 않는다.
-    // 화면 높이의 90% 로 제한 → 상단에 여백이 남아 상태바를 넘지 않고, 넘치면 내부 스크롤로 처리.
-    val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Color.White,
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-    ) {
-        LightSystemBarsInWindow()
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = maxSheetHeight)
-                .padding(start = 20.dp, end = 20.dp, top = 4.dp)
-                .navigationBarsPadding(),
-        ) {
-            Text("상세 필터", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(18.dp))
-            // 필터 그룹 — 내용이 시트 최대 높이를 넘으면 이 영역만 내부 스크롤(헤더/하단 버튼은 고정).
-            // weight(1f, fill = false): 짧으면 필요한 만큼만, 길면 남은 높이까지 차지 후 스크롤.
-            Column(
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                // 게임 — 다중 선택(선택됨 색은 게임별 대표색). '전체'는 선택 해제.
-                FilterGroup("게임") {
-                    FilterPill("전체", selectedGames.isEmpty(), accent) { onGamesClear() }
-                    GameData.games.forEach { g ->
-                        FilterPill(g.shortName, g.displayName in selectedGames, g.color.toColor()) { onGameToggle(g.displayName) }
-                    }
-                }
-                FilterGroup("기간") {
-                    PeriodFilter.entries.forEach { p -> FilterPill(p.label, period == p, accent) { onPeriod(p) } }
-                    // '기간 지정'을 고른 경우에만 시작·종료 날짜 칩을 편다 — 평소엔 시트가 길어지지 않는다.
-                    if (period == PeriodFilter.CUSTOM) {
-                        FilterPill("시작 ${DateUtil.dayKey(customStart)}", false, accent) { pickTarget = 0 }
-                        FilterPill("종료 ${DateUtil.dayKey(customEnd)}", false, accent) { pickTarget = 1 }
-                    }
-                }
-                FilterGroup("결제 수단") {
-                    FilterPill("전체", paymentFilter == null, accent) { onPayment(null) }
-                    GameData.paymentMethods.forEach { m -> FilterPill(m, paymentFilter == m, accent) { onPayment(m) } }
-                }
-                FilterGroup("정렬") {
-                    SortOrder.entries.forEach { s -> FilterPill(s.label, sortOrder == s, accent) { onSort(s) } }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GldsButton("초기화", onReset, Modifier.weight(1f), variant = GldsVariant.Secondary)
-                GldsButton("적용", animatedDismiss, Modifier.weight(1.4f))
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-    }
-
-    // 기간 지정 날짜 선택 — 앱 공통 달력 다이얼로그(시트 위에 뜬다).
-    pickTarget?.let { target ->
-        GlgDatePickerDialog(
-            initialMillis = if (target == 0) customStart else customEnd,
-            onDismiss = { pickTarget = null },
-            onConfirm = { m ->
-                if (target == 0) onCustomStart(m) else onCustomEnd(m)
-                pickTarget = null
-            },
-        )
-    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

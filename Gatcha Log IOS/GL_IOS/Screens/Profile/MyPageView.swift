@@ -59,7 +59,7 @@ struct MyPageView: View {
     }
 
     private var settingsButton: some View {
-        Button { openSettings = true } label: { Image(systemName: "gearshape") }
+        Button { openSettings = true } label: { GLGLineIcon("IconSettings", label: "설정") }
     }
 
     // 누적 합계·이번 달 건수는 지출 전체를 훑는다 — 지출이 바뀔 때만 계산한다.
