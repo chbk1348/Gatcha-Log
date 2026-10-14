@@ -1072,6 +1072,8 @@ struct GLGDatePickerDialog: View {
             .padding(22)
             .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+            // 한 장으로 합친 뒤에 그림자를 준다 — 그냥 주면 카드 안의 입력칸 · 버튼 · 글자마다 그림자가 따로 생긴다(10/14 지적).
+            .compositingGroup()
             .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
             .padding(24)
             .frame(maxWidth: 480)

@@ -314,3 +314,93 @@ struct GldsSpinner: View {
         return (start, sweep)
     }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// GLDS 다이얼로그(10/14) — Android `GlgDialog` 와 같은 값 · 같은 인자.
+// 딤(검정 32%) + 가운데 흰 카드: 모서리 24 · 안쪽 22 · 1 테두리 · 바깥 여백 24. 제목 17 Bold + 아래 16(비면 줄째 생략),
+// 본문, 버튼 위 20, 버튼은 GLDS 버튼 M 을 취소(Secondary) 1 : 확인(Primary) 1.4 — 취소 글자가 없으면 확인 하나를 전체 폭으로.
+// 바깥을 누르면 닫힌다(`dismissable = false` 면 안 닫힌다).
+//
+// 띄우는 법: 화면에 `.glgDialogCover(isPresented:) { GlgDialog(…) { 본문 } }` 를 달고, 그 상태는 `glgDialogStill { … }` 안에서
+// 바꾼다. 덮개(fullScreenCover)라 내비게이션 바 · 탭 바 · 시트 위까지 덮고, 덮개의 밀려 올라오는 움직임은 끈 채 모달이
+// 제자리에서 나타나고 사라진다. 닫을 때 `onDismiss` · `onConfirm` 은 사라진 **뒤에** 불린다.
+// ════════════════════════════════════════════════════════════════════════════
+
+struct GlgDialog<Content: View>: View {
+    let title: String
+    var confirmText: String = "저장"
+    var dismissText: String? = "취소"
+    var dismissable: Bool = true
+    let onDismiss: () -> Void
+    let onConfirm: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var shown = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.32).ignoresSafeArea()
+                .onTapGesture { if dismissable { close(onDismiss) } }
+            VStack(alignment: .leading, spacing: 0) {
+                if !title.isEmpty {
+                    Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 16)
+                }
+                content().frame(maxWidth: .infinity, alignment: .leading)
+                buttons.padding(.top, 20)
+            }
+            .padding(22)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+            // 한 장으로 합친 뒤에 그림자를 준다 — 그냥 주면 카드 안의 버튼 · 글자마다 그림자가 따로 생긴다.
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+            .padding(24)
+            .frame(maxWidth: 480)
+            .scaleEffect(shown ? 1 : 0.96)
+        }
+        .opacity(shown ? 1 : 0)
+        .task { withAnimation(.easeOut(duration: 0.16)) { shown = true } }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        if let dismissText {
+            GeometryReader { geo in
+                let w = geo.size.width - 10
+                HStack(spacing: 10) {
+                    GldsButton(title: dismissText, variant: .secondary) { close(onDismiss) }
+                        .frame(width: w / 2.4)
+                    GldsButton(title: confirmText) { close(onConfirm) }
+                        .frame(width: w * 1.4 / 2.4)
+                }
+            }
+            .frame(height: 44)
+        } else {
+            GldsButton(title: confirmText) { close(onConfirm) }
+        }
+    }
+
+    /// 흐려진 뒤에 닫는다 — 덮개는 움직임 없이 사라지므로 여기서 사라지는 모습을 그린다.
+    private func close(_ then: @escaping () -> Void) {
+        withAnimation(.easeIn(duration: 0.12)) { shown = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(130))
+            then()
+        }
+    }
+}
+
+/// 모달 덮개를 띄우거나 닫는 상태 변경을 감싼다 — 덮개가 밀려 올라오는 움직임을 끈다(모달이 제자리에서 나타난다).
+func glgDialogStill(_ change: () -> Void) {
+    var still = Transaction()
+    still.disablesAnimations = true
+    withTransaction(still, change)
+}
+
+extension View {
+    /// 가운데 모달을 **화면 전체 위에** 띄운다 — 내비게이션 바 · 탭 바 · 시트까지 덮는다. 상태는 [glgDialogStill] 안에서 바꾼다.
+    func glgDialogCover<D: View>(isPresented: Binding<Bool>, @ViewBuilder dialog: @escaping () -> D) -> some View {
+        fullScreenCover(isPresented: isPresented) { dialog().presentationBackground(.clear) }
+    }
+}
