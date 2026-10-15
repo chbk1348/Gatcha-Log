@@ -43,8 +43,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.dropShadow
-import androidx.compose.ui.graphics.shadow.Shadow
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
@@ -1071,7 +1069,7 @@ fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Mo
  * 배경이 반투명이라 헤더 오버레이 아래 콘텐츠가 비쳤다. [GlgDropdownItem] 과 함께 사용한다.
  *
  * GLDS 2.1(10/15 드롭다운 시안 C) — 헤더 · 하단 툴바 · 토스트와 같은 흰 면(안쪽 1 [DividerColor]) · 반경 16 ·
- * 그림자 검정 12% · 퍼짐 24 · 아래로 8. 예전 강조색 30% 테두리 1.5 · 반경 20 은 걷었다.
+ * 플랫폼 그림자 elevation 12(메뉴와 같은 층 — 흐림 그림자는 한 박자 늦게 떠서 쓰지 않는다). 예전 강조색 30% 테두리 1.5 · 반경 20 은 걷었다.
  *
  * 앵커(호출한 Box) 기준으로 아래에 뜨고, 오른쪽 정렬이 필요하면 [alignEnd] 를 켠다.
  */
