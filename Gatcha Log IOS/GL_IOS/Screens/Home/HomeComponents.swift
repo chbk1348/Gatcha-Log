@@ -173,6 +173,8 @@ struct AppNoticeAutoLoad: ViewModifier {
 
     private func reload() async {
         if let fresh = try? await AppNoticeApi.shared.load(force: false) { notices = fresh }
+        // 라이브 문서가 늦어 정본으로 섰으면 잠시 뒤 한 번 더 읽는다 — 라이브에만 올린 긴급 공지를 놓치지 않게(Android 와 같다).
+        if let later = try? await AppNoticeApi.shared.reloadIfLiveWasLate() { notices = later }
     }
 }
 
@@ -190,7 +192,7 @@ struct NotificationDetailView: View {
             if alerts.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "bell.slash").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
-                    Text("새로운 알림이 없어요 🎉").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                    Text("새로운 알림이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
                     Text("예산·픽업 배너·출석 알림이 여기에 모여요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3))
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -210,7 +212,13 @@ struct NotificationDetailView: View {
             }
         }
         .background(Color.white)
-        .glgPageTitle("알림").navigationBarTitleDisplayMode(.inline)
+        .glgPageTitle("알림") {
+            // iOS 18 아이폰 GLDS 헤더(10/15) — 「모두 지우기」 글자 알약. 툴바 때의 보조 글자색을 그대로 둔다.
+            if !alerts.isEmpty {
+                GldsHeaderTextButton(title: "모두 지우기", color: GLGColor.textSecondary) { onDismissAll() }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
         .toolbar {
             // 모두 지우기 — 한 번에 전체 dismiss
@@ -268,22 +276,19 @@ struct NotificationDetailView: View {
 struct DashboardScheduleCard: View {
     let events: [GameEvent]; let challenges: [GameChallenge]; let onTap: () -> Void
     var body: some View {
-        let now = nowMs()
-        let raw: [(String, String, Int64, String)] =
-            events.map { ($0.game, $0.name, $0.endMillis, $0.dDayLabel(nowMillis: now)) }
-            + challenges.map { ($0.game, $0.name, $0.endMillis, $0.dDayLabel(nowMillis: now)) }
-        let items = Array(raw.filter { $0.2 > now }.sorted { $0.2 < $1.2 }.prefix(3))
+        // 고르기 · 순서 · 강조 기준은 공용 로직이 정한다(Android `DashScheduleCard` 와 같은 함수).
+        let items = HomeLogic.shared.weekSchedule(events: events, challenges: challenges, nowMillis: nowMs(), max: 3)
         // 일정이 없어도 **카드는 남긴다.** 예전엔 통째로 숨겨서 "이번 주가 한가하다"와
         // "아직 못 불러왔다"가 화면에서 똑같아 보였다(스켈레톤도 같은 자리에 뜬다).
         // (Android `DashScheduleCard` 와 같이 고쳐야 한다)
         return VStack(alignment: .leading, spacing: 2) {
             HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체 ›", action: onTap)
-            rows(items, now: now)
+            rows(items)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle()).onTapGesture { onTap() }
         }
     }
-    @ViewBuilder private func rows(_ items: [(String, String, Int64, String)], now: Int64) -> some View {
+    @ViewBuilder private func rows(_ items: [HomeScheduleRow]) -> some View {
         if items.isEmpty {
             Text("이번 주 마감 일정이 없어요")
                 .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
@@ -292,14 +297,13 @@ struct DashboardScheduleCard: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.offset) { i, it in
                     if i > 0 { homeHair.frame(height: 1) }
-                    // 마감 임박(D-0~3)만 강조 — 게임 정보 일정(ScheduleLogic.urgent)과 같은 기준 · 같은 색.
-                    let dDay = Int((Double(it.2 - now) / 86_400_000).rounded(.up))
+                    // 마감 임박(D-0~3)만 강조 — 게임 정보 일정과 같은 기준 · 같은 색.
                     HStack(spacing: 12) {
-                        HomeGameTag(game: it.0)
-                        Text(it.1).font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        HomeGameTag(game: it.game)
+                        Text(it.name).font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                         Spacer(minLength: 0)
-                        Text(it.3).font(.pretendard(size: 13, weight: .bold))
-                            .foregroundStyle((0...3).contains(dDay) ? GLGColor.urgent : GLGColor.textPrimary)
+                        Text(it.dDayLabel).font(.pretendard(size: 13, weight: .bold))
+                            .foregroundStyle(it.urgent ? GLGColor.urgent : GLGColor.textPrimary)
                     }
                     .padding(.vertical, 12)
                 }

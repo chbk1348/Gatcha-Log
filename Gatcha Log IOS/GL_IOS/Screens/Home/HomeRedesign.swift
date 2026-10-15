@@ -4,7 +4,8 @@ import Shared
 // 홈 3.0(10/1) — 이번 달 지출 · 최근 지출 · 섹션 머리 · 게임 태그. (Compose HomeRedesign 대응)
 
 /// 이번 달 지출(홈 3.0 — 히어로 대신 일반 섹션). 금액 · 지난달 대비 · 예산 막대.
-/// 예산이 없으면 옛 히어로처럼 「미설정」 + 예산 설정하기. (Android `MonthSpendSection` 과 같은 값)
+/// 예산이 없으면 「미설정」. 예산 페이지로 가는 길은 머리의 「예산 관리 ›」 하나다 — 「예산 설정하기」 버튼은
+/// 같은 곳으로 가는 중복이라 걷었다(10/15). (Android `MonthSpendSection` 과 같은 값)
 struct MonthSpendSection: View {
     let monthlyTotal: Int64
     let prevTotal: Int64
@@ -45,12 +46,8 @@ struct MonthSpendSection: View {
                 .font(.pretendard(size: 13)).lineLimit(1)
                 .padding(.top, 8)
             } else {
-                HStack {
-                    Text("미설정").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    Spacer(minLength: 8)
-                    GldsButton(title: "예산 설정하기", variant: .secondary, size: .s, fullWidth: false, action: onBudget)
-                }
-                .padding(.top, 12)
+                Text("미설정").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    .padding(.top, 12)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -176,9 +173,14 @@ struct HomeTopBarStyle: ViewModifier {
     func body(content: Content) -> some View {
         if isWide {
             content
-        } else {
+        } else if #available(iOS 26.0, *) {
             content
                 .toolbarBackground(.hidden, for: .navigationBar)
+        } else {
+            // iOS 18 은 숨기지 않는다(10/14 「홈 스크롤시 헤더에 배경이 사라짐」) — iOS 26 은 스크롤하면 시스템 흐림이 바 밑에
+            // 깔리지만 iOS 18 엔 그게 없어, 바탕을 숨기면 본문이 헤더 버튼 뒤로 그대로 비쳤다. 시스템 기본(맨 위는 투명 ·
+            // 스크롤하면 바탕)을 쓴다.
+            content
         }
     }
 }

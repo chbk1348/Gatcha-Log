@@ -89,6 +89,23 @@ object GachaReport {
 
     val gameOrder = listOf("genshin", "starrail", "zzz")
 
+    /**
+     * 5성 단가 계산에 쓰는 **게임별 지출 합계** — 키는 [GachaStats.byGame] 과 같다(genshin · starrail · zzz).
+     * 가챠 기록이 없는 게임의 지출은 싣지 않는다.
+     */
+    fun spendByGameKey(spendings: List<Spending>): Map<String, Long> {
+        val keyOf = gameInfo.entries.associate { it.value.second to it.key }
+        val out = mutableMapOf<String, Long>()
+        for (s in spendings) {
+            val key = keyOf[s.gameName] ?: continue
+            out[key] = (out[key] ?: 0L) + s.amount
+        }
+        return out
+    }
+
+    /** 5성 한 장에 쓴 돈. 지출이 없거나 5성이 없으면 0 — 화면은 「—」로 적는다. */
+    fun costPerFive(spend: Long, fives: Int): Long = if (spend > 0 && fives > 0) spend / fives else 0L
+
     private val poolMap: Map<String, Map<String, String>> = mapOf(
         "genshin" to mapOf("100" to "novice", "200" to "permanent", "301" to "character", "400" to "character", "302" to "weapon", "500" to "chronicled"),
         // 스타레일 21·22 = 콜라보 캐릭터·광추 픽업(Collaboration Warp) — 일반 픽업과 천장이 별개라 별도 풀로 분리.
@@ -211,22 +228,32 @@ object GachaReport {
      */
     private fun walkPools(recs: List<GachaRecord>): List<PoolWalk> =
         recs.groupBy { it.pool }.map { (pool, prs) ->
-            val sorted = prs.map { it to bigId(it.id) }.sortedBy { it.second }
-            var since = 0; var five = 0; var four = 0
+            var five = 0; var four = 0
             val pities = mutableListOf<Int>()
             val fives = mutableListOf<FiveHit>()
-            sorted.forEach { (r, key) ->
-                since++
-                when (r.rarity) {
-                    5 -> {
-                        five++; pities.add(since)
-                        fives.add(FiveHit(r.name, pool, since, r.id, key, r.time))
-                        since = 0
+            // **계정(uid)마다 따로 훑는다**(27.52.0). 천장은 계정마다 따로 쌓이는데 예전엔 풀만 보고 id 순으로
+            // 섞어 훑어서, 두 계정의 기록을 가져오면 한 계정의 5성이 다른 계정의 무5성 구간을 끊고 천장이 80 처럼 찍혔다.
+            var pity = 0
+            var latestKey = ""
+            prs.groupBy { it.uid }.values.forEach { account ->
+                val sorted = account.map { it to bigId(it.id) }.sortedBy { it.second }
+                var since = 0
+                sorted.forEach { (r, key) ->
+                    since++
+                    when (r.rarity) {
+                        5 -> {
+                            five++; pities.add(since)
+                            fives.add(FiveHit(r.name, pool, since, r.id, key, r.time))
+                            since = 0
+                        }
+                        4 -> four++
                     }
-                    4 -> four++
                 }
+                // 「현재 천장」은 가장 최근에 뽑은 계정의 것을 보여 준다.
+                val lastKey = sorted.lastOrNull()?.second.orEmpty()
+                if (lastKey >= latestKey) { latestKey = lastKey; pity = since }
             }
-            PoolWalk(pool, prs.size, five, four, since, pities, fives)
+            PoolWalk(pool, prs.size, five, four, pity, pities, fives)
         }
 
     fun computeStats(records: List<GachaRecord>): GachaStats? {
@@ -332,10 +359,12 @@ object GachaReport {
 
     fun fromJsonArray(jsonStr: String?): List<GachaRecord> {
         if (jsonStr.isNullOrBlank()) return emptyList()
+        // **깨진 원소만 건너뛴다**(27.52.0). 예전엔 원소 하나가 객체가 아니면 예외가 올라와 전체가 빈 목록이 됐다 —
+        // 그 상태로 새 기록을 가져와 저장하면 옛 기록이 통째로 사라질 수 있었다. 배열 자체가 깨졌을 때만 빈 목록이다.
         return runCatching {
             val arr = JSONArray(jsonStr)
-            (0 until arr.length()).map { i ->
-                val o = arr.getJSONObject(i)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 val game = o.optString("game")
                 val gachaType = o.optString("gachaType")
                 GachaRecord(

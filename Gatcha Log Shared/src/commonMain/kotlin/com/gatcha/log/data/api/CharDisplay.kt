@@ -111,3 +111,38 @@ fun maxLevelOf(gameKey: String): Int = when (gameKey) {
     "zzz" -> 60               // 인터넷 등급 60 기준
     else -> 90                // 원신 — 모험 등급 55 기준
 }
+
+/** 돌파 단계 수 — 원신 운명의 자리 · 스타레일 성혼 · 젠레스 형상 시네마가 모두 여섯이다. */
+const val RANK_STEPS = 6
+
+/** 정련 눈금 칸 수 — 원신 R1~R5 · 스타레일 중첩 1~5 · 젠레스 1~5 로 모두 다섯이다. */
+const val REFINE_TICKS = 5
+
+/** 캐릭터 목록의 게임 줄 이름 — 짧은 이름. */
+fun enkaGameLabel(gameKey: String): String = when (gameKey) {
+    "genshin" -> "원신"
+    "hsr", "starrail" -> "스타레일"
+    "zzz" -> "젠레스"
+    else -> gameKey
+}
+
+/** 돌파 단계를 그 게임이 부르는 이름 — 「돌파 정보」 섹션과 단계 이름의 폴백에 쓴다. */
+fun rankTitle(gameKey: String): String = when (gameKey) {
+    "genshin" -> "운명의 자리"
+    "zzz" -> "형상 시네마"
+    else -> "성혼"
+}
+
+/** 캐릭터가 드는 장비의 이름. 픽업 줄의 [com.gatcha.log.data.weaponLabelOf] 와 같은 말이다. */
+fun weaponTerm(gameKey: String): String = when (gameKey) {
+    "genshin" -> "무기"
+    "zzz" -> "W-엔진"
+    else -> "광추"
+}
+
+/** 부위별로 끼우는 유물의 이름. */
+fun relicTerm(gameKey: String): String = when (gameKey) {
+    "genshin" -> "성유물"
+    "zzz" -> "드라이브 디스크"
+    else -> "유물"
+}

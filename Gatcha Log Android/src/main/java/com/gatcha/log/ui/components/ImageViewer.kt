@@ -81,6 +81,8 @@ fun GlgImageViewer(url: String, onDismiss: () -> Unit, onSaved: (String) -> Unit
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
+        // 저장 결과 토스트가 이 창 위에 보이게(GLDS 2.1 토스트, 10/15) — 액티비티에 그리면 검은 뷰어 아래에 깔린다.
+        GldsToastLayer {
         Box(
             Modifier
                 .fillMaxSize()
@@ -118,6 +120,7 @@ fun GlgImageViewer(url: String, onDismiss: () -> Unit, onSaved: (String) -> Unit
                     }
                 }
             }
+        }
         }
     }
 }

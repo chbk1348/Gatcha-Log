@@ -46,6 +46,7 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.components.GlgDropdownItem
+import com.gatcha.log.ui.components.GlgDropdownMark
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -146,7 +147,7 @@ fun NewsFilterAction(news: List<NewsItem>, chip: String, onChip: (String) -> Uni
     val selected = chipGames.firstOrNull { it.key == chip }
     var menuOpen by remember { mutableStateOf(false) }
     Box {
-        // 헤더 표준 부품 — 옆의 뒤로가기·액션 버튼과 같은 44dp 규격이다.
+        // 헤더 표준 부품 — 옆의 뒤로가기·액션 버튼과 같은 높이(GlgHeaderElementHeight) 규격이다.
         // (지출 화면 퀵필터 알약은 본문 필터 줄용이라 헤더에 놓으면 혼자 작아 보인다.)
         GlgHeaderDropdownPill(
             label = selected?.shortName ?: "전체",
@@ -155,12 +156,12 @@ fun NewsFilterAction(news: List<NewsItem>, chip: String, onChip: (String) -> Uni
         ) { menuOpen = true }
         GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true) {
             GlgDropdownItem(
-                text = "전체", selected = chip == "all",
+                text = "전체", selected = chip == "all", mark = GlgDropdownMark.Radio,
                 onClick = { menuOpen = false; onChip("all") },
             )
             chipGames.forEach { g ->
                 GlgDropdownItem(
-                    text = g.shortName, selected = chip == g.key,
+                    text = g.shortName, selected = chip == g.key, mark = GlgDropdownMark.Radio,
                     onClick = { menuOpen = false; onChip(g.key) },
                 )
             }

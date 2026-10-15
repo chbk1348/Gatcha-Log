@@ -18,6 +18,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +35,7 @@ import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -54,6 +59,8 @@ fun GachaReportSection(
     }
     // MIME 필터를 좁히면 일부 제공자(삼성 SAF·클라우드)가 JSON 을 회색 처리해 선택 불가 → */* 로 전부 허용
     val openPicker = { picker.launch(arrayOf("*/*")) }
+    // 「초기화」는 확인을 거친다(27.52.0) — 예전엔 제목 줄의 작은 글자 하나가 기록 전부를 바로 지웠다.
+    var showClear by remember { mutableStateOf(false) }
 
     // 카드는 걷었다(10/1) — 화면 폭 섹션(좌우 20 · 위 22 · 아래 20), 게임 블록 사이는 GiBand.
     // 틀(SectionPage flat)이 좌우 0 을 주므로 좌우 20 은 섹션이 스스로 둔다. 첫 섹션 위엔 띠가 없다.
@@ -68,7 +75,7 @@ fun GachaReportSection(
             ) {
                 Text("가챠 효율 리포트", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 if (stats != null) {
-                    Text("초기화", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onClear() }.padding(4.dp))
+                    Text("초기화", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { showClear = true }.padding(4.dp))
                 }
             }
             if (stats == null) {
@@ -86,6 +93,48 @@ fun GachaReportSection(
             }
             GiBand()
             ReportSection { GldsButton("기록 추가 가져오기", onClick = openPicker, modifier = Modifier.fillMaxWidth()) }
+        }
+    }
+    GachaClearConfirm(show = showClear, onDismiss = { showClear = false }, onClear = onClear, fromReport = true)
+}
+
+/**
+ * 가챠 기록 초기화 확인 — 1차(백업 권장 안내) → 2차(최종 확인). 되돌릴 수 없는 작업이라 두 번 묻는다.
+ *
+ * 데이터 관리 ▸ 위험 구역과 리포트 제목 줄의 「초기화」가 **같은 창 · 같은 문구**를 쓴다(27.52.0) —
+ * 문구를 두 곳에 적어 두면 한쪽만 고쳐져 어긋난다.
+ *
+ * [show] 는 1차 창이다. 2차 창은 여기서 들고 있어, 부르는 쪽은 [onDismiss] 에서 [show] 만 내리면 된다.
+ *
+ * @param fromReport 가챠 리포트에서 띄웠는가 — 그 화면에는 백업 버튼이 없어 **어디에 있는지**를 문구에 적는다(10/12 결정).
+ */
+@Composable
+fun GachaClearConfirm(show: Boolean, onDismiss: () -> Unit, onClear: () -> Unit, fromReport: Boolean = false) {
+    var showFinal by remember { mutableStateOf(false) }
+    // 1단계(백업 권장 안내)
+    if (show) {
+        GlgDialog(
+            title = "가챠 기록 초기화",
+            onDismiss = onDismiss,
+            confirmText = "계속",
+            onConfirm = { onDismiss(); showFinal = true },
+        ) {
+            Text(
+                if (fromReport) "가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 설정 ▸ 데이터 관리의 ‘백업 파일 내보내기’로 백업을 권장해요."
+                else "가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.",
+                fontSize = 13.sp, color = TextSecondary,
+            )
+        }
+    }
+    // 2단계(최종 확인)
+    if (showFinal) {
+        GlgDialog(
+            title = "정말 초기화할까요?",
+            onDismiss = { showFinal = false },
+            confirmText = "초기화",
+            onConfirm = { onClear(); showFinal = false },
+        ) {
+            Text("이 작업은 되돌릴 수 없어요. 가챠 기록을 모두 삭제합니다.", fontSize = 13.sp, color = TextSecondary)
         }
     }
 }
@@ -134,7 +183,7 @@ private fun EmptyState(onImport: () -> Unit) {
 private fun GameCard(gk: String, g: GachaGameStat, spend: Long, onOpenDashboard: () -> Unit) {
     val accent = LocalAccent.current
     val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
-    val cost = if (spend > 0 && g.five > 0) spend / g.five else 0L
+    val cost = GachaReport.costPerFive(spend, g.five)
     val dist = g.luckDist
     run {
         Column(Modifier.fillMaxWidth()) {

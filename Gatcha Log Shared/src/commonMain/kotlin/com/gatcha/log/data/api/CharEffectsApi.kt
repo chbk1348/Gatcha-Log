@@ -18,10 +18,7 @@ data class CharEffect(val index: Int, val name: String, val desc: String)
 // ⚠️ 닫는 `}`·`]` 는 **반드시 이스케이프**한다 — Android 정규식 엔진(ICU)은 비이스케이프 `}` 를
 // 양화자 메타로 보고 PatternSyntaxException 을 던진다(Java/iOS 는 허용). 이걸 놓쳐서 예전에
 // GI/HSR/ZZZ 돌파 효과 설명이 Android 에서 전멸한 적이 있다.
-private val RE_MARKUP_TAG = Regex("<[^>]*>")            // <color>/<i>/<unbreak>
-private val RE_BRACE_REF = Regex("\\{[^}]*\\}")         // {LINK#…}/{/LINK} 참조 태그
 private val RE_YATTA_PLACEHOLDER = Regex("#\\d+\\[[^\\]]*\\]%?")  // #1[i]% 미보간 자리표시자
-private val RE_WHITESPACE = Regex("\\s+")
 
 /**
  * 명좌/성혼/의식 단계별 효과 텍스트 조회. Enka/HoYoLAB 응답엔 효과 설명이 없어 외부 메타 API 로 보강한다.
@@ -61,9 +58,14 @@ object CharEffectsApi {
                 else -> emptyList()
             }
         }.getOrDefault(emptyList())
-        if (result.isNotEmpty()) cache[key] = result
+        // 영문 미러로 채운 결과는 기억하지 않는다(27.52.0) — 한국어 소스가 잠깐 실패했을 뿐인데 앱을 다시 켤 때까지 영문으로 굳었다.
+        if (result.isNotEmpty() && key !in fallbackKeys) cache[key] = result
+        fallbackKeys.remove(key)
         return result
     }
+
+    /** 이번 조회가 영문 미러(최후 폴백)로 채워진 키 — [fetch] 가 캐시에 넣지 않는다. */
+    private val fallbackKeys = mutableSetOf<String>()
 
     /**
      * Yatta(원신 constellation / 스타레일 eidolons) — data.<field> 는 객체(키 순회).
@@ -106,7 +108,7 @@ object CharEffectsApi {
                 ?.let { if (it.isNotEmpty()) return it }
         }
         parseZzzBody(Net.get("https://cdn.jsdelivr.net/gh/Genshin-Optimizer/zzz-hakushin-data@master/character/$id.json", headers))
-            ?.let { if (it.isNotEmpty()) return it }
+            ?.let { if (it.isNotEmpty()) { fallbackKeys.add("zzz:$id"); return it } }
         return emptyList()
     }
 

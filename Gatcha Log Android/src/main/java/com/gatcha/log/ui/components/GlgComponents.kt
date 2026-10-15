@@ -14,13 +14,13 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +30,8 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -37,8 +39,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -78,21 +87,12 @@ import com.gatcha.log.ui.theme.TextSecondary
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
 // ============================================================
 
-// 뒤로가기 버튼 테두리 — #E3E3EA 는 연회색 면(#F2F2F6)과 거의 같아 윤곽이 흐렸다(2026-09-28 지적). 한 단 진하게.
-private val GhostBorder = Color(0xFFC8CBD3)
-private val GhostText = Color(0xFF6C727A)
-
-/** 입력 필드 위 라벨 (대문자 느낌의 작은 라벨) */
-
-
-
-
 /**
- * 하위 페이지 공통 뒤로가기 버튼.
+ * 하위 페이지 공통 뒤로가기 버튼 — **제목이 없을 때만** 홀로 선다(지출 상세 히어로 등).
+ * 제목이 있으면 [GlgScreenHeader] 가 뒤로와 제목을 캡슐 하나 [‹ | 제목] 으로 묶는다.
  *
- * 규격은 탭 헤더의 원형 아이콘 버튼([GlgCircleIconButton])과 맞춘다 — 44dp 원, 흰 베이스 위
- * 옅은 틴트, 1.5dp 아웃라인, 20dp 아이콘. 예전엔 40dp·1dp 라 같은 화면에서 헤더 버튼과
- * 미묘하게 크기가 달라 보였다. **색은 고스트 톤 그대로** 유지한다(강조색 버튼과 역할이 다르다).
+ * 면은 다른 헤더 요소와 같다([glgHeaderSurface] — 흰 원 · 테두리 1 · 들뜸 그림자). 아이콘은 본문색 22 —
+ * 다른 헤더 아이콘(24)보다 한 단 작은 건 시안 그대로다(‹ 는 획이 단순해 같은 크기면 혼자 커 보인다).
  */
 @Composable
 fun GlgBackButton(
@@ -106,21 +106,15 @@ fun GlgBackButton(
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
-            .then(
-                if (background != null) Modifier.background(background)
-                // 기본: 흰 베이스 위 연회색 + 테두리. 흰 배경 화면에서 버튼이 면으로 읽히게 한다.
-                else Modifier.background(Color.White).background(Color(0xFFF2F2F6))
-                    .border(1.5.dp, GhostBorder, CircleShape),
-            )
+            .glgHeaderSurface(CircleShape, background)
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.AutoMirrored.Filled.ArrowBack,
+            GlgLineIcons.Back,
             contentDescription = "뒤로",
-            tint = tint ?: GhostText,
-            modifier = Modifier.size(20.dp),
+            tint = tint ?: TextPrimary,
+            modifier = Modifier.size(GlgHeaderBackIconSize),
         )
     }
 }
@@ -130,8 +124,11 @@ fun GlgBackButton(
  * 가로 16dp 여백이 없는 컨테이너(전체화면 Column 등)에선 [modifier] 로 `padding(horizontal = 16.dp)` 를 넘긴다.
  * 이미 가로 16dp 패딩된 컨테이너(LazyColumn 등) 안에선 [modifier] 없이 사용.
  *
- * 제목은 **불투명 알약**([GlgHeaderTitlePill]) — 마이페이지 헤더와 같은 디자인이다.
- * 하위 페이지도 콘텐츠가 헤더 아래로 지나가므로, 맨 글자 제목은 스크롤 중 배경과 겹쳐 읽혔다.
+ * 뒤로와 제목은 **캡슐 하나** [‹ | 제목] 이다(C 「묶음 캡슐」, 10/15) — 뒤로 칸 48(시안 44 에서 10/15 키움), 세로선 뒤 14, 제목 16 Bold, 오른쪽 안쪽 16.
+ * 하위 페이지도 콘텐츠가 헤더 아래로 지나가므로 제목은 불투명 면 위에 둔다 — 맨 글자는 스크롤 중 배경과 겹쳐 읽혔다.
+ * 제목이 비면 뒤로만 흰 원([GlgBackButton])으로 선다.
+ *
+ * 우측 [actions] 는 묶음 규칙을 따른다 — 하나면 [GlgCircleIconButton], 붙은 버튼이 둘 이상이면 [GlgHeaderButtonGroup].
  */
 @Composable
 fun GlgScreenHeader(
@@ -168,30 +165,149 @@ fun GlgScreenHeader(
                     }
                 }
         )
-        Row(
-            // edge-to-edge: 하위 페이지 헤더가 상태바 인셋을 직접 소유(공용 상단 패딩 없음).
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        // 왼쪽 [‹ | 제목] 과 오른쪽 액션이 **가까워지면 캡슐 하나로 합친다**(10/15 지시) — 사이가 헤더 요소 하나(48)보다
+        // 좁아지면 두 캡슐이 붙어 보여 어색했다(보유 캐릭터 · 원신 + [열 | 필터 | 검색]). 합치면 [‹ | 제목 … | 액션…].
+        GlgHeaderMergeRow(
+            title = title,
+            onBack = onBack,
+            buttonTint = buttonTint,
+            buttonBackground = buttonBackground,
+            actions = actions,
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = GlgDetailHeaderBottom),
+        )
+    }
+}
+
+/**
+ * 헤더 요소가 **합친 캡슐 안**에 놓였는가 — 그때 원 버튼 · 묶음 · 알약은 자기 면을 그리지 않고 칸으로만 선다.
+ * [Trail] 은 캡슐 오른쪽 액션 자리라 요소마다 **앞에 세로선**을 하나 긋는다(버튼마다 선 — 묶음 캡슐의 「칸 사이마다 세로선」과
+ * 같은 규칙, iOS 18 과 같게 10/15). [Lead] 는 캡슐 왼쪽(탭 헤더의 leading)이라 앞 선이 없다.
+ */
+internal enum class GlgHeaderMerge { None, Lead, Trail }
+
+internal val LocalGlgHeaderMerged = staticCompositionLocalOf { GlgHeaderMerge.None }
+
+/** 합친 캡슐의 액션 자리면 앞에 세로선을 긋고, 안쪽 요소는 앞 선 없이(Lead) 칸으로 그린다. */
+@Composable
+private fun GlgMergeTrailDivider(content: @Composable () -> Unit) {
+    if (LocalGlgHeaderMerged.current == GlgHeaderMerge.Trail) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlgHeaderGroupDivider()
+            CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Lead) { content() }
+        }
+    } else {
+        content()
+    }
+}
+
+private enum class GlgHeaderMergeSlot { Left, LeftFinal, Right, Merged, Back, BackDiv, Title, Acts }
+
+/**
+ * 하위 페이지 헤더 한 줄 — 평소엔 왼쪽 [‹ | 제목] 캡슐(남은 폭 · 제목 말줄임) + 오른쪽 액션.
+ * 왼쪽 캡슐의 본래 폭 + 48 + 액션 폭이 줄 폭을 넘으면(둘 사이가 요소 하나보다 좁아지면) **캡슐 하나**로 그린다 —
+ * [‹ 칸 | 14 · 제목(남은 폭 · 말줄임) · 16 | 세로선 · 액션 | 세로선 · 액션 …] + 오른쪽 안쪽 4 — 묶음 액션은 그 안의 칸마다 선.
+ * iOS 18 `GldsPageHeader18` 과 같은 규칙.
+ */
+@Composable
+private fun GlgHeaderMergeRow(
+    title: String,
+    onBack: () -> Unit,
+    buttonTint: Color?,
+    buttonBackground: Color?,
+    actions: @Composable RowScope.() -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val titleText: @Composable () -> Unit = {
+        Text(
+            title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = buttonTint ?: TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 14.dp, end = 16.dp),
+        )
+    }
+    val backCell: @Composable () -> Unit = {
+        GlgHeaderGroupItem(GlgLineIcons.Back, "뒤로", iconSize = GlgHeaderBackIconSize, tint = buttonTint, onClick = onBack)
+    }
+    val left: @Composable () -> Unit = {
+        if (title.isEmpty()) {
             GlgBackButton(onBack, tint = buttonTint, background = buttonBackground)
-            Spacer(Modifier.width(GlgHeaderItemGap))
-            // 제목 영역이 **남은 폭을 전부** 차지하고, 그 안에서 알약은 글자 길이만큼만 커진다.
-            //
-            // 예전엔 알약에 weight(1f, fill=false) 를 주고 그 뒤에 Spacer(weight(1f)) 를 뒀는데,
-            // 가중치가 둘이면 남은 폭을 **반씩 나눠** 갖는다 → 자리가 남아도 알약이 절반에서 잘렸다.
-            // 가중치는 이 영역 하나만 갖고, 우측 액션은 콘텐츠 크기로 밀려난다.
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (title.isNotEmpty()) GlgHeaderTitlePill(title)
+        } else {
+            // 묶음 안쪽 여백 없이 — 뒤로 칸이 캡슐 왼쪽 끝에서 시작하고, 제목 칸이 오른쪽 16 을 스스로 갖는다.
+            // 제목 칸은 마지막에 재므로 남은 폭만 받는다 — 길면 말줄임으로 줄고 뒤로 칸은 밀리지 않는다.
+            GlgHeaderButtonGroup(background = buttonBackground, contentPadding = PaddingValues(0.dp)) {
+                backCell()
+                titleText()
             }
-            // 우측 액션 슬롯 — 제목을 좌측에 붙이고 액션은 우측 정렬.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap),
-                content = actions,
-            )
+        }
+    }
+    val right: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap), content = actions)
+    }
+    SubcomposeLayout(modifier) { c ->
+        val maxW = c.maxWidth
+        val rightP = subcompose(GlgHeaderMergeSlot.Right, right).map { it.measure(Constraints()) }
+        val rightW = rightP.sumOf { it.width }
+        val leftNatural = subcompose(GlgHeaderMergeSlot.Left, left).map { it.measure(Constraints()) }
+        val leftNatW = leftNatural.maxOfOrNull { it.width } ?: 0
+        val gap = GlgHeaderItemGap.roundToPx()
+        val merge = title.isNotEmpty() && rightW > 0 && leftNatW + GlgHeaderElementHeight.roundToPx() + rightW > maxW
+        val height = GlgHeaderElementHeight.roundToPx()
+        if (!merge) {
+            // 남은 폭을 왼쪽 캡슐이 갖고(제목 말줄임), 오른쪽 액션은 내용 폭으로 오른쪽 끝에 선다.
+            val leftMax = (maxW - rightW - if (rightW > 0) gap else 0).coerceAtLeast(0)
+            val leftP = subcompose(GlgHeaderMergeSlot.LeftFinal, left).map { it.measure(Constraints(maxWidth = leftMax)) }
+            val h = maxOf(height, leftP.maxOfOrNull { it.height } ?: 0, rightP.maxOfOrNull { it.height } ?: 0)
+            layout(maxW, h) {
+                leftP.forEach { it.placeRelative(0, (h - it.height) / 2) }
+                rightP.forEach { it.placeRelative(maxW - rightW, (h - it.height) / 2) }
+            }
+        } else {
+            val merged = subcompose(GlgHeaderMergeSlot.Merged) {
+                GlgHeaderMergedCapsule(buttonBackground, backCell, titleText, actions)
+            }.map { it.measure(Constraints(maxWidth = maxW)) }
+            val h = maxOf(height, merged.maxOfOrNull { it.height } ?: 0)
+            layout(maxW, h) { merged.forEach { it.placeRelative(0, (h - it.height) / 2) } }
+        }
+    }
+}
+
+/** 합친 헤더 캡슐 — 면 하나 안에 뒤로 칸 · 제목(남은 폭) · 액션 칸들. 액션 앞마다 세로선. */
+@Composable
+private fun GlgHeaderMergedCapsule(
+    background: Color?,
+    backCell: @Composable () -> Unit,
+    titleText: @Composable () -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+) {
+    SubcomposeLayout(
+        Modifier
+            .fillMaxWidth()
+            .height(GlgHeaderElementHeight)
+            .glgHeaderSurface(fill = background)
+            .padding(end = GlgHeaderGroupInset),
+    ) { c ->
+        val back = subcompose(GlgHeaderMergeSlot.Back, backCell).map { it.measure(Constraints()) }
+        // 뒤로 칸과 제목 사이 세로선 — 따로 선 [‹ | 제목] 캡슐과 같다(합칠 때 빠졌던 것, 10/15 지적).
+        val backDiv = subcompose(GlgHeaderMergeSlot.BackDiv) { GlgHeaderGroupDivider() }.map { it.measure(Constraints()) }
+        // 액션은 저마다 앞에 세로선을 긋는다(Trail) — 캡슐이 선을 따로 놓지 않는다.
+        val acts = subcompose(GlgHeaderMergeSlot.Acts) {
+            CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Trail) { Row(verticalAlignment = Alignment.CenterVertically) { actions() } }
+        }.map { it.measure(Constraints()) }
+        val fixed = back.sumOf { it.width } + backDiv.sumOf { it.width } + acts.sumOf { it.width }
+        val titleP = subcompose(GlgHeaderMergeSlot.Title, titleText)
+            .map { it.measure(Constraints(minWidth = 0, maxWidth = (c.maxWidth - fixed).coerceAtLeast(0))) }
+        val h = c.maxHeight.takeIf { it != Constraints.Infinity } ?: GlgHeaderElementHeight.roundToPx()
+        layout(c.maxWidth, h) {
+            var x = 0
+            back.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
+            backDiv.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
+            titleP.forEach { it.placeRelative(x, (h - it.height) / 2) }
+            // 제목은 남은 폭을 다 차지한다 — 액션은 오른쪽 끝에 붙인다.
+            x = c.maxWidth - acts.sumOf { it.width }
+            acts.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
         }
     }
 }
@@ -205,24 +321,19 @@ fun GlgScreenHeader(
 val GlgHeaderItemGap = 8.dp
 
 /**
- * 헤더 제목 알약 — 흰 베이스 위 강조색 10% 틴트 + 30% 아웃라인.
+ * 헤더 제목 알약 — 흰 면 · 본문색 16 Bold. 따로 떨어진 제목(마이페이지)에 쓴다.
+ * 하위 페이지는 뒤로와 제목을 캡슐 하나로 묶으므로 이 알약을 쓰지 않는다([GlgScreenHeader]).
  *
- * 헤더 원형 버튼([GlgCircleIconButton]·[GlgBackButton])과 **같은 44dp 높이**라 한 줄로 정렬된다.
+ * 헤더 원형 버튼([GlgCircleIconButton]·[GlgBackButton])과 **같은 높이**([GlgHeaderElementHeight])라 한 줄로 정렬된다.
  * 불투명한 이유는 장식이 아니다 — 탭/하위 페이지 모두 콘텐츠가 헤더 아래를 지나가는 구조라,
  * 배경이 없으면 스크롤 중 글자가 콘텐츠와 겹쳐 읽힌다.
  */
-
-
 @Composable
 fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
-    val accent = LocalAccent.current
     Box(
         modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White)
-            .background(accent.copy(alpha = 0.10f))
-            .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
             .height(GlgHeaderElementHeight)
+            .glgHeaderSurface()
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -230,7 +341,7 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
             title,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = accent,
+            color = TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -240,15 +351,14 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
 /**
  * 헤더 우측 액션 자리의 **드롭다운 알약** — 열면 [GlgDropdownMenu] 가 붙는다.
  *
- * 헤더 요소는 전부 같은 규격이다: 높이 [GlgHeaderElementHeight], 999 라운드, 흰 베이스 +
- * 색 10% 채움, 1.5dp 색 30% 테두리. [GlgHeaderTitlePill]·[GlgCircleIconButton] 과 나란히
- * 놓았을 때 높이가 어긋나면 헤더 한 줄이 들쭉날쭉해진다.
+ * 헤더 요소는 전부 같은 규격이다: 높이 [GlgHeaderElementHeight], 완전히 둥근 캡슐, 흰 면([glgHeaderSurface]).
+ * [GlgHeaderTitlePill]·[GlgCircleIconButton] 과 나란히 놓았을 때 높이가 어긋나면 헤더 한 줄이 들쭉날쭉해진다.
  *
  * 지출 화면의 필터 칩([GldsChip])은 **본문 필터 줄**용이라 이보다 한참 작다 — 헤더에
- * 그걸 갖다 쓰면 옆의 44dp 버튼들 사이에서 혼자 작아 보인다(2026-08-18 지적).
+ * 그걸 갖다 쓰면 옆의 헤더 버튼들 사이에서 혼자 작아 보인다(2026-08-18 지적).
  *
  * [selected] 면 [color] 로 채우고 글자를 희게 뒤집는다 — 지금 무엇에 좁혀져 있는지가
- * 색만으로 읽혀서 따로 표식을 붙일 필요가 없다.
+ * 색만으로 읽혀서 따로 표식을 붙일 필요가 없다. 고르지 않은 상태는 흰 면 · 본문색이라 [color] 를 쓰지 않는다(C, 10/15).
  */
 @Composable
 fun GlgHeaderDropdownPill(
@@ -258,47 +368,234 @@ fun GlgHeaderDropdownPill(
     color: Color = LocalAccent.current,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(999.dp)
+    // 합친 헤더 캡슐 안이면 고르지 않은 알약은 면 없이 글자만, 고른 알약은 그림자 없이 색 면만.
+    GlgMergeTrailDivider {
+    val merged = LocalGlgHeaderMerged.current != GlgHeaderMerge.None
     Row(
         modifier
-            .clip(shape)
-            .background(Color.White)
-            .background(if (selected) color else color.copy(alpha = 0.10f))
-            .then(if (selected) Modifier else Modifier.border(1.5.dp, color.copy(alpha = 0.30f), shape))
+            // 고른 상태도 떠 있는 건 같다 — 그림자는 그대로 두고 면만 색으로 채운다(테두리 없음).
+            .then(
+                when {
+                    selected && merged -> Modifier.background(color, GlgHeaderCapsule)
+                    selected -> Modifier.dropShadow(GlgHeaderCapsule, LiftShadow).background(color, GlgHeaderCapsule)
+                    merged -> Modifier
+                    else -> Modifier.glgHeaderSurface()
+                }
+            )
             .clickable { onClick() }
             .height(GlgHeaderElementHeight)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 줄 상자를 글자에 맞춘다 — 기본 Text 는 폰트 패딩 때문에 고정 높이 안에서 아래로 처진다.
-        GlgBadgeText(label, 15.sp, if (selected) Color.White else color)
+        GlgBadgeText(label, 15.sp, if (selected) Color.White else TextPrimary)
         Spacer(Modifier.width(5.dp))
         Text(
             "▾",
             fontSize = 12.sp,
             fontWeight = FontWeight.Black,
-            color = if (selected) Color.White.copy(alpha = 0.9f) else color.copy(alpha = 0.75f),
+            color = if (selected) Color.White.copy(alpha = 0.9f) else TextPrimary.copy(alpha = 0.75f),
+        )
+    }
+    }
+}
+
+/**
+ * 헤더 안 요소의 공통 높이 — 뒤로가기·제목 알약·액션 버튼·드롭다운 알약·묶음 캡슐이 **전부 이 값**을 쓴다.
+ * 바꿀 땐 여기 한 곳만 고친다 — 탭 · 하위 페이지 헤더 높이([GlgTabHeaderHeight] · [GlgDetailHeaderHeight])가 따라온다.
+ * 44 → 48(10/15 사용자 지시) — 누름 영역 48 을 보이는 크기 그대로 채운다.
+ */
+val GlgHeaderElementHeight = 48.dp
+
+// ── 헤더 C 「묶음 캡슐」(10/15) ─────────────────────────────────────────────────
+// 붙어 있는 버튼 여럿은 캡슐 하나로 묶고, 따로 떨어진 버튼은 흰 원 하나로 둔다. 모든 헤더 요소는 같은 면
+// ([glgHeaderSurface])을 쓴다. 예전엔 요소마다 강조색 10% 틴트 + 30% 테두리 1.5 라 헤더가 강조색 덩어리로 읽혔다.
+
+/** 헤더 캡슐 · 알약 모양 — 완전히 둥글다. */
+private val GlgHeaderCapsule = RoundedCornerShape(999.dp)
+
+/** 헤더 아이콘 크기 — 본문색 24(10/15 사용자 지시로 22 → 24). 강조색 아이콘은 쓰지 않는다. */
+private val GlgHeaderIconSize = 24.dp
+
+/** 뒤로(‹) 아이콘만 한 단 작은 22(시안의 20 → 22, 10/15). 획이 단순해 같은 크기면 혼자 커 보인다. */
+private val GlgHeaderBackIconSize = 22.dp
+
+/** 묶음 캡슐 한 칸 너비 — 높이([GlgHeaderElementHeight])와 같아 칸이 정사각이다. */
+val GlgHeaderGroupCellWidth = GlgHeaderElementHeight
+
+/** 묶음 캡슐 안쪽 좌우 여백 — 끝 칸 아이콘이 둥근 끝에 붙어 보이지 않게. */
+private val GlgHeaderGroupInset = 4.dp
+
+/**
+ * 헤더 요소의 면 — 흰 바탕 · 안쪽 테두리 1 [DividerColor] · 하단 툴바와 같은 들뜸 그림자([LiftShadow]).
+ * 떠 있는 것의 그림자는 한 벌이다 — 툴바 · 토스트 · 헤더가 같은 값을 쓴다.
+ *
+ * [fill] 을 넘기면(색이 깔린 히어로 위 — 지출 상세 · 캐릭터 상세) 그 면만 깐다. 히어로 면은 반투명이라
+ * 그림자 · 테두리를 두면 비쳐 탁해지고, 히어로와 한 층으로 읽혀야 하는 자리라 띄우지도 않는다.
+ *
+ * clip 을 걸지 않는다 — 알림 배지가 면 밖으로 걸쳐 나가야 한다.
+ */
+internal fun Modifier.glgHeaderSurface(shape: Shape = GlgHeaderCapsule, fill: Color? = null): Modifier =
+    if (fill != null) this.background(fill, shape)
+    else this.dropShadow(shape, LiftShadow).background(Color.White, shape).border(1.dp, DividerColor, shape)
+
+private enum class GlgHeaderGroupSlot { Items, Dividers }
+
+/**
+ * 헤더 **묶음 캡슐** — 붙어 있는 버튼 여럿을 캡슐 하나에 담고 칸 사이에 세로선(1 × 20 #E3E5EA)을 긋는다.
+ * 칸은 보통 [GlgHeaderGroupItem](48 × 48)이고, 홈 프로필 · 하위 페이지 제목처럼 글자 칸도 그냥 넣으면 된다.
+ *
+ * 세로선은 **실제로 그려진 칸 사이에만** 선다. 칸을 `if` 로 빼면(게임 정보의 리딤코드 — 연동했을 때만) 세로선도
+ * 같이 빠진다 — 호출부가 선을 직접 넣으면 조건마다 선을 따로 챙겨야 해서 빠뜨리기 쉽다.
+ *
+ * 칸은 **앞에서부터** 재고 각 칸은 남은 폭만 받는다 — 글자 칸을 맨 뒤에 두면 길 때 그 칸만 줄어 말줄임이 된다.
+ *
+ * @param background 색이 깔린 히어로 위에서만 — [glgHeaderSurface] 의 `fill`.
+ * @param contentPadding 캡슐 안쪽 여백. 기본 좌우 4. 끝 칸이 스스로 여백을 갖는 묶음(홈 프로필 · [‹ | 제목])은 0.
+ */
+@Composable
+fun GlgHeaderButtonGroup(
+    modifier: Modifier = Modifier,
+    background: Color? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = GlgHeaderGroupInset),
+    content: @Composable () -> Unit,
+) {
+    // 합친 헤더 캡슐 안이면 자기 면 · 안쪽 여백 없이 칸과 세로선만 — 면은 바깥 캡슐이 깐다.
+    GlgMergeTrailDivider {
+    val merged = LocalGlgHeaderMerged.current != GlgHeaderMerge.None
+    SubcomposeLayout(
+        modifier
+            .height(GlgHeaderElementHeight)
+            .then(if (merged) Modifier else Modifier.glgHeaderSurface(fill = background).padding(contentPadding)),
+    ) { constraints ->
+        val items = subcompose(GlgHeaderGroupSlot.Items, content)
+        val dividers = subcompose(GlgHeaderGroupSlot.Dividers) {
+            repeat((items.size - 1).coerceAtLeast(0)) { GlgHeaderGroupDivider() }
+        }.map { it.measure(Constraints()) }
+        val bounded = constraints.hasBoundedWidth
+        var remaining = if (bounded) constraints.maxWidth - dividers.sumOf { it.width } else Constraints.Infinity
+        val placeables = items.map { m ->
+            m.measure(
+                Constraints(
+                    maxWidth = if (bounded) remaining.coerceAtLeast(0) else Constraints.Infinity,
+                    maxHeight = constraints.maxHeight,
+                ),
+            ).also { if (bounded) remaining -= it.width }
+        }
+        val width = constraints.constrainWidth(placeables.sumOf { it.width } + dividers.sumOf { it.width })
+        val height = constraints.constrainHeight(placeables.maxOfOrNull { it.height } ?: 0)
+        layout(width, height) {
+            var x = 0
+            placeables.forEachIndexed { i, p ->
+                p.placeRelative(x, (height - p.height) / 2)
+                x += p.width
+                dividers.getOrNull(i)?.let { d ->
+                    d.placeRelative(x, (height - d.height) / 2)
+                    x += d.width
+                }
+            }
+        }
+    }
+    }
+}
+
+/**
+ * 묶음 캡슐 칸 사이 세로선 — 1 × 20, #E3E5EA(GLDS 칩 · 탭 테두리와 같은 값).
+ * 처음엔 헤어라인 색(#EEF0F2)이었는데 흰 캡슐 위에서 너무 옅어 한 단 진하게 했다(10/15 지시). 히어로 위에서도 같은 색.
+ */
+@Composable
+private fun GlgHeaderGroupDivider() {
+    Box(Modifier.size(width = 1.dp, height = 20.dp).background(ChipIdleBorder))
+}
+
+/**
+ * 묶음 캡슐([GlgHeaderButtonGroup]) 안의 아이콘 칸 — 48 × 48, 아이콘 24 본문색.
+ *
+ * 칸에는 면이 없다 — 면은 캡슐이 한 장으로 깐다. 눌림은 앱 전역 인디케이션(아이콘이 살짝 작아진다)이라
+ * 칸에 회색 면을 따로 깔지 않는다. 칸이 48 × 48 이라 누름 영역 48 이 그대로 확보된다.
+ *
+ * @param width 칸 너비. 홈 알림 칸만 52(시안의 48 에 칸이 커진 만큼 더해 — 프로필 글자 칸 옆 끝 칸이라 둥근 끝을 더 받는다).
+ * @param tint 색이 깔린 히어로 위에서만. null 이면 본문색.
+ * @param badgeCount 0 보다 크면 칸 오른쪽 위에 숫자 배지 — [GlgCircleIconButton] 과 같은 규격 · 같은 자리(끝 칸 기준).
+ */
+@Composable
+fun GlgHeaderGroupItem(
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    width: Dp = GlgHeaderGroupCellWidth,
+    iconSize: Dp = GlgHeaderIconSize,
+    loading: Boolean = false,
+    enabled: Boolean = true,
+    badgeCount: Int = 0,
+    tint: Color? = null,
+    onClick: () -> Unit,
+) {
+    val fg = tint ?: TextPrimary
+    Box(modifier.size(width = width, height = GlgHeaderElementHeight)) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.alpha(if (enabled || loading) 1f else 0.35f)) { GlgHeaderIcon(icon, contentDescription, fg, iconSize, loading) }
+        }
+        // 원 버튼의 배지는 보이는 원 끝에서 오른쪽 5 · 위 5 로 걸친다 — 끝 칸의 둥근 끝도 같은 자리.
+        if (badgeCount > 0) GlgHeaderBadge(badgeCount, Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
+    }
+}
+
+/** 헤더 아이콘 — [loading] 이면 같은 색 스피너(18). */
+@Composable
+private fun GlgHeaderIcon(icon: ImageVector, contentDescription: String, color: Color, size: Dp, loading: Boolean) {
+    if (loading) {
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = color)
+    } else {
+        Icon(icon, contentDescription = contentDescription, tint = color, modifier = Modifier.size(size))
+    }
+}
+
+/** 헤더 숫자 배지(알림 개수 등) — 16 원 · 주황 · 흰 9 Bold, 10 이상은 9+. */
+@Composable
+private fun GlgHeaderBadge(count: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(16.dp)
+            .clip(CircleShape)
+            .background(Color(0xFFFFA500)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (count > 9) "9+" else "$count",
+            color = Color.White,
+            fontSize = 9.sp,
+            lineHeight = 9.sp,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
 
 /**
- * 헤더 안 요소의 공통 높이 — 뒤로가기·제목 알약·액션 버튼·드롭다운 알약이 **전부 이 값**을 쓴다.
- * 바꿀 땐 여기 한 곳만 고친다.
- */
-val GlgHeaderElementHeight = 44.dp
-
-/**
  * 탭(루트) 헤더의 고정 높이. 4개 탭이 모두 이 높이를 쓰고, 각 탭의 스크롤 인셋(contentPadding
  * 또는 Spacer)도 이 값을 참조한다 — 헤더 높이를 바꾸면 여기 한 곳만 고치면 된다.
+ * top 12 + 요소 [GlgHeaderElementHeight] + bottom [GlgTabHeaderBottom](12) = 72.
+ * 요소가 44 → 48 로 커질 때(10/15) 아래 여백 16 을 그대로 둬 76 이 됐더니 헤더와 콘텐츠 사이가 넓다는 지적이 와서,
+ * 커진 4 를 아래 여백에서 덜어 예전 높이로 되돌렸다(같은 날).
  */
-val GlgTabHeaderHeight = 72.dp
+val GlgTabHeaderBottom = 12.dp
+val GlgTabHeaderHeight = 12.dp + GlgHeaderElementHeight + GlgTabHeaderBottom
 
 /**
  * 하위(상세) 페이지 헤더가 차지하는 높이(**상태바 제외**).
- * [GlgScreenHeader] 의 구성과 같이 움직여야 한다 — top 12 + 버튼 44 + bottom 8.
+ * [GlgScreenHeader] 의 구성과 같이 움직여야 한다 — top 12 + 요소 [GlgHeaderElementHeight] + bottom [GlgDetailHeaderBottom](4) = 64.
+ * 탭 헤더와 같은 이유로 아래 여백 8 → 4(10/15 — 요소가 커진 만큼 덜어 예전 높이로).
  */
-val GlgDetailHeaderHeight = 64.dp
+val GlgDetailHeaderBottom = 4.dp
+val GlgDetailHeaderHeight = 12.dp + GlgHeaderElementHeight + GlgDetailHeaderBottom
+
+/** 헤더 아래로 늘어나는 칸(검색 입력필드 S 38)의 높이 — 위 4 + 38 + 아래 8. [GlgDetailHeaderOverlay] 의 `extension`. */
+val GlgHeaderExtensionHeight = 4.dp + 38.dp + 8.dp
 
 /** 상세 페이지 콘텐츠가 고정 헤더 아래에서 시작하도록 하는 상단 인셋(상태바 + 헤더). */
 @Composable
@@ -324,14 +621,37 @@ fun BoxScope.GlgDetailHeaderOverlay(
     /** 색이 깔린 헤더 위일 때 뒤로가기 버튼이 받을 색. null 이면 기본 흰 버튼. */
     buttonTint: Color? = null,
     buttonBackground: Color? = null,
+    /**
+     * 헤더 아래로 **늘어나는 칸**(보유 캐릭터 검색 입력필드 S 38, 10/15). 있으면 캡슐 줄 아래 4 + 칸 + 아래 8 이 헤더가 되고
+     * 헤더 전체 뒤에 흰 판이 깔린다(목록이 비치지 않게). 본문은 [GlgHeaderExtensionHeight] 만큼 더 내려 시작한다.
+     */
+    extension: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    if (extension != null) {
+        Box(Modifier.align(Alignment.TopStart).fillMaxWidth().background(Color.White)) {
+            // 흰 판의 빈 자리를 누르면 뒤 목록이 눌리지 않게 삼킨다 — 자식 아래 형제로 둔다([GlgScreenHeader] 와 같은 이유).
+            Spacer(
+                Modifier.matchParentSize().pointerInput(Unit) {
+                    awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { if (!it.isConsumed) it.consume() } }
+                },
+            )
+            Column {
+                GlgScreenHeader(
+                    title = title, onBack = onBack, modifier = Modifier.padding(horizontal = 16.dp),
+                    buttonTint = buttonTint, buttonBackground = buttonBackground, actions = actions,
+                )
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)) { extension() }
+            }
+        }
+        return
+    }
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val scrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "detailScrim")
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 덮지 않아 콘텐츠가 아래로 지나가는 연출 유지).
     //
     // 본문에 이미지가 있어도 헤더까지 덮지 않는다. 헤더 요소는 전부 불투명이라(뒤로가기·제목 알약·
-    // 액션 버튼의 solidBackground) 그림 위에 얹혀도 읽힌다 — 가려야 할 건 상태바 글자뿐이다.
+    // 액션 버튼 모두 흰 면 — glgHeaderSurface) 그림 위에 얹혀도 읽힌다 — 가려야 할 건 상태바 글자뿐이다.
     Box(
         Modifier
             .align(Alignment.TopStart)
@@ -413,7 +733,7 @@ fun glgTabContentBottom(): Dp =
  * 상단 스크림이 상태바 **아래로 더 내려가는 높이**.
  *
  * 스크림을 상태바 높이에 딱 맞추면 남는 페이드 구간이 3~6dp 뿐이라 알파가 급히 끊겨
- * 가로선처럼 보인다. 이만큼 더 내려 흐려지는 거리를 벌되, 헤더 버튼 줄(72dp)까지는 덮지 않는다.
+ * 가로선처럼 보인다. 이만큼 더 내려 흐려지는 거리를 벌되, 헤더 버튼 줄([GlgTabHeaderHeight])까지는 덮지 않는다.
  */
 val GlgTopScrimFadeExtra = 20.dp
 
@@ -431,8 +751,13 @@ fun GlgTabHeader(
     leading: @Composable RowScope.() -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    // 제목 없는 탭 헤더도 왼쪽 묶음과 오른쪽 액션 사이가 48 보다 좁아지면 캡슐 하나로 합친다(10/15 — iOS 18 과 같게).
+    if (title.isEmpty()) {
+        GlgTabHeaderMergeRow(leading, actions, modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = GlgTabHeaderBottom))
+        return
+    }
     Row(
-        modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = 16.dp),
+        modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = GlgTabHeaderBottom),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -449,6 +774,51 @@ fun GlgTabHeader(
             horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap),
             content = actions,
         )
+    }
+}
+
+private enum class GlgTabMergeSlot { Left, Right, Merged }
+
+/**
+ * 탭 헤더 한 줄 — 평소엔 왼쪽 묶음 · 오른쪽 액션을 양 끝에, 둘의 본래 폭 + 48 이 줄 폭을 넘으면 **캡슐 하나**
+ * [왼쪽 칸들 | 세로선 · 액션 …](안쪽 좌우 4)로 그린다. 하위 페이지 [GlgHeaderMergeRow] 와 같은 기준.
+ */
+@Composable
+private fun GlgTabHeaderMergeRow(
+    leading: @Composable RowScope.() -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+    modifier: Modifier,
+) {
+    val left: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap), content = leading)
+    }
+    val right: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap), content = actions)
+    }
+    SubcomposeLayout(modifier) { c ->
+        val maxW = c.maxWidth
+        val leftP = subcompose(GlgTabMergeSlot.Left, left).map { it.measure(Constraints()) }
+        val rightP = subcompose(GlgTabMergeSlot.Right, right).map { it.measure(Constraints()) }
+        val leftW = leftP.sumOf { it.width }
+        val rightW = rightP.sumOf { it.width }
+        val h = c.maxHeight.takeIf { it != Constraints.Infinity } ?: GlgHeaderElementHeight.roundToPx()
+        if (leftW == 0 || rightW == 0 || leftW + GlgHeaderElementHeight.roundToPx() + rightW <= maxW) {
+            layout(maxW, h) {
+                leftP.forEach { it.placeRelative(0, (h - it.height) / 2) }
+                rightP.forEach { it.placeRelative(maxW - rightW, (h - it.height) / 2) }
+            }
+        } else {
+            val merged = subcompose(GlgTabMergeSlot.Merged) {
+                Row(
+                    Modifier.height(GlgHeaderElementHeight).glgHeaderSurface().padding(horizontal = GlgHeaderGroupInset),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Lead) { leading() }
+                    CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Trail) { actions() }
+                }
+            }.map { it.measure(Constraints(maxWidth = maxW)) }
+            layout(maxW, h) { merged.forEach { it.placeRelative(0, (h - it.height) / 2) } }
+        }
     }
 }
 
@@ -517,11 +887,15 @@ fun GlgChip(
 }
 
 // D 칩 토큰 — idle 아웃라인/글자색. (칩 규격을 따르는 다른 버튼도 참조하도록 internal)
-/** GLDS 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
-private val GlgSegmentHeight = 32.dp
+/** GLDS 탭 한 칸 높이 — 32 → 40(GLDS 2.1 · 10/15 탭 시안 C). 누름 영역을 넓혔다. */
+private val GlgSegmentHeight = 40.dp
 
-/** 둘째 줄(요일)이 붙는 칸 높이 — 두 줄이 눌리지 않게 값을 못 박는다. */
-private val GlgSegmentHeightTwoLine = 46.dp
+/** 둘째 줄(요일)이 붙는 칸 높이 — 두 줄이 눌리지 않게 값을 못 박는다(46 → 52). */
+private val GlgSegmentHeightTwoLine = 52.dp
+
+/** GLDS 탭 트랙 — 섹션 사이 띠와 같은 #F2F4F6. */
+private val GldsTabsTrack = Color(0xFFF2F4F6)
+private val GldsTabsSubText = Color(0xFF8A9491)
 
 /**
  * 세그먼트 탭 — **한 덩어리 트랙에 선택 칸만 채운다.**
@@ -536,19 +910,17 @@ private val GlgSegmentHeightTwoLine = 46.dp
  *
  * 칸 폭이 아니라 **위치만** 애니메이션한다. 회전·태블릿에서 폭이 바뀌어도 계산이 어긋나지 않는다.
  */
-/** GLDS 탭 모양 — Primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · Neutral: 회색 트랙 + 흰 알약(보기 방식 전환). */
-enum class GldsTabsVariant { Primary, Neutral }
-
 /**
- * **GLDS 탭**(9/30) — 옛 GldsTabs 를 GLDS 규격으로 올린 것. iOS `GldsTabs`(GLGChip.swift) 와 같은 값.
- * 트랙 반경 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 반경 11 · 라벨 12.5 SemiBold, 비선택 #6C727A.
+ * **GLDS 탭 2.1**(10/15 탭 시안 C 「회색 트랙 · 흰 알약」) — iOS `GldsTabs`(GLGChip.swift) 와 같은 값.
+ * 트랙 #F2F4F6 · 반경 14 · 안쪽 3 · 칸 40(서브라벨 52) · 알약은 헤더 · 툴바와 같은 흰 면([glgHeaderSurface] 의 면 ·
+ * 안쪽 1 [DividerColor] · [LiftShadow]) 반경 11 · 라벨 14(선택 Bold 짙은 강조색, 아니면 SemiBold #6C727A) · 서브 12.
+ * 2.0 의 Primary(흰 트랙 + 강조색 알약) · Neutral(회색 트랙 + 흰 알약) 둘을 **규칙 하나로 합쳤다**(10/15 지시).
  */
 @Composable
 fun GldsTabs(
     labels: List<String>,
     selected: Int,
     modifier: Modifier = Modifier,
-    variant: GldsTabsVariant = GldsTabsVariant.Primary,
     /**
      * 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
      * 크기가 [labels] 와 같아야 한다 — 모자란 칸은 한 줄로 그린다.
@@ -557,26 +929,23 @@ fun GldsTabs(
     /**
      * 칸마다 다른 선택색. 게임 탭처럼 **칸 자체가 색을 갖는** 자리에서 쓴다
      * (호요랜드 무대 게임 탭 — 목록의 색 띠와 같은 색이어야 규칙이 안 어긋난다).
-     * null 이면 전부 강조색.
+     * 2.1 에서는 알약이 흰 면이라 선택 **글자**가 이 색을 받는다. null 이면 짙은 강조색.
      */
     selectedColors: List<Color>? = null,
     onSelect: (Int) -> Unit,
 ) {
     if (labels.isEmpty()) return
-    val accent = LocalAccent.current
+    val deep = LocalAccentDeep.current
     val sel = selected.coerceIn(0, labels.lastIndex)
     val twoLine = subLabels != null
     val cellHeight = if (twoLine) GlgSegmentHeightTwoLine else GlgSegmentHeight
-    val neutral = variant == GldsTabsVariant.Neutral
-    val fill = if (neutral) Color.White else selectedColors?.getOrNull(sel) ?: accent
-    val fillColor by animateColorAsState(fill, glgStandardSpec(), label = "segmentFill")
-    val selText = if (neutral) TextPrimary else Color.White
+    val selText = selectedColors?.getOrNull(sel) ?: deep
+    val pill = RoundedCornerShape(11.dp)
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(if (neutral) Color(0xFFF1F2F4) else Color.White)
-            .border(1.dp, if (neutral) Color.Transparent else ChipIdleBorder, RoundedCornerShape(14.dp))
+            .background(GldsTabsTrack)
             .padding(3.dp),
     ) {
         val cellWidth = maxWidth / labels.size
@@ -586,9 +955,9 @@ fun GldsTabs(
                 .offset(x = slide)
                 .width(cellWidth)
                 .height(cellHeight)
-                .then(if (neutral) Modifier.shadow(1.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x14000000), spotColor = Color(0x14000000)) else Modifier)
-                .clip(RoundedCornerShape(11.dp))
-                .background(fillColor),
+                .dropShadow(pill, LiftShadow)
+                .background(Color.White, pill)
+                .border(1.dp, DividerColor, pill),
         )
         Row(Modifier.fillMaxWidth()) {
             labels.forEachIndexed { i, label ->
@@ -608,20 +977,14 @@ fun GldsTabs(
                 ) {
                     Text(
                         label,
-                        fontSize = 12.5.sp,
-                        fontWeight = if (neutral && i == sel) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        fontWeight = if (i == sel) FontWeight.Bold else FontWeight.SemiBold,
                         color = labelColor,
                         maxLines = 1,
                     )
                     val sub = subLabels?.getOrNull(i)
                     if (!sub.isNullOrBlank()) {
-                        Text(
-                            sub,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (i == sel) selText.copy(alpha = 0.85f) else TextSecondary.copy(alpha = 0.75f),
-                            maxLines = 1,
-                        )
+                        Text(sub, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = GldsTabsSubText, maxLines = 1)
                     }
                 }
             }
@@ -671,6 +1034,9 @@ fun GlgDialog(
             dismissOnClickOutside = dismissable,
         ),
     ) {
+        // 다이얼로그는 별도 창이라 토스트도 이 창에서 그린다(GLDS 2.1 토스트, 10/15). 버튼 줄은 가리는 것 — 토스트와 겹칠 만큼
+        // 내려온 긴 다이얼로그에서만 토스트가 그 위로 올라간다.
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Box(Modifier.fillMaxWidth().dismissKeyboardOnTap().padding(24.dp), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
@@ -695,7 +1061,7 @@ fun GlgDialog(
                         content()
                     }
                     Spacer(Modifier.height(20.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.gldsToastObstacle(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (dismissText != null) {
                             GldsButton(dismissText, onDismiss, Modifier.weight(1f), variant = GldsVariant.Secondary)
                             GldsButton(confirmText, onConfirm, Modifier.weight(1.4f), enabled = confirmEnabled)
@@ -706,11 +1072,13 @@ fun GlgDialog(
                 }
             }
         }
+        }
     }
 }
 
 /**
- * 헤더용 공통 커스텀 원형 아이콘 버튼 — 강조색 틴트 + 눌림 효과(전역 인디케이션).
+ * 헤더용 공통 원형 아이콘 버튼 — **따로 떨어진 버튼 하나**(48 흰 원). 붙어 있는 버튼이 둘 이상이면
+ * [GlgHeaderButtonGroup] 으로 묶는다. 면은 [glgHeaderSurface], 아이콘은 본문색 24 · 눌림은 전역 인디케이션.
  * [loading] 시 스피너, [badgeCount] > 0 이면 우상단 배지.
  */
 @Composable
@@ -718,26 +1086,24 @@ fun GlgCircleIconButton(
     icon: ImageVector,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    size: Dp = 44.dp,
+    size: Dp = GlgHeaderElementHeight,
     loading: Boolean = false,
     enabled: Boolean = true,
     badgeCount: Int = 0,
-    /** true 면 강조색 아웃라인(테두리)을 그린다 — 확률표 알약 버튼과 동일한 톤 */
-    outlined: Boolean = false,
-    /** true 면 불투명 배경(흰색 베이스 + accent 틴트) — 아래 콘텐츠가 비치지 않게(홈 헤더 오버레이용) */
-    solidBackground: Boolean = false,
     /**
-     * 색이 깔린 헤더 위에 올릴 때만 지정한다(지출 상세 히어로 등). null 이면 강조색 기본 버튼.
+     * 색이 깔린 헤더 위에 올릴 때만 지정한다(지출 상세 히어로 등). null 이면 흰 원 · 본문색 기본 버튼.
      *
-     * 강조색 아이콘 + 흰 원은 흰 배경에서는 자연스럽지만, 파스텔 히어로 위에 얹으면
+     * 흰 원은 흰 배경에서는 자연스럽지만, 파스텔 히어로 위에 얹으면
      * 버튼만 다른 화면에서 떼어 붙인 것처럼 뜬다 — 그때는 히어로의 글자색·면색을 그대로 받는다.
      */
     tint: Color? = null,
     background: Color? = null,
     onClick: () -> Unit,
 ) {
-    val accent = LocalAccent.current
-    val fg = tint ?: accent
+    val fg = tint ?: TextPrimary
+    // 합친 헤더 캡슐 안이면 원을 그리지 않고 48 칸으로만 선다 — 면은 캡슐이 깐다.
+    GlgMergeTrailDivider {
+    val merged = LocalGlgHeaderMerged.current != GlgHeaderMerge.None
     Box(modifier) {
         Box(
             modifier = Modifier
@@ -747,48 +1113,31 @@ fun GlgCircleIconButton(
                 // 보이는 크기는 그대로 두고 잡히는 범위만 넓힌다.
                 .minimumInteractiveComponentSize()
                 .size(size)
-                .clip(CircleShape)
-                .then(
-                    if (background != null) Modifier.background(background)
-                    else Modifier
-                        .then(if (solidBackground) Modifier.background(Color.White) else Modifier)
-                        .background(accent.copy(alpha = 0.10f))
-                        .then(if (outlined) Modifier.border(1.5.dp, accent.copy(alpha = 0.30f), CircleShape) else Modifier),
-                )
+                .then(if (merged) Modifier else Modifier.glgHeaderSurface(CircleShape, background))
                 .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            if (loading) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = fg)
-            } else {
-                Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(20.dp))
-            }
+            // 못 누르는 헤더 버튼은 35% 로 흐린다 — iOS 18 헤더와 같은 값(10/15).
+            Box(Modifier.alpha(if (enabled || loading) 1f else 0.35f)) { GlgHeaderIcon(icon, contentDescription, fg, GlgHeaderIconSize, loading) }
         }
         if (badgeCount > 0) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 3.dp, y = (-3).dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFFA500)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    if (badgeCount > 9) "9+" else "$badgeCount",
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    lineHeight = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            GlgHeaderBadge(badgeCount, Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
         }
+    }
     }
 }
 
-/** 커스텀 토글 스위치 */
+/**
+ * 커스텀 토글 스위치.
+ *
+ * TalkBack 이 「스위치 · 켜짐/꺼짐」으로 읽도록 역할과 상태를 싣는다(27.52.0) — 예전엔 clickable 뿐이라
+ * 이름 없는 버튼으로만 읽히고 켜졌는지 알 수 없었다. 모양 · 눌림은 그대로다.
+ *
+ * **줄 전체가 토글인 곳**(설정 · 알림 설정의 토글 줄)은 줄이 역할 · 상태를 싣고, 스위치에는
+ * `Modifier.clearAndSetSemantics {}` 를 [modifier] 로 넘겨 따로 읽히지 않게 한다 — 같은 토글에 두 번 멈추지 않게.
+ */
 @Composable
-fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val accent = LocalAccent.current
     val trackWidth = 50.dp
     val trackHeight = 30.dp
@@ -797,11 +1146,11 @@ fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val offset by animateDpAsState(if (checked) trackWidth - thumb - 3.dp else 3.dp, label = "thumb")
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(trackWidth, trackHeight)
             .clip(CircleShape)
             .background(trackColor)
-            .clickable { onCheckedChange(!checked) },
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(
@@ -818,9 +1167,11 @@ fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
 /**
  * 앱 공통 드롭다운 메뉴 — Material3 [androidx.compose.material3.DropdownMenu] 대체.
  *
- * 시스템 메뉴를 쓰지 않는 이유: M3 기본 메뉴는 서피스 톤·모서리(3dp)·타이포가 앱 디자인
- * (흰 불투명 + 20dp 라운드 + accent 30% 아웃라인 + Pretendard)과 어긋나고, 배경이 반투명이라
- * 헤더 오버레이 아래 콘텐츠가 비쳤다. [GlgDropdownItem] 과 함께 사용한다.
+ * 시스템 메뉴를 쓰지 않는 이유: M3 기본 메뉴는 서피스 톤·모서리(3dp)·타이포가 앱 디자인과 어긋나고,
+ * 배경이 반투명이라 헤더 오버레이 아래 콘텐츠가 비쳤다. [GlgDropdownItem] 과 함께 사용한다.
+ *
+ * GLDS 2.1(10/15 드롭다운 시안 C) — 헤더 · 하단 툴바 · 토스트와 같은 흰 면(안쪽 1 [DividerColor]) · 반경 16 ·
+ * 플랫폼 그림자 elevation 12(메뉴와 같은 층 — 흐림 그림자는 한 박자 늦게 떠서 쓰지 않는다). 예전 강조색 30% 테두리 1.5 · 반경 20 은 걷었다.
  *
  * 앵커(호출한 Box) 기준으로 아래에 뜨고, 오른쪽 정렬이 필요하면 [alignEnd] 를 켠다.
  */
@@ -830,13 +1181,6 @@ fun GlgDropdownMenu(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     alignEnd: Boolean = false,
-    /**
-     * 테두리 색. null 이면 강조색 30% — 앱 전역 기본이다.
-     *
-     * 색이 깔린 화면 위에서 열릴 때만 지정한다(지출 상세 히어로). 메뉴는 흰 팝업이라
-     * 배경과는 어차피 대비되지만, **테두리만 다른 계열이면** 그 선이 먼저 눈에 들어온다.
-     */
-    borderColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // 열림/닫힘 모션 — 상태를 별도로 추적해 닫힐 때도 퇴장 애니메이션 후 언마운트한다.
@@ -844,18 +1188,31 @@ fun GlgDropdownMenu(
     val visibleState = remember { MutableTransitionState(false) }
     visibleState.targetState = expanded
     if (!visibleState.currentState && !visibleState.targetState) return
-    val accent = LocalAccent.current
     val density = LocalDensity.current
+    // 자리 — **앵커 아래 6**, 왼쪽(alignEnd 면 오른쪽) 끝에 맞춘다. 그림자 여백(GlgMenuShadowPad)만큼 창이 커서 그만큼 되돌린다.
+    // 예전엔 Popup(alignment = TopStart) 라 앵커의 **윗변**에 맞춰 떠서 메뉴가 버튼 · 칩을 덮었다(10/15 보유 캐릭터 헤더에서 드러남).
+    // 아래 자리가 모자라면 앵커 위로 띄운다. 좌우는 화면 안으로 당긴다.
+    val positionProvider = remember(alignEnd, density) {
+        object : androidx.compose.ui.window.PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: androidx.compose.ui.unit.IntRect,
+                windowSize: androidx.compose.ui.unit.IntSize,
+                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                popupContentSize: androidx.compose.ui.unit.IntSize,
+            ): IntOffset {
+                val pad = with(density) { GlgMenuShadowPad.roundToPx() }
+                val gap = with(density) { 6.dp.roundToPx() }
+                val x = (if (alignEnd) anchorBounds.right - popupContentSize.width + pad else anchorBounds.left - pad)
+                    .coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+                val below = anchorBounds.bottom + gap - pad
+                val above = anchorBounds.top - gap - popupContentSize.height + pad
+                val y = if (below + popupContentSize.height <= windowSize.height || above < 0) below else above
+                return IntOffset(x, y)
+            }
+        }
+    }
     Popup(
-        alignment = if (alignEnd) Alignment.TopEnd else Alignment.TopStart,
-        // 그림자 여백(GlgMenuShadowPad)만큼 메뉴가 안쪽으로 밀리므로, 그만큼 되돌려
-        // 앵커 기준 위치를 그대로 유지한다(좌측 정렬이면 왼쪽으로, 우측 정렬이면 오른쪽으로).
-        offset = with(density) {
-            IntOffset(
-                (if (alignEnd) GlgMenuShadowPad else -GlgMenuShadowPad).roundToPx(),
-                (6.dp - GlgMenuShadowPad).roundToPx(),
-            )
-        },
+        popupPositionProvider = positionProvider,
         onDismissRequest = onDismissRequest,
         properties = PopupProperties(focusable = true),
     ) {
@@ -880,25 +1237,31 @@ fun GlgDropdownMenu(
                 .padding(GlgMenuShadowPad),
         ) {
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = GlgMenuShape,
                 color = Color.White,                                   // 불투명 — 아래 콘텐츠 비침 방지
-                border = BorderStroke(1.5.dp, borderColor ?: accent.copy(alpha = 0.30f)),
-                // 그림자를 scale/alpha 와 같은 graphicsLayer 에 합쳐 그린다 — 애니메이션 중 그림자가
-                // 별도 레이어로 따로 스케일·페이드되며 엉성해지던 문제 해결(메뉴와 하나로 부드럽게).
+                border = BorderStroke(1.dp, DividerColor),
+                // 그림자는 scale/alpha 와 **같은 graphicsLayer 의 플랫폼 그림자**(elevation 12)로 그린다.
+                // dropShadow(흐림 그림자)는 팝업이 뜬 뒤 한 박자 늦게 나타났다(10/15 지적) — 같은 층이면
+                // 메뉴와 첫 프레임부터 함께 나타나고, 층의 alpha 로 같이 페이드된다.
                 modifier = modifier
                     .graphicsLayer {
                         scaleX = scale; scaleY = scale; this.alpha = alpha
                         transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0f)
-                        shadowElevation = 12.dp.toPx() * alpha        // 페이드와 함께 그림자도 서서히
-                        shape = RoundedCornerShape(20.dp)
+                        shadowElevation = GlgMenuElevation.toPx()
+                        shape = GlgMenuShape
                         clip = false
                     }
                     .widthIn(min = 160.dp, max = 280.dp),
             ) {
                 // width(IntrinsicSize.Max) 가 없으면 항목의 fillMaxWidth 가 Popup 의 최대 제약
                 // (= 화면 폭)까지 늘어나 메뉴가 좌우로 꽉 찬다. 가장 긴 항목 기준으로 폭을 잡는다.
+                // 길면(보유 캐릭터 필터처럼 묶음이 여럿이면) 화면 높이의 60% 에서 멈추고 안에서 스크롤한다(10/15).
                 Column(
-                    Modifier.width(IntrinsicSize.Max).padding(vertical = 6.dp),
+                    Modifier
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.6f).dp)
+                        .verticalScroll(rememberScrollState())
+                        .width(IntrinsicSize.Max)
+                        .padding(vertical = 6.dp),
                     content = content,
                 )
             }
@@ -912,9 +1275,22 @@ fun GlgDropdownMenu(
  */
 private val GlgMenuShadowPad = 20.dp
 
+private val GlgMenuShape = RoundedCornerShape(16.dp)
+
+/** 드롭다운 그림자 — 화면 위에 뜬 판이라 헤더 · 툴바(6% · 10 · y2)보다 깊은 플랫폼 그림자 12. */
+private val GlgMenuElevation = 12.dp
+
 /**
- * [GlgDropdownMenu] 의 항목 한 줄. 선택된 항목은 accent 볼드 + 우측 체크로 표시하고,
- * 파괴적 동작(로그아웃·삭제)은 [danger] 로 빨간 톤을 준다.
+ * 드롭다운 항목 왼쪽 표시(GLDS 2.1 · 10/15 시안 C) — 몇 개를 고를 수 있는지가 모양에서 보이게 한다.
+ * [Radio] 하나만 고르는 메뉴(기간 · 정렬 · 게임 고르기), [Check] 여럿 고르는 메뉴(지출 퀵필터 게임),
+ * [None] 고르는 메뉴가 아닌 동작 목록(로그아웃 등 — 왼쪽은 [GlgDropdownItem] 의 icon).
+ */
+enum class GlgDropdownMark { None, Radio, Check }
+
+/**
+ * [GlgDropdownMenu] 의 항목 한 줄 — 높이 48 · 좌우 16 · 왼쪽 표시 20 → 12 → 15 Medium(고른 항목은 Bold 본문색).
+ * 왼쪽 표시는 [mark] — 라디오 원 · 체크 상자(고르면 강조색으로 채움, 아니면 1.5 #C8CBD3 테두리). 동작 목록은 [icon] 20.
+ * 파괴적 동작(로그아웃·삭제)은 [danger] 로 빨강 SemiBold. GLDS 2.1(10/15 드롭다운 시안 C).
  */
 @Composable
 fun GlgDropdownItem(
@@ -923,38 +1299,73 @@ fun GlgDropdownItem(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     selected: Boolean = false,
+    mark: GlgDropdownMark = GlgDropdownMark.None,
     danger: Boolean = false,
 ) {
     val accent = LocalAccent.current
-    val tint = when {
-        danger -> DangerText
-        selected -> accent
-        else -> TextPrimary
-    }
+    val tint = if (danger) DangerText else TextPrimary
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(10.dp))
+        when {
+            mark != GlgDropdownMark.None -> {
+                GlgDropdownMarkBox(mark, selected, accent)
+                Spacer(Modifier.width(12.dp))
+            }
+            icon != null -> {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+            }
         }
         Text(
             text,
-            fontSize = 14.sp,
-            fontWeight = if (selected || danger) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = 15.sp,
+            fontWeight = when {
+                danger -> FontWeight.SemiBold
+                selected -> FontWeight.Bold
+                else -> FontWeight.Medium
+            },
             color = tint,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).padding(vertical = 12.dp),
         )
+    }
+}
+
+/**
+ * 드롭다운 안의 **묶음 머리** — 한 메뉴에서 축 여럿을 고를 때(보유 캐릭터 필터의 등급 · 속성 · 운명의 길).
+ * 12 SemiBold #6C727A · 좌우 16 · 위 12 · 아래 4. 누르지 않는 글자(10/15 사용자 결정 「메뉴 하나 + 묶음 머리」).
+ */
+@Composable
+fun GlgDropdownSectionHeader(text: String) {
+    Text(
+        text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
+}
+
+/** 라디오 원 · 체크 상자 20 — 고르면 강조색 면 + 흰 점 8 · 흰 체크 14, 아니면 1.5 #C8CBD3 테두리. */
+@Composable
+private fun GlgDropdownMarkBox(mark: GlgDropdownMark, selected: Boolean, accent: Color) {
+    val shape = if (mark == GlgDropdownMark.Radio) CircleShape else RoundedCornerShape(6.dp)
+    Box(
+        Modifier
+            .size(20.dp)
+            .then(if (selected) Modifier.background(accent, shape) else Modifier.border(1.5.dp, GlgMarkLine, shape)),
+        contentAlignment = Alignment.Center,
+    ) {
         if (selected) {
-            Spacer(Modifier.width(10.dp))
-            Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(18.dp))
+            if (mark == GlgDropdownMark.Radio) Box(Modifier.size(8.dp).background(Color.White, CircleShape))
+            else Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }
+
+private val GlgMarkLine = Color(0xFFC8CBD3)
 
 /**
  * 작은 원·알약 안의 글자를 **시각적 정중앙**에 놓는다.

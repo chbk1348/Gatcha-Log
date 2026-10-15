@@ -186,7 +186,7 @@ class HoyolandEntryTest {
         // 2026 → 2027(날짜 없음) 전환 — 새 기간이 없으니 남길 날짜도 없다.
         val entry = HoyolandEntry().withGroup("2026-10-02", "A").withGroup("2026-10-05", "F")
         val next = HoyolandDefaults.event
-        assertEquals("호요랜드 2027", next.editionKey, "날짜가 없으면 행사명이 회차 식별자다")
+        assertEquals("2027", next.editionKey, "날짜가 없으면 행사명 속 연도가 회차 식별자다")
         assertTrue(next.entryForEdition(entry, savedEdition = event.editionKey).isEmpty)
         assertEquals(0, next.entryDayCount(entry))
     }

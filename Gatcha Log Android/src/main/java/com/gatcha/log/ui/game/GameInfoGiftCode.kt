@@ -1,6 +1,18 @@
 package com.gatcha.log.ui.game
 
 import com.gatcha.log.ui.components.GldsHairline
+import com.gatcha.log.ui.components.GlgLineIcons
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardOptions
+import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgDialog
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,7 +54,7 @@ import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.data.RedeemState
 import com.gatcha.log.ui.theme.*
 
-/** HoYoLAB 리딤코드 — 페이지 형식. 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력. */
+/** HoYoLAB 리딤코드 — 페이지 형식. 활성 코드 자동 수집 + 교환(단건/모두). 직접 입력은 헤더 + 버튼 → 가운데 모달(10/15). */
 @Composable
 internal fun GiftCodePage(
     hoyolab: HoyolabConfig,
@@ -55,6 +67,8 @@ internal fun GiftCodePage(
     /** force — 새로고침·다시 시도처럼 사용자가 직접 누를 때만 true(10분 캐시 무시). */
     onLoadCodes: (String, Boolean) -> Unit,
     onRedeem: (String, String) -> Unit,
+    /** 직접 입력 모달의 교환 — 코드가 틀리면 토스트 대신 [RedeemState.Done.inputError] 로 돌아온다. */
+    onRedeemTyped: (String, String) -> Unit,
     onRedeemAll: (String) -> Unit,
     onRestoreUnusable: (String) -> Unit,
     onBack: () -> Unit,
@@ -69,7 +83,7 @@ internal fun GiftCodePage(
         }
     }
     var selected by remember { mutableStateOf(games.firstOrNull()?.first ?: "genshin") }
-    var code by remember { mutableStateOf("") }
+    var showInput by remember { mutableStateOf(false) }
     var showRedeemed by remember { mutableStateOf(false) }
     val loading = state is RedeemState.Loading
     // 선택 게임 바뀌면(최초 포함) 활성 코드 자동 수집
@@ -181,42 +195,90 @@ internal fun GiftCodePage(
                         )
                     }
                 }
-                GiBand()
-                // 직접 입력 섹션 — GLDS 입력필드 규격 그대로, 상태 문구는 그 아래.
-                Column(section) {
-                    GldsTextField(
-                        value = code,
-                        onValueChange = { v -> code = v.uppercase().filter { it.isLetterOrDigit() } },
-                        label = "직접 입력 (새 코드)",
-                        placeholder = "예: GENSHINGIFT",
-                    )
-                    if (code.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        GldsButton(
-                            "이 코드 교환",
-                            onClick = { onRedeem(selected, code.trim()); code = "" },
-                            variant = GldsVariant.Secondary, size = GldsSize.XS, enabled = !loading,
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    when (state) {
-                        is RedeemState.Loading -> Text("교환 중…", fontSize = 13.sp, color = TextSecondary)
-                        is RedeemState.Done -> Text(
-                            state.message,
-                            fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                            color = if (state.success) accent else DangerText,
-                        )
-                        else -> Text(
-                            if (hoyolab.cookieToken.isBlank() && hoyolab.webCookie.isBlank()) "교환하려면 HoYoLAB 재연동(이메일 로그인)이 필요해요. 보상은 게임 우편함으로 와요."
-                            else "코드를 눌러 교환하거나 '모두 교환'을 누르세요. 보상은 게임 우편함으로 와요.",
-                            fontSize = 12.sp, color = TextSecondary,
-                        )
-                    }
-                }
             }
             // 맨 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
         }
-        GlgDetailHeaderOverlay("리딤코드", onBack, scrollState = scrollState)
+        GlgDetailHeaderOverlay("리딤코드", onBack, scrollState = scrollState) {
+            // 직접 입력 — 페이지 아래 섹션에서 헤더 + 버튼으로 옮겼다(10/15). UID 있는 게임이 없으면 교환할 곳이 없어 숨긴다.
+            if (games.isNotEmpty()) GlgCircleIconButton(GlgLineIcons.Plus, "코드 직접 입력") { showInput = true }
+        }
+    }
+    if (showInput) {
+        GiftCodeInputDialog(
+            games = games,
+            initialGame = selected,
+            needsRelink = hoyolab.cookieToken.isBlank() && hoyolab.webCookie.isBlank(),
+            state = state,
+            onDismiss = { showInput = false },
+            onRedeem = onRedeemTyped,
+        )
+    }
+}
+
+/**
+ * 리딤코드 직접 입력 — **가운데 모달**(10/15, 넛지 기준 금액과 같은 [GlgDialog] 틀). 설명 12 → 게임 탭 → 입력필드 → 취소 1 : 교환 1.4.
+ * 게임은 모달 안에서 고른다(기본은 페이지에서 보던 탭). UID 있는 게임이 하나뿐이면 고를 게 없어 탭을 두지 않는다.
+ * 교환을 누르면 모달을 연 채 결과를 기다린다(버튼 「교환 중…」). 성공이면 닫고 토스트, 코드 자체가 틀렸으면
+ * (유효하지 않음 · 만료 · 이미 사용) **입력필드 오류**로 보여 주고 연 채 둔다(10/15). 그 밖의 실패(쿠키 · 네트워크 ·
+ * 너무 잦음)는 코드를 고칠 일이 아니라 토스트로 뜨고 모달은 그대로다. 코드나 게임을 바꾸면 오류를 지운다.
+ * iOS `GiftCodeInputDialog` 와 같은 모양 · 같은 값.
+ */
+@Composable
+private fun GiftCodeInputDialog(
+    games: List<Pair<String, String>>,
+    initialGame: String,
+    needsRelink: Boolean,
+    state: RedeemState,
+    onDismiss: () -> Unit,
+    onRedeem: (String, String) -> Unit,
+) {
+    var game by remember { mutableStateOf(initialGame) }
+    var code by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    // 이 모달에서 누른 교환의 결과를 기다리는 중 — 모두 교환 등 다른 교환의 결과와 섞이지 않게 한다.
+    var submitted by remember { mutableStateOf(false) }
+    LaunchedEffect(state) {
+        if (submitted && state is RedeemState.Done) {
+            submitted = false
+            when {
+                state.success -> onDismiss()
+                state.inputError -> error = state.message
+            }
+        }
+    }
+    val busy = submitted || state is RedeemState.Loading
+    GlgDialog(
+        title = "코드 직접 입력",
+        onDismiss = onDismiss,
+        confirmText = if (busy) "교환 중…" else "교환",
+        onConfirm = { error = null; submitted = true; onRedeem(game, code.trim()) },
+        confirmEnabled = !busy && code.isNotBlank() && error == null,
+    ) {
+        Column {
+            Text(
+                if (needsRelink) "교환하려면 HoYoLAB 재연동(이메일 로그인)이 필요해요. 보상은 게임 우편함으로 와요."
+                else "보상은 게임 우편함으로 와요.",
+                fontSize = 12.sp, color = TextSecondary,
+            )
+            Spacer(Modifier.height(12.dp))
+            if (games.size > 1) {
+                GldsTabs(
+                    labels = games.map { it.second },
+                    selected = games.indexOfFirst { it.first == game }.coerceAtLeast(0),
+                    onSelect = { game = games[it].first; error = null },
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+            GldsTextField(
+                value = code,
+                onValueChange = { v -> code = v.uppercase().filter { it.isLetterOrDigit() }; error = null },
+                placeholder = "예: GENSHINGIFT",
+                error = error,
+                bold = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -224,52 +286,53 @@ internal fun GiftCodePage(
 @Composable
 private fun GiftHairline() = GldsHairline()
 
-/** 활성 코드 한 줄 — 코드 + 보상 + (교환/받음). 공방(공식방송) 코드는 강조 카드로 꾸민다. */
+/**
+ * 활성 코드 한 줄 — 위 줄에 코드 · 복사 · 교환, 아래에 보상 목록 두 열(10/15 리딤코드 시안 C, GLDS 「보상 목록」 꼴).
+ * 공방(공식방송) 코드는 강조 상자로 꾸민다. iOS `codeRow` 와 같은 값.
+ */
 @Composable
 private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Boolean, onRedeem: () -> Unit) {
     val highlight = c.highlight && !redeemed
     val inner: @Composable () -> Unit = {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            // 보통 줄은 헤어라인 목록이라 위아래를 넉넉히(10/1, 5 → 12).
-            modifier = Modifier.fillMaxWidth().padding(vertical = if (highlight) 8.dp else 12.dp, horizontal = if (highlight) 10.dp else 0.dp),
+        Column(
+            // 보통 줄은 헤어라인 목록이라 위아래를 넉넉히(10/1, 5 → 12). 공방 상자 안은 사방 10(시안 C).
+            modifier = Modifier.fillMaxWidth().padding(vertical = if (highlight) 10.dp else 12.dp, horizontal = if (highlight) 10.dp else 0.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     if (highlight) {
-                        Surface(color = accent, shape = RoundedCornerShape(6.dp)) {
-                            Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Campaign, null, tint = Color.White, modifier = Modifier.size(11.dp))
-                                Spacer(Modifier.width(3.dp))
-                                Text("공방", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
+                        // 공방 뱃지 — 9 는 GLDS 보조 글자 하한(12)보다 작아 12 로 올렸다(10/15).
+                        Box(
+                            Modifier.height(20.dp).clip(RoundedCornerShape(6.dp)).background(accent).padding(horizontal = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("공방", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(
                         c.code,
-                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1,
                         color = if (redeemed) TextSecondary else TextPrimary,
                         textDecoration = if (redeemed) TextDecoration.LineThrough else null,
                     )
                 }
-                if (c.rewards.isNotBlank()) Text(c.rewards, fontSize = 12.sp, color = TextSecondary, maxLines = 2)
-            }
-            Spacer(Modifier.width(8.dp))
-            CopyCodeButton(c.code)
-            Spacer(Modifier.width(6.dp))
-            if (redeemed) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(3.dp))
-                    Text("받음", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                CopyCodeButton(c.code)
+                Spacer(Modifier.width(8.dp))
+                if (redeemed) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("받음", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    GldsButton(
+                        "교환", onClick = onRedeem, enabled = enabled, size = GldsSize.XS,
+                        variant = if (highlight) GldsVariant.Primary else GldsVariant.Secondary,
+                    )
                 }
-            } else {
-                GldsButton(
-                    "교환", onClick = onRedeem, enabled = enabled, size = GldsSize.XS,
-                    variant = if (highlight) GldsVariant.Primary else GldsVariant.Secondary,
-                )
             }
+            GiftRewardList(c)
         }
     }
     if (highlight) {
@@ -281,6 +344,66 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
         ) { inner() }
     } else {
         inner()
+    }
+}
+
+/** 프리미엄 재화(원석 · 성옥 · 폴리크롬) 박스 색 — 5성 등급과 같은 금색(GLDS grade5). */
+private val GiftGem = Color(0xFFD8A12E)
+private val GiftBox = Color(0xFFF7F8FA)
+private val GiftPendingLine = Color(0xFFC8CBD3)
+
+/**
+ * 리딤코드 보상 목록 — 두 열 · 열 사이 12 · 줄 사이 6. 칸 = 박스 28(반경 8) → 8 띄우고 이름 12(한 줄) → 수량 12 Bold.
+ * 프리미엄은 금색 박스(16%), 나머지는 #F7F8FA. 박스 안은 인게임 아이콘 22 — 아이콘을 모르면 마름모(프리미엄) · 선물 16. 이름 모를 보상은 아래 「외 N종」,
+ * 보상을 아직 모르는 새 코드는 점선 박스 + 「보상 확인 중」(10/15 시안 C). iOS `GiftRewardList` 와 같은 값.
+ */
+@Composable
+private fun GiftRewardList(c: GiftCode) {
+    val items = c.items
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (c.rewardsPending) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(28.dp).border(1.dp, GiftPendingLine, RoundedCornerShape(8.dp)))
+                Text("보상 확인 중", fontSize = 12.sp, color = TextSecondary)
+            }
+        } else if (items.isNotEmpty()) {
+            items.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEach { GiftRewardCell(it, Modifier.weight(1f)) }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        if (c.moreCount > 0) Text("외 ${c.moreCount}종", fontSize = 12.sp, color = TextSecondary)
+    }
+}
+
+@Composable
+private fun GiftRewardCell(it: com.gatcha.log.data.api.GiftReward, modifier: Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(if (it.premium) GiftGem.copy(alpha = 0.16f) else GiftBox),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (it.iconUrl.isNotEmpty()) {
+                // 인게임 재화 아이콘 — 게임 일정 보상(`RewardCell`)과 같은 22(10/15).
+                AsyncImage(it.iconUrl, null, Modifier.size(22.dp), contentScale = ContentScale.Fit)
+            } else if (it.premium) {
+                // 마름모 — 24 칸 (12,2) (21,12) (12,22) (3,12).
+                Canvas(Modifier.size(14.dp)) {
+                    val u = size.width / 24f
+                    drawPath(
+                        Path().apply { moveTo(12 * u, 2 * u); lineTo(21 * u, 12 * u); lineTo(12 * u, 22 * u); lineTo(3 * u, 12 * u); close() },
+                        GiftGem,
+                    )
+                }
+            } else {
+                Icon(GlgLineIcons.Gift, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(it.name, fontSize = 12.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (it.qty.isNotEmpty()) Text("×${it.qty}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
     }
 }
 

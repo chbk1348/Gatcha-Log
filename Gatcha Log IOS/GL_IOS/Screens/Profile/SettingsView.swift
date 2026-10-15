@@ -16,8 +16,8 @@ struct SettingsView: View {
 
     /// 프로젝트 저장소 홈. OTA·릴리즈는 같은 저장소의 raw/releases 경로를 쓴다.
     private static let githubRepoURL = "https://github.com/chbk1348/Gatcha-Log"
-    /// 개발자 홈페이지(앱 소개 · 설치 안내). Firebase Hosting 의 yuki-develop 사이트.
-    private static let developerHomeURL = "https://yuki-develop.web.app"
+    /// 개발자 홈페이지(개발자 소개 · 앱 소개). Firebase Hosting 의 yukiworks 사이트 — 옛 yuki-develop 주소는 여기로 넘긴다(10/15).
+    private static let developerHomeURL = "https://yukiworks.web.app"
 
     // 시트/다이얼로그 상태
     @State private var showBudget = false
@@ -89,22 +89,32 @@ struct SettingsView: View {
         .background(Color.white.ignoresSafeArea())
         .glgPageTitle("설정")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            // 홈 만료 배너 CTA → 설정 → HoYoLAB 연동 자동 진입
-            if store.pendingOpenHoyolabLink {
-                showHoyolab = true
-                store.consumePendingOpenHoyolabLink()
-            }
-        }
+        // 홈 만료 배너 CTA → 설정 → HoYoLAB 연동 자동 진입
+        .onAppear { openPendingHoyolabLink() }
+        // 설정이 **이미 열려 있을 때** 들어온 요청도 받는다(27.52.0, Android LaunchedEffect(pendingOpenHoyolab) 와 같다).
+        // onAppear 로만 소비하면 설정을 열어 둔 채 홈의 「재연동」을 눌렀을 때 연동 화면이 안 열리고,
+        // 요청이 남아 있다가 나중에 설정에 다시 들어온 순간 엉뚱하게 튀어나왔다.
+        .onChange(of: store.pendingOpenHoyolabLink) { _, _ in openPendingHoyolabLink() }
         // 예산 관리 — 팝업에서 페이지로(아티팩트 S3).
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
-        .sheet(isPresented: $showCredits) { CreditsSheet() }
-        // 넛지 기준 금액 — iOS 26+ 는 작은 **시스템 시트**(9/30). 글래스 알림창은 입력칸이 오른쪽으로 넘쳐
-        // (앱과 무관한 OS 버그, 27.1 시뮬에서 재현) 시트 + 헤더 취소 · 저장. iOS 18 은 알림창 유지. Android 는 GlgDialog.
-        .sheet(isPresented: $showNudge) {
-            NudgeThresholdSheet(text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "") { v in
-                store.setNudgeThreshold(Int64(String(v.filter(\.isNumber).prefix(9))) ?? 0)
-            }
+        // 출처 · 저작권 — 가운데 모달(10/14, Android CreditsDialog 와 같다). 그 전에는 시트였다.
+        .glgDialogCover(isPresented: $showCredits) {
+            CreditsDialog { glgDialogStill { showCredits = false } }
+        }
+        // 넛지 기준 금액 — **가운데 모달**(10/14 지시). Android `NudgeThresholdDialog`(GlgDialog) 와 같은 모양 · 같은 값이다.
+        // 그 전에는 iOS 26+ 가 작은 시스템 시트, iOS 18 이 시스템 알림창이었다(글래스 알림창은 입력칸이 오른쪽으로 넘쳤다).
+        // 화면 전체를 덮어야 해서(내비게이션 바 · 탭 바까지 어둡게) 덮개로 띄우고, 덮개의 밀려 올라오는 움직임은 끈다 —
+        // 모달은 제자리에서 나타난다([setNudgeShown]).
+        .fullScreenCover(isPresented: $showNudge) {
+            NudgeThresholdDialog(
+                text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "",
+                onDismiss: { setNudgeShown(false) },
+                onSave: { v in
+                    store.setNudgeThreshold(Int64(String(v.filter(\.isNumber).prefix(9))) ?? 0)
+                    setNudgeShown(false)
+                }
+            )
+            .presentationBackground(.clear)
         }
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
@@ -129,6 +139,20 @@ struct SettingsView: View {
             DeveloperView(store: store)
         }
         #endif
+    }
+
+    /// 넛지 기준 금액 모달을 띄우고 닫는다 — 덮개가 밀려 올라오는 움직임 없이(모달이 스스로 나타나고 사라진다).
+    private func setNudgeShown(_ on: Bool) {
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) { showNudge = on }
+    }
+
+    /// 대기 중인 「HoYoLAB 연동 열기」 요청이 있으면 연동 화면을 열고 요청을 소비한다(1회성).
+    private func openPendingHoyolabLink() {
+        guard store.pendingOpenHoyolabLink else { return }
+        showHoyolab = true
+        store.consumePendingOpenHoyolabLink()
     }
 
     #if DEBUG
@@ -173,17 +197,7 @@ struct SettingsView: View {
             if store.nudgeOverspend {
                 SetDivider()
                 SetNavRow(symbol: "checkmark.circle", tint: .amber, title: "넛지 기준 금액",
-                          value: won(store.nudgeThreshold)) {
-                    // iOS 26+ 는 시스템 시트, 그 아래(iOS 18)는 시스템 알림창 — 알림창 입력칸 넘침은 새 글래스 알림창에서만 난다.
-                    if #available(iOS 26.0, *) {
-                        showNudge = true
-                    } else {
-                        SystemTextAlert.present(
-                            title: "넛지 기준 금액", message: "단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.",
-                            text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "", placeholder: "100000"
-                        ) { v in store.setNudgeThreshold(Int64(String(v.filter(\.isNumber).prefix(9))) ?? 0) }
-                    }
-                }
+                          value: won(store.nudgeThreshold)) { setNudgeShown(true) }
             }
         }
     }
@@ -221,17 +235,16 @@ struct SettingsView: View {
     private var notificationLinkSection: some View {
         SetSection(title: "알림", caption: "받을 알림 · 방해 금지") {
             SetNavRow(symbol: "bell", tint: .teal, title: "알림 설정",
-                      value: NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyOnCount))) { showNotifSettings = true }
+                      value: NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyOnCount), hoyolab: store.hoyolabConfig)) { showNotifSettings = true }
         }
     }
 
     /// 보이는 알림 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
-    private var notifyOnCount: Int {
-        let on: [NotifyKey: Bool] = [.budget: store.notifyBudget, .resin: store.notifyResin, .attendance: store.notifyAttendance,
-                                      .pickup: store.notifyPickup, .combat: store.notifyCombat, .news: store.notifyNews,
-                                      .hoyoland: store.notifyHoyoland]
-        return NotificationCatalog.shared.items.filter { on[$0.key] == true }.count
-    }
+    ///
+    /// 알림 설정 화면과 **같은 매핑**을 쓴다(`SpendingStore.notifyOnCount` — NotificationSettingsView.swift).
+    /// 예전엔 여기 따로 둔 사전에 「앱 업데이트」가 빠져, 전부 켜 둬도 알림 설정 화면보다
+    /// 하나 적게 「N개 켜짐」으로 나왔다(27.52.0 수정).
+    private var notifyOnCount: Int { store.notifyOnCount }
 
     // ── 데이터 관리 — 백업·복원/내보내기/위험 구역을 모은 하위 페이지로 진입 ──
     @ViewBuilder
@@ -245,13 +258,10 @@ struct SettingsView: View {
     @ViewBuilder
     private var infoSection: some View {
         SetSection(title: "앱 정보", caption: "v\(version)", bottom: 20) { // 페이지 맨 아래 — 안전 영역 위로 숨 쉴 여백을 남긴다
-            // 업데이트 확인(27.51.1 — Android 와 같은 항목). 새 버전이 있으면 앱 루트의 업데이트 창이 뜨고(ContentView),
-            // 최신이면 「이미 최신 버전이에요」 토스트가 뜬다. IPA 사이드로드 배포라 설치는 GitHub 릴리즈 페이지에서 한다.
-            SetNavRow(symbol: "arrow.down.circle", tint: .teal, title: "업데이트 확인") { store.checkForUpdate(manual: true) }
-            SetDivider()
+            // 「업데이트 확인」은 iOS 에서 뺐다(10/15 지시) — Android 만 있다.
             SetNavRow(symbol: "sparkles", tint: .blue, title: "업데이트 로그") { showUplog = true }
             SetDivider()
-            SetNavRow(symbol: "c.circle", tint: .slate, title: "출처 · 저작권") { showCredits = true }
+            SetNavRow(symbol: "c.circle", tint: .slate, title: "출처 · 저작권") { glgDialogStill { showCredits = true } }
             SetDivider()
             SetNavRow(asset: "GitHubMark", tint: .navy, title: "GitHub", chevron: "arrow.up.right") {
                 if let u = URL(string: Self.githubRepoURL) { openURL(u) }
@@ -527,10 +537,14 @@ struct BudgetSettingsView: View {
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .background(Color.white.ignoresSafeArea())
-        .glgPageTitle("예산 관리")
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 「월 예산 끄기」 · 「저장」 글자 알약. 성격이 달라 캡슐 하나로 묶지 않고 떼어 둔다(툴바와 같다).
+        .glgPageTitle("예산 관리") {
+            GldsHeaderTextButton(title: "월 예산 끄기") { save(0) }
+            GldsHeaderTextButton(title: "저장") { save(amount) }
+        }
         .navigationBarTitleDisplayMode(.inline)
         // 입력 페이지라 하단 탭바를 숨긴다(업데이트 로그와 같은 처리).
-        .toolbar(.hidden, for: .tabBar)
+        .glgHidesTabBar()
         .onAppear {
             guard !loaded else { return }
             loaded = true
@@ -582,66 +596,71 @@ struct BudgetSettingsView: View {
 
 }
 
-/// 넛지 기준 금액 — 시스템 폼 시트. 저장은 헤더 시스템 버튼(iOS 저장류 규칙).
-struct NudgeThresholdSheet: View {
+/// 넛지 기준 금액 — **가운데 모달**(10/14). Android `NudgeThresholdDialog`(GlgDialog) 와 같은 모양 · 같은 값.
+/// 딤 + 흰 카드(모서리 24 · 안쪽 22 · 1 테두리) · 제목 17 Bold · 설명 12 · GLDS 입력필드(굵게 · 「원」) · 취소 1 : 저장 1.4(GLDS 버튼 M).
+/// 바깥을 누르면 닫힌다. 날짜 선택 모달(`GLGDatePickerDialog`)과 같은 틀이다.
+struct NudgeThresholdDialog: View {
     @State var text: String
+    let onDismiss: () -> Void
     let onSave: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Bool
+    /// 제자리에서 나타나고 사라진다 — 덮개 자체의 움직임은 꺼 두었다.
+    @State private var shown = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("100000", text: $text)
-                        .keyboardType(.numberPad)
-                        .focused($focused)
-                        .onChange(of: text) { _, v in
-                            let digits = String(v.filter(\.isNumber).prefix(9))
-                            if digits != v { text = digits }
-                        }
-                } header: {
-                    Text("기준 금액 (원)")
-                } footer: {
-                    Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
+        ZStack {
+            Color.black.opacity(0.32).ignoresSafeArea()
+                .onTapGesture { close { onDismiss() } }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("넛지 기준 금액").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    .padding(.bottom, 16)
+                Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
+                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 12)
+                GldsTextField(placeholder: "100,000", text: $text, suffix: "원", bold: true, keyboard: .numberPad, focus: $focused)
+                    .onChange(of: text) { _, v in
+                        let digits = String(v.filter(\.isNumber).prefix(9))
+                        if digits != v { text = digits }
+                    }
+                GeometryReader { geo in
+                    let w = geo.size.width - 10
+                    HStack(spacing: 10) {
+                        GldsButton(title: "취소", variant: .secondary) { close { onDismiss() } }
+                            .frame(width: w / 2.4)
+                        GldsButton(title: "저장") { close { onSave(text) } }
+                            .frame(width: w * 1.4 / 2.4)
+                    }
                 }
+                .frame(height: 44)
+                .padding(.top, 20)
             }
-            .navigationTitle("넛지 기준 금액")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("저장") { onSave(text); dismiss() }.fontWeight(.bold) }
-            }
-            // 시트가 올라오는 도중에 거는 포커스는 무시돼 키패드가 안 떴다(iOS 18 · 26 · 27) — 올라온 뒤에 건다.
-            .task {
-                try? await Task.sleep(for: .milliseconds(450))
-                focused = true
-            }
+            .padding(22)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+            // 한 장으로 합친 뒤에 그림자를 준다 — 그냥 주면 카드 안의 입력칸 · 버튼 · 글자마다 그림자가 따로 생긴다(10/14 지적).
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+            .padding(24)
+            .frame(maxWidth: 480)
+            .scaleEffect(shown ? 1 : 0.96)
         }
-        .presentationDetents([.height(280)])
+        .opacity(shown ? 1 : 0)
+        .task {
+            withAnimation(.easeOut(duration: 0.16)) { shown = true }
+            // 나타나는 도중에 거는 포커스는 무시돼 키패드가 안 뜬다 — 자리를 잡은 뒤에 건다.
+            try? await Task.sleep(for: .milliseconds(220))
+            focused = true
+        }
     }
-}
 
-/// 입력칸 하나짜리 **시스템 알림창**(UIAlertController) — iOS 26 미만의 넛지 기준 금액.
-/// iOS 26+ 글래스 알림창은 입력칸이 오른쪽으로 넘쳐(OS 버그) 그쪽은 [NudgeThresholdSheet] 를 쓴다.
-@MainActor
-enum SystemTextAlert {
-    static func present(title: String, message: String, text: String, placeholder: String,
-                        onSave: @escaping (String) -> Void) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addTextField { tf in
-            tf.text = text
-            tf.placeholder = placeholder
-            tf.keyboardType = .numberPad
-            tf.clearButtonMode = .whileEditing
+    /// 키패드를 내리고 흐려진 뒤에 닫는다 — 덮개는 움직임 없이 사라지므로 여기서 사라지는 모습을 그린다.
+    private func close(_ then: @escaping () -> Void) {
+        focused = false
+        withAnimation(.easeIn(duration: 0.12)) { shown = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(130))
+            then()
         }
-        alert.addAction(UIAlertAction(title: "취소", style: .cancel))
-        alert.addAction(UIAlertAction(title: "저장", style: .default) { _ in onSave(alert.textFields?.first?.text ?? "") })
-        alert.view.tintColor = .systemBlue   // 다른 알림창과 같은 시스템 파랑(glgAlertTint)
-        guard let root = UIApplication.shared.connectedScenes
-            .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first?.rootViewController else { return }
-        var top = root
-        while let next = top.presentedViewController { top = next }
-        top.present(alert, animated: true)
     }
 }

@@ -26,8 +26,14 @@ expect object Notifier {
      * **suspend 인 이유**: iOS 는 권한 조회·등록이 전부 콜백형이라 예전엔 요청만 걸고 즉시 반환했다.
      * 그런데 백그라운드(BGTask)는 완료 보고 직후 앱을 서스펜드하므로, 콜백이 돌기 전에 프로세스가
      * 멈춰 **알림이 조용히 유실됐다**. 이제 등록이 끝난 뒤에 반환한다(Android 는 동기라 무비용).
+     *
+     * @return 실제로 게시됐으면(또는 [NotifyHold] 가 붙잡아 곧 보낼 것이면) true. 권한이 꺼져 못 보냈으면 false —
+     *   부르는 쪽은 false 일 때 중복 방지 표시를 남기지 않는다(27.52.0). 안 그러면 나중에 권한을 켜도 그 알림은 오지 않는다.
      */
-    suspend fun notify(id: Int, title: String, text: String, link: String = "")
+    suspend fun notify(id: Int, title: String, text: String, link: String = ""): Boolean
+
+    /** 떠 있는 알림을 걷는다 — 사정이 풀린 실패 알림처럼 더는 맞지 않는 것. 없으면 아무 일도 없다. */
+    fun cancel(id: Int)
 
     /**
      * 시스템 알림이 실제로 표시 가능한 상태인지(권한 허용 + 앱/채널 알림 켜짐).
@@ -35,6 +41,33 @@ expect object Notifier {
      * iOS 는 비동기 조회라 직전 캐시값을 반환(호출 시 백그라운드 갱신).
      */
     fun notificationsEnabled(): Boolean
+}
+
+/**
+ * 알림을 눌렀을 때 **어디로 가는가** — 두 플랫폼이 같은 표를 쓴다(27.52.0).
+ *
+ * 예전엔 iOS 만 알림 번호로 탭을 골랐다(Swift 에 번호를 다시 적어서). 그래서 예산 알림은 iOS 만 지출 탭으로 갔고,
+ * iOS 의 픽업 · 전투 알림은 게임 정보가 아니라 홈으로 갔다. 이제 알림에 링크가 없으면 여기서 기본 링크를 붙이고,
+ * 처리는 [SpendingViewModel.handleNotificationLink] 한 곳이 한다.
+ */
+object NotificationRoutes {
+    const val TAB_SPENDING = "tab:1"
+    const val TAB_GAME_INFO = "tab:2"
+    const val GAME_NOTES = "gameinfo:notes"
+    const val GAME_SCHEDULE = "gameinfo:schedule"
+    const val GAME_COMBAT = "gameinfo:combat"
+
+    /** 알림 번호([Notifier] 의 ID 대역) → 기본 링크. 갈 곳이 따로 없으면 빈 문자열(앱만 연다). */
+    fun defaultLink(id: Int): String = when (id) {
+        Notifier.ID_BUDGET -> TAB_SPENDING
+        Notifier.ID_ATTEND, Notifier.ID_AUTO_CHECKIN -> TAB_GAME_INFO
+        Notifier.ID_APP_UPDATE -> "update"
+        in Notifier.ID_RESIN_BASE until Notifier.ID_RESIN_BASE + 100 -> GAME_NOTES
+        in Notifier.ID_BUDGET_GAME_BASE until Notifier.ID_BUDGET_GAME_BASE + 100 -> TAB_SPENDING
+        in Notifier.ID_PICKUP_BASE until Notifier.ID_PICKUP_BASE + 100 -> GAME_SCHEDULE
+        in Notifier.ID_COMBAT_BASE until Notifier.ID_COMBAT_BASE + 100 -> GAME_COMBAT
+        else -> ""
+    }
 }
 
 /**

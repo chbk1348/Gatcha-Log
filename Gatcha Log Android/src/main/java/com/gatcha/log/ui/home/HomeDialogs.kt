@@ -56,6 +56,26 @@ internal fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: (
     }
 }
 
+/**
+ * 인앱 업데이트 실패 안내(27.52.0) — 사유([message])와 함께 릴리즈 페이지로 갈 길을 준다.
+ * 예전엔 토스트 한 줄(「다운로드 실패」)뿐이라, 다시 받아도 안 되는 경우(파일 손상 · 서명 불일치)에 갈 곳이 없었다.
+ */
+@Composable
+internal fun UpdateFailureDialog(message: String, onOpenReleasePage: () -> Unit, onDismiss: () -> Unit) {
+    GlgDialog(
+        title = "업데이트하지 못했어요",
+        onDismiss = onDismiss,
+        confirmText = "릴리즈 페이지 열기",
+        onConfirm = onOpenReleasePage,
+        dismissText = "닫기",
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(message, fontSize = 14.sp, color = TextSecondary)
+            Text("릴리즈 페이지에서 직접 받아 설치할 수도 있어요.", fontSize = 14.sp, color = TextSecondary)
+        }
+    }
+}
+
 /** 인앱 업데이트 다운로드 진행 오버레이 (완료되면 시스템 설치 화면으로 이어짐). */
 /**
  * 로그아웃 진행 오버레이 — Firebase signOut 이 네트워크를 타서 수 초 걸릴 수 있어,

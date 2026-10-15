@@ -1,13 +1,10 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.data.DateUtil
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.platformName
 import com.gatcha.log.util.SafeUrl
 import com.gatcha.log.util.currentTimeMillis
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toInstant
-import kotlin.time.ExperimentalTime
 
 /** 공지의 무게 — 홈 배너의 색만 가른다(안내 = 강조색 · 주의 = 경고색 · 긴급 = 급한 경고색). */
 enum class AppNoticeLevel { INFO, WARN, URGENT }
@@ -46,7 +43,6 @@ object AppNoticeApi {
     /** [HoyolandApi] 와 같은 값 · 같은 이유 — 이 시간이 곧 공지가 앱에 닿는 속도다. */
     private const val FRESH_MS = 15_000L
 
-    private val seoulTz = TimeZone.of("Asia/Seoul")
 
     /** 마지막으로 받은 본문. 파싱한 목록이 아니라 본문을 붙드는 이유는 [current] 참고. */
     private var cachedBody: String? = null
@@ -96,14 +92,21 @@ object AppNoticeApi {
 
     private fun isReadable(body: String): Boolean = parse(body, 0L, "") != null
 
+    /**
+     * 직전 [load] 가 「라이브가 늦어 대신 받은 정본」으로 섰으면, **잠시 뒤 한 번 더** 읽어 그 값을 돌려준다(27.52.0).
+     * 제때 온 값이었으면 기다리지 않고 null — 화면은 [load] 뒤에 이것을 한 번 부르고, null 이 아니면 갈아끼운다.
+     */
+    suspend fun reloadIfLiveWasLate(): List<AppNotice>? {
+        if (!LiveConfig.liveWasLate(CONFIG_DOC)) return null
+        kotlinx.coroutines.delay(LiveConfig.RETRY_AFTER_LATE_MS)
+        return load(force = true)
+    }
+
     /** 이 기기의 플랫폼 키 — 공지의 `platform` 과 견준다. */
     private fun platformKey(): String = if (platformName().startsWith("iOS", ignoreCase = true)) "ios" else "android"
 
-    /** "yyyy-MM-dd HH:mm" (Asia/Seoul) → epoch millis. 못 읽으면 null. */
-    @OptIn(ExperimentalTime::class)
-    private fun millis(s: String): Long? = runCatching {
-        LocalDateTime.parse(s.trim().replace(" ", "T")).toInstant(seoulTz).toEpochMilliseconds()
-    }.getOrNull()
+    /** "yyyy-MM-dd HH:mm"(한국 시각) → epoch millis. 못 읽으면 null. */
+    private fun millis(s: String): Long? = DateUtil.seoulMillis(s)
 
     /**
      * 본문 → [nowMillis] 에 [platform] 기기에서 띄울 공지. **깨진 JSON 이면 null**, 공지가 없으면 빈 목록.

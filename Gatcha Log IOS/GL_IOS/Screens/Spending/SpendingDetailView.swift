@@ -55,7 +55,7 @@ struct SpendingDetailView: View {
         // 히어로가 상태바까지 올라가므로 막대에 글자를 얹지 않는다 — 그라데이션 위에 겹친다.
         // 어느 화면인지는 히어로의 게임명·금액이 말해 준다. 다만 제목 자체는 채운다 —
         // 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
-        .glgHiddenTitle("지출 내역")
+        .glgHiddenTitleWithoutHeader18("지출 내역")
         .navigationBarTitleDisplayMode(.inline)
         // 네비게이션 바 배경을 걷어내 히어로 색이 상태바 영역까지 이어지게 한다.
         // iOS 26 은 `toolbarBackground(_:for:)` 가 더 이상 바의 유리를 걷어내지 못한다 —
@@ -65,7 +65,29 @@ struct SpendingDetailView: View {
         // 히어로가 파스텔이라 아이콘은 히어로 위에서도 **기본(어두운) 색**이 읽힌다 —
         // 원색이었을 땐 흰색으로 뒤집어야 했고, 그러면 스크롤 후 흰 배경에서 아이콘이 사라졌다.
         .animation(.easeInOut(duration: 0.18), value: pastHero)
+        // iOS 18 아이폰 GLDS 헤더(10/15, Android 지출 상세와 같다) — 제목 없이 ‹ 원 + [수정 | 삭제] 캡슐.
+        // 히어로 위에서는 면이 흰색 55% · 아이콘이 히어로 글자색이라 파스텔 면과 한 층으로 읽힌다. 히어로를 지나면 흰 면 ·
+        // 본문색으로 돌아오고 상태바 스크림이 켜진다. 삭제도 본문색 — 헤더 아이콘은 강조 · 위험색을 쓰지 않는다(Android 와 같다).
+        // 히어로가 상태바까지 색을 올리므로 본문을 밀지 않고 위에 얹는다(overlay) — 히어로가 헤더만큼 스스로 내려간다.
+        .gldsPageHeader18("", tint: heroTint18, fill: pastHero ? nil : GldsHeader18.heroFill,
+                          scrim: pastHero, overlay: true) {
+            if let s = spending {
+                GldsHeaderGroup(fill: pastHero ? nil : GldsHeader18.heroFill) {
+                    GldsHeaderCellButton(icon: "IconEdit", label: "수정", tint: heroTint18) { onEdit(s) }
+                    GldsHeaderCellButton(icon: "IconDelete", label: "삭제", tint: heroTint18) { confirmDelete = true }
+                }
+            }
+        }
     }
+
+    /// iOS 18 아이폰 GLDS 헤더 아이콘 색 — 히어로 위에서만 히어로 글자색, 지나면 본문색(nil).
+    private var heroTint18: Color? {
+        guard !pastHero, let s = spending else { return nil }
+        return heroInk(s)
+    }
+
+    /// 히어로를 덮는 헤더 높이 — 시스템 바(44) 또는 iOS 18 아이폰 GLDS 헤더(64, 10/15).
+    private var heroHeaderHeight: CGFloat { GldsHeader18.isActive ? GldsHeader18.pageHeight : 44 }
 
     private func content(_ s: Spending, topInset: CGFloat) -> some View {
         ScrollView {
@@ -99,7 +121,7 @@ struct SpendingDetailView: View {
         // 바 높이(44)를 빼는 이유는, 히어로 끝이 바에 **가려지기 시작할 때** 색이 바뀌어야
         // 아이콘이 흰 배경 위에 흰색으로 남는 한 프레임이 생기지 않기 때문이다.
         .onScrollGeometryChange(for: Bool.self) { geo in
-            heroHeight > 0 && geo.contentOffset.y > heroHeight - topInset - 44
+            heroHeight > 0 && geo.contentOffset.y > heroHeight - topInset - heroHeaderHeight
         } action: { _, newValue in
             pastHero = newValue
         }
@@ -132,24 +154,24 @@ struct SpendingDetailView: View {
             if isWideCanvas {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button { onEdit(s) } label: { Label("수정", systemImage: "pencil") }
+                        Button { onEdit(s) } label: { Label("수정", image: "IconEdit") }
                         Button(role: .destructive) { confirmDelete = true } label: {
-                            Label("삭제", systemImage: "trash")
+                            Label("삭제", image: "IconDelete")
                         }
                     } label: {
-                        Image(systemName: "ellipsis")
+                        GLGLineIcon("IconMore", label: "더보기")
                     }
                 }
             }
             if !isWideCanvas {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { onEdit(s) } label: { Image(systemName: "pencil") }
+                    Button { onEdit(s) } label: { GLGLineIcon("IconEdit", label: "수정") }
                 }
                 if #available(iOS 26.0, *) {
                     ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
+                    Button(role: .destructive) { confirmDelete = true } label: { GLGLineIcon("IconDelete", label: "삭제") }
                         // 삭제만 위험색으로 가른다 — `role: .destructive` 는 툴바에서 색까지 바꿔 주지
                         // 않아서, 수정과 똑같은 색으로 나란히 놓여 있었다.
                         .tint(needsBarTint ? GLGColor.dangerText : nil)
@@ -225,7 +247,8 @@ struct SpendingDetailView: View {
         // 상태바(topInset) 아래에서 시작한다. 뒤에 더하는 값은 네비게이션 바 높이(44)가 아니라
         // **뒤로가기 버튼과 겹치지 않을 만큼**이다 — 44 를 그대로 주면 아이콘과 게임명 사이가
         // 한 줄 비어 보인다. 좌측 상단이 비는 만큼 히어로가 위로 붙는다.
-        .padding(.top, topInset + 26)
+        // iOS 18 아이폰은 GLDS 헤더(64)를 위에 얹으므로 그 아래 12 — Android(상태바 + 헤더 + 12)와 같다(10/15).
+        .padding(.top, GldsHeader18.isActive ? topInset + GldsHeader18.pageHeight + 12 : topInset + 26)
         .frame(maxWidth: .infinity, alignment: .leading)
         // `padding(.top, -800)` — 스크롤을 아래로 당겼을 때(바운스) 히어로 위가 드러나
         // 흰 배경이 비치던 걸 막는다. 배경만 위로 크게 빼므로 하단 라운드는 그대로다.

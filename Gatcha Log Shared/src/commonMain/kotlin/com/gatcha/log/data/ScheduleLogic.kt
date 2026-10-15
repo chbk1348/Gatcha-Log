@@ -1,7 +1,6 @@
 package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
-import kotlin.math.ceil
 
 /**
  * 통합 게임 일정 — 패치(픽업 페이즈)·진행 이벤트·정기 콘텐츠를 하나의 모델로 합쳐 날짜순 정렬.
@@ -28,12 +27,11 @@ data class ScheduleEntry(
     val isStart: Boolean,
     /** 이 줄이 픽업 페이즈 종료일 때 그 페이즈의 픽업들(타임라인 칩용). 그 외엔 빈 목록. */
     val pickups: List<GachaBanner> = emptyList(),
-    /** 이벤트·콘텐츠 줄의 보상 박스 항목. 비면 [sub] 글자로 보여 준다. 픽업 줄은 늘 빈 목록. */
+    /** 이벤트·콘텐츠 줄의 보상 목록 항목. 비면 [sub] 글자로 보여 준다. 픽업 줄은 늘 빈 목록. */
     val rewardItems: List<RewardItem> = emptyList(),
 ) {
-    /** 남은 일수(올림). 음수면 지남. */
-    fun dDay(nowMillis: Long = currentTimeMillis()): Int =
-        ceil((target - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
+    /** 남은 달력 날 수([DateUtil.daysLeft]). 음수면 지남. */
+    fun dDay(nowMillis: Long = currentTimeMillis()): Int = DateUtil.daysLeft(target, nowMillis)
 }
 
 /**
@@ -68,7 +66,7 @@ data class GameScheduleLine(
     val faces: List<GachaBanner> = emptyList(),
     /** "콜롬비나 외 1" — [summary] 에서 버전을 뺀 이름만. 초상 옆에 붙인다. */
     val pickupNames: String = "",
-    /** "D-15" / "종료 미정". */
+    /** "D-15" / 24시간 안쪽이면 "6시간" · "40분" / "종료 미정". */
     val remainLabel: String,
     val urgent: Boolean,
     /** 콜라보 픽업이 진행 중이면 true — 한 줄에 콜라보 뱃지를 붙인다. */
@@ -189,11 +187,17 @@ object ScheduleLogic {
         banners: List<GachaBanner>,
         entries: List<ScheduleEntry>,
         nowMillis: Long = currentTimeMillis(),
-    ): ScheduleSummary = ScheduleSummary(
-        weekDeadlines = entries.count { it.dDay(nowMillis) in 0..7 },
-        activePickups = banners.size,
-        extras = entries.count { it.kind != "패치" },
-    )
+    ): ScheduleSummary {
+        // 「이번 주」는 주간 보드([buildWeeks])와 같은 일~토 달력 주다. 예전엔 "지금부터 7×24시간"이라 보드에서
+        // 「다음 주」에 있는 항목이 「이번 주 마감」에 들어갔고, 픽업 **시작** 줄까지 마감으로 셌다(27.52.0).
+        val weekEnd = DateUtil.startOfDayPlus(DateUtil.startOfWeek(nowMillis), 7)
+        return ScheduleSummary(
+            weekDeadlines = entries.count { !it.isStart && it.target >= nowMillis && it.target < weekEnd },
+            // 아직 시작하지 않은 픽업은 「진행 중」이 아니다. 시작 시각을 모르면(0) 진행 중으로 본다.
+            activePickups = banners.count { it.startMillis <= nowMillis },
+            extras = entries.count { it.kind != "패치" },
+        )
+    }
 
     // ── 섹션 진입 카드: 게임 한 줄 ──────────────────────────────────────────
 
@@ -227,7 +231,7 @@ object ScheduleLogic {
                 summary = if (lead.version.isBlank()) who else "v${lead.version} · $who",
                 faces = named,
                 pickupNames = who,
-                remainLabel = if (lead.isEndUnknown) "종료 미정" else "D-${maxOf(0, dDayOf(lead.nearestEnd, nowMillis))}",
+                remainLabel = if (lead.isEndUnknown) "종료 미정" else remainLabelOf(lead.nearestEnd, nowMillis),
                 urgent = !lead.isEndUnknown && dDayOf(lead.nearestEnd, nowMillis) in 0..3,
                 hasCollab = groups.any { g -> g.pickups.any { isCollabBanner(it) } },
             )
@@ -253,14 +257,21 @@ object ScheduleLogic {
             shortName = game.shortName,
             colorArgb = game.color,
             summary = summary,
-            remainLabel = "D-$d",
+            remainLabel = remainLabelOf(nearest, nowMillis),
             urgent = d in 0..3,
             hasCollab = false,
         )
     }
 
-    private fun dDayOf(target: Long, nowMillis: Long): Int =
-        ceil((target - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
+    private fun dDayOf(target: Long, nowMillis: Long): Int = DateUtil.daysLeft(target, nowMillis)
+
+    /**
+     * 진입 카드 줄의 잔여 표기 — **24시간이 안 남았으면 시간으로**("6시간", 1시간 미만은 "40분" — [dhLabel]), 그 밖은 "D-N".
+     * 예전엔 마감 당일에 "D-0" 만 떠서 오늘 몇 시간 남았는지 알 수 없었다(10/13).
+     */
+    private fun remainLabelOf(target: Long, nowMillis: Long): String =
+        if (target - nowMillis in 1 until DAY_MILLIS) dhLabel(target, nowMillis)
+        else "D-${maxOf(0, dDayOf(target, nowMillis))}"
 
     /**
      * 픽업 배너 — "all"이면 전체, 게임 키를 주면 그 게임만. 종료 임박순.
@@ -361,14 +372,49 @@ fun pickupNames(pickups: List<GachaBanner>): String =
             val names = list.flatMap { it.lineup }.filter { it.isNotBlank() }.distinct()
             if (names.isEmpty()) return@mapNotNull null
             val game = list.first().game
-            "${lineupKindLabel(game, weapon)}  ${names.joinToString(" · ")}"
+            "${pickupBadgeLabel(game, weapon, topGrade = false)}  ${names.joinToString(" · ")}"
         }
         .joinToString("\n")
 
-/** 픽업 대상 줄 머리 — 등급 표기(젠레스는 A급)와 종류의 인게임 명칭. 무기는 게임마다 이름이 다르다. */
-private fun lineupKindLabel(game: String, weapon: Boolean): String {
+/** 보상 목록을 접었을 때 보이는 항목 수 — 이보다 많으면 「N개 더 보기」로 접는다(두 열 × 두 줄). */
+const val REWARD_COLLAPSED_COUNT = 4
+
+/** 4성 박스 하나 — 이름과 아이콘(없으면 빈 문자열). */
+data class LineupItem(val name: String, val iconUrl: String)
+
+/** 픽업 줄의 4성 묶음 — 종류(캐릭터 · 무기)마다 하나. [label] 은 왼쪽 뱃지 글자("4성 캐릭터" · 젠레스 "A급 에이전트"). */
+data class LineupGroup(val weapon: Boolean, val label: String, val items: List<LineupItem>)
+
+/**
+ * 픽업 줄의 4성 박스 — [pickupNames] 와 같은 대상(5성 제외, API 순서, 중복 제거)을 종류별로 묶는다(캐릭터 → 무기).
+ *
+ * **아이콘을 하나도 못 받았으면 빈 목록**이다(옛 캐시 — [GachaBanner.lineupIcons] 가 없다). 그때 화면은
+ * 박스 대신 예전처럼 글자 부제([ScheduleEntry.sub])를 보여 준다. 일부만 비면 박스는 세우고 그 칸만 실루엣.
+ */
+fun pickupLineup(pickups: List<GachaBanner>): List<LineupGroup> {
+    val groups = pickups.groupBy { it.type == "weapon" }.entries.sortedBy { it.key }
+        .mapNotNull { (weapon, list) ->
+            val items = list
+                .flatMap { b -> b.lineup.mapIndexed { i, n -> LineupItem(n, b.lineupIcons.getOrElse(i) { "" }) } }
+                .filter { it.name.isNotBlank() }
+                .distinctBy { it.name }
+            if (items.isEmpty()) return@mapNotNull null
+            LineupGroup(weapon, pickupBadgeLabel(list.first().game, weapon, topGrade = false), items)
+        }
+    return if (groups.any { g -> g.items.any { it.iconUrl.isNotBlank() } }) groups else emptyList()
+}
+
+/**
+ * 픽업 줄 왼쪽 **등급 뱃지**의 글자 — 등급 + 종류의 인게임 명칭(10/13).
+ * "5성 캐릭터" · "4성 무기" · "5성 광추"(스타레일) · 젠레스는 "S급 에이전트" · "A급 W-엔진".
+ * [topGrade] 가 true 면 5성(S급), false 면 4성(A급). 글자 부제([pickupNames])의 줄 머리도 같은 말을 쓴다.
+ */
+fun pickupBadgeLabel(game: String, weapon: Boolean, topGrade: Boolean): String {
     val key = GameData.byNameOrNull(game)?.key
-    val grade = if (key == "zzz") "A급" else "4성"
+    val grade = when {
+        key == "zzz" -> if (topGrade) "S급" else "A급"
+        else -> if (topGrade) "5성" else "4성"
+    }
     val kind = when {
         !weapon -> if (key == "zzz") "에이전트" else "캐릭터"
         key == "hsr" -> "광추"
@@ -519,10 +565,11 @@ fun buildWeeks(
 ): List<ScheduleWeek> {
     val today = DateUtil.startOfDay(nowMillis)
     val first = DateUtil.startOfWeek(nowMillis)
-    val day = 86_400_000L
+    // 주 · 날의 경계는 날짜로 더한다([DateUtil.startOfDayPlus]) — 24시간을 더하면 서머타임 주에 칸이 겹친다.
     return (0 until weeks.coerceAtLeast(1)).map { w ->
-        val ws = first + w * 7 * day
-        val we = ws + 7 * day
+        val ws = DateUtil.startOfDayPlus(first, w * 7)
+        val we = DateUtil.startOfDayPlus(ws, 7)
+        val lastDay = DateUtil.startOfDayPlus(ws, 6)
         val inWeek = entries.filter { it.target in ws until we && it.target >= today }
             .sortedBy { it.target }
         ScheduleWeek(
@@ -532,10 +579,10 @@ fun buildWeeks(
                 else -> "${DateUtil.month(ws)}월 ${DateUtil.dayOfMonth(ws)}일 주"
             },
             rangeLabel = "${DateUtil.month(ws)}/${DateUtil.dayOfMonth(ws)} – " +
-                "${DateUtil.month(we - day)}/${DateUtil.dayOfMonth(we - day)}",
+                "${DateUtil.month(lastDay)}/${DateUtil.dayOfMonth(lastDay)}",
             startMillis = ws,
             days = (0 until 7).map { d ->
-                val dm = ws + d * day
+                val dm = DateUtil.startOfDayPlus(ws, d)
                 val dayEntries = inWeek.filter { DateUtil.dayKey(it.target) == DateUtil.dayKey(dm) }
                 WeekDay(
                     millis = dm,

@@ -39,12 +39,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GldsToastRoot
+import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.home.HomeScreen
 import com.gatcha.log.ui.home.UpdateDialog
+import com.gatcha.log.ui.home.UpdateFailureDialog
 import com.gatcha.log.ui.home.UpdateProgressOverlay
 import com.gatcha.log.ui.onboarding.OnboardingScreen
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.GatchaLogTheme
+import com.gatcha.log.data.AndroidInAppUpdateProvider
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
@@ -102,8 +106,10 @@ class MainActivity : ComponentActivity() {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today].orEmpty()
                 // 출석을 세는 게임만 본다 — UID 없는 게임이 남은 걸로 치면 실행마다 워커를 헛돌린다.
-                val games = GameData.trackedAttendanceGames(repo.loadHoyolab())
-                if (games.any { it.key !in done }) {
+                // 출석을 챙길 수 없는 계정(미연동 · 게임 UID 없음)이면 자동 출석이 돌지 않으니 깨우지 않는다.
+                val cfg = repo.loadHoyolab()
+                val games = GameData.trackedAttendanceGames(cfg, repo.loadMyGames())
+                if (cfg.canCheckIn && games.any { it.key !in done }) {
                     AndroidWorkScheduler.runNow(ctx)
                 }
             }
@@ -157,10 +163,14 @@ class MainActivity : ComponentActivity() {
             val account by viewModel.account.collectAsStateWithLifecycle()
             val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
             val errorAlert by viewModel.errorAlert.collectAsStateWithLifecycle()
+            val statusToast by viewModel.statusToast.collectAsStateWithLifecycle()
             // 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 진입 — 동기화는 백그라운드.
             // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
             // 로딩 게이트는 "이 기기에서 이 계정을 한 번이라도 동기화했는가"로 가른다(needsSyncGate, 9/29).
-            var loadingDone by rememberSaveable { mutableStateOf(false) }
+            // 계정이 바뀌면(로그아웃 포함) 되돌린다(27.52.0) — 예전엔 한 번 true 가 되면 로그아웃 뒤에도 남아,
+            // 같은 실행에서 다른 계정으로 로그인하면 로딩 화면을 건너뛰고 빈 홈이 먼저 떴다.
+            // 같은 계정의 회전 · 프로세스 복원에서는 저장된 값이 그대로 돌아온다(계정은 뷰모델이 처음부터 들고 있다).
+            var loadingDone by rememberSaveable(account.id) { mutableStateOf(false) }
             var onboardingDone by rememberSaveable { mutableStateOf(AppSettings().onboardingDone) }
             // 개발자 메뉴 「온보딩 초기화」 — 재시작 없이 바로 온보딩으로 돌아간다.
             val onboardingReplay by viewModel.onboardingReplay.collectAsStateWithLifecycle()
@@ -214,6 +224,11 @@ class MainActivity : ComponentActivity() {
                     else -> HomeScreen(viewModel)
                 }
                 }
+                // 전역 토스트 — 앱 루트에 한 번만(27.52.0, iOS ContentView 와 같은 자리). 홈 안에 있을 때는
+                // 온보딩 · 로그인 · 지출 편집 화면에서 뷰모델의 안내가 보이지 않았다.
+                // GLDS 2.1 토스트 D안(10/15) — 자리는 **가리는 것(하단 툴바 · 선택 바 · 저장 바 · 키보드) 위 12**, 없으면
+                // 내비게이션 바 위 16 이다(예전엔 어느 화면이든 아래에서 100). 다이얼로그 · 시트가 떠 있으면 그 창이 그린다.
+                GldsToastRoot(toast = statusToast, onShown = { viewModel.clearStatus() })
                 // 업데이트 확인 · 창 — 앱 루트에 한 번만(iOS ContentView 와 같은 자리). 홈 안에 있을 때는
                 // 온보딩 · 로그인 · 지출 편집 화면에서 강제 업데이트가 걸리지 않았다.
                 // 받는 동안은 진행 오버레이만 — 강제 업데이트 창은 남아 있다가 실패 · 취소하면 다시 뜬다.
@@ -229,6 +244,19 @@ class MainActivity : ComponentActivity() {
                         onDownload = { viewModel.startInAppUpdate() },
                         onDismiss = { viewModel.dismissUpdate() },
                         force = forceUpdate,
+                    )
+                }
+                // 인앱 업데이트 실패 — 사유와 함께 릴리즈 페이지로 갈 길을 준다(27.52.0). 업데이트 창보다 **뒤에** 둔다:
+                // 강제 업데이트 창이 다시 떠도 이 창이 그 위에 온다. 주소는 UpdateInfo.url(검증된 값) 그대로다.
+                val updateFailure by AndroidInAppUpdateProvider.failure.collectAsStateWithLifecycle()
+                updateFailure?.let { failure ->
+                    UpdateFailureDialog(
+                        message = failure.message,
+                        onOpenReleasePage = {
+                            AndroidInAppUpdateProvider.clearFailure()
+                            openExternalLink(this@MainActivity, failure.releaseUrl)
+                        },
+                        onDismiss = { AndroidInAppUpdateProvider.clearFailure() },
                     )
                 }
                 // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).

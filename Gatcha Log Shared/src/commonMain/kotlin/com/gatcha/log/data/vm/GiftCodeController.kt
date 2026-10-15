@@ -1,5 +1,6 @@
 package com.gatcha.log.data.vm
 
+import com.gatcha.log.data.ToastKind
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.RedeemState
@@ -29,7 +30,7 @@ internal class GiftCodeController(
     private val scope: CoroutineScope,
     private val repo: () -> GatchaRepository,
     private val hoyolab: () -> HoyolabConfig,
-    private val status: (String) -> Unit,
+    private val status: (String, ToastKind) -> Unit,
 ) {
     private val _redeemState = MutableStateFlow<RedeemState>(RedeemState.Idle)
     val redeemState: StateFlow<RedeemState> = _redeemState.asStateFlow()
@@ -66,34 +67,46 @@ internal class GiftCodeController(
     private val codesCache = mutableMapOf<String, Pair<Long, List<GiftCode>>>()
 
     fun loadActiveCodes(gameKey: String, force: Boolean = false) {
+        shownGameKey = gameKey
         // 받아 둔 게 있으면 먼저 보여 준다 — 예전엔 게임을 바꾸면 응답이 올 때까지 **앞 게임의 코드**가 떠 있었다.
         codesCache[gameKey]?.let { (at, list) ->
             _activeCodes.value = list.filterNot { it.code.uppercase() in _unusableCodes.value }
             _codesFailed.value = false
-            if (!force && currentTimeMillis() - at < CODES_FRESH_MS) return
-        } ?: run { _activeCodes.value = emptyList() }
+            if (!force && currentTimeMillis() - at < CODES_FRESH_MS) {
+                _codesLoading.value = false   // 앞 게임 조회가 아직 돌고 있어도 이 게임은 기다릴 것이 없다
+                return
+            }
+        } ?: run { _activeCodes.value = emptyList(); _codesFailed.value = false }
         // 같은 게임 조회가 이미 돌고 있으면 두 번 쏘지 않는다 — 코드 화면은 진입·게임 전환·재구성으로
         // 같은 키가 연달아 들어오는데, 여기엔 신선도 캐시도 진행 중 판정도 없어 그대로 다 나갔다.
+        _codesLoading.value = true
         if (!codesInFlight.add(gameKey)) return
         scope.launch {
-            _codesLoading.value = true
             try {
                 val codes = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
+                // **화면에는 지금 보는 게임의 응답만 싣는다**(27.52.0). 목록 · 실패 · 로딩이 한 벌이라, 예전엔 늦게 온 다른
+                // 게임의 응답이 지금 화면을 덮었다 — 스타레일 탭에 원신 코드가 뜨고, 「모두 교환」이 그 코드를 스타레일로 보냈다.
+                val shown = gameKey == shownGameKey
                 // 실패(null)면 기존 목록을 지우지 않고 실패 상태만 세운다 — 빈 목록으로 위장하지 않는다.
                 if (codes == null) {
-                    _codesFailed.value = true
+                    if (shown) _codesFailed.value = true
                 } else {
-                    _codesFailed.value = false
                     codesCache[gameKey] = currentTimeMillis() to codes
-                    // 수집 목록에는 이미 못 쓰게 된 코드가 계속 섞여 온다 — 받아올 때 걸러낸다.
-                    _activeCodes.value = codes.filterNot { it.code.uppercase() in _unusableCodes.value }
+                    if (shown) {
+                        _codesFailed.value = false
+                        // 수집 목록에는 이미 못 쓰게 된 코드가 계속 섞여 온다 — 받아올 때 걸러낸다.
+                        _activeCodes.value = codes.filterNot { it.code.uppercase() in _unusableCodes.value }
+                    }
                 }
             } finally {
                 codesInFlight.remove(gameKey)
-                _codesLoading.value = false
+                if (gameKey == shownGameKey) _codesLoading.value = false
             }
         }
     }
+
+    /** 화면이 지금 보고 있는 게임 — 마지막으로 [loadActiveCodes] 를 부른 게임이다. */
+    private var shownGameKey = ""
 
     private fun markRedeemed(code: String) {
         val s = _redeemedCodes.value + code.uppercase()
@@ -122,7 +135,7 @@ internal class GiftCodeController(
         val n = _unusableCodes.value.size
         _unusableCodes.value = emptySet()
         repo().saveUnusableCodes(emptySet())
-        status("가려진 코드 ${n}개를 되살렸어요")
+        status("가려진 코드 ${n}개를 되살렸어요", ToastKind.SUCCESS)
         loadActiveCodes(gameKey)   // 걸러내던 목록을 다시 받아 화면에 올린다
     }
 
@@ -130,33 +143,43 @@ internal class GiftCodeController(
     private suspend fun doRedeem(gameKey: String, code: String): CodeResult {
         val cfg = hoyolab()
         if (!cfg.isLinked) return CodeResult(false, "HoYoLAB 연동이 필요해요")
-        val uid = when (gameKey) {
-            "genshin" -> cfg.genshinUid
-            "hsr" -> cfg.hsrUid
-            "zzz" -> cfg.zzzUid
-            else -> ""
-        }
+        val uid = cfg.uidByGame[gameKey].orEmpty()
         if (uid.isBlank()) return CodeResult(false, "이 게임 UID가 없어요")
         if (cfg.cookieToken.isBlank() && cfg.webCookie.isBlank()) {
-            return CodeResult(false, "HoYoLAB 재연동이 필요해요 (교환 인증 쿠키 없음)")
+            return CodeResult(false, "HoYoLAB 재연동이 필요해요 — 교환 인증 쿠키가 없어요")
         }
         val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, cfg.webCookie, gameKey, uid, code)
         // 교환 성공 또는 이미 계정 귀속(retcode -2017/-2018)이면 '받음' 표시 — 메시지 문자열 매칭 금지(확실 분기).
         if (r.success || r.alreadyRedeemed) markRedeemed(code)
         // 다시 시도해도 소용없는 코드는 목록에서 뺀다. 재시도 가치가 있는 실패(쿠키·레이트리밋·네트워크)는
         // unusable 이 아니므로 여기 안 걸린다 — 멀쩡한 코드가 사라지지 않게 하는 게 이 분기의 요점.
-        else if (r.unusable) markUnusable(code)
+        // 직접 입력한 오타까지 가려 두면 「가려진 코드 N개」 가 목록에 없던 코드로 불어난다 — 수집된 코드만 가린다.
+        else if (r.unusable && isCollected(code)) markUnusable(code)
         return r
     }
 
-    /** HoYoLAB 선물코드 교환(단건). 결과는 [redeemState] 로 노출. */
-    fun redeemGiftCode(gameKey: String, code: String) {
+    /**
+     * HoYoLAB 선물코드 교환(단건). 진행은 [redeemState], 결과 문구는 토스트(10/15 — 직접 입력이 헤더 모달로 옮겨 가
+     * 페이지 아래 상태 문구 자리가 없어졌다). 이미 받은 코드는 실패가 아니라 안내로 띄운다.
+     */
+    fun redeemGiftCode(gameKey: String, code: String, fromInput: Boolean = false) {
         if (redeemJob?.isActive == true) return
         redeemJob = scope.launch {
             _redeemState.value = RedeemState.Loading
             val r = doRedeem(gameKey, code.trim().uppercase())
-            _redeemState.value = RedeemState.Done(r.success, r.message)
+            val inputError = !r.success && (r.unusable || r.alreadyRedeemed)
+            _redeemState.value = RedeemState.Done(r.success, r.message, inputError)
+            // 직접 입력에서 코드가 틀렸으면 입력필드가 알린다(10/15) — 토스트까지 띄우면 같은 말이 두 번 나온다.
+            if (fromInput && inputError) return@launch
+            status(r.message, when { r.success -> ToastKind.SUCCESS; r.alreadyRedeemed -> ToastKind.INFO; else -> ToastKind.ERROR })
         }
+    }
+
+    /** 자동 수집 목록(지금 보는 게임 · 캐시)에 있는 코드인가. */
+    private fun isCollected(code: String): Boolean {
+        val c = code.uppercase()
+        return _activeCodes.value.any { it.code.uppercase() == c } ||
+            codesCache.values.any { (_, list) -> list.any { it.code.uppercase() == c } }
     }
 
     /**
@@ -168,9 +191,16 @@ internal class GiftCodeController(
      * 통째로 영구 차단됐다.
      */
     fun redeemAllCodes(gameKey: String) {
-        val targets = _activeCodes.value.map { it.code }.filter { it !in _redeemedCodes.value }
+        // 대상은 **그 게임의 목록**에서 뽑는다 — 화면 목록이 다른 게임 것이면 받아 둔 캐시를 쓴다.
+        val source = if (gameKey == shownGameKey) _activeCodes.value
+        else codesCache[gameKey]?.second.orEmpty().filterNot { it.code.uppercase() in _unusableCodes.value }
+        val targets = source.map { it.code }.filter { it !in _redeemedCodes.value }
         if (redeemJob?.isActive == true) return
-        if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
+        if (targets.isEmpty()) {
+            _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요")
+            status("교환할 새 코드가 없어요", ToastKind.INFO)
+            return
+        }
         redeemJob = scope.launch {
             var ok = 0; var fail = 0; var lastFailMsg = ""
             var sameFailStreak = 0
@@ -194,11 +224,12 @@ internal class GiftCodeController(
             // 실패 사유를 그대로 노출(전부 실패 시 원인 파악 — 쿠키/만료/리전 등)
             val detail = when {
                 aborted -> "같은 사유로 ${sameFailStreak}번 실패해 중단했어요 — $lastFailMsg"
-                fail == 0 -> "교환 ${ok}건 완료 (우편함 확인)"
+                fail == 0 -> "교환 ${ok}건 완료 — 게임 우편함을 확인하세요"
                 ok == 0 -> "교환 실패 ${fail}건 — $lastFailMsg"
-                else -> "교환 ${ok}건 완료 · 실패 ${fail}건 ($lastFailMsg)"
+                else -> "교환 ${ok}건 완료 · 실패 ${fail}건 — $lastFailMsg"
             }
             _redeemState.value = RedeemState.Done(!aborted && fail == 0, detail)
+            status(detail, when { aborted || ok == 0 -> ToastKind.ERROR; fail == 0 -> ToastKind.SUCCESS; else -> ToastKind.INFO })
         }
     }
 

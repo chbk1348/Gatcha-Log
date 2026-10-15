@@ -48,6 +48,35 @@ fun pityTierOf(count: Int, banner: GachaBannerRate?): PityTier {
     }
 }
 
+/**
+ * 충전 재화 → 뽑기 환산(10/13). 충전 재화 1개가 뽑기 재화 [gain]개로 바뀌고, 1뽑에 뽑기 재화 [perPull]개가 든다.
+ *
+ * 원신: 창세의 결정 1 = 원석 1, 160개 = 1뽑 → `PullRate(160)`.
+ * 엔드필드: 오리지늄 1 = 오로베릴 75, 500개 = 1뽑 → `PullRate(500, 75)`.
+ */
+data class PullRate(val perPull: Long, val gain: Long = 1) {
+
+    /** 충전 재화 [count]개로 뽑을 수 있는 횟수(내림). */
+    fun pullsOf(count: Long): Long = if (perPull > 0 && gain > 0 && count > 0) count * gain / perPull else 0L
+
+    /**
+     * 1뽑에 드는 충전 재화 개수를 적은 글자 — "160개 = 1뽑" · "약 6.7개 = 1뽑".
+     * 나누어떨어지지 않으면 소수 첫째 자리까지 적고 앞에 「약」을 붙인다.
+     */
+    val hint: String
+        get() {
+            if (perPull <= 0 || gain <= 0) return ""
+            if (perPull % gain == 0L) return "${perPull / gain}개 = 1뽑"
+            val tenths = (perPull * 10 + gain / 2) / gain   // 소수 첫째 자리에서 반올림
+            return "약 ${tenths / 10}.${tenths % 10}개 = 1뽑"
+        }
+
+    companion object {
+        /** 확률표에 없는 게임의 1뽑 재화 — 대부분의 게임이 160 이다. */
+        const val DEFAULT_PER_PULL = 160
+    }
+}
+
 /** 월정액/패스 (일일 지급 재화로 무료 뽑기 환산) */
 data class GachaPass(val dailyCrystal: Int, val price: String, val name: String)
 
@@ -70,7 +99,15 @@ data class GachaGameRate(
     val weeklyFree: Int = 0,
     /** 월정액/패스 (없으면 null) */
     val pass: GachaPass? = null,
+    /**
+     * 충전 재화 1개가 뽑기 재화 몇 개로 바뀌는가(10/13). 대부분 1 : 1(창세의 결정 1 = 원석 1)이라 기본 1.
+     * 엔드필드만 다르다 — 오리지늄 1개 = 오로베릴 75개.
+     */
+    val chargeYield: Int = 1,
 ) {
+    /** 충전 재화 → 뽑기 환산([PullRate]). 캐릭터 배너의 1뽑 재화를 기준으로 삼는다. */
+    val pullRate: PullRate get() = PullRate((character?.perPull ?: PullRate.DEFAULT_PER_PULL).toLong(), chargeYield.toLong())
+
     fun banner(type: String): GachaBannerRate? = when (type) {
         "character" -> character
         "weapon" -> weapon
@@ -120,11 +157,14 @@ object GachaRateData {
         GachaGameRate(
             key = "endfield", name = "명일방주: 엔드필드", shortName = "엔드필드", grade = "6★",
             color = 0xFF1CB8A8L, version = "CBT",
-            character = GachaBannerRate(0.02, 50, 100, "오로베릴", 1, has5050 = true, carryover = true, costPerPull = 850),
+            // 1뽑 = 오로베릴 500, 오리지늄 1개 = 오로베릴 75(10/13 — endfield.wiki.gg Currency · game8 확인).
+            // 예전엔 1뽑 재화가 1 이라, 충전한 오리지늄 개수가 그대로 뽑기 수로 나왔다(26개 → 「약 26뽑」).
+            character = GachaBannerRate(0.02, 50, 100, "오로베릴", 500, has5050 = true, carryover = true, costPerPull = 850),
             weapon = null,
-            standard = GachaBannerRate(0.02, 50, 100, "오로베릴", 1, costPerPull = 850),
+            standard = GachaBannerRate(0.02, 50, 100, "오로베릴", 500, costPerPull = 850),
             dailyFree = 0, weeklyFree = 30,
             pass = null,
+            chargeYield = 75,
         ),
         GachaGameRate(
             key = "wuwa", name = "명조", shortName = "명조", grade = "5★",
@@ -148,28 +188,9 @@ object GachaRateData {
 
     fun byKey(key: String): GachaGameRate? = games.firstOrNull { it.key == key }
 
-    // ============================================================ 확률 계산 (웹앱 이식)
-    /** 현재 누적 천장(pity)에서의 단일 뽑기 최고등급 확률 */
-    fun rateAt(pity: Int, b: GachaBannerRate): Double = when {
-        pity >= b.hardPity -> 1.0
-        pity >= b.softPity -> b.base + (1 - b.base) * (pity - b.softPity + 1) / (b.hardPity - b.softPity)
-        else -> b.base
-    }
+    /** 그 게임의 충전 재화 → 뽑기 환산. 확률표에 없는 게임은 160개 = 1뽑으로 본다. */
+    fun pullRate(key: String?): PullRate = key?.let(::byKey)?.pullRate ?: PullRate(PullRate.DEFAULT_PER_PULL.toLong())
 
-    // n회 안의 확보 확률(`pickupProb`)은 픽뚫 뒤 두 번째 최고등급을 `hardPity * 0.82` 만큼
-    // 평행이동한 근사라, 90% 지점이 최악 뽑기 수(`maxPullsToSecure`)를 넘는 일이 있었다.
-    // → `GachaCalcContext.kt` 의 `pickupCdf` 로 대체했다. 정확한 분포의 합성곱이라
-    //   마지막 원소가 정확히 최악 지점에서 1.0 이 되고, 게이지·분위수·판정이 어긋나지 않는다.
-
-    /**
-     * 픽업(최고등급 픽업 캐릭터/음추) 확정까지 **최악의 경우** 필요한 뽑기 수.
-     * - 기본: 하드 천장까지 남은 횟수(반드시 최고등급 1회 확보).
-     * - 50/50 보유 + 미보장이면 첫 5★를 픽뚫할 수 있어 한 사이클(hardPity) 더 가산.
-     * - no5050(픽뚫 없음)/이미 보장(guaranteed)이면 한 번에 픽업 확정이라 가산 없음.
-     */
-    fun maxPullsToSecure(count: Int, guaranteed: Boolean, b: GachaBannerRate): Int {
-        val toFive = (b.hardPity - count).coerceAtLeast(1)
-        val needsTwoCycles = b.has5050 && !b.no5050 && !guaranteed
-        return if (needsTwoCycles) toFive + b.hardPity else toFive
-    }
+    // 확률 계산(단일 뽑기 확률 · 최악 뽑기 수)은 여기 있었다 — 부르는 곳이 없어 걷어 냈다(27.52.0).
+    // 확보 확률은 `GachaCalcContext.kt` 의 `pickupCdf` 가 맡는다.
 }

@@ -57,11 +57,13 @@ object NotificationCatalog {
 
     /**
      * 전체 항목 — 묶음 순서대로. 호요랜드는 행사 중일 때만([hoyolandAlertsActive]),
-     * 앱 업데이트는 알리는 플랫폼에서만([appUpdateAlertsActive]).
+     * 앱 업데이트는 알리는 플랫폼에서만([appUpdateAlertsActive]), 출석은 출석을 챙길 수 있는 계정일 때만
+     * ([HoyolabConfig.canCheckIn] — 미연동이거나 게임 UID 가 없으면 리마인더가 멈추니 끌 이유도 없다).
      */
-    val items: List<NotifyItem>
-        get() = allItems.filter {
+    fun items(hoyolab: HoyolabConfig): List<NotifyItem> =
+        allItems.filter {
             when (it.key) {
+                NotifyKey.ATTENDANCE -> hoyolab.canCheckIn
                 NotifyKey.HOYOLAND -> hoyolandAlertsActive
                 NotifyKey.APP_UPDATE -> appUpdateAlertsActive
                 else -> true
@@ -87,12 +89,14 @@ object NotificationCatalog {
      * `List<Pair<...>>` 로 묶어 내보내지 않는다 — Swift 에서 `KotlinPair` 를 벗겨 써야 해서
      * 호출부가 지저분해진다. 묶음 목록과 [itemsIn] 두 개로 나눠 양쪽이 같은 모양으로 쓰게 한다.
      */
-    val groups: List<NotifyGroup>
-        get() = NotifyGroup.entries.filter { g -> items.any { it.group == g } }
+    fun groups(hoyolab: HoyolabConfig): List<NotifyGroup> {
+        val shown = items(hoyolab)
+        return NotifyGroup.entries.filter { g -> shown.any { it.group == g } }
+    }
 
     /** 그 묶음의 항목들. */
-    fun itemsIn(group: NotifyGroup): List<NotifyItem> = items.filter { it.group == group }
+    fun itemsIn(group: NotifyGroup, hoyolab: HoyolabConfig): List<NotifyItem> = items(hoyolab).filter { it.group == group }
 
-    /** 켜진 개수 요약("7개 중 4개 켜짐") — 헤더에서 지금 상태를 한눈에 보여주려고 쓴다. */
-    fun enabledLabel(onCount: Int): String = "${items.size}개 중 ${onCount}개 켜짐"
+    /** 켜진 개수 요약("7개 중 4개 켜짐") — 헤더에서 지금 상태를 한눈에 보여주려고 쓴다. [onCount] 도 보이는 항목만 센다. */
+    fun enabledLabel(onCount: Int, hoyolab: HoyolabConfig): String = "${items(hoyolab).size}개 중 ${onCount}개 켜짐"
 }

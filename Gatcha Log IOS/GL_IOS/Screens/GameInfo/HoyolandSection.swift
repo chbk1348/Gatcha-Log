@@ -425,6 +425,34 @@ struct HoyolandDetailView: View {
     /// 이미 소비된 뒤라 0 으로 보인다. 그래서 **바깥**에서 재 둔다.
     @State private var pageInsets = EdgeInsets()
 
+    /**
+     iOS 18 아이폰 GLDS 헤더의 「내 입장권」 알약(10/15) — 툴바 버튼과 같은 조건 · 같은 글자 · 같은 색.
+
+     면 · 높이는 헤더 글자 알약(흰 캡슐 48)이고, 날짜를 고른 뒤에는 테두리를 강조색 55% 1.5 로 바꾼다 —
+     골랐다는 사실을 색이 싣는다(Android `HoyolandSection` 헤더 알약과 같다).
+     */
+    @ViewBuilder private func entryPill18(_ e: HoyolandEvent) -> some View {
+        if e.hasEntryGroups && !wide && !e.phase(nowMillis: nowMs()).isOffSeason {
+            let days = Int(e.entryDayCount(entry: store.hoyolandEntry))
+            let color = days == 0 ? GLGColor.textPrimary : accent.deep
+            Button { entrySheetOpen = true } label: {
+                HStack(spacing: 5) {
+                    GLGLineIcon("IconTicket", size: 16)
+                    Text(days == 0 ? "내 입장권" : "\(days)일")
+                        .font(.pretendard(size: 15, weight: .bold))
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .foregroundStyle(color)
+                .gldsHeaderPill()
+                .overlay {
+                    if days > 0 { Capsule().strokeBorder(accent.primary.opacity(0.55), lineWidth: 1.5) }
+                }
+            }
+            .buttonStyle(GldsHeaderButtonStyle())
+        }
+    }
+
     var body: some View {
         let e = archive ?? event
         ScrollView {
@@ -504,7 +532,7 @@ struct HoyolandDetailView: View {
         .scrollIndicators(.hidden)
         // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
         .background(Color.white)
-        .glgPageTitle(archive?.edition ?? "호요랜드")
+        .glgPageTitle(archive?.edition ?? "호요랜드") { entryPill18(e) }
         .navigationBarTitleDisplayMode(.inline)
         // 머리판이 내비 바 **뒤로** 이어지므로 바의 바탕을 지운다 — 바탕이 남으면 면 위에
         // 회색 띠가 한 겹 더 앉아 머리판이 거기서 잘린 것처럼 보인다.
@@ -531,7 +559,7 @@ struct HoyolandDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { entrySheetOpen = true } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: "ticket").font(.system(size: 13, weight: .semibold))
+                            GLGLineIcon("IconTicket", size: 16)
                             Text(days == 0 ? "내 입장권" : "\(days)일")
                                 .font(.pretendard(size: 12, weight: .black))
                         }
@@ -803,7 +831,8 @@ struct HoyolandDetailView: View {
         // 면은 `accent.tint`(명도 96.8) 가 아니라 강조색을 옅게 깐 값이다. tint 는 이 페이지의
         // 회색 배경 위에서 면이 **거의 안 보였다**(2026-09-16 지적).
         // 위쪽 26 — 내비 바 버튼 바로 아래에 첫 줄(행사명 · 단계 배지)이 오므로 그만큼 띄운다.
-        .padding(.horizontal, 20).padding(.top, 26).padding(.bottom, 20)
+        // iOS 18 아이폰은 GLDS 헤더(64) 아래 20 — Android 머리판(상태바 + 헤더 + 20)과 같다(10/15).
+        .padding(.horizontal, 20).padding(.top, GldsHeader18.isActive ? 20 : 26).padding(.bottom, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
         // 면은 **내비게이션 바 · 상태바 뒤까지** 올라간다(Android 가 상태바 + 헤더 높이를
         // 되물리는 것과 같은 그림). 글자는 그대로 바 아래에서 시작한다.

@@ -156,6 +156,43 @@ class ScheduleWeekTest {
     }
 
     @Test
+    fun 사성_박스는_종류별로_묶고_아이콘을_나란히_싣는다() {
+        val picks = listOf(
+            GachaBanner(game = "원신", name = "가", type = "character", lineup = listOf("디오나", "파루잔"), lineupIcons = listOf("d.png", "f.png")),
+            // 두 번째 캐릭터 배너는 4성이 같다 — 중복은 한 번만.
+            GachaBanner(game = "원신", name = "나", type = "character", lineup = listOf("디오나", "파루잔"), lineupIcons = listOf("d.png", "f.png")),
+            GachaBanner(game = "원신", name = "검", type = "weapon", lineup = listOf("새순"), lineupIcons = listOf("")),
+        )
+        assertEquals(
+            listOf(
+                LineupGroup(weapon = false, label = "4성 캐릭터", items = listOf(LineupItem("디오나", "d.png"), LineupItem("파루잔", "f.png"))),
+                // 아이콘이 빈 칸은 그대로 싣는다 — 화면이 그 칸만 실루엣으로 세운다.
+                LineupGroup(weapon = true, label = "4성 무기", items = listOf(LineupItem("새순", ""))),
+            ),
+            pickupLineup(picks),
+        )
+    }
+
+    @Test
+    fun 사성_박스_젠레스는_A급이고_아이콘이_하나도_없으면_만들지_않는다() {
+        val zzz = listOf(GachaBanner(game = "젠레스 존 제로", name = "록시", lineup = listOf("코린"), lineupIcons = listOf("c.png")))
+        assertEquals("A급 에이전트", pickupLineup(zzz).single().label)
+        // 옛 캐시(lineupIcons 없음) — 박스 대신 글자 부제를 쓰도록 빈 목록.
+        val old = listOf(GachaBanner(game = "원신", name = "가", lineup = listOf("디오나", "파루잔")))
+        assertEquals(emptyList(), pickupLineup(old))
+        assertEquals(emptyList(), pickupLineup(emptyList()))
+    }
+
+    @Test
+    fun 등급_뱃지는_등급과_인게임_명칭을_잇는다() {
+        assertEquals("5성 캐릭터", pickupBadgeLabel("원신", weapon = false, topGrade = true))
+        assertEquals("4성 무기", pickupBadgeLabel("원신", weapon = true, topGrade = false))
+        assertEquals("5성 광추", pickupBadgeLabel("붕괴: 스타레일", weapon = true, topGrade = true))
+        assertEquals("S급 에이전트", pickupBadgeLabel("젠레스 존 제로", weapon = false, topGrade = true))
+        assertEquals("A급 W-엔진", pickupBadgeLabel("젠레스 존 제로", weapon = true, topGrade = false))
+    }
+
+    @Test
     fun lineup_이_없으면_줄을_만들지_않는다() {
         // 옛 캐시(lineup 없음) — 5성 이름만 있으니 부제로 쓰지 않는다.
         val picks = listOf(GachaBanner(game = "원신", name = "같은이름", startMillis = now, endMillis = now + day))

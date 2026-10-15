@@ -7,7 +7,6 @@ import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
-import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.Josa
 import com.gatcha.log.data.LiveNote
@@ -33,6 +32,23 @@ import com.gatcha.log.util.currentTimeMillis
  * - 방해금지(DnD) ON → 조용한 시간대엔 개별 알림 보류(dedup 미설정 → 시간대 벗어나면 다음 주기에 발송).
  */
 object NotificationChecker {
+
+    /**
+     * 예약형 출석 리마인더([ScheduledAlerts.plan] ⑦)가 **맡은 날짜**를 적는 표시. 즉시 알림의 `"attend"` 와 따로 둔다 —
+     * 같은 키를 쓰면 예약(내일 날짜)과 점검(오늘 날짜)이 번갈아 덮어써서 리마인더가 점검마다 다시 울린다.
+     */
+    internal const val ATTEND_SCHEDULED_TAG = "attend_scheduled"
+
+    /**
+     * 알림을 보내고, **실제로 게시됐을 때만** 중복 방지 표시를 남긴다(27.52.0).
+     * 예전엔 보내기 전에 적었다 — 권한을 거부한 상태에서 예산을 넘기면, 나중에 권한을 허용해도 그 달 알림은 오지 않았다.
+     */
+    private suspend fun notifyOnce(
+        settings: AppSettings, tag: String, value: String,
+        id: Int, title: String, text: String, link: String = "",
+    ) {
+        if (Notifier.notify(id, title, text, link)) settings.setLastNotified(tag, value)
+    }
 
     suspend fun run(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
         val now = currentTimeMillis()
@@ -64,7 +80,7 @@ object NotificationChecker {
      */
     private suspend fun fetchLiveNotes(repo: GatchaRepository, cfg: HoyolabConfig): List<LiveNote> {
         if (!cfg.isLinked) return emptyList()
-        val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+        val uids = cfg.uidByGame
         // 세 게임을 **동시에** 받는다(27.51.1) — 예전엔 차례로 받아 왕복 셋만큼 걸렸다. 화면 쪽 갱신도 같은 식으로 부른다
         // (게임마다 한 건씩이라 HoYoLAB 한도와 무관하다). 순서는 게임 순서 그대로다.
         val fresh = coroutineScope {
@@ -100,11 +116,12 @@ object NotificationChecker {
                 if (level != null) {
                     val key = "$y-$m:$level"
                     if (settings.lastNotified("budget") != key) {
-                        settings.setLastNotified("budget", key)
-                        if (level == "over") Notifier.notify(
+                        if (level == "over") notifyOnce(
+                            settings, "budget", key,
                             Notifier.ID_BUDGET, "이번 달 예산을 넘었어요",
                             "₩${won(total - budget)} 더 썼어요 (${pct}%)",
-                        ) else Notifier.notify(
+                        ) else notifyOnce(
+                            settings, "budget", key,
                             Notifier.ID_BUDGET, "예산이 얼마 안 남았어요",
                             "이번 달 ${pct}% 사용 · ₩${won(budget - total)} 남았어요",
                         )
@@ -128,12 +145,13 @@ object NotificationChecker {
                     val key = "$y-$m:$level"
                     val tag = "budget_game:$gameKey"
                     if (settings.lastNotified(tag) != key) {
-                        settings.setLastNotified(tag, key)
                         val nid = Notifier.ID_BUDGET_GAME_BASE + game.ordinal
-                        if (level == "over") Notifier.notify(
+                        if (level == "over") notifyOnce(
+                            settings, tag, key,
                             nid, "${game.shortName} 한도를 넘었어요",
                             "₩${won(total - limit)} 더 썼어요 (${pct}%)",
-                        ) else Notifier.notify(
+                        ) else notifyOnce(
+                            settings, tag, key,
                             nid, "${game.shortName} 한도가 얼마 안 남았어요",
                             "${pct}% 사용 · ₩${won(limit - total)} 남았어요",
                         )
@@ -143,14 +161,19 @@ object NotificationChecker {
         }
 
         // ② 출석 리마인더 (베이징 저녁 이후 미출석) — 하루 1회
-        if (settings.notifyAttendance && cfg.isLinked) {
+        // 미연동이거나 게임 UID 가 없으면 멈춘다([HoyolabConfig.canCheckIn]) — 챙길 출석이 없다.
+        if (settings.notifyAttendance && cfg.canCheckIn) {
             if (DateUtil.hoyoHour() >= 18) {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today] ?: emptySet()
-                val pending = GameData.trackedAttendanceGames(cfg).filter { it.key !in done }
-                if (pending.isNotEmpty() && settings.lastNotified("attend") != today) {
-                    settings.setLastNotified("attend", today)
-                    Notifier.notify(
+                // 「내 게임」에서 뺀 게임은 세지 않는다 — 화면 · 자동 출석과 같은 목록이다.
+                val pending = GameData.trackedAttendanceGames(cfg, repo.loadMyGames()).filter { it.key !in done }
+                // 오늘 몫을 예약형 리마인더가 맡았으면 그쪽이 울린다 — 여기서 또 보내지 않는다.
+                val handled = settings.lastNotified("attend") == today ||
+                    settings.lastNotified(ATTEND_SCHEDULED_TAG) == today
+                if (pending.isNotEmpty() && !handled) {
+                    notifyOnce(
+                        settings, "attend", today,
                         Notifier.ID_ATTEND, "오늘 출석 아직이에요",
                         "${pending.joinToString("·") { it.shortName }} 남았어요. 1분이면 끝나요",
                     )
@@ -166,8 +189,8 @@ object NotificationChecker {
                 if (note.maxResin <= 0 || note.currentResin < note.maxResin) return@forEach
                 val tag = "resin:${game.key}"
                 if (settings.lastNotified(tag) == today) return@forEach
-                settings.setLastNotified(tag, today)
-                Notifier.notify(
+                notifyOnce(
+                    settings, tag, today,
                     Notifier.ID_RESIN_BASE + game.ordinal,
                     "${game.shortName} ${Josa.subj(note.resinLabel)} 가득 찼어요",
                     "${note.currentResin}/${note.maxResin} 이에요. 지금부터는 더 쌓이지 않아요",
@@ -175,52 +198,9 @@ object NotificationChecker {
             }
         }
 
-        // ④ 픽업 마감 임박 (로컬 배너 캐시) — 게임별 1회, D-3/D-1 레벨.
-        //    iOS 는 [ScheduledAlerts] 가 같은 알림을 미리 예약하므로 여기선 건너뛴다(중복 방지).
-        if (settings.notifyPickup && !AlertScheduler.schedulesAhead) {
-            val now = currentTimeMillis()
-            repo.loadActiveBanners().filter { it.endMillis > now }
-                .groupBy { it.game }
-                .forEach { (gameName, list) ->
-                    // dDay 를 배너당 한 번만 — 예전엔 minOf 와 filter 에서 각각 다시 계산했다.
-                    val withD = list.map { it to it.dDay(now) }
-                    val minD = withD.minOf { it.second }
-                    val level = when { minD <= 1 -> "d1"; minD <= 3 -> "d3"; else -> null } ?: return@forEach
-                    val tag = "pickup:$gameName"
-                    if (settings.lastNotified(tag) != level) {
-                        settings.setLastNotified(tag, level)
-                        val game = GameData.byNameOrNull(gameName)
-                        val shortName = game?.shortName ?: gameName
-                        val nid = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0)
-                        val names = withD.filter { it.second <= 3 }.joinToString(", ") { it.first.name }
-                        val whenLabel = if (minD <= 1) "오늘·내일까지예요" else "D-$minD 남았어요"
-                        Notifier.notify(nid, "$shortName 픽업이 곧 끝나요", "$names · $whenLabel. 뽑을 거면 지금이에요")
-                    }
-                }
-        }
-
-        // ⑤ 정기결제 갱신 알림은 여기 있었다 — 기능째 걷어냈다(2026-09-09).
-
-        // ⑥ 전투 콘텐츠 시즌 마감 임박 (로컬 진행도 캐시) — 게임+모드별 1회, D-3/D-1 레벨.
-        //    놓치면 그 시즌 보상은 복구가 안 되므로 미클리어일 때만 알린다(판정은 HomeLogic 공유 룰).
-        if (settings.notifyCombat && !AlertScheduler.schedulesAhead) {
-            val now = currentTimeMillis()
-            HomeLogic.combatDeadlines(repo.loadCombatModes(), now).forEach { c ->
-                val level = if (c.dDay <= 1) "d1" else "d3"
-                val tag = "combat:${c.gameShort}:${c.mode}"
-                if (settings.lastNotified(tag) != level) {
-                    settings.setLastNotified(tag, level)
-                    val game = GameData.byNameOrNull(c.gameShort)   // 이름 인덱스 — shortName 도 키다
-                    val nid = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0)
-                    val whenLabel = if (c.dDay <= 0) "오늘" else if (c.dDay == 1) "내일" else "D-${c.dDay} 에"
-                    Notifier.notify(
-                        nid,
-                        "${c.gameShort} ${Josa.subj(c.mode)} 곧 끝나요",
-                        "${c.stars}/${c.maxStars} 에서 멈춰 있어요. $whenLabel 끝나면 남은 보상은 사라져요",
-                    )
-                }
-            }
-        }
+        // ④ 픽업 마감 · ⑥ 전투 시즌 마감은 여기 있었다 — 두 플랫폼 모두 [ScheduledAlerts] 가 미리 예약하므로 이 점검은
+        //    실행되지 않는 분기였고, 걷어 냈다(27.52.0). 예약 시각이 지난 뒤에야 알게 된 마감도 그쪽이 보낸다.
+        // ⑤ 정기결제 갱신 알림도 여기 있었다 — 기능째 걷어냈다(2026-09-09).
 
         // ⑦ 새 게임 공지 — 게임별로 '마지막으로 알린 공지 시각'보다 새 글이 올라왔을 때만.
         if (settings.notifyNews) {
@@ -276,9 +256,11 @@ object NotificationChecker {
                 // 앱을 보고 있으면 쏘지 않고 **표시도 남기지 않는다** — 홈이 뜰 때 업데이트 창이 이미 떴다.
                 // 거기서 「나중에」를 고른 사람에게는 다음 백그라운드 점검이 한 번 알린다(새 공지와 같은 규칙).
                 if (!AppVisibility.isForeground) {
-                    settings.setLastNotified(APP_UPDATE_TAG, info.versionCode.toString())
                     val (title, text) = appUpdateAlert(info, UpdateChecker.currentVersionCode())
-                    Notifier.notify(Notifier.ID_APP_UPDATE, title, text, link = "update")
+                    notifyOnce(
+                        settings, APP_UPDATE_TAG, info.versionCode.toString(),
+                        Notifier.ID_APP_UPDATE, title, text, link = "update",
+                    )
                 }
             }
         }
@@ -333,15 +315,6 @@ object NotificationChecker {
         return if (start < end) h in start until end else h >= start || h < end
     }
 
-    /** 천 단위 콤마(비음수 금액). */
-    private fun won(v: Long): String {
-        val s = v.toString()
-        val sb = StringBuilder()
-        val n = s.length
-        for (i in 0 until n) {
-            if (i > 0 && (n - i) % 3 == 0) sb.append(',')
-            sb.append(s[i])
-        }
-        return sb.toString()
-    }
+    /** 천 단위 콤마(「원」은 붙이지 않는다) — 구현은 공용 한 벌([com.gatcha.log.util.num])을 쓴다(27.52.0). */
+    private fun won(v: Long): String = com.gatcha.log.util.num(v)
 }

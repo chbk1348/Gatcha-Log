@@ -14,14 +14,12 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -41,6 +39,8 @@ import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
@@ -87,7 +87,6 @@ import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
-import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.NoteSkeletonRow
 import com.gatcha.log.ui.components.InfoColumn
 import com.gatcha.log.ui.profile.BudgetScreen
@@ -103,12 +102,36 @@ import com.gatcha.log.util.num
  */
 private data class SpendingEditorTarget(val spending: Spending?)
 
+/** 저장해 둔 에디터 대상 중 「신규 추가」 표식 — 수정은 지출 id 를 그대로 적는다(id 는 비어 있지 않다). */
+private const val EDITOR_SAVED_NEW = ""
+
+/**
+ * 에디터 대상을 재생성 너머로 들고 가는 저장기(27.52.0) — [Spending] 은 번들에 못 넣어 **지출 id** 로 푼다.
+ *
+ * 닫힘은 저장하지 않고(null → 복원 때 초기값 = 닫힘), 「추가」는 빈 문자열, 「수정」은 그 지출의 id 다.
+ * 복원 때 [find] 로 지금 목록에서 다시 찾는다 — 그새 지워졌으면 닫힌 채로 돌아온다(빈 「추가」 폼으로 바뀌지 않게).
+ */
+private fun spendingEditorSaver(find: (String) -> Spending?) =
+    Saver<MutableState<SpendingEditorTarget?>, String>(
+        save = { state -> state.value?.let { it.spending?.id ?: EDITOR_SAVED_NEW } },
+        restore = { saved ->
+            mutableStateOf(
+                if (saved == EDITOR_SAVED_NEW) SpendingEditorTarget(null)
+                else find(saved)?.let { SpendingEditorTarget(it) },
+            )
+        },
+    )
+
 // Scaffold 의 안쪽 여백(paddingValues)은 일부러 쓰지 않는다 — 전 화면 edge-to-edge 라 각 화면이 자기 인셋을 갖고,
 // 하단바는 콘텐츠 위에 떠 있다. 마지막 쓰임(홈 히어로 높이)은 10/1 흰 바탕 개편 때 사라졌다.
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
-fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+fun HomeScreen(
+    viewModel: SpendingViewModel = viewModel(),
+) {
+    // 고른 탭 · 열린 에디터는 재생성(시스템이 백그라운드에서 정리 · 화면 설정 변경) 뒤에도 남긴다(27.52.0) —
+    // 예전엔 remember 라 지출을 적다가 다른 앱에 다녀오면 홈 탭으로 돌아가 있고 적던 화면도 닫혀 있었다.
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     /**
      * 지출 추가/수정 에디터 — **표시 여부와 대상을 한 상태로 합쳤다**(null = 닫힘).
@@ -118,7 +141,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
      * spendingToEdit 를 읽어 **'수정'에서 '추가'로 뒤바뀌며 빈 폼이 번쩍였다**.
      * 대상을 AnimatedContent 의 targetState 로 올리면, 나가는 페이지는 자기 대상(수정)을 그대로 들고 나간다.
      */
-    val spendingEditor = remember { mutableStateOf<SpendingEditorTarget?>(null) }
+    val spendingEditor = rememberSaveable(
+        saver = spendingEditorSaver { id -> viewModel.spendings.value.firstOrNull { it.id == id } },
+    ) { mutableStateOf<SpendingEditorTarget?>(null) }
     val accent = LocalAccent.current
 
     // 알림 딥링크 — VM 이 요청한 탭으로 이동(예: 공지 알림 탭 → 게임 정보). 상세 진입은 그 탭이 이어받는다.
@@ -162,7 +187,6 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         viewModel.refreshGameInfo()
     }
     val signingOut by viewModel.signingOut.collectAsStateWithLifecycle()
-    val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
 
     // 루트 뒤로가기 방어 로직 (시스템/제스처 back):
     //  ① 하위 페이지(알림·연간리포트·지출상세)는 각자의 BackHandler 가 더 깊게 구성돼 먼저 처리
@@ -218,8 +242,10 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     spendingToEdit = editing,
                     // 스마트 기본값·'자주 사는 것'의 근거.
                     recentSpendings = editorSpendings,
-                    nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, editing?.id) },
+                    nudgeMessage = { game, amount, date -> viewModel.overspendNudge(game, amount, editing?.id, date) },
+                    nudgeBadge = { game, amount, date -> viewModel.overspendBadge(game, amount, editing?.id, date) },
                     myGames = viewModel.myGames.collectAsStateWithLifecycle().value,
+                    activeBanners = viewModel.activeBanners.collectAsStateWithLifecycle().value,
                     onDismiss = { spendingEditor.value = null },
                     onSave = { spending ->
                         // 저장이 거절되면(금액 상한 등) 닫지 않는다 — 예전엔 닫혀서 입력이 통째로 사라졌다.
@@ -236,14 +262,12 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                 bottomBar = {
                     // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김.
                     //
-                    // **돌아올 때만 물방울처럼 튄다** — 아래에서 올라와 살짝 넘쳤다가 자리를 잡는다.
-                    // 곧은 tween 은 목표에 닿으면 그냥 멈춰서 "제자리로 돌아왔다"가 잘 안 읽힌다.
-                    // 퇴장은 스프링을 쓰지 않는다(나가면서 튀면 화면이 산만하다).
+                    // **돌아올 때는 숨을 때의 정반대**로 올라온다(10/13) — 같은 곡선 · 같은 길이로 아래에서 제자리까지.
+                    // 예전엔 스프링 + 확대로 튀어 올라와 살짝 넘쳤다가 자리를 잡았는데, 페이지에서 나올 때마다
+                    // 하단 바가 튀어나와 거슬렸다.
                     AnimatedVisibility(
                         visible = !subPageActive,
-                        enter = slideInVertically(glgReturnSpring()) { it } +
-                            scaleIn(glgReturnSpring(), initialScale = 0.90f, transformOrigin = TransformOrigin(0.5f, 1f)) +
-                            fadeIn(glgStandardSpec()),
+                        enter = slideInVertically(glgStandardSpec()) { it } + fadeIn(glgShortSpec()),
                         exit = slideOutVertically(glgStandardSpec()) { it } + fadeOut(glgShortSpec()),
                     ) {
                         BottomNavBar(
@@ -252,15 +276,17 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                             onAddClick = { openEditor(null) },
                             accent = accent,
                             showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
+                            // My 탭 아이콘 = 구글 프로필 사진(10/14). 게스트는 사진이 없어 사람 아이콘이다.
+                            profilePhotoUrl = viewModel.account.collectAsStateWithLifecycle().value.let { if (it.isGuest) null else it.photoUrl },
                         )
                     }
                 },
             ) { paddingValues ->
                 GlassBackground(modifier = Modifier.fillMaxSize()) {
-                    // 홈 탭은 흰 바탕(10/1) — 히어로 뒤 강조색 그라데이션을 걷었다. 하위 페이지는 각자 바탕을 둔다.
-                    if (selectedTab == 0 && !subPageActive) {
-                        Box(Modifier.matchParentSize().background(Color.White))
-                    }
+                    // 홈 탭의 흰 바탕(10/1)은 홈 페이지가 스스로 깐다(HomeContent 의 GlgPullToRefreshBox, 10/15).
+                    // 예전엔 여기서 `selectedTab == 0 && !subPageActive` 일 때만 깔았는데, 알림을 여는 순간
+                    // subPageActive 가 켜져 바탕이 **전환 시작과 함께 꺼졌다** — 바탕 없는 홈 페이지가 회색
+                    // GlassBackground 위로 밀려 나가며 헤더 줄이 회색 띠째 남아 보였다(10/15 「헤더 잔상」 제보).
                     // 전 화면 edge-to-edge(상단 인셋 없음). 각 화면이 자기 상단 인셋을 소유한다 —
                     // 메인 탭 헤더/하위 페이지 헤더 모두 statusBarsPadding 으로 직접 처리(전환 중 레이아웃
                     // 점프 방지). 리스트는 상태바 뒤로 스크롤된다.
@@ -296,16 +322,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                         // 로그아웃 진행 오버레이 — 네트워크 대기 동안 피드백이 없던 문제
                         if (signingOut) SignOutOverlay()
 
-                        // 전역 커스텀 토스트 (모든 탭 위에 표시)
-                        // 하단바가 있을 땐 바 높이(100dp)만큼 띄우고, 하단바 없는 하위 페이지에선 24dp만 띄움
-                        GlgStatusToast(
-                            message = statusMessage,
-                            onConsumed = { viewModel.clearStatus() },
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .navigationBarsPadding()
-                                .padding(bottom = if (subPageActive) 24.dp else 100.dp),
-                        )
+                        // 전역 토스트는 앱 루트(MainActivity)로 올렸다(27.52.0) — 여기 있을 때는 홈 밖
+                        // (온보딩 · 로그인 · 지출 편집)에서 뷰모델의 안내가 보이지 않았다.
                     }
                 }
             }
@@ -407,8 +425,12 @@ fun HomeContent(
     // 홈은 스크롤·애니메이션·플로우 방출로 재구성이 잦아 그때마다 알림 전량을 다시 만들었다.
     // monthKey 는 게터 2개(시계 읽기 + 날짜 변환)라 람다 밖으로 뺀다.
     val monthKey = "${viewModel.displayYear}-${viewModel.displayMonth}"
-    val alerts = remember(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, attendanceGames, monthKey, dismissedAlerts) {
-        HomeLogic.buildAlerts(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, monthKey, attendanceGames = attendanceGames)
+    val alerts = remember(monthlyTotal, budget, gameOverBudget, banners, hoyolab.isLinked, attendanceToday, attendanceGames, monthKey, dismissedAlerts) {
+        // 미연동이면 출석 알림을 내지 않는다 — 출석할 길이 없는데 「출석체크가 N개 남아있어요」가 떴다. 오늘 할 일과 같은 규칙.
+        HomeLogic.buildAlerts(
+            monthlyTotal, budget, gameOverBudget, banners, attendanceToday, monthKey,
+            attendanceGames = if (hoyolab.isLinked) attendanceGames else emptyList(),
+        )
             .filter { it.key !in dismissedAlerts }
     }
     val unreadCount = remember(alerts, readAlerts) { alerts.count { it.key !in readAlerts } }
@@ -443,10 +465,11 @@ fun HomeContent(
     // 계산(공유 로직)과 UI 매핑을 나눈다. 계산은 입력이 바뀔 때만 — 예전엔 재구성마다 돌았다.
     // 매핑(toTodayItems)은 remember 에 넣지 않는다: 콜백이 상위에서 새로 만들어질 수 있어
     // 캐시하면 낡은 람다를 붙들게 된다. 항목이 몇 개뿐이라 매핑 자체는 싸다.
-    val todayRaw = remember(gameInfoReady, attendanceToday, attendanceGames, resinAlerts, budget, monthlyTotal, combatDeadlines) {
+    val todayRaw = remember(gameInfoReady, hoyolab.isLinked, attendanceToday, attendanceGames, resinAlerts, budget, monthlyTotal, combatDeadlines) {
         if (gameInfoReady) {
             HomeLogic.resolveTodayTasks(
-                pendingAttendance = HomeLogic.pendingAttendanceCount(attendanceToday, attendanceGames),
+                // 미연동이면 출석할 길이 없다 — 「한 번에 출석」을 내지 않는다(예전엔 수동 출석으로 전부 완료 처리했다).
+                pendingAttendance = if (hoyolab.isLinked) HomeLogic.pendingAttendanceCount(attendanceToday, attendanceGames) else 0,
                 resins = resinAlerts,
                 urgentBanner = null,  // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인(중복 제거)
                 budget = budget,
@@ -520,10 +543,11 @@ fun HomeContent(
     GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refreshGameInfo(force = true) },
-        modifier = Modifier.fillMaxSize(),
+        // 흰 바탕은 페이지가 갖는다 — 하위 화면으로 밀려 나갈 때 바탕도 같이 움직이고 같이 흐려진다
+        // (Scaffold 층에 두면 전환 시작에 꺼져 헤더 줄이 회색 띠째 남았다, 10/15).
+        modifier = Modifier.fillMaxSize().background(Color.White),
     ) {
     Box(Modifier.fillMaxSize()) {
-    // 히어로 그라데이션은 HomeScreen(Scaffold 레벨)에서 상태바 뒤까지 그린다.
     // 콘텐츠 로드인 스태거 — 앱 진입 후 1회만 등장(스크롤·탭 재진입 시 재애니메이션 방지). 세션 영속 집합.
     // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 (상태바+헤더)만큼 인셋.
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -665,7 +689,7 @@ private fun NotificationDetailScreen(
             ) {
                 Icon(Icons.Default.NotificationsNone, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                 Spacer(Modifier.height(12.dp))
-                Text("새로운 알림이 없어요 🎉", color = TextSecondary, fontSize = 14.sp)
+                Text("새로운 알림이 없어요", color = TextSecondary, fontSize = 14.sp)
                 Text("예산·픽업 배너·출석 알림이 여기에 모여요", color = Color.LightGray, fontSize = 12.sp)
             }
         } else {
@@ -821,7 +845,11 @@ private fun rememberAppNotices(): List<AppNotice> {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(resumeTick) { notices = AppNoticeApi.load() }
+    LaunchedEffect(resumeTick) {
+        notices = AppNoticeApi.load()
+        // 라이브 문서가 늦어 정본으로 섰으면 잠시 뒤 한 번 더 읽는다 — 라이브에만 올린 긴급 공지를 놓치지 않게.
+        AppNoticeApi.reloadIfLiveWasLate()?.let { notices = it }
+    }
     return notices
 }
 
