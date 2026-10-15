@@ -217,7 +217,8 @@ struct SpendingView: View {
         // (overlay 는 콘텐츠를 안 밀어 최하단 항목이 바에 가려져 선택 불가였음)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if selectionMode {
-                selectionBar.transition(.move(edge: .bottom).combined(with: .opacity))
+                // 토스트는 이 바 위 12 에 선다(「선택된 항목이 없어요」가 바를 덮지 않게).
+                selectionBar.gldsToastObstacle().transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(GLGMotion.standard(), value: selectionMode)
@@ -260,6 +261,7 @@ struct SpendingView: View {
                 // iOS 18 아이폰은 아래 '추가' 원(떠 있는 탭 툴바)과 **같은 모양**으로 그린다 — 크기는 48 그대로, 아이콘은 강조색
                 // (iOS 26 · Android 와 같다, 10/14).
                 .modifier(ScrollTopStyle(tint: accent.primary))
+                .gldsToastObstacle()
                 // 우측 자리도 '추가' 버튼에 맞춘다 — 두 원이 세로로 정확히 겹쳐 보여야 한다.
                 // iOS 26+ 아이폰은 '추가'가 탭 바 옆의 시스템 원이고 이 버튼(시스템 글래스)과 지름이 달라, 오른쪽 여백만
                 // 같게 두면 가운데가 4pt 어긋났다(10/12 지적). '추가' 원과 같은 폭의 칸을 잡고 그 가운데에 세운다.

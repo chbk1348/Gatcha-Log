@@ -580,7 +580,8 @@ private extension View {
 private extension View {
     /// GLDS 하단 버튼 자리 — 좌우 8 들여씀, 보조는 위 8, 아래에서 올라오는 등장.
     func cta(primary: Bool, delay: Double? = nil) -> some View {
-        padding(.horizontal, 8).padding(.top, primary ? 0 : 8).enterUp(delay: delay ?? (primary ? 0.14 : 0.2))
+        // 하단 버튼 틀 — 토스트(연동 결과 등)가 이 위 12 에 선다.
+        padding(.horizontal, 8).padding(.top, primary ? 0 : 8).enterUp(delay: delay ?? (primary ? 0.14 : 0.2)).gldsToastObstacle()
     }
 }
 

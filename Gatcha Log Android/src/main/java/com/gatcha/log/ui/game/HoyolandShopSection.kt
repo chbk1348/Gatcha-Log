@@ -2,6 +2,8 @@
 // HoyolandSection.kt 에서 옮겼다(27.52.0).
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.gldsToastObstacle
+import com.gatcha.log.ui.components.GldsToastLayer
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.ui.game.hoyoland.HoyolandListText
 import androidx.compose.foundation.rememberScrollState
@@ -421,6 +423,8 @@ internal fun HoyolandGoodsImageSheet(
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        // 시트는 별도 창 — 토스트도 이 창 위에 그린다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp),
@@ -458,7 +462,7 @@ internal fun HoyolandGoodsImageSheet(
                 }
             }
             Spacer(Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.gldsToastObstacle(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 com.gatcha.log.ui.components.GldsButton("닫기", onClick = onDismiss, modifier = Modifier.weight(1f), variant = com.gatcha.log.ui.components.GldsVariant.Secondary)
                 if (readOnly) {
                     // 지난 회차 — 닫기 하나만.
@@ -488,6 +492,7 @@ internal fun HoyolandGoodsImageSheet(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -558,6 +563,8 @@ internal fun HoyolandGuideSheet(
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        // 시트는 별도 창 — 토스트도 이 창 위에 그린다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
             // 본문만 스크롤한다 — 닫기는 **늘 아래에 보인다**(2026-09-15 요청). 안내가 길어 시트를 꽉 채우면
@@ -574,9 +581,10 @@ internal fun HoyolandGuideSheet(
             }
             com.gatcha.log.ui.components.GldsButton(
                 "닫기", onClick = onDismiss,
-                modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp).fillMaxWidth(),
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp).fillMaxWidth().gldsToastObstacle(),
                 variant = com.gatcha.log.ui.components.GldsVariant.Secondary,
             )
+        }
         }
     }
 }
@@ -663,6 +671,8 @@ fun HoyolandGoodsBar(e: HoyolandEvent, cart: HoyolandCart, onOpenCart: () -> Uni
         Row(
             Modifier
                 .fillMaxWidth()
+                // 토스트의 가리는 것 — 알약 면 자체(위 12 · 아래 여백은 빼고). 토스트는 이 알약 위 12 에 선다(10/15).
+                .gldsToastObstacle()
                 .clip(RoundedCornerShape(16.dp))
                 .background(TextPrimary)
                 .clickable { onOpenCart() }

@@ -2,6 +2,8 @@ package com.gatcha.log.ui.spending
 
 import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
+import com.gatcha.log.ui.components.GldsToastLayer
+import com.gatcha.log.ui.components.gldsToastObstacle
 import com.gatcha.log.data.PickupTag
 import com.gatcha.log.data.SpendingViewModel
 
@@ -760,6 +762,8 @@ private fun BulkEditSheet(count: Int, onApply: (String?, Long?, List<String>) ->
         containerColor = Color.White,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
+        // 시트는 별도 창 — 토스트도 이 창 위에, 아래 취소 · 적용 줄 위에 선다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Column(
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp).navigationBarsPadding(),
@@ -780,7 +784,7 @@ private fun BulkEditSheet(count: Int, onApply: (String?, Long?, List<String>) ->
                 GameData.suggestedTags.forEach { t -> FilterPill(t, t in tags, accent) { tags = if (t in tags) tags - t else tags + t } }
             }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.gldsToastObstacle(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 GldsButton("취소", onDismiss, Modifier.weight(1f), variant = GldsVariant.Secondary)
                 // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
                 GldsButton(
@@ -788,6 +792,7 @@ private fun BulkEditSheet(count: Int, onApply: (String?, Long?, List<String>) ->
                     enabled = game != null || dateMillis != null || tags.isNotEmpty(),
                 )
             }
+        }
         }
     }
     if (showDate.value) {

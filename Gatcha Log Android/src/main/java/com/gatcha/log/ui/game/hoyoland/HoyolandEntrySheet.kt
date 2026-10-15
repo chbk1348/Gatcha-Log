@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.game.hoyoland
 
+import com.gatcha.log.ui.components.gldsToastObstacle
+import com.gatcha.log.ui.components.GldsToastLayer
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,6 +69,8 @@ fun HoyolandEntrySheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        // 시트는 별도 창 — 토스트도 이 창 위에 그린다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
             // 본문만 스크롤한다 — 닫기는 **늘 아래에 보인다**([HoyolandGuideSheet] 와 같은 규칙).
@@ -94,9 +98,10 @@ fun HoyolandEntrySheet(
             }
             GldsButton(
                 "닫기", onClick = onDismiss,
-                modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp).fillMaxWidth(),
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp).fillMaxWidth().gldsToastObstacle(),
                 variant = GldsVariant.Secondary,
             )
+        }
         }
     }
 }

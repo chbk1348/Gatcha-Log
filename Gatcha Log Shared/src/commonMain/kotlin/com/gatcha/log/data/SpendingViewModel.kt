@@ -210,10 +210,10 @@ class SpendingViewModel : ViewModel() {
         _autoCheckIn.value = enabled
         NativeScheduler.apply()
         if (!enabled) {
-            emitStatus("자동 출석체크를 껐어요")
+            emitSuccess("자동 출석체크를 껐어요")
             return
         }
-        emitStatus("자동 출석체크를 켰어요 — 지금 한 번 시도할게요")
+        emitSuccess("자동 출석체크를 켰어요 — 지금 한 번 시도할게요")
         // 결과를 토스트로 즉시 피드백(완료/이미 완료/재연동 필요 등). 워커도 같은 Runner 를 쓰지만
         // 여기선 알림 중복을 피하려고 postFailureNotification=false 로 끄고 토스트만 띄운다.
         accountScope.launch {
@@ -725,11 +725,11 @@ class SpendingViewModel : ViewModel() {
                 is SignInOutcome.Success -> {
                     if (!completeSignIn(outcome.account)) {
                         _initialSyncing.value = false
-                        emitStatus("네트워크 오류로 로그인에 실패했어요")
+                        emitError("네트워크 오류로 로그인에 실패했어요")
                     }
                 }
                 SignInOutcome.NoCredential -> { _initialSyncing.value = false; emitStatus("로그인이 취소되었거나 완료되지 못했어요") }
-                is SignInOutcome.Error -> { _initialSyncing.value = false; emitStatus(outcome.message) }
+                is SignInOutcome.Error -> { _initialSyncing.value = false; emitError(outcome.message) }
             } } finally { signInInFlight = false }
         }
     }
@@ -761,7 +761,7 @@ class SpendingViewModel : ViewModel() {
         switchAccount(finalAcc)
         cloudSyncPullOrSeed()
         applyPendingOnboarding()
-        emitStatus("${finalAcc.name}님으로 로그인되었어요")
+        emitSuccess("${finalAcc.name}님으로 로그인되었어요")
         return true
     }
 
@@ -781,7 +781,7 @@ class SpendingViewModel : ViewModel() {
                 val flushed = cloud.flushPending()
                 val done = withTimeoutOrNull(SYNC_TIMEOUT_MS) { authManager.signOut() } != null
                 switchAccount(Account.GUEST)
-                emitStatus(
+                emitSuccess(
                     when {
                         // 못 올린 변경은 지워지지 않는다 — 계정 저장소에 남아 있다가 다시 로그인하면 합쳐져 올라간다.
                         !flushed -> "로그아웃했어요 — 올리지 못한 변경은 이 기기에 남아 있고, 다시 로그인하면 올라가요"
@@ -870,7 +870,7 @@ class SpendingViewModel : ViewModel() {
             s.gameName.isBlank() -> "게임을 골라 주세요"
             else -> return true
         }
-        emitStatus(msg)
+        emitError(msg)
         return false
     }
 
@@ -886,7 +886,7 @@ class SpendingViewModel : ViewModel() {
         val next = (listOf(stamped) + _spendings.value).sortedByDescending { it.dateMillis }
         _spendings.value = next
         persistSpendings(next)
-        emitStatus("지출이 저장되었어요")
+        emitSuccess("지출이 저장되었어요")
         return true
     }
 
@@ -902,7 +902,7 @@ class SpendingViewModel : ViewModel() {
             .sortedByDescending { it.dateMillis }
         _spendings.value = next
         persistSpendings(next)
-        emitStatus("지출이 수정되었어요")
+        emitSuccess("지출이 수정되었어요")
         return true
     }
 
@@ -954,7 +954,7 @@ class SpendingViewModel : ViewModel() {
         }.sortedByDescending { it.dateMillis }
         _spendings.value = next
         persistSpendings(next)
-        emitStatus("${ids.size}건 일괄 수정했어요")
+        emitSuccess("${ids.size}건 일괄 수정했어요")
     }
 
     /** 모든 지출 기록 삭제. */
@@ -1011,7 +1011,7 @@ class SpendingViewModel : ViewModel() {
                 zzzUid = c.zzzUid.takeIf { it != prev.zzzUid }.orEmpty(),
             )
         }
-        hoyolabInputError(config)?.let { emitStatus(it); return false }
+        hoyolabInputError(config)?.let { emitError(it); return false }
         if (prev.isLinked && (!config.isLinked || config.ltuid != prev.ltuid)) {
             cancelAccountWork()
             clearHoyolabDiskCaches(repo)
@@ -1019,7 +1019,7 @@ class SpendingViewModel : ViewModel() {
         _hoyolabConfig.value = config
         // 보안 저장소를 못 쓰면 토큰은 저장되지 않는다(평문 폴백 금지) — 조용히 넘기지 않고 알린다.
         if (!repo.saveHoyolab(config)) {
-            emitStatus("보안 저장소를 쓸 수 없어 토큰을 저장하지 못했어요 — 앱을 재설치하거나 기기를 재시작해주세요")
+            emitError("보안 저장소를 쓸 수 없어 토큰을 저장하지 못했어요 — 앱을 재설치하거나 기기를 재시작해주세요")
             return false
         }
         // 연동이 바뀌면 걸려 있던 예약도 다시 건다 — 해제했는데 완충 알림 · 출석 리마인더가 그대로 울리지 않게.
@@ -1035,10 +1035,8 @@ class SpendingViewModel : ViewModel() {
             clearHoyoTokenExpired()
             // 연동돼 있던 것을 푼 경우와, 처음부터 빈 값을 저장한 경우의 안내를 가른다 — 토스트가 앱 루트로 올라오면서
             // 온보딩의 「연결 해제」에서도 이 문구가 보이게 됐다(27.52.0).
-            emitStatus(
-                if (prev.isLinked) "HoYoLAB 연동을 해제했어요"
-                else "연동되지 않았어요 — ltuid·ltoken을 입력하거나 로그인으로 가져오세요",
-            )
+            if (prev.isLinked) emitSuccess("HoYoLAB 연동을 해제했어요")
+            else emitStatus("연동되지 않았어요 — ltuid·ltoken을 입력하거나 로그인으로 가져오세요")
             return true
         }
         val linkRepo = repo
@@ -1050,7 +1048,7 @@ class SpendingViewModel : ViewModel() {
             if (repo !== linkRepo || _hoyolabConfig.value.ltuid != config.ltuid) return@launch
             // 서버에 못 닿았다 — 토큰 탓이 아니다. "만료됐을 수 있어요" 로 안내하면 멀쩡한 토큰을 다시 뽑는다.
             if (fetched == null) {
-                emitStatus("연결을 확인해 주세요 — 토큰은 저장했고, 연결되면 게임 UID 를 다시 가져올게요")
+                emitError("연결을 확인해 주세요 — 토큰은 저장했고, 연결되면 게임 UID 를 다시 가져올게요")
                 return@launch
             }
             val uids = fetched
@@ -1066,15 +1064,13 @@ class SpendingViewModel : ViewModel() {
             // **행동력 · 원장 · 전투도 여기서 바로 다시 받는다**(27.52.0). 예전엔 화면이 저장 뒤에 강제 갱신을 불러야 했는데
             // 경로마다 빠져서(Android 설정의 연동 저장), 연동해 놓고도 신선도가 낡을 때까지 5~30분 비어 있었다.
             refreshGameInfo(force = true, silent = true)
-            emitStatus(
-                when {
-                    uids.isEmpty() -> "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요"
-                    // 교환용 쿠키가 없으면 선물코드 자동 교환이 안 된다 — 이메일 로그인이 아니면 받지 못한다.
-                    config.cookieToken.isBlank() && config.webCookie.isBlank() ->
-                        "HoYoLAB 계정이 연동되었어요 ✓ (선물코드 교환은 이메일 로그인으로 연동해야 돼요)"
-                    else -> "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
-                },
-            )
+            when {
+                uids.isEmpty() -> emitError("연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요")
+                // 교환용 쿠키가 없으면 선물코드 자동 교환이 안 된다 — 이메일 로그인이 아니면 받지 못한다.
+                config.cookieToken.isBlank() && config.webCookie.isBlank() ->
+                    emitSuccess("HoYoLAB 계정이 연동되었어요 — 선물코드 교환은 이메일 로그인으로 연동해야 돼요")
+                else -> emitSuccess("HoYoLAB 계정이 연동되었어요 — 캐릭터 UID 를 자동으로 맞췄어요")
+            }
         }
         return true
     }
@@ -1350,7 +1346,7 @@ class SpendingViewModel : ViewModel() {
                 out.appendLine("GatchaScore: [$game] 캐릭터합계 ${percentileLine(perCharTotal)}")
             }
             println(out.toString().trimEnd())
-            emitStatus("점수 분포를 로그로 남겼어요 — GatchaScore 로 검색")
+            emitSuccess("점수 분포를 로그로 남겼어요 — GatchaScore 로 검색")
         }
     }
 
@@ -1374,7 +1370,7 @@ class SpendingViewModel : ViewModel() {
      */
     fun debugStageMock(on: Boolean) {
         if (on) HoyolandApi.debugInjectStageMock() else HoyolandApi.debugClearStageMock()
-        emitStatus(if (on) "무대 시간표 목업을 켰어요. 호요랜드 상세에서 확인하세요" else "무대 시간표 목업을 껐어요")
+        emitSuccess(if (on) "무대 시간표 목업을 켰어요 — 호요랜드 상세에서 확인하세요" else "무대 시간표 목업을 껐어요")
     }
 
     /** 지금 목업이 얹혀 있는지 — 개발자 화면 토글 표시. */
@@ -1397,7 +1393,7 @@ class SpendingViewModel : ViewModel() {
             else -> HoyolandMocks.PHASE_MOCK_BEFORE
         }
         HoyolandApi.debugInjectPhaseMock(next)
-        emitStatus(
+        emitSuccess(
             when (next) {
                 HoyolandMocks.PHASE_MOCK_BEFORE -> "호요랜드를 개막 전(D-16)으로 뒀어요"
                 HoyolandMocks.PHASE_MOCK_LIVE -> "호요랜드를 진행 중으로 뒀어요 — 무대도 같이 돕니다"
@@ -1430,13 +1426,13 @@ class SpendingViewModel : ViewModel() {
                 resinFullAtMillis = 0L,
             )
         }
-        emitStatus("행동력을 3게임 모두 가득으로 채웠어요")
+        emitSuccess("행동력을 3게임 모두 가득으로 채웠어요")
     }
 
     /** 모든 게임의 천장을 한 번에 설정. 계산기의 경계값 확인용. */
     fun debugSetPityAll(count: Int, guaranteed: Boolean) {
         GameData.games.forEach { g -> updatePity(g.key) { it.copy(count = count.coerceAtLeast(0), guaranteed = guaranteed) } }
-        emitStatus("천장을 ${count}${if (guaranteed) " · 확정 보유" else ""}로 맞췄어요")
+        emitSuccess("천장을 ${count}${if (guaranteed) " · 확정 보유" else ""}로 맞췄어요")
     }
 
     /**
@@ -1707,7 +1703,7 @@ class SpendingViewModel : ViewModel() {
 
 
     // ----- 가챠 효율 리포트 (UIGF/SRGF) — [GachaRecordsController] -----
-    private val gacha = GachaRecordsController(viewModelScope, { repo }, ::emitStatus)
+    private val gacha = GachaRecordsController(viewModelScope, { repo }) { msg, kind -> emitStatus(msg, kind) }
     val gachaStats: StateFlow<GachaStats?> = gacha.gachaStats
     val gachaDashboard: StateFlow<GachaDashboard?> = gacha.gachaDashboard
 
@@ -1733,12 +1729,12 @@ class SpendingViewModel : ViewModel() {
     fun importBackupFromContent(json: String) {
         viewModelScope.launch {
             if (json.isBlank() || runCatching { com.gatcha.log.json.JSONObject(json) }.isFailure) {
-                emitStatus("백업 파일을 읽지 못했어요 (형식 확인)")
+                emitError("백업 파일을 읽지 못했어요 — 형식을 확인해 주세요")
                 return@launch
             }
             persistJob?.join()
             if (!repo.importBackupJson(json)) {
-                emitStatus("백업 파일이 아니에요 — 이 앱에서 내보낸 백업 파일을 골라 주세요")
+                emitError("백업 파일이 아니에요 — 이 앱에서 내보낸 백업 파일을 골라 주세요")
                 return@launch
             }
             reloadSyncedState()
@@ -1746,7 +1742,7 @@ class SpendingViewModel : ViewModel() {
             syncUid()?.let { uid ->
                 withContext(Dispatchers.IO) { cloud.push(uid) }
             }
-            emitStatus("백업을 복원했어요")
+            emitSuccess("백업을 복원했어요")
         }
     }
 
@@ -1816,9 +1812,18 @@ class SpendingViewModel : ViewModel() {
     val statusMessage: StateFlow<String?> = feedback.statusMessage
 
     fun clearStatus() { feedback.clearStatus() }
-    private fun emitStatus(msg: String) { feedback.status(msg) }
+    /** 토스트 — 기본은 안내. 끝낸 일은 [emitSuccess], 실패는 [emitError](GLDS 2.1 토스트의 아이콘 원 색이 갈린다). */
+    private fun emitStatus(msg: String, kind: ToastKind = ToastKind.INFO) { feedback.status(msg, kind) }
+    private fun emitSuccess(msg: String) = emitStatus(msg, ToastKind.SUCCESS)
+    private fun emitError(msg: String) = emitStatus(msg, ToastKind.ERROR)
     /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
     fun showStatus(msg: String) = emitStatus(msg)
+
+    /** 화면이 상태를 정해 띄우는 토스트 — 저장 성공 · 실패처럼 결과가 분명한 것. */
+    fun showToast(msg: String, kind: ToastKind) = emitStatus(msg, kind)
+
+    /** 지금 띄울 토스트 — 상태 · 제목 · 설명. 화면은 [statusMessage] 대신 이것을 그린다. */
+    val statusToast: StateFlow<StatusToast?> = feedback.statusToast
 
     /** 오류 얼럿 모달 — null 이 아니면 노출. UI 가 확인 후 [clearErrorAlert]. 세우는 규칙은 [FeedbackController]. */
     val errorAlert: StateFlow<ErrorAlert?> = feedback.errorAlert
@@ -2302,7 +2307,7 @@ class SpendingViewModel : ViewModel() {
             try {
                 val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, gameKey)
                 if (r.success) markCheckedIn(gameKey)
-                emitStatus(r.message)
+                emitStatus(r.message, if (r.success) ToastKind.SUCCESS else ToastKind.ERROR)
             } finally {
                 _checkingIn.value = null
             }
@@ -2316,7 +2321,7 @@ class SpendingViewModel : ViewModel() {
         val done = attendance.todayDone()
         val pending = trackedAttendanceGames.value.filter { it.key !in done }
         if (pending.isEmpty()) {
-            emitStatus("오늘 출석을 모두 완료했어요")
+            emitSuccess("오늘 출석을 모두 완료했어요")
             return
         }
         val cfg = _hoyolabConfig.value
@@ -2345,15 +2350,13 @@ class SpendingViewModel : ViewModel() {
             val ok = results.count { it.second.success }
             // 실패 사유를 한 줄 붙인다 — "(일부 실패)" 만으로는 재연동인지 보안 인증인지 알 수 없었다.
             val fail = results.firstOrNull { !it.second.success }
-            emitStatus(
-                if (fail == null) "전체 출석 완료 — ${ok}개"
-                else "출석 ${ok}/${pending.size} 완료 · ${fail.first.shortName}: ${fail.second.message}",
-            )
+            if (fail == null) emitSuccess("전체 출석 완료 — ${pending.joinToString(" · ") { it.shortName }}")
+            else emitError("출석 ${ok}/${pending.size} 완료 — ${fail.first.shortName}: ${fail.second.message}")
         }
     }
 
     // ----------------------------------------------------------------- 선물코드 (자동 수집 + 교환)
-    private val giftCodes = GiftCodeController(viewModelScope, { repo }, { _hoyolabConfig.value }, ::emitStatus)
+    private val giftCodes = GiftCodeController(viewModelScope, { repo }, { _hoyolabConfig.value }) { msg, kind -> emitStatus(msg, kind) }
     val redeemState: StateFlow<RedeemState> = giftCodes.redeemState
 
     /** 자동 수집된 활성 코드. */
@@ -2546,7 +2549,7 @@ class SpendingViewModel : ViewModel() {
         awaitPersist = { persistJob?.join() },
         beforeReload = { carryOverGuestHoyolab() },
         reloadSynced = { reloadSyncedState() },
-        emitStatus = { emitStatus(it) },
+        emitStatus = { msg, kind -> emitStatus(msg, kind) },
     )
 
     /** 데이터가 바뀌었다 — 디바운스 뒤 올린다. 저장소의 변경 알림과 화면의 편집이 부른다. */

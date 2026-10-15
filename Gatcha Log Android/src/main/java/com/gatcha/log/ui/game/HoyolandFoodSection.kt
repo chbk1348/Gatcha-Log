@@ -2,6 +2,8 @@
 // HoyolandSection.kt 에서 옮겼다(27.52.0).
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.gldsToastObstacle
+import com.gatcha.log.ui.components.GldsToastLayer
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.ui.game.hoyoland.HoyolandListText
 import com.gatcha.log.ui.theme.toColor
@@ -213,6 +215,8 @@ private fun HoyolandPhotoSheet(label: String, color: Color, title: String, price
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        // 시트는 별도 창 — 토스트도 이 창 위에 그린다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp)) {
             Box(Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(18.dp)).background(CartRowBg)) {
@@ -229,7 +233,8 @@ private fun HoyolandPhotoSheet(label: String, color: Color, title: String, price
                 Text(price, fontSize = 20.sp, fontWeight = FontWeight.Black, color = color)
             }
             Spacer(Modifier.height(18.dp))
-            com.gatcha.log.ui.components.GldsButton("닫기", onClick = onDismiss, modifier = Modifier.fillMaxWidth(), variant = com.gatcha.log.ui.components.GldsVariant.Secondary)
+            com.gatcha.log.ui.components.GldsButton("닫기", onClick = onDismiss, modifier = Modifier.fillMaxWidth().gldsToastObstacle(), variant = com.gatcha.log.ui.components.GldsVariant.Secondary)
+        }
         }
     }
 }

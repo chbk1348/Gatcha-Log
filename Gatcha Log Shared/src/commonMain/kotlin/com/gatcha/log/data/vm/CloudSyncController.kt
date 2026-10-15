@@ -1,5 +1,6 @@
 package com.gatcha.log.data.vm
 
+import com.gatcha.log.data.ToastKind
 import com.gatcha.log.data.CloudSync
 import com.gatcha.log.data.ErrorBus
 import com.gatcha.log.data.GatchaRepository
@@ -38,7 +39,7 @@ internal class CloudSyncController(
     private val awaitPersist: suspend () -> Unit,
     private val beforeReload: () -> Unit,
     private val reloadSynced: () -> Unit,
-    private val emitStatus: (String) -> Unit,
+    private val emitStatus: (String, ToastKind) -> Unit,
 ) {
     private var syncJob: Job? = null
 
@@ -191,7 +192,7 @@ internal class CloudSyncController(
         if (docBytes > CLOUD_DOC_WARN_BYTES) {
             if (!docSizeWarned) {
                 docSizeWarned = true
-                emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB) — 오래된 뽑기 기록 정리를 권장해요")
+                emitStatus("클라우드 백업 용량이 한계에 가까워요 — ${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB · 오래된 뽑기 기록 정리를 권장해요", ToastKind.INFO)
             }
         } else docSizeWarned = false
         // 원격을 읽고 합쳐서 쓴다(트랜잭션) — 다른 기기가 방금 올린 변경을 덮지 않는다.

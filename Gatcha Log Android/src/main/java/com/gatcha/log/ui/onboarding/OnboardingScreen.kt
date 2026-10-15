@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.gldsToastObstacle
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.ThousandsTransformation
 import com.gatcha.log.ui.components.GldsVariant
@@ -416,10 +417,13 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
 
 // ── 공통 조각 ──────────────────────────────────────────────────────────────
 
-/** GLDS 하단 버튼 자리 — 아래에서 올라오는 등장 + 좌우 8 들여씀, 보조는 위 8. */
+/**
+ * GLDS 하단 버튼 자리 — 아래에서 올라오는 등장 + 좌우 8 들여씀, 보조는 위 8.
+ * 토스트의 가리는 것이다(10/15) — 토스트는 하단 버튼 중 가장 위의 것 위 12 에 선다.
+ */
 @Composable
 private fun Modifier.cta(primary: Boolean, delayMs: Int = if (primary) 140 else 200): Modifier =
-    enterUp(delayMs).padding(horizontal = 8.dp).padding(top = if (primary) 0.dp else 8.dp).fillMaxWidth()
+    enterUp(delayMs).padding(horizontal = 8.dp).padding(top = if (primary) 0.dp else 8.dp).fillMaxWidth().gldsToastObstacle()
 
 /** 처음 그려질 때 아래(18dp)에서 올라오며 나타남. */
 @Composable
@@ -529,7 +533,7 @@ private fun WelcomeStep(loggedIn: Boolean, onStart: (leave: suspend () -> Unit) 
             })
         } else {
             // 구글 로그인이 곧 시작이다 — ⑥ 완료 화면에 있던 버튼 · 문구 그대로다.
-            Box(Modifier.enterUp(140).padding(horizontal = 8.dp)) {
+            Box(Modifier.enterUp(140).padding(horizontal = 8.dp).gldsToastObstacle()) {
                 GoogleSignInButton("Google로 로그인하고 시작하기", onClick = onLogin)
             }
         }
@@ -1000,7 +1004,7 @@ private fun DoneStep(restored: Boolean, signInNext: Boolean, summary: List<Tripl
         }
         if (signInNext) {
             // 로그인 전(첫 사용자 · 복원) — 구글 로그인 버튼(9/29). 누르면 로그인 화면을 거치지 않고 바로 구글 계정 선택이 뜬다.
-            Box(Modifier.enterUp(140).padding(horizontal = 8.dp)) {
+            Box(Modifier.enterUp(140).padding(horizontal = 8.dp).gldsToastObstacle()) {
                 GoogleSignInButton(if (restored) "Google로 로그인하기" else "Google로 로그인하고 시작하기", onClick = onDone)
             }
         } else {

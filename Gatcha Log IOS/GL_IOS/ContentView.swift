@@ -242,7 +242,8 @@ struct ContentView: View {
             }
         }
         // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
-        .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
+        // 앱 위의 별도 창에 띄운다(GLDS 2.1, 10/15) — 시트가 열려 있어도 보이고, 아래 바 · 키보드 위 12 에 선다.
+        .gldsToast(store.statusToast) { store.clearStatus() }
         // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
         // 제목이 종류마다 달라 ErrorAlert 가 제목까지 들고 온다(Android MainActivity 파리티).
         .alert(store.errorAlert?.title ?? "", isPresented: Binding(
@@ -532,6 +533,8 @@ struct ContentView: View {
                             GLGFloatingTabBar(selection: $selectedTab, accent: accent, photo: myPageTabIcon,
                                               onReselect: { tab in if tab == 1 { spendingPath = [] } },
                                               onAdd: { openAddSpending() })
+                                // 토스트가 이 위 12 에 선다 — 숨긴 동안은 세지 않는다.
+                                .background { if !floatingTabBarHidden { Color.clear.gldsToastObstacle() } }
                                 // 화면 바닥에서 [GLGFloatingTabBar.bottomGap] — 안전 영역 안쪽으로 내려 앉힌다(iOS 26 실측과 같은 자리).
                                 .padding(.bottom, max(0, GLGFloatingTabBar.bottomGap - geo.safeAreaInsets.bottom))
                                 .offset(y: max(0, geo.safeAreaInsets.bottom - GLGFloatingTabBar.bottomGap))
@@ -690,6 +693,7 @@ struct ContentView: View {
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
+        .gldsToastObstacle()
     }
 
     // ── iPad: 우측 하단 지출 추가 FAB (강조색 채움 원형 + 흰 '+') ─────────────
@@ -701,6 +705,7 @@ struct ContentView: View {
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
+        .gldsToastObstacle()
     }
 }
 

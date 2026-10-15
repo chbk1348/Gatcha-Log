@@ -2,6 +2,7 @@ package com.gatcha.log.ui.game
 
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.ui.components.SecureWindow
+import com.gatcha.log.ui.components.GldsToastLayer
 import com.gatcha.log.util.SafeUrl
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
@@ -67,6 +68,8 @@ fun HoyolabEmailLoginGuide(onDismiss: () -> Unit, onConfirm: () -> Unit) {
 fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, onDismiss: () -> Unit) {
     val collectedCb = rememberUpdatedState(onCollected)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // 별도 창 — 토스트도 이 창 위에 그린다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         SecureWindow()   // 로그인 화면은 캡처 · 최근 앱 미리보기에 남기지 않는다
         Column(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
@@ -139,6 +142,7 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
                 },
                 onRelease = { it.destroy(); clearHoyolabWebSession() },
             )
+        }
         }
     }
 }

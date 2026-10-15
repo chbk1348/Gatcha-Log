@@ -1,13 +1,7 @@
 package com.gatcha.log
 
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import com.gatcha.log.ui.components.dismissKeyboardOnTap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
@@ -45,7 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.components.GlgDialog
-import com.gatcha.log.ui.components.GlgStatusToast
+import com.gatcha.log.ui.components.GldsToastRoot
 import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.home.HomeScreen
 import com.gatcha.log.ui.home.UpdateDialog
@@ -167,7 +161,7 @@ class MainActivity : ComponentActivity() {
             val account by viewModel.account.collectAsStateWithLifecycle()
             val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
             val errorAlert by viewModel.errorAlert.collectAsStateWithLifecycle()
-            val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
+            val statusToast by viewModel.statusToast.collectAsStateWithLifecycle()
             // 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 진입 — 동기화는 백그라운드.
             // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
             // 로딩 게이트는 "이 기기에서 이 계정을 한 번이라도 동기화했는가"로 가른다(needsSyncGate, 9/29).
@@ -229,21 +223,10 @@ class MainActivity : ComponentActivity() {
                 }
                 }
                 // 전역 토스트 — 앱 루트에 한 번만(27.52.0, iOS ContentView 와 같은 자리). 홈 안에 있을 때는
-                // 온보딩 · 로그인 · 지출 편집 화면에서 뷰모델의 안내(statusMessage)가 보이지 않았다.
-                // 자리는 **어느 화면이든 아래에서 100**(10/12 결정) — 탭 바가 있으면 그 위, 탭 바 없는 화면(지출 편집 · 온보딩)에서는
-                // 하단 버튼 줄 위다. 예전엔 탭 바 없는 화면에서 24 만 띄워 저장 · 다음 버튼을 2초쯤 가렸다.
-                // 루트 전환(AnimatedContent) 밖이라 키보드 여백을 여기서 따로 준다(안에 있을 때는 루트의 imePadding 을 탔다).
-                Box(Modifier.fillMaxSize()) {
-                    GlgStatusToast(
-                        message = statusMessage,
-                        onConsumed = { viewModel.clearStatus() },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .imePadding()
-                            .navigationBarsPadding()
-                            .padding(bottom = 100.dp),
-                    )
-                }
+                // 온보딩 · 로그인 · 지출 편집 화면에서 뷰모델의 안내가 보이지 않았다.
+                // GLDS 2.1 토스트 D안(10/15) — 자리는 **가리는 것(하단 툴바 · 선택 바 · 저장 바 · 키보드) 위 12**, 없으면
+                // 내비게이션 바 위 16 이다(예전엔 어느 화면이든 아래에서 100). 다이얼로그 · 시트가 떠 있으면 그 창이 그린다.
+                GldsToastRoot(toast = statusToast, onShown = { viewModel.clearStatus() })
                 // 업데이트 확인 · 창 — 앱 루트에 한 번만(iOS ContentView 와 같은 자리). 홈 안에 있을 때는
                 // 온보딩 · 로그인 · 지출 편집 화면에서 강제 업데이트가 걸리지 않았다.
                 // 받는 동안은 진행 오버레이만 — 강제 업데이트 창은 남아 있다가 실패 · 취소하면 다시 뜬다.

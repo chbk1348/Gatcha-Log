@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.gldsToastObstacle
 import com.gatcha.log.ui.components.GldsSection
 import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.animation.AnimatedVisibility
@@ -621,7 +622,8 @@ fun AddSpendingModal(
             // Bottom Actions — 하단(내비 영역까지 흰 띠), 버튼은 내비 위로. 그림자 없는 플랫.
             Surface(color = CardBg, shadowElevation = 0.dp, modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
+                    // 토스트의 가리는 것 — 버튼 줄. 토스트는 그 위 12 에 선다(10/15, 예전엔 아래에서 100 이라 버튼을 가렸다).
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp).gldsToastObstacle(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     // 상한도 여기서 막는다 — 넘으면 VM 이 저장을 거절하는데, 버튼이 살아 있으면 누를 때마다 토스트만 뜬다.

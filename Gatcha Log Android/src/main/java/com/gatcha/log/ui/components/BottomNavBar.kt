@@ -120,8 +120,9 @@ private val BOTTOM_MIN = 20.dp
  * 들뜸 그림자 — **iOS 18 떠 있는 탭 툴바와 같은 값**(검정 6% · 퍼짐 10 · 아래로 2, 10/14 「And는 티가 안나서」).
  * 예전엔 높이 그림자(`Modifier.shadow`, ambient 4% · spot 6%)라 흰 바탕에서 거의 보이지 않았다. 퍼지는 그림자로 바꿔
  * iOS(SwiftUI `.shadow(radius: 10, y: 2)`)와 같은 모양이 되게 한다.
+ * 토스트([GldsToast])도 이 값을 그대로 쓴다(10/15) — 떠 있는 것의 그림자는 한 벌이다.
  */
-private val LiftShadow = Shadow(radius = 10.dp, color = Color.Black.copy(alpha = 0.06f), offset = DpOffset(0.dp, 2.dp))
+internal val LiftShadow = Shadow(radius = 10.dp, color = Color.Black.copy(alpha = 0.06f), offset = DpOffset(0.dp, 2.dp))
 
 @Composable
 fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, showFab: Boolean, profilePhotoUrl: String? = null) {
@@ -152,7 +153,8 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
         // FAB 부착 오버로드(`floatingActionButton = {...}`)를 쓰지 않고 직접 배치한다 —
         // 그 오버로드는 `modifier` 가 **툴바+간격+FAB 전체**에 걸려서, 아웃라인을 주면 테두리가
         // 둘을 함께 감싸는 라운드 사각형으로 그려진다. 툴바에만 테두리를 두르려면 갈라야 한다.
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        // 캡슐 + 원 줄 전체가 토스트의 가리는 것이다 — 토스트는 이 줄 위 12 에 선다(GLDS 2.1 토스트, 10/15).
+        Row(modifier = Modifier.fillMaxWidth().gldsToastObstacle(), verticalAlignment = Alignment.CenterVertically) {
             HorizontalFloatingToolbar(
                 expanded = true,
                 // 컨테이너는 흰색(2026-08-03 요청). 순정 골격 + 우리 색.
@@ -226,6 +228,8 @@ fun GlgTabBarCircleButton(icon: ImageVector, contentDescription: String, modifie
         contentAlignment = Alignment.Center,
         modifier = modifier
             .size(TAB_FLOAT_CIRCLE)
+            // 토스트의 가리는 것 — 원이 떠 있으면 토스트는 이 원 위 12 까지 올라간다(10/15).
+            .gldsToastObstacle()
             .dropShadow(CircleShape, LiftShadow)
             .clip(CircleShape)
             .background(Color.White)

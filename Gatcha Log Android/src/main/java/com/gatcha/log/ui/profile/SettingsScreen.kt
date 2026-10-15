@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.profile
 
+import com.gatcha.log.data.ToastKind
+import com.gatcha.log.ui.components.gldsToastObstacle
 import com.gatcha.log.ui.components.GldsSection
 import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.GldsBand
@@ -138,7 +140,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         }
     }
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
-    // 상태 메시지 토스트는 앱 루트(MainActivity)의 전역 GlgStatusToast 가 처리
+    // 상태 메시지 토스트는 앱 루트(MainActivity)의 GldsToastRoot 가 처리(창이 떠 있으면 그 창의 GldsToastLayer)
 
     // 알림 권한(Android 13+) — 자동 출석 ON 등 알림을 동반하는 토글을 켤 때 요청
     val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -406,11 +408,11 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
             scope.launch {
                 val saved = viewModel.exportBackupContent()?.let { json -> SafIO.writeText(context, u, json) } ?: false
                 if (saved) {
-                    viewModel.showStatus("백업 파일을 저장했어요")
+                    viewModel.showToast("백업 파일을 저장했어요", ToastKind.SUCCESS)
                 } else {
                     // 문서는 고르는 순간 이미 만들어져 있다 — 빈 파일을 백업으로 믿지 않게 지운다.
                     SafIO.delete(context, u)
-                    viewModel.showStatus("백업 파일을 저장하지 못했어요 — 다시 시도해 주세요")
+                    viewModel.showToast("백업 파일을 저장하지 못했어요 — 다시 시도해 주세요", ToastKind.ERROR)
                 }
             }
         }
@@ -420,7 +422,7 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
             scope.launch {
                 // 읽은 뒤의 안내(형식 오류 · 복원 완료)는 importBackupFromContent 가 낸다 — 여기서는 못 읽은 경우만.
                 val json = SafIO.readText(context, u)
-                if (json == null) viewModel.showStatus("파일을 읽지 못했어요") else viewModel.importBackupFromContent(json)
+                if (json == null) viewModel.showToast("파일을 읽지 못했어요", ToastKind.ERROR) else viewModel.importBackupFromContent(json)
             }
         }
     }
@@ -463,7 +465,7 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
             SetSection("내보내기", "CSV") {
                 SettingsNavRow(Icons.Default.Download, Tint.slate, "지출 내역 내보내기", "CSV") {
                     // 공유 시트로 넘기는 길이라 「저장했어요」는 알 수 없다 — 파일을 못 만들었을 때만 알린다(27.52.0).
-                    if (!shareCsvFile(context, viewModel.buildCsv())) viewModel.showStatus("파일을 저장하지 못했어요 — 다시 시도해 주세요")
+                    if (!shareCsvFile(context, viewModel.buildCsv())) viewModel.showToast("파일을 저장하지 못했어요 — 다시 시도해 주세요", ToastKind.ERROR)
                 }
             }
         }
@@ -927,7 +929,9 @@ internal fun BudgetScreen(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
                 .background(Color.White).navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp)
+                // 토스트의 가리는 것 — 버튼 줄(바 위 여백 10 안쪽). 토스트는 그 위 12(10/15).
+                .gldsToastObstacle(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             GldsButton("월 예산 끄기", { onSave(0L, perGame()) }, Modifier.weight(1f), variant = GldsVariant.Secondary, size = GldsSize.L)
