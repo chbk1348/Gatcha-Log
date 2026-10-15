@@ -192,7 +192,7 @@ struct NotificationDetailView: View {
             if alerts.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "bell.slash").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
-                    Text("새로운 알림이 없어요 🎉").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                    Text("새로운 알림이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
                     Text("예산·픽업 배너·출석 알림이 여기에 모여요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3))
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {

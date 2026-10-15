@@ -1,8 +1,5 @@
 package com.gatcha.log.ui.home
 
-import com.gatcha.log.ui.components.GldsButton
-import com.gatcha.log.ui.components.GldsSize
-import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketKicker
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketShape
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketStub
@@ -217,7 +214,10 @@ fun HomeSectionHeader(title: String, count: Int? = null, actionTitle: String? = 
 }
 
 // ── 이번 달 지출 (홈 3.0 — 히어로 대신 일반 섹션) ──────────────────────────────
-/** 이번 달 지출 — 금액 · 지난달 대비 · 예산 막대. 예산이 없으면 옛 히어로처럼 「미설정」 + 예산 설정하기. */
+/**
+ * 이번 달 지출 — 금액 · 지난달 대비 · 예산 막대. 예산이 없으면 「미설정」.
+ * 예산 페이지로 가는 길은 머리의 「예산 관리 ›」 하나다 — 「예산 설정하기」 버튼은 같은 곳으로 가는 중복이라 걷었다(10/15).
+ */
 @Composable
 fun MonthSpendSection(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget: () -> Unit) {
     val accent = LocalAccent.current
@@ -255,10 +255,7 @@ fun MonthSpendSection(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudge
             }
         } else {
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("미설정", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.weight(1f))
-                GldsButton("예산 설정하기", onBudget, variant = GldsVariant.Secondary, size = GldsSize.S)
-            }
+            Text("미설정", fontSize = 13.sp, color = TextSecondary)
         }
     }
 }
