@@ -427,6 +427,10 @@ struct EnkaRosterPage: View {
     @State private var element = "" // ""=전체
     @State private var path = "" // ""=전체 (HSR)
     @State private var query = ""
+    /// iOS 18 아이폰 — 이름 검색 입력칸을 펼쳤는가(10/15). 시스템 바를 숨기면 바에 매달린 검색 막대(`.searchable`)도
+    /// 같이 사라져, Android 처럼 헤더 돋보기로 본문 맨 위에 입력칸을 연다.
+    @State private var searchOpen18 = false
+    @FocusState private var searchFocus18: Bool
 
     /// 열 수 — 60명 넘는 계정은 3열이 훨씬 덜 스크롤한다. 기본은 2열(넓은 카드가 읽기 쉽다).
     @AppStorage("roster_cols") private var colCount = 2
@@ -494,6 +498,27 @@ struct EnkaRosterPage: View {
         }
     }
 
+    /// 필터 메뉴 항목 — 툴바(iOS 26) · GLDS 헤더(iOS 18) 가 같이 쓴다.
+    @ViewBuilder
+    private func rosterFilterItems(elements: [String], paths: [String]) -> some View {
+        Picker("등급", selection: $rarity) {
+            // 등급 표기는 게임이 쓰는 말을 따른다 — 젠레스는 S급/A급이다.
+            Text("전체").tag(0)
+            Text(CharDisplayKt.rarityShort(gameKey: game, rarity: 5)).tag(5)
+            Text(CharDisplayKt.rarityShort(gameKey: game, rarity: 4)).tag(4)
+        }
+        Picker("속성", selection: $element) {
+            Text("전체").tag("")
+            ForEach(elements, id: \.self) { Text($0).tag($0) }
+        }
+        if game == "hsr" && !paths.isEmpty {
+            Picker("운명의 길", selection: $path) {
+                Text("전체").tag("")
+                ForEach(paths, id: \.self) { Text($0).tag($0) }
+            }
+        }
+    }
+
     // `@ViewBuilder` 가 필요하다 — `var body` 는 View 프로토콜이 암시로 붙여 주지만, 이렇게
     // 떼어낸 프로퍼티는 앞의 `let` 선언들 때문에 다중 문장이 되어 반환 타입을 못 뽑는다.
     @ViewBuilder
@@ -533,6 +558,13 @@ struct EnkaRosterPage: View {
                     .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .frame(maxWidth: .infinity).padding(.top, 40)
             }
+            // iOS 18 아이폰 이름 검색(10/15, Android 보유 캐릭터와 같다) — 헤더 돋보기로 열고 ✕ 로 닫는다.
+            if GldsHeader18.isActive && searchOpen18 {
+                GldsTextField(placeholder: "캐릭터 이름 검색", text: $query, trailingIcon: .search, focus: $searchFocus18)
+                    .padding(.horizontal, 20).padding(.top, 16)
+                    // 열자마자 칠 수 있어야 한다 — 버튼을 누르고 다시 입력칸을 누르게 하면 두 번 일이다.
+                    .onAppear { searchFocus18 = true }
+            }
             LazyVGrid(columns: cols, spacing: colCount >= 3 ? 8 : 10) {
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
                     // 갈린 상태에선 push 하지 않는다 — 우측 패널만 바꾼다.
@@ -543,8 +575,8 @@ struct EnkaRosterPage: View {
                     .buttonStyle(.plain)
                 }
             }
-            // 아래 20 — 섹션 아래 여백과 같다(GLDS 2.0, 10/1).
-            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 20)
+            // 아래 20 — 섹션 아래 여백과 같다(GLDS 2.0, 10/1). 검색 입력칸이 열려 있으면 그 아래 10(Android 와 같다).
+            .padding(.horizontal, 20).padding(.top, GldsHeader18.isActive && searchOpen18 ? 10 : 16).padding(.bottom, 20)
         }
         // 검색은 **부를 때만.** 늘 펼쳐 두면 목록보다 먼저 눈에 들어오는데, 정작 이름으로 찾는
         // 일은 드물다(대개 등급·속성으로 좁힌다). 안드로이드는 헤더 돋보기 버튼으로 열고,
@@ -554,7 +586,27 @@ struct EnkaRosterPage: View {
         .background(Color.white)
         // 전체 보기/탭 어떤 경로로 진입해도 해당 게임 결과 보장(캐시 적중 시 즉시 반영).
         .task { store.autoLoadEnka(game: game, force: false) }
-        .glgPageTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 붙어 있는 셋 [열 전환 | 필터 | 검색] 을 캡슐 하나로.
+        .glgPageTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일")) {
+            GldsHeaderGroup {
+                GldsHeaderCellButton(icon: colCount >= 3 ? "IconGrid3" : "IconGrid2",
+                                     label: colCount >= 3 ? "2열로 보기" : "3열로 보기") {
+                    colCount = colCount >= 3 ? 2 : 3
+                }
+                Menu { rosterFilterItems(elements: elements, paths: paths) } label: {
+                    GldsHeaderIcon(name: "IconFilter", label: "필터").gldsHeaderCell()
+                }
+                .menuStyle(.button)
+                .buttonStyle(GldsHeaderButtonStyle())
+                .foregroundStyle(GLGColor.textPrimary)
+                // 닫을 때 검색어도 지운다 — 남겨두면 목록이 걸러진 채로 이유가 화면에서 사라진다(Android 와 같다).
+                GldsHeaderCellButton(icon: searchOpen18 ? "IconClose" : "IconSearch",
+                                     label: searchOpen18 ? "검색 닫기" : "이름으로 검색") {
+                    if searchOpen18 { query = "" }
+                    searchOpen18.toggle()
+                }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 열 전환 — 선택은 남는다(매번 바꾸게 하면 안 쓴다).
@@ -567,22 +619,7 @@ struct EnkaRosterPage: View {
             // 필터를 헤더(시스템 툴바)로 — iOS 26 시스템 글래스 메뉴 버튼
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("등급", selection: $rarity) {
-                        // 등급 표기는 게임이 쓰는 말을 따른다 — 젠레스는 S급/A급이다.
-                        Text("전체").tag(0)
-                        Text(CharDisplayKt.rarityShort(gameKey: game, rarity: 5)).tag(5)
-                        Text(CharDisplayKt.rarityShort(gameKey: game, rarity: 4)).tag(4)
-                    }
-                    Picker("속성", selection: $element) {
-                        Text("전체").tag("")
-                        ForEach(elements, id: \.self) { Text($0).tag($0) }
-                    }
-                    if game == "hsr" && !paths.isEmpty {
-                        Picker("운명의 길", selection: $path) {
-                            Text("전체").tag("")
-                            ForEach(paths, id: \.self) { Text($0).tag($0) }
-                        }
-                    }
+                    rosterFilterItems(elements: elements, paths: paths)
                 } label: {
                     GLGLineIcon("IconFilter", label: "필터")
                 }
@@ -779,9 +816,19 @@ struct EnkaStatPageBody: View {
                 }
             }
         }
-        .glgHiddenTitle(char.name)
+        .glgHiddenTitleWithoutHeader18(char.name)
         .navigationBarTitleDisplayMode(.inline)
         .modifier(GLGHiddenToolbarBackground(hidden: !pastHero))
+        // iOS 18 아이폰 GLDS 헤더(10/15, Android 캐릭터 상세와 같다) — 히어로 위에서는 ‹ 원 하나에 면 흰색 55% ·
+        // 아이콘 히어로 글자색, 히어로를 지나면 [‹ | 이름] 캡슐 · 흰 면으로 돌아오고 상태바 스크림이 켜진다.
+        // 히어로가 상태바까지 색을 올리므로 본문을 밀지 않고 위에 얹는다(overlay) — 히어로가 헤더만큼 스스로 내려간다.
+        .gldsPageHeader18(pastHero ? char.name : "", tint: pastHero ? nil : heroInk,
+                          fill: pastHero ? nil : GldsHeader18.heroFill, scrim: pastHero, overlay: true) {
+            if CharDisplayKt.usesArtifactScore(gameKey: game) {
+                GldsHeaderCircleButton(icon: "IconAdjust", label: "점수 기준", tint: pastHero ? nil : heroInk,
+                                       fill: pastHero ? nil : GldsHeader18.heroFill) { basisOpen = true }
+            }
+        }
         .animation(.easeInOut(duration: 0.18), value: pastHero)
         .sheet(isPresented: $basisOpen) { keyStatSheet }
     }
@@ -845,7 +892,7 @@ struct EnkaStatPageBody: View {
         .ignoresSafeArea(.container, edges: .top)
         // 히어로 하단이 네비게이션 바 아래로 사라지는 순간을 경계로 삼는다(지출 상세와 동일).
         .onScrollGeometryChange(for: Bool.self) { geo in
-            heroHeight > 0 && geo.contentOffset.y > heroHeight - topInset - 44
+            heroHeight > 0 && geo.contentOffset.y > heroHeight - topInset - heroHeaderHeight
         } action: { _, newValue in
             pastHero = newValue
         }
@@ -861,6 +908,15 @@ struct EnkaStatPageBody: View {
             effects = r
             effectsLoading = false
         }
+    }
+
+    /// 히어로를 덮는 헤더 높이 — 시스템 바(44) 또는 iOS 18 아이폰 GLDS 헤더(64, 10/15). 히어로 끝이 여기에 가려지기 시작하면 히어로를 지난 것.
+    private var heroHeaderHeight: CGFloat { GldsHeader18.isActive ? GldsHeader18.pageHeight : 44 }
+
+    /// 히어로 위쪽 여백 — 상태바(topInset) 아래로 시스템 바 버튼과 겹치지 않을 만큼 38.
+    /// iOS 18 아이폰은 GLDS 헤더(64)를 위에 얹으므로 그 아래 12 — Android(상태바 + 헤더 + 12)와 같다(10/15).
+    private func heroTopPad(_ topInset: CGFloat) -> CGFloat {
+        GldsHeader18.isActive ? topInset + GldsHeader18.pageHeight + 12 : topInset + 38
     }
 
     /// 툴바 아이콘 색을 **직접 정해야 하는 구간인가**(iOS 18). iOS 26+ 는 유리 캡슐이 대비를 만든다.
@@ -1024,7 +1080,7 @@ struct EnkaStatPageBody: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 26)
-        .padding(.top, topInset + 38)
+        .padding(.top, heroTopPad(topInset))
         .frame(maxWidth: .infinity)
         .background(
             ZStack {
@@ -1057,9 +1113,9 @@ struct EnkaStatPageBody: View {
                 // 속성 연출만 **히어로 안에서만** 보여야 한다 — 이쪽은 잘라낸다.
                 // (물리의 벽·에테르의 띠처럼 화면을 가득 채우는 형상이 밖으로 새면 안 된다)
                 // 초상 한가운데 y — 양자·허수·루멘처럼 썸네일 위에서 도는 연출이 기준으로 쓴다.
-                // (상단 패딩 topInset+38 다음에 오는 150 링의 한가운데)
+                // (상단 패딩 heroTopPad 다음에 오는 150 링의 한가운데)
                 ElementFxOverlay(element: char.element, animated: elementFxEnabled,
-                                 focusY: topInset + 38 + (scored ? 75 : 64))
+                                 focusY: heroTopPad(topInset) + (scored ? 75 : 64))
                     .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous))
             }
             // 가로 안전영역도 무시한다 — 바가 **옆에 서는 기기**(펼친 iPhone Duo)에서는 히어로가

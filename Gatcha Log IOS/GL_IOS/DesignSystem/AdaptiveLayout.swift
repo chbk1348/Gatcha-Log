@@ -178,8 +178,10 @@ struct GLGColumnMasonry: View {
 ///
 /// `navigationBarTitleDisplayMode` 는 건드리지 않는다. 화면마다 large/inline 이 다르게 잡혀 있어
 /// 여기서 통일하면 iPhone 쪽 모양이 같이 바뀐다.
-private struct GLGPageTitle: ViewModifier {
+private struct GLGPageTitle<Trailing: View>: ViewModifier {
     let title: String
+    /// iOS 18 아이폰 헤더 오른쪽 — 툴바에 둔 버튼을 그 헤더에도 세운다([GldsHeader18Modifier]). 그 밖에선 쓰지 않는다.
+    let trailing: Trailing
     @Environment(\.horizontalSizeClass) private var hSizeClass
 
     func body(content: Content) -> some View {
@@ -191,15 +193,24 @@ private struct GLGPageTitle: ViewModifier {
         //
         // **iPhone Duo 는 예외로 걷는다.** 탭 · 툴바가 옆 레일에 서는 기기라 제목만 위쪽에 가로 바를
         // 따로 세워 한 줄을 통째로 먹었다 — 탭 뿌리와 같이 제목 없이 콘텐츠를 위로 올린다(2026-09-28 지시).
+        //
+        // **iOS 18 아이폰은 시스템 바 대신 GLDS 헤더 [‹ | 제목] 를 그린다**(10/15, [GldsHeader18Modifier]). 툴바 버튼이 있는
+        // 화면은 [trailing] 으로 헤더 쪽 버튼을 따로 넘긴다 — 시스템 바를 숨기면 툴바 항목도 같이 사라진다.
         content
             .navigationTitle(title)
             .toolbar(removing: GLGFormFactor.current == .duo ? .title : nil)
+            .gldsPageHeader18(title) { trailing }
     }
 }
 
 extension View {
     /// 하위(push) 페이지의 제목. iPad 에서는 자동으로 감춘다 — [GLGPageTitle] 참고.
-    func glgPageTitle(_ title: String) -> some View { modifier(GLGPageTitle(title: title)) }
+    func glgPageTitle(_ title: String) -> some View { modifier(GLGPageTitle(title: title, trailing: EmptyView())) }
+
+    /// 하위 페이지 제목 + iOS 18 아이폰 헤더 오른쪽 버튼. 툴바(iOS 26 · iPad)는 호출부의 `.toolbar` 가 그대로 맡는다.
+    func glgPageTitle<T: View>(_ title: String, @ViewBuilder trailing: () -> T) -> some View {
+        modifier(GLGPageTitle(title: title, trailing: trailing()))
+    }
 }
 
 /// **보이지 않는** 제목 — 탭 뿌리 화면, 히어로가 제목을 대신하는 상세 화면(지출 상세 · 캐릭터 상세)용.
@@ -211,10 +222,12 @@ extension View {
 /// 따로 세우고** 그 바가 빈 채로 자리를 먹었다. Duo 는 덮지 않고 제목 자리를 **걷는다**(2026-09-28 지시).
 private struct GLGHiddenTitle: ViewModifier {
     let title: String
+    /// iOS 18 아이폰 헤더를 붙일까 — 탭 뿌리(게임 정보)는 자기 탭 헤더를 따로 붙이므로 끈다.
+    var header18: Bool = true
 
     func body(content: Content) -> some View {
         let isDuo = GLGFormFactor.current == .duo
-        content
+        let base = content
             .navigationTitle(title)
             .toolbar {
                 if !isDuo {
@@ -222,12 +235,21 @@ private struct GLGHiddenTitle: ViewModifier {
                 }
             }
             .toolbar(removing: isDuo ? .title : nil)
+        // iOS 18 아이폰은 ‹ 원 하나만 선 GLDS 헤더(10/15). 히어로 색을 받는 상세는 [gldsPageHeader18] 을 직접 쓴다.
+        if header18 {
+            base.gldsPageHeader18(title, hidesTitle: true) { EmptyView() }
+        } else {
+            base
+        }
     }
 }
 
 extension View {
     /// 보이지 않는 제목 — [GLGHiddenTitle] 참고.
     func glgHiddenTitle(_ title: String) -> some View { modifier(GLGHiddenTitle(title: title)) }
+
+    /// 보이지 않는 제목 — iOS 18 아이폰 헤더는 붙이지 않는다(호출부가 탭 헤더 · 히어로 헤더를 따로 붙인다).
+    func glgHiddenTitleWithoutHeader18(_ title: String) -> some View { modifier(GLGHiddenTitle(title: title, header18: false)) }
 }
 
 private struct GLGReadableWidth: ViewModifier {

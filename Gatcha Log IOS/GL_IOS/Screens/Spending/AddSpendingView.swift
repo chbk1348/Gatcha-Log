@@ -152,6 +152,12 @@ struct AddSpendingView: View {
                 Button(editing == nil ? "저장" : "수정") { attemptSave() }.disabled(!canSave || saved)
             }
         }
+        // iOS 18 아이폰 GLDS 헤더(10/15) — [‹ | 지출 추가] 캡슐 + 「저장」 글자 알약(못 누르면 흐리게). 스택 밖 페이지라
+        // 뒤로는 dismiss 가 아니라 툴바와 같은 requestDismiss(고친 게 있으면 버릴지 묻는다). 왼쪽 끝 띠(backSwipeStrip)는 그대로다.
+        .gldsPageHeader18(editing == nil ? "지출 추가" : "지출 수정", onBack: { requestDismiss() }) {
+            GldsHeaderTextButton(title: editing == nil ? "저장" : "수정") { attemptSave() }
+                .disabled(!canSave || saved)
+        }
         // 가운데 알림창(9/30) — 액션 시트는 iPad · Duo 에서 누른 자리 옆 팝오버로 떠 위치가 기기마다 달랐다.
         // 버튼은 Android GlgDialog 와 같은 「계속 입력」 · 「버리기」.
         .alert("입력한 내용을 버릴까요?", isPresented: $confirmDiscard) {

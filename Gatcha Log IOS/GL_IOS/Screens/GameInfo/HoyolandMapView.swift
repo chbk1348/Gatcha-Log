@@ -74,7 +74,14 @@ struct HoyolandMapView: View {
         }
         // 돌린 채로 듀오를 펼치면 가로 보기를 걷는다 — 넓은 창엔 돌리기 버튼이 없어 되돌릴 방법이 사라진다.
         .onChange(of: isWide) { _, wide in if wide && rotated { rotated = false } }
-        .glgPageTitle(map.title.isEmpty ? "행사장 배치도" : map.title)
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 돌리기 원(아래 툴바와 같은 조건 · 같은 동작).
+        .glgPageTitle(map.title.isEmpty ? "행사장 배치도" : map.title) {
+            if GLGFormFactor.current != .pad && !isWide {
+                GldsHeaderCircleButton(icon: "IconRotate", label: rotated ? "세로로 보기" : "가로로 보기") {
+                    withAnimation(.spring(duration: 0.45, bounce: 0.12)) { rotated.toggle() }
+                }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 좁은 화면에서만 — 폰 · 접은 듀오. 펼친 듀오 · iPad 는 화면이 넓어 판이 기기 크기만큼 커진다(2026-09-28 지시).
