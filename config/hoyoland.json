@@ -3,8 +3,8 @@
   "edition": "호요랜드 2027",
   "_editionEn_comment": "히어로 머리줄에 쓰는 영문 표기. 비우면 edition(한글)을 그대로 씁니다.",
   "editionEn": "HOYOLAND 2027",
-  "startYmd": "2026-10-28",
-  "endYmd": "2026-10-29",
+  "startYmd": "2026-10-16",
+  "endYmd": "2026-10-23",
   "venueName": "",
   "venueHall": "",
   "venueAddress": "",
@@ -12,7 +12,7 @@
   "mapFallbackUrl": "",
   "officialUrl": "",
   "_announce_comment": "개최 발표일 — 상세 페이지 카운트다운 진행 바의 출발점이다.",
-  "announceYmd": "2026-10-07",
+  "announceYmd": "2026-10-04",
   "_ticket_comment": "status: undecided | announced | on_sale | sold_out. 예매가 공개되면 status 를 바꾸고 vendor·openLabel·priceLabel·url 을 채운다. openYmd(yyyy-MM-dd)+openHour 는 알림 예약이 읽는 값이라 openLabel 과 별도로 채워야 알림이 간다.",
   "ticket": {
     "status": "undecided",
@@ -27,7 +27,16 @@
     "appScheme": ""
   },
   "_entryGroups_comment": "입장 조 편성 — 「내 입장권」이 고르게 할 목록이다. name 은 조 글자만(\"A조\" 가 아니라 \"A\"), time 은 24시간 표기 HH:mm. 위 ticket.note 안내문에도 같은 내용이 글로 있는데, 그쪽은 읽는 자리고 여기는 고르는 자리다 — 조 편성이 바뀌면 둘 다 고친다. 비우면 「내 입장권」 섹션이 통째로 사라진다.",
-  "entryGroups": [],
+  "entryGroups": [
+    {
+      "name": "A",
+      "time": "10:00"
+    },
+    {
+      "name": "B",
+      "time": "10:30"
+    }
+  ],
   "_map_comment": "행사장 배치도 — 공식 BOOTH MAP 을 앱에서 다시 그린다. 좌표는 비율(0~100)이라 어떤 화면 폭에서도 같은 그림이 나온다. kind 는 goods·stage·booth·food·game·entry·etc 중 하나이고, 누르면 어디로 가는지와 색이 이 값으로 갈린다(game 이면 game 이름의 게임색). accent 는 공식 배치도에서 흰 면으로 띄운 칸. zones 를 비우면 「둘러보기」의 맵스 칸이 통째로 사라진다.",
   "map": {
     "title": "",
