@@ -1,8 +1,5 @@
 package com.gatcha.log.ui.home
 
-import com.gatcha.log.ui.components.GldsButton
-import com.gatcha.log.ui.components.GldsSize
-import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketKicker
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketShape
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketStub
@@ -26,7 +23,6 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Checklist
@@ -85,6 +81,8 @@ import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.HomeLogic
+import com.gatcha.log.data.HomeScheduleRow
 import com.gatcha.log.data.NewsLogic
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.AnniversaryInfo
@@ -100,10 +98,14 @@ import com.gatcha.log.data.TodayTaskKind
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.GlgTabHeaderBottom
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
+import com.gatcha.log.ui.components.GlgHeaderElementHeight
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.theme.DangerBackground
@@ -142,52 +144,50 @@ fun HomeHeader(
     onSignOut: () -> Unit,
     onSignIn: () -> Unit,
 ) {
-    // 프로필(아바타+닉네임) 탭 → 로그아웃 드롭다운. 우측 알림벨.
-    // 프로필은 다른 헤더 버튼(알림벨)과 동일 톤의 알약 버튼 — accent 10% 배경 + accent 30% 아웃라인.
-    val accent = LocalAccent.current
+    // 프로필(아바타+닉네임) 탭 → 로그아웃 드롭다운. 그 옆 알림벨.
+    // 프로필과 알림을 **캡슐 하나**로 묶고 사이에 세로선을 둔다(C 「묶음 캡슐」, 10/15) — 둘 다 '나'에 관한 것이라 붙여 둔다.
+    // 캡슐은 왼쪽에 놓인다(시안 그대로). 오른쪽은 비운다.
     var menuOpen by remember { mutableStateOf(false) }
     Row(
-        // 다른 탭(GlgTabHeader)과 동일한 높이·세로 여백. 가로만 홈 고유(알약이 좌측 끝에 붙는 레이아웃).
+        // 다른 탭(GlgTabHeader)과 동일한 높이·세로 여백. 가로 여백은 없다 — 캡슐 왼쪽이 다른 탭 헤더와 같은 16 에 선다.
         modifier = Modifier
             .fillMaxWidth()
             .height(GlgTabHeaderHeight)
-            .padding(start = 4.dp, end = 2.dp, top = 12.dp, bottom = 16.dp),
+            .padding(top = 12.dp, bottom = GlgTabHeaderBottom),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White)                     // 불투명 베이스(콘텐츠 비침 방지)
-                    .background(accent.copy(alpha = 0.10f))      // 위에 accent 틴트
-                    .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
-                    .height(44.dp)                               // 헤더 원형 버튼(44dp)과 높이 통일
-                    .clickable { menuOpen = true }
-                    .padding(start = 5.dp, end = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ProfileAvatar(photoUrl = photoUrl, size = 30.dp)
-                Spacer(Modifier.width(8.dp))
-                Text(nickname, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+        // 안쪽 여백 0 — 프로필 칸이 왼쪽 4 · 오른쪽 14 를, 알림 칸(52)이 오른쪽 둥근 끝을 스스로 갖는다.
+        // 사진(36)은 캡슐 높이(48) 가운데에 선다 — 위아래 6.
+        GlgHeaderButtonGroup(contentPadding = PaddingValues(0.dp)) {
+            Box {
+                Row(
+                    modifier = Modifier
+                        .height(GlgHeaderElementHeight)
+                        .clickable { menuOpen = true }
+                        .padding(start = 4.dp, end = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProfileAvatar(photoUrl = photoUrl, size = 36.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(nickname, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                }
+                GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    GlgDropdownItem(
+                        text = if (isGuest) "로그인" else "로그아웃",
+                        icon = if (isGuest) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout,
+                        danger = !isGuest,
+                        onClick = { menuOpen = false; if (isGuest) onSignIn() else onSignOut() },
+                    )
+                }
             }
-            GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                GlgDropdownItem(
-                    text = if (isGuest) "로그인" else "로그아웃",
-                    icon = if (isGuest) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout,
-                    danger = !isGuest,
-                    onClick = { menuOpen = false; if (isGuest) onSignIn() else onSignOut() },
-                )
-            }
+            GlgHeaderGroupItem(
+                GlgLineIcons.Bell,
+                contentDescription = "알림",
+                width = GlgHeaderElementHeight + 4.dp,   // 52 — 둥근 오른쪽 끝을 더 받는다(시안 48 + 칸 커진 만큼)
+                badgeCount = alertCount,
+                onClick = onBellClick,
+            )
         }
-        Spacer(Modifier.weight(1f))
-        GlgCircleIconButton(
-            Icons.Default.NotificationsNone,
-            contentDescription = "알림",
-            badgeCount = alertCount,
-            outlined = true,
-            solidBackground = true,
-            onClick = onBellClick,
-        )
     }
 }
 
@@ -215,7 +215,10 @@ fun HomeSectionHeader(title: String, count: Int? = null, actionTitle: String? = 
 }
 
 // ── 이번 달 지출 (홈 3.0 — 히어로 대신 일반 섹션) ──────────────────────────────
-/** 이번 달 지출 — 금액 · 지난달 대비 · 예산 막대. 예산이 없으면 옛 히어로처럼 「미설정」 + 예산 설정하기. */
+/**
+ * 이번 달 지출 — 금액 · 지난달 대비 · 예산 막대. 예산이 없으면 「미설정」.
+ * 예산 페이지로 가는 길은 머리의 「예산 관리 ›」 하나다 — 「예산 설정하기」 버튼은 같은 곳으로 가는 중복이라 걷었다(10/15).
+ */
 @Composable
 fun MonthSpendSection(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget: () -> Unit) {
     val accent = LocalAccent.current
@@ -253,10 +256,7 @@ fun MonthSpendSection(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudge
             }
         } else {
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("미설정", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.weight(1f))
-                GldsButton("예산 설정하기", onBudget, variant = GldsVariant.Secondary, size = GldsSize.S)
-            }
+            Text("미설정", fontSize = 13.sp, color = TextSecondary)
         }
     }
 }
@@ -598,35 +598,30 @@ private fun PityTier.shortLabel(): String = when (this) {
 /** 이번 주 게임 일정 — 카드 없이 섹션 머리 + 목록. 목록 전체가 눌려 게임 정보 일정으로 간다(기능 그대로). */
 @Composable
 fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, onTap: () -> Unit) {
-    val now = System.currentTimeMillis()
-    val items = (events.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) } +
-        challenges.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) })
-        .filter { it.third.first > now }.sortedBy { it.third.first }.take(3)
+    val items = HomeLogic.weekSchedule(events, challenges)
     // 일정이 없어도 **섹션은 남긴다.** 빠지면 "이번 주가 한가하다"와 "아직 못 불러왔다"가
     // 화면에서 똑같아 보인다(로딩 스켈레톤도 같은 자리에 뜬다). 비었다는 것도 알려야 할 상태다.
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         HomeSectionHeader("이번 주 일정", actionTitle = "전체 ›", onAction = onTap)
-        Column(Modifier.fillMaxWidth().clickable { onTap() }) { ScheduleRows(items, now) }
+        Column(Modifier.fillMaxWidth().clickable { onTap() }) { ScheduleRows(items) }
     }
 }
 
-/** 마감 임박(D-0~3) D-day 색 — 게임 정보 일정(ScheduleLogic.urgent)과 같은 기준 · 같은 값. */
-
+/** 마감 임박(D-0~3)만 D-day 를 강조한다 — 게임 정보 일정과 같은 기준 · 같은 색([HomeLogic.weekSchedule]). */
 @Composable
-private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>, now: Long) {
+private fun ScheduleRows(items: List<HomeScheduleRow>) {
     if (items.isEmpty()) {
         Text("이번 주 마감 일정이 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
         return
     }
     items.forEachIndexed { i, row ->
         if (i > 0) HorizontalDivider(color = HomeHair)
-        val dDay = kotlin.math.ceil((row.third.first - now) / 86_400_000.0).toInt()
         Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            HomeGameTag(row.first)
+            HomeGameTag(row.game)
             Spacer(Modifier.width(12.dp))
-            Text(row.second, fontSize = 15.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(row.name, fontSize = 15.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(12.dp))
-            Text(row.third.second, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (dDay in 0..3) Urgent else TextPrimary)
+            Text(row.dDayLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (row.urgent) Urgent else TextPrimary)
         }
     }
 }

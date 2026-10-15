@@ -54,7 +54,9 @@ actual class SecureKeyValueStore actual constructor(name: String) {
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
         }
-        runCatching { create() }.getOrNull() ?: run {
+        // 처음 실패했다고 바로 지우지 않는다(27.52.0) — 키 저장소가 잠깐 실패한 것일 수 있는데, 지우면 HoYoLAB 연동이 풀린다.
+        // 한 번 더 열어 보고, 그래도 안 되면(파일이 깨졌거나 키가 바뀜) 그때 지우고 새로 만든다.
+        runCatching { create() }.getOrNull() ?: runCatching { create() }.getOrNull() ?: run {
             ctx.deleteSharedPreferences(name)
             runCatching { create() }.getOrElse { e ->
                 error = "암호화 저장소를 열 수 없습니다 (${e::class.simpleName}: ${e.message})"

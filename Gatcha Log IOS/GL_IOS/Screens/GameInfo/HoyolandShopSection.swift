@@ -160,7 +160,7 @@ struct HoyolandGoodsView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // 지금 목록 기준으로 센다 — 목록에서 빠진 이름만 남은 장바구니로 「담은 0종 · 0원」 바가 서지 않게.
             if hasCartLines {
-                goodsBar(cart).transition(.move(edge: .bottom).combined(with: .opacity))
+                goodsBar(cart).gldsToastObstacle().transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(GLGMotion.standard(), value: hasCartLines)
@@ -172,7 +172,12 @@ struct HoyolandGoodsView: View {
         .onChange(of: hasCartLines) { _, shown in store.hidesAddButton = shown }
         // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
         .background(Color.white)
-        .glgPageTitle("굿즈 목록")
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 이용 안내 원(아래 툴바와 같은 조건).
+        .glgPageTitle("굿즈 목록") {
+            if !event.goodsGuide.isEmpty {
+                GldsHeaderCircleButton(icon: "IconInfo", label: "굿즈존 이용 안내") { showGuide = true }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showCart) {
             HoyolandCartView(event: event, store: store)
@@ -182,7 +187,7 @@ struct HoyolandGoodsView: View {
         .toolbar {
             if !event.goodsGuide.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showGuide = true } label: { Image(systemName: "info.circle") }
+                    Button { showGuide = true } label: { GLGLineIcon("IconInfo", label: "굿즈존 이용 안내") }
                 }
             }
         }
@@ -474,7 +479,12 @@ struct HoyolandCartView: View {
         .scrollIndicators(.hidden)
         // 흰 바탕(10/1).
         .background(Color.white)
-        .glgPageTitle("장바구니")
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 「비우기」 글자 알약(툴바 때의 위험색 그대로).
+        .glgPageTitle("장바구니") {
+            if !store.hoyolandCart.isEmpty {
+                GldsHeaderTextButton(title: "비우기", color: GLGDanger) { store.clearGoodsCart() }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 비우기는 헤더 우측 — 실수로 누르기 어려운 자리다.
@@ -994,7 +1004,7 @@ struct HoyolandGoodsImageSheet: View {
             // 네비 바 · 홈 인디케이터를 재는 [glgSheetChromeHeight] 보다 **안쪽**에 건다 —
             // 바깥에 걸면 시트가 바 높이를 chrome 으로 한 번, [barHeight] 로 또 한 번 세어
             // 그만큼 아래가 빈다.
-            .safeAreaInset(edge: .bottom) { if !readOnly { cartBar(item: item, quantity: quantity) } }
+            .safeAreaInset(edge: .bottom) { if !readOnly { cartBar(item: item, quantity: quantity).gldsToastObstacle() } }
             .navigationTitle("굿즈 사진")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1157,38 +1167,8 @@ struct HoyolandGuideContent: View {
     let text: String
     @Environment(\.glgAccent) private var accent
 
-    private struct Row { var label: String; var value: String; var subs: [String] }
-    private struct Group { var title: String; var rows: [Row] }
-
-    private var groups: [Group] {
-        var out: [Group] = []
-        var title = ""
-        var rows: [Row] = []
-        func flush() {
-            if !title.isEmpty || !rows.isEmpty { out.append(Group(title: title, rows: rows)) }
-            title = ""; rows = []
-        }
-        for raw in text.components(separatedBy: "\n") {
-            let body = raw.trimmingCharacters(in: .whitespaces)
-            let indented = !body.isEmpty && (raw.hasPrefix("  ") || raw.hasPrefix("\t"))
-            if body.isEmpty { flush(); continue }
-            if indented, !rows.isEmpty {
-                rows[rows.count - 1].subs.append(body.hasPrefix("· ") ? String(body.dropFirst(2)) : body)
-            } else if body.hasPrefix("· ") {
-                let item = String(body.dropFirst(2))
-                if let r = item.range(of: " — ") {
-                    rows.append(Row(label: String(item[..<r.lowerBound]), value: String(item[r.upperBound...]), subs: []))
-                } else {
-                    rows.append(Row(label: item, value: "", subs: []))
-                }
-            } else {
-                if !rows.isEmpty { flush() }
-                title = body
-            }
-        }
-        flush()
-        return out
-    }
+    /// 묶음 · 줄을 가르는 규칙은 공용 `HoyolandText.guideGroups` 에 있다(Android 와 같은 함수).
+    private var groups: [HoyolandGuideGroup] { HoyolandText.shared.guideGroups(text: text) }
 
     var body: some View {
         // 묶음마다 깔던 회색 면을 걷고 헤어라인으로 가른다(10/1).

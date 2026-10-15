@@ -4,6 +4,7 @@ import com.gatcha.log.util.SafeUrl
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.HoyolandDefaults
+import com.gatcha.log.data.HoyolandMocks
 import com.gatcha.log.data.HoyolandEvent
 import com.gatcha.log.data.HoyolandBooth
 import com.gatcha.log.data.HoyolandGoods
@@ -135,7 +136,7 @@ object HoyolandApi {
      * [debugClearStageMock] 이나 당겨서 새로고침 한 번이면 원래대로 돌아온다.
      */
     fun debugInjectStageMock() {
-        cached = HoyolandDefaults.stageMockEvent(mockBase())
+        cached = HoyolandMocks.stageMockEvent(mockBase())
         cachedAtMillis = currentTimeMillis()
         stageMockOn = true
         phaseMockKey = ""
@@ -148,7 +149,7 @@ object HoyolandApi {
      * 똑같이 걷힌다. 빈 키(또는 모르는 키)면 목업을 끈다.
      */
     fun debugInjectPhaseMock(key: String) {
-        val mock = HoyolandDefaults.phaseMockEvent(key, mockBase())
+        val mock = HoyolandMocks.phaseMockEvent(key, mockBase())
         if (mock == null) {
             debugClearStageMock()
             return

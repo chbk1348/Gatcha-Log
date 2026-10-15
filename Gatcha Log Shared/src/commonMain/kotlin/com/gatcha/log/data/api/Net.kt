@@ -1,6 +1,8 @@
 package com.gatcha.log.data.api
 
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import com.gatcha.log.data.ErrorBus
 import com.gatcha.log.util.currentTimeMillis
 import io.ktor.client.HttpClient
@@ -110,7 +112,7 @@ object Net {
      */
     suspend fun get(url: String, headers: Map<String, String> = emptyMap(), timeoutMs: Int = TIMEOUT_MS.toInt()): NetResult {
         val startedAt = currentTimeMillis()
-        val first = request(HttpMethod.Get, url, headers, null, timeoutMs.toLong())
+        val first = gated(url) { request(HttpMethod.Get, url, headers, null, timeoutMs.toLong()) }
         if (!first.retryable() || !retryableHost(url)) return first
         // **오래 걸려 실패한 것은 다시 보내지 않는다**(27.51.1). 재시도는 연결이 잠깐 끊긴 것 같은 「바로 난 실패」를 위한 것이다.
         // 12초를 다 채우고 끊긴 요청을 또 보내면 같은 서버에 12초를 한 번 더 건다 — 느린 출처 하나가 새로고침을 24초 붙잡았다.
@@ -120,7 +122,23 @@ object Net {
     }
 
     suspend fun post(url: String, headers: Map<String, String> = emptyMap(), body: String = "{}", timeoutMs: Int = TIMEOUT_MS.toInt()): NetResult =
-        request(HttpMethod.Post, url, headers, body, timeoutMs.toLong())
+        gated(url) { request(HttpMethod.Post, url, headers, body, timeoutMs.toLong()) }
+
+    /**
+     * **HoYoLAB 으로 가는 요청은 한꺼번에 [HOYOLAB_MAX_CONCURRENT] 건까지만**(27.52.0).
+     *
+     * 갱신 한 번에 노트 · 원장 · 전투 · 로스터(젠레스는 에이전트마다 한 건)가 같은 호스트로 동시에 나간다. 기능마다
+     * 따로 줄을 세웠을 뿐 전체를 묶는 한도가 없어, 겹치면 수십 건이 한꺼번에 나가 레이트리밋에 걸릴 수 있었다.
+     * 다른 호스트는 묶지 않는다(서로 다른 서버다).
+     */
+    private val hoyolabGate = kotlinx.coroutines.sync.Semaphore(HOYOLAB_MAX_CONCURRENT)
+    private const val HOYOLAB_MAX_CONCURRENT = 6
+
+    private suspend fun gated(url: String, block: suspend () -> NetResult): NetResult {
+        if (sourceOf(url) != "HoYoLAB") return block()
+        hoyolabGate.acquire()
+        try { return block() } finally { hoyolabGate.release() }
+    }
 
     /**
      * 닿는지만 본다 — **재시도도, 오류 안내도 없다**([ApiPing] 전용). 한 번 보내 걸린 시간을 재는 용도라
@@ -157,7 +175,8 @@ object Net {
             // 흔하게 찔러 본다(신규 캐릭터 메타·아이콘·아직 안 올라온 일정). 그걸 전부
             // "서버가 응답하지 않아요" 로 띄우면 정상 동작 중에도 토스트가 계속 뜬다.
             // 로그에는 남기므로 진단은 그대로 된다.
-            if (result.code != 404 && !quiet) {
+            // 429(요청이 너무 잦음)도 장애가 아니다 — 잠깐 뒤면 풀리는 일시 실패라 안내를 띄우지 않는다(27.52.0).
+            if (result.code != 404 && result.code != 429 && !quiet) {
                 ErrorBus.report(ErrorBus.Kind.SERVER, sourceOf(url), "HTTP ${result.code}")
             }
         }
@@ -167,12 +186,16 @@ object Net {
         // 정상 흐름인데, `catch (Exception)` 이 이것까지 잡는다. 여기서 걸러내지 않으면
         // 사용자에게 "연결하지 못했어요" 가 뜬다(실측: hoyoland.json 요청 중 JobCancellationException).
         //
-        // 반환값은 기존과 같은 `NetResult(-1)` 로 둔다 — 호출부는 이미 -1 을 네트워크 실패로
-        // 처리하고 있고, 취소된 코루틴은 어차피 그 결과를 쓰지 않는다.
+        // **부른 쪽이 취소된 것이면 다시 던진다**(27.52.0). 예전엔 `NetResult(-1)` 을 돌려줘서, 취소된 요청이
+        // 「실패」 상태를 쓰고 나갔다 — 공지를 열었다 나갔다 곧바로 다시 열면 실패 화면이 비쳤고, 출석 중 취소되면
+        // 「네트워크 오류」가 떴다. 부른 쪽이 살아 있는데 안쪽에서만 접힌 요청(엔진 쪽 취소)은 예전처럼 -1 이다.
+        currentCoroutineContext().ensureActive()
         NetResult(-1, "cancelled")
     } catch (e: Exception) {
         // 진단용: 예외(타임아웃·연결 실패 등)는 항상 로깅
         println("GatchaNet: ${method.value} ${url.substringBefore("?")} → 예외 ${e::class.simpleName}: ${e.message}")
+        // 취소가 다른 예외에 싸여 온 경우에도, 부른 쪽이 취소된 것이면 실패로 답하지 않고 취소를 잇는다.
+        if (e.isCausedByCancellation()) currentCoroutineContext().ensureActive()
         when {
             quiet -> Unit   // 닿는지 보려고 찔러 본 요청([ping]) — 실패도 결과다
             // **취소가 다른 예외에 싸여 오는 경우.** 위 catch 는 최상위 타입만 잡는데, 엔진에 따라

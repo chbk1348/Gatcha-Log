@@ -110,16 +110,26 @@ class HoyolandCartTest {
     @Test
     fun 회차가_바뀌면_장바구니를_비운다() {
         val cart = HoyolandCart().withQuantity("행사 아트북", 1)
-        // 2026 → 2027(날짜 미정) 전환. 회차 식별자는 개막일, 없으면 행사명이다.
+        // 2026 → 2027(날짜 미정) 전환. 회차 식별자는 개최 연도다 — 개막일에서 읽고, 없으면 행사명 속 연도.
         val next = HoyolandDefaults.event
-        assertEquals("호요랜드 2027", next.editionKey)
+        assertEquals("2027", next.editionKey)
         assertTrue(next.cartForEdition(cart, savedEdition = "2026-10-02").isEmpty)
         // 회차를 적기 전(이 기능 전)의 저장값도 지난 회차로 본다.
         assertTrue(next.cartForEdition(cart, savedEdition = "").isEmpty)
-        // 다음 회차 날짜가 나와도 식별자가 다시 바뀌므로 2027 미정 시절 장바구니도 비워진다.
+        // 다음 회차 날짜가 나와도 같은 해면 같은 회차다 — 미정 시절에 담아 둔 것이 남는다.
         val dated2027 = next.copy(startYmd = "2027-10-01", endYmd = "2027-10-04")
-        assertEquals("2027-10-01", dated2027.editionKey)
-        assertTrue(dated2027.cartForEdition(cart, savedEdition = next.editionKey).isEmpty)
+        assertEquals("2027", dated2027.editionKey)
+        assertEquals(cart, dated2027.cartForEdition(cart, savedEdition = next.editionKey))
+    }
+
+    @Test
+    fun 개막일을_고쳐도_장바구니가_남는다() {
+        // 예전엔 식별자가 개막일 전체라 하루만 정정해도 담아 둔 것이 비워졌다(27.52.0).
+        val cart = HoyolandCart().withQuantity("행사 아트북", 1)
+        val moved = event.copy(startYmd = "2026-10-03", endYmd = "2026-10-06")
+        assertEquals(cart, moved.cartForEdition(cart, savedEdition = "2026-10-02"))
+        // 예전 형식(행사명)으로 저장된 값도 같은 해면 같은 회차로 읽는다.
+        assertEquals(cart, moved.cartForEdition(cart, savedEdition = "호요랜드 2026"))
     }
 
     @Test

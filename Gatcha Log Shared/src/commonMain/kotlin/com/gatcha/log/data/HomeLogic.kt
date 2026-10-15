@@ -70,6 +70,17 @@ data class TodayTask(
     val key: String,
 )
 
+/** 홈 「이번 주 일정」의 한 줄 — [HomeLogic.weekSchedule] 이 만든다. */
+data class HomeScheduleRow(
+    val game: String,
+    val name: String,
+    val endMillis: Long,
+    /** 「D-3」 · 「D-DAY」. */
+    val dDayLabel: String,
+    /** 마감 임박(D-0~3) — 게임 정보 일정([ScheduleEntry.urgent])과 같은 기준이다. */
+    val urgent: Boolean,
+)
+
 /** 알림 종류 — 카드 아이콘/색/이동 동작을 결정. */
 enum class HomeAlertKind { BUDGET_OVER, BUDGET_NEAR, BUDGET_GAME_OVER, BANNER, ATTENDANCE }
 
@@ -119,6 +130,27 @@ object HomeLogic {
             if (spent <= 0L && limit <= 0L) null else GameSpend(g, spent, limit)
         }.sortedByDescending { it.spent }
 
+    /**
+     * 홈 「이번 주 일정」 — 이벤트 · 정기 콘텐츠를 한데 모아 마감이 가까운 순으로 [max]건. 끝난 것은 뺀다.
+     *
+     * 강조(D-0~3)는 줄에 적히는 D-day 와 **같은 날짜 계산**으로 정한다. 화면마다 남은 시간을 24시간으로
+     * 나눠 올림하던 때는 「D-3」이라고 적힌 줄이 강조되지 않는 시간대가 있었다.
+     */
+    fun weekSchedule(
+        events: List<GameEvent>,
+        challenges: List<GameChallenge>,
+        nowMillis: Long = currentTimeMillis(),
+        max: Int = 3,
+    ): List<HomeScheduleRow> {
+        fun row(game: String, name: String, end: Long, label: String) =
+            HomeScheduleRow(game, name, end, label, urgent = DateUtil.daysLeft(end, nowMillis) in 0..3)
+        return (events.map { row(it.game, it.name, it.endMillis, it.dDayLabel(nowMillis)) } +
+            challenges.map { row(it.game, it.name, it.endMillis, it.dDayLabel(nowMillis)) })
+            .filter { it.endMillis > nowMillis }
+            .sortedBy { it.endMillis }
+            .take(max)
+    }
+
     /** 임박 픽업 배너 — 7일 이내 종료, D-day 오름차순, 최대 4 (상시/종료 배너는 dDay 범위 밖으로 자연 제외). */
     fun soonBanners(banners: List<GachaBanner>, nowMillis: Long = currentTimeMillis()): List<GachaBanner> =
         banners.filter { it.dDay(nowMillis) in 0..7 }.sortedBy { it.dDay(nowMillis) }.take(4)
@@ -130,8 +162,9 @@ object HomeLogic {
             .map {
                 ResinAlert(
                     GameData.byName(it.game).shortName, it.resinLabel,
-                    it.currentResin, it.maxResin, it.resinRecoveryTime,
-                    it.currentResin >= it.maxResin,
+                    // 가득 찰 시각이 지났으면 가득으로 센다([LiveNote.resinNow]) — 캐시로 열어도 문구가 갈리지 않게.
+                    it.resinNow(), it.maxResin, it.resinRecoveryTime,
+                    it.resinNow() >= it.maxResin,
                 )
             }
 
@@ -177,7 +210,7 @@ object HomeLogic {
         combats: List<CombatDeadline> = emptyList(),
         nowMillis: Long = currentTimeMillis(),
     ): List<TodayTask> = buildList {
-        val budgetPct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
+        val budgetPct = if (budget > 0) (monthlyTotal * 100 / budget).coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else 0
         if (pendingAttendance > 0) {
             add(TodayTask(TodayTaskKind.ATTENDANCE, "출석 안 한 게임 ${pendingAttendance}개", "한 번에 출석", urgent = false, busyable = true, key = "attendance"))
         }
@@ -195,7 +228,9 @@ object HomeLogic {
             add(TodayTask(TodayTaskKind.BANNER, "${urgentBanner.name} 픽업 ${dhLabel(urgentBanner.endMillis, nowMillis)} 막바지", "픽업 계획", urgent = true, busyable = false, key = "banner:${urgentBanner.name}"))
         }
         if (budget > 0 && monthlyTotal > budget) {
-            add(TodayTask(TodayTaskKind.BUDGET, "예산 ${budgetPct - 100}% 초과", "예산 점검", urgent = true, busyable = false, key = "budget"))
+            // 넘은 만큼은 올림한다 — 100,500 / 100,000 이 "예산 0% 초과" 로 나왔다(27.52.0).
+            val overPct = ((monthlyTotal - budget) * 100 + budget - 1) / budget
+            add(TodayTask(TodayTaskKind.BUDGET, "예산 ${overPct.coerceAtLeast(1)}% 초과", "예산 점검", urgent = true, busyable = false, key = "budget"))
         } else if (budget > 0 && budgetPct >= 90) {
             add(TodayTask(TodayTaskKind.BUDGET, "예산 ${budgetPct}% 사용", "예산 점검", urgent = true, busyable = false, key = "budget"))
         }
@@ -229,7 +264,7 @@ object HomeLogic {
         banners.forEach { b ->
             val d = b.dDay(nowMillis)
             if (d in 0..3) {
-                add(HomeAlert(HomeAlertKind.BANNER, "${b.name} 픽업 배너 종료 ${if (d == 0) "D-DAY" else "D-$d"}", "banner:${b.name}"))
+                add(HomeAlert(HomeAlertKind.BANNER, "${b.name} 픽업 배너 종료 ${if (d == 0) "D-DAY" else "D-$d"}", "banner:${b.name}:${b.endMillis}"))
             }
         }
         val pending = pendingAttendanceCount(attendanceToday, attendanceGames)

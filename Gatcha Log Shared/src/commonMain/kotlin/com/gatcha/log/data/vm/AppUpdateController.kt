@@ -1,7 +1,9 @@
 package com.gatcha.log.data.vm
 
+import com.gatcha.log.data.ToastKind
 import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
+import com.gatcha.log.data.api.fetchUpdateCheck
 import com.gatcha.log.data.api.mustUpdate
 import com.gatcha.log.data.platformStartInAppUpdate
 import kotlinx.coroutines.CoroutineScope
@@ -13,7 +15,7 @@ import kotlinx.coroutines.launch
 /** 인앱 업데이트 확인 · 실행 — 뷰모델에서 떼어 낸 덩어리([FeedbackController] 머리말 참고). */
 internal class AppUpdateController(
     private val scope: CoroutineScope,
-    private val status: (String) -> Unit,
+    private val status: (String, ToastKind) -> Unit,
 ) {
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     val info: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
@@ -25,14 +27,18 @@ internal class AppUpdateController(
     private val _forceUpdate = MutableStateFlow(false)
     val force: StateFlow<Boolean> = _forceUpdate.asStateFlow()
 
-    /** 원격 version.json 과 현재 버전 비교. [manual] 이면 최신일 때 토스트로 알림. */
+    /** 원격 version.json 과 현재 버전 비교. [manual] 이면 결과를 토스트로 알린다 — 최신인지, 확인하지 못했는지. */
     fun check(manual: Boolean) {
         scope.launch {
-            val info = UpdateChecker.check()
+            val result = fetchUpdateCheck(UpdateChecker.currentVersionCode())
+            val info = result.info
             if (info != null) {
                 _updateInfo.value = info
                 _forceUpdate.value = mustUpdate(UpdateChecker.currentVersionCode(), info)
-            } else if (manual) status("이미 최신 버전이에요")
+            } else if (manual) {
+                if (result.failed) status("업데이트를 확인하지 못했어요 — 연결을 확인하고 다시 시도해 주세요", ToastKind.ERROR)
+                else status("이미 최신 버전이에요", ToastKind.SUCCESS)
+            }
         }
     }
 
@@ -55,7 +61,7 @@ internal class AppUpdateController(
         platformStartInAppUpdate(
             info,
             onProgress = { _updateProgress.value = it },
-            onStatus = { status(it) },
+            onStatus = { status(it, ToastKind.INFO) },
         )
     }
 }

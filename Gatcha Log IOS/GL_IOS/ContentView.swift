@@ -14,6 +14,12 @@ struct ContentView: View {
     /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
     @State private var store = SpendingStore.shared
     @State private var selectedTab: Int = 0
+    /// 탭 바의 마이페이지 아이콘 — 로그인한 계정의 구글 프로필 사진(원형). 게스트이거나 못 받았으면 nil → 사람 아이콘.
+    @State private var myPageTabIcon: UIImage? = nil
+    /// iOS 18 아이폰의 떠 있는 탭 툴바([GLGFloatingTabBar])를 숨기라고 한 화면 수 — 예산 관리 · 업데이트 로그([glgHidesTabBar]).
+    @State private var floatingTabBarHideDepth = 0
+    /// 화면 아래 안전 영역(홈 인디케이터) — 떠 있는 툴바를 화면 바닥 기준으로 놓고, 탭 화면 아래 여백을 정하는 데 쓴다.
+    @State private var windowSafeBottom: CGFloat = 0
     /// 지출 목록이 다중 선택 중인가 — 선택 하단바가 떠 있는 동안 '추가' 버튼을 감춘다.
     /// (SpendingView 의 로컬 상태로 두면 TabView 오버레이인 그 버튼이 볼 수 없다)
     ///
@@ -32,22 +38,23 @@ struct ContentView: View {
     @State private var showExperimentAlert = false
     #endif
 
-    /// 지출 추가/수정 시트 — **표시 여부와 대상을 한 상태로 합쳤다**(nil = 닫힘).
+    /// 지출 추가/수정 페이지 — **표시 여부와 대상을 한 상태로 합쳤다**(nil = 닫힘).
     ///
-    /// 예전엔 showAddSpending(Bool) + editingSpending(Spending?) 두 개였는데, `.sheet(isPresented:)` 는
-    /// 표시 시점에 내용을 만들면서 아직 반영되지 않은 editingSpending(=nil)을 집어갈 수 있었다.
-    /// 그러면 '수정'을 눌렀는데 빈 '추가' 폼이 뜬다 — 타이밍에 따라 갈려 간헐적으로 재현됐다.
-    /// AddSpendingView 의 didInit 가드가 nil 로 한 번 초기화되면 필드를 다시 채우지 않아 증상이 굳었다.
-    /// `.sheet(item:)` 은 대상 값을 표시 시점에 확정해 넘기므로 이 경합 자체가 성립하지 않는다.
-    @State private var spendingSheet: SpendingSheetTarget? = nil
+    /// 예전엔 showAddSpending(Bool) + editingSpending(Spending?) 두 개였는데, 표시 시점에 내용을 만들면서
+    /// 아직 반영되지 않은 editingSpending(=nil)을 집어갈 수 있었다. 그러면 '수정'을 눌렀는데 빈 '추가' 폼이 뜬다 —
+    /// 타이밍에 따라 갈려 간헐적으로 재현됐다. AddSpendingView 의 didInit 가드가 nil 로 한 번 초기화되면
+    /// 필드를 다시 채우지 않아 증상이 굳었다. 대상을 값으로 들고 있으면 이 경합 자체가 성립하지 않는다.
+    ///
+    /// 이 값이 있으면 [spendingEditorPage] 가 **탭 화면 전체를 덮는 페이지**를 오른쪽에서 밀어 넣는다(10/13 —
+    /// 그 전에는 탭마다 물린 시트였다).
+    @State private var spendingEditor: SpendingEditorTarget? = nil
 
-    /// 지출 편집 페이지의 대상. `.sheet(item:)`·`.navigationDestination(item:)` 에 넘기기 위해
-    /// Identifiable + Hashable.
+    /// 지출 편집 페이지의 대상. 값이 바뀐 것을 전환의 계기로 삼으려고 Identifiable + Hashable.
     ///
     /// 동등성·해시는 **[id] 로만** 판단한다. Kotlin `Spending` 은 Swift 쪽에서 값 동등성이
     /// 보장되지 않아 그대로 해싱하면 같은 대상이 매번 달라 보일 수 있고, 그러면
-    /// 네비게이션이 목적지를 새로 밀어 넣는다.
-    private enum SpendingSheetTarget: Identifiable, Hashable {
+    /// 페이지를 새로 밀어 넣는다.
+    private enum SpendingEditorTarget: Identifiable, Hashable {
         case add
         case edit(Spending)
 
@@ -68,15 +75,19 @@ struct ContentView: View {
             }
         }
     }
-    /// 서브페이지(연간 리포트·알림 상세 등)가 열린 탭 집합 — 해당 탭에서만 탭바 숨김.
-    /// (전역 단일 플래그는 탭 전환 시 상태가 어긋나므로 탭별로 독립 관리)
-    @State private var tabsWithSubPage: Set<Int> = []
+    /// 지출 입력 페이지가 떠 있는 동안 들어온 **탭 전환 요청** — 페이지를 벗어나면 적용한다(27.52.0, [requestTab]).
+    @State private var deferredTab: Int? = nil
 
-    /// 지출 탭 스택 경로 — 목록 → 상세 → 수정이 여기 쌓인다.
+    /// 지출 탭 스택 경로 — 목록 → 상세가 여기 쌓인다(추가 · 수정은 스택 밖의 페이지다 — [spendingEditorPage]).
     @State private var spendingPath: [SpendingRoute] = []
 
-    /// 지출 입력(추가·수정)이 열려 있는가 — 이제 **시트**라 경로가 아니라 이 상태를 본다.
-    private var spendingEditorOpen: Bool { spendingSheet != nil }
+    /// 지출 입력(추가·수정)이 열려 있는가 — 탭 스택의 경로가 아니라 이 상태를 본다.
+    private var spendingEditorOpen: Bool { spendingEditor != nil }
+
+    /// 지출 탭에서 하위 화면이 열려 있는가 — iOS 18(탭바 위 '+' 오버레이)에서 그동안 '추가'를 감춘다.
+    /// 상세는 경로([spendingPath])에 쌓여 여기서 보이지만, 캘린더 · 인사이트는 뷰 기반 `NavigationLink` 라
+    /// 경로에 안 잡힌다 — 그쪽은 화면이 뜨고 사라질 때 `store.spendingSubpageOpen` 을 세운다(SpendingView).
+    private var spendingTabSubpageOpen: Bool { !spendingPath.isEmpty || store.spendingSubpageOpen }
 
     /// 초기 클라우드 동기화 게이트(로딩 화면) 활성 여부 — 게이트 동안 탭바·추가 버튼 숨김
     ///
@@ -161,27 +172,15 @@ struct ContentView: View {
             }
         }
         .animation(GLGMotion.standard(), value: store.signingOut)
-        // 업데이트 창 — Android UpdateDialog(GlgDialog)와 같은 가운데 카드 · 같은 제목 · 같은 단추 순서.
-        // 실행할 때 · 설정 ▸ 업데이트 확인 · 새 버전 알림을 눌렀을 때 모두 이 창으로 온다.
-        // 강제 업데이트(최소 지원 버전 미만)면 「나중에」가 없고 바깥을 눌러도 닫히지 않는다 — 데이터 꼬임 방지 · 구버전 지원 종료.
-        // iOS 는 앱이 설치까지 할 수 없어 「릴리즈 페이지 열기」가 GitHub 릴리즈 페이지를 연다(거기서 IPA 를 받아 설치).
-        .overlay {
-            if store.updateAvailable {
-                UpdateDialog(
-                    force: store.forceUpdate,
-                    versionName: store.updateVersionName,
-                    notes: store.updateNotes,
-                    onUpdate: { store.startInAppUpdate() },
-                    onDismiss: { store.dismissUpdate() }
-                )
-                .transition(.opacity)
-            }
-        }
-        .animation(GLGMotion.standard(), value: store.updateAvailable)
+        // 업데이트 창 · 실행 시 새 버전 확인은 iOS 에서 뺐다(10/15 지시) — 사이드로드 배포라 앱이 설치를 도울 수 없다. Android 만 남는다.
         // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
         .animation(GLGMotion.standard(), value: rootPhase)
         // 홈이 뜨기 전(온보딩 · 로그인 · 불러오기)에는 알림을 붙잡았다가 홈에서 보낸다(9/29).
-        .task(id: rootPhase) { store.setRootReady(rootPhase == .tabs) }
+        .task(id: rootPhase) {
+            store.setRootReady(rootPhase == .tabs)
+            // 탭 화면을 떠나면(로그아웃 등) 열려 있던 지출 입력도 접는다 — 남겨 두면 다시 들어왔을 때 빈 폼이 덮고 뜬다.
+            if rootPhase != .tabs { spendingEditor = nil }
+        }
         .onAppear {
             // 테마(액센트) 변경 구독 — 마이페이지에서 테마를 바꾸면 탭바 틴트도 즉시 반영
             MainViewControllerKt.observeAccentColor { argb in
@@ -192,8 +191,6 @@ struct ContentView: View {
                 syncGateActive = active.boolValue
             }
         }
-        // 실행 시 원격 매니페스트로 강제 업데이트 여부 확인(구버전이면 store.forceUpdate=true).
-        .task { store.checkForUpdate(manual: false) }
         #if DEBUG
         // 개발자 전용 — 실행하자마자 API Ping 을 N 회 잰다(실행 인자 `-glPing 3`). 결과는 콘솔 `GatchaPing` 과 기기 기록에 남는다.
         .task {
@@ -216,11 +213,19 @@ struct ContentView: View {
         .onChange(of: store.needsLogin) { _, _ in syncGateActive = MainViewControllerKt.isSyncGateActive() }
         .onReceive(NotificationCenter.default.publisher(for: .glgOpenTab)) { note in
             if let tab = note.object as? Int, !syncGateActive, !needsIntro, !store.needsLogin {
+                requestTab(tab)
+            }
+        }
+        // 보류해 둔 탭 전환 — 지출 입력 페이지를 벗어나는 순간에 적용한다([requestTab]).
+        .onChange(of: spendingEditor) { _, editor in
+            if editor == nil, let tab = deferredTab {
+                deferredTab = nil
                 selectedTab = tab
             }
         }
         // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
-        .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
+        // 앱 위의 별도 창에 띄운다(GLDS 2.1, 10/15) — 시트가 열려 있어도 보이고, 아래 바 · 키보드 위 12 에 선다.
+        .gldsToast(store.statusToast) { store.clearStatus() }
         // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
         // 제목이 종류마다 달라 ErrorAlert 가 제목까지 들고 온다(Android MainActivity 파리티).
         .alert(store.errorAlert?.title ?? "", isPresented: Binding(
@@ -242,7 +247,7 @@ struct ContentView: View {
                 + "설정 > 앱 버전에 빨간 EXPERIMENT 표시가 있으면 이 빌드입니다.")
         }
         // 강조색을 **최상위에서** 주입한다. 예전엔 탭 콘텐츠에만 걸어서, 탭 바깥에 붙는 것들
-        // (지출 추가/수정 시트·전역 토스트·네트워크 얼럿)이 주입이 없는 환경을 물려받아
+        // (지출 추가/수정 페이지·전역 토스트·네트워크 얼럿)이 주입이 없는 환경을 물려받아
         // 사용자가 무슨 테마를 골랐든 항상 기본 민트로 떴다.
         // 로그인 전 화면은 더 안쪽에서 preLoginAccent 로 덮어쓰므로(가까운 쪽이 이긴다) 그대로 민트로 남는다.
         .glgAccent(index: store.accentIndex)
@@ -259,55 +264,60 @@ struct ContentView: View {
             if let link = note.object as? String { store.handleNotificationLink(link) }
         }
         .onChange(of: store.pendingTab) { _, tab in
-            if let tab { selectedTab = tab; store.consumePendingTab() }
+            if let tab { requestTab(tab); store.consumePendingTab() }
         }
     }
 
-    /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
-    private func openAddSpending() {
-        // 탭을 옮기지 않는다 — **보고 있던 탭 위에** 밀어 넣는다.
-        // (예전엔 지출 탭으로 강제 이동시켰는데, 홈에서 '+'를 눌렀다가 닫으면 엉뚱하게 지출 탭에 남았다.)
-        //
-        // **어느 탭이든 시트다.** 예전엔 지출 탭만 경로에 페이지로 쌓았는데,
-        //  · 넓은 창에서는 그 탭이 좌 목록 / 우 상세로 갈려 있어 바깥 경로를 밀어 넣는 순간
-        //    SwiftUI 가 `NavigationColumnState.boundPathChange` 에서 죽었고(2026-09-21 크래시),
-        //  · 들어가는 모양도 탭마다 달랐다(어디선 페이지, 어디선 시트).
-        // 추가·수정은 그 화면의 다음 단계가 아니라 **끼어드는 별개 작업**이라 시트가 맞다.
-        spendingSheet = .add
-    }
-
     /**
-     지출 편집 페이지를 **지금 보고 있는 탭의 스택**에만 밀어 넣기 위한 바인딩.
+     알림 · 딥링크가 요청한 탭 전환. **지출 입력 페이지가 떠 있으면 보류했다가 벗어날 때 적용한다**(27.52.0).
 
-     네 탭이 각자 `NavigationStack` 을 갖고 있고 TabView 는 보이지 않는 탭도 살려 둔다.
-     같은 상태를 네 스택에 그대로 물리면 **네 곳이 동시에** 목적지를 밀어 넣어, 나중에 다른 탭으로
-     가면 거기에도 추가 페이지가 쌓여 있다. 그래서 현재 탭이 아니면 항상 nil 을 돌려준다.
+     페이지가 화면 전체를 덮고 있어, 그 아래에서 탭을 바꾸면 사용자는 아무것도 못 본 채 나왔을 때 엉뚱한 탭에 서게 된다.
+     적던 입력을 마치거나 버린 뒤에 옮긴다. 요청은 버리지 않는다(마지막 것 하나만 남긴다).
+     (시트이던 때는 더 급했다 — 시트가 「보고 있는 탭」에 물려 있어 탭이 바뀌면 빈 폼으로 다시 떴다.)
      */
-    private func spendingEditorBinding(tab: Int) -> Binding<SpendingSheetTarget?> {
-        Binding(
-            get: { selectedTab == tab ? spendingSheet : nil },
-            set: { newValue in if selectedTab == tab { spendingSheet = newValue } }
-        )
+    private func requestTab(_ tab: Int) {
+        if spendingEditor != nil { deferredTab = tab } else { selectedTab = tab }
+    }
+
+    /// '+' (지출 추가) 페이지 열기 — 신규 추가(편집 대상 없음).
+    private func openAddSpending() {
+        // 탭을 옮기지 않는다 — **보고 있던 화면 위에** 덮는다.
+        // (예전엔 지출 탭으로 강제 이동시켰는데, 홈에서 '+'를 눌렀다가 닫으면 엉뚱하게 지출 탭에 남았다.)
+        spendingEditor = .add
     }
 
     /**
-     지출 편집을 **시트로** 띄운다(지출 탭 제외 — 거긴 경로에 쌓는다).
+     지출 추가 · 수정 **페이지** — 탭 화면 전체를 덮고 오른쪽에서 밀려 들어온다(10/13, 그 전에는 시트).
 
-     예전엔 탭 스택 루트에 `navigationDestination(item:)` 으로 걸어 상세처럼 밀어 넣었다.
-     그런데 **같은 뷰에 navigationDestination 이 둘이면 동시에 살 수 없다.** 홈은 호요랜드도
-     `navigationDestination(isPresented:)` 로 여는데, 하위 페이지를 보다 '+' 를 누르면 지출
-     페이지가 그 push 를 밀어내고 올라왔다 — 취소하면 호요랜드가 아니라 **루트(홈)로 떨어졌다**
-     (2026-09-10 제보).
+     **어느 탭의 `NavigationStack` 에도 넣지 않는다.** 스택에 밀어 넣던 때 두 번 깨졌다.
+      · 넓은 창에서는 지출 탭이 좌 목록 / 우 상세로 갈려 있어 바깥 경로를 밀어 넣는 순간
+        SwiftUI 가 `NavigationColumnState.boundPathChange` 에서 죽었다(2026-09-21 크래시).
+      · 같은 뷰에 `navigationDestination` 이 둘이면 동시에 살 수 없다. 홈은 호요랜드도 그렇게 여는데,
+        하위 페이지를 보다 '+' 를 누르면 지출 페이지가 그 push 를 밀어내고 올라왔고, 취소하면
+        호요랜드가 아니라 루트(홈)로 떨어졌다(2026-09-10 제보).
 
-     시트는 스택을 건드리지 않으므로 어느 화면 위에서 열든 **뒤 화면이 그대로 유지된다.**
-     의미상으로도 맞다 — 홈·게임정보·마이페이지에서 '+' 는 그 화면의 다음 단계가 아니라
-     **끼어드는 별개 작업**이다(지출 탭의 목록 → 추가와 다르다).
+     탭 화면([mainTabs]) 위에 덮는 층이라 스택을 건드리지 않는다 — 어느 화면(상세 · 호요랜드 · 설정) 위에서 열든
+     **뒤 화면이 그대로 남고**, 뒤로 가면 보던 자리로 돌아온다. 넓은 창 · 세로 탭바(Duo)에서도 같은 모양이다.
+
+     하위 페이지로 읽히게 하는 것은 셋이다 — 오른쪽에서 밀려 들어오는 전환, 왼쪽 위 뒤로(‹), 왼쪽 끝에서 쓸어 나가기.
+     탭바 · '추가' 버튼은 이 층에 가리고, 그 아래에서도 [bottomChromeHidden] 으로 감췄다가 페이지를 벗어나면 다시 보인다.
      */
     @ViewBuilder
-    private func spendingEditorSheet<V: View>(tab: Int, _ content: V) -> some View {
-        content.sheet(item: spendingEditorBinding(tab: tab)) { target in
-            AddSpendingView(store: store, editing: target.spending) { spendingSheet = nil }
+    private var spendingEditorPage: some View {
+        ZStack {
+            if let target = spendingEditor {
+                // 뒤 화면을 살짝 눌러 앞뒤를 가른다 — 흰 페이지가 흰 화면 위로 밀려 들어오면 경계가 안 보인다.
+                Color.black.opacity(0.12).ignoresSafeArea()
+                    .transition(.opacity)
+                    .zIndex(0)
+                AddSpendingView(store: store, editing: target.spending) { spendingEditor = nil }
+                    // 대상이 바뀌면 새 페이지다 — 앞 대상의 입력이 남지 않게.
+                    .id(target.id)
+                    .transition(.move(edge: .trailing))
+                    .zIndex(1)
+            }
         }
+        .animation(GLGMotion.standard(GLGMotion.durationLong), value: spendingEditor)
     }
 
     /**
@@ -355,15 +365,62 @@ struct ContentView: View {
     /// '추가' 를 우측 하단 FAB 로 뗄 것인가 — **넓은 창의 iPad 만.** 좁게 줄인 iPad 창은 탭바가
     /// 아래로 내려오므로 iPhone 처럼 탭바 옆 '+' 로 돌려야 FAB 가 마지막 탭을 덮지 않는다.
     private var usesFloatingAdd: Bool { isPad && !isCompactWindow }
-    /// 넓은 창인가 — 지출 탭이 좌/우로 갈리는 폭이면 '추가' 를 경로가 아니라 시트로 연다.
+    /// 넓은 창인가 — 지출 탭이 좌/우로 갈리는 폭.
     private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
 
     @ViewBuilder
     private var authenticatedRoot: some View {
         mainTabs
+            // 지출 입력 페이지가 열려 있는 동안 탭바는 **서서히 사라지고**, 벗어나면 서서히 돌아온다(10/13 지시).
+            .background(GLGTabBarFade(hidden: spendingEditorOpen))
+            // 지출 입력 페이지에 가린 동안에는 뒤 화면을 읽지 않는다 — 가려진 탭 · 버튼이 보이스오버에 잡혔다.
+            .accessibilityHidden(spendingEditorOpen)
+            // 탭바 · '추가' 버튼(FAB · iOS 18 오버레이)보다 **바깥**에 덮어야 그것들까지 가린다.
+            .overlay { spendingEditorPage }
     }
 
     // ── 탭 구성 (iPhone·iPad 공통 시스템 탭바) ────────────────────────────
+
+    /// 마이페이지 탭의 라벨 — 프로필 사진이 있으면 그 사진, 없으면 사람 아이콘(10/12 지시).
+    /// 홈 왼쪽 위 프로필 알약 · 마이페이지 머리와 같은 사진이다.
+    /// 탭 이름은 「My」다(10/13 지시 — 그 전에는 「마이페이지」). 화면 안의 제목은 그대로 「마이페이지」다.
+    @ViewBuilder
+    private var myPageTabLabel: some View {
+        if let photo = myPageTabIcon {
+            // 사진을 **라인 원**으로 감싼다(10/14 지시) — 원 색은 다른 탭 아이콘과 같다(선택 = 강조색, 나머지 = 미선택 아이콘 색).
+            // 탭 이미지는 원본 그대로 그려져(물들일 수 없다) 고른 탭에 따라 원을 직접 그려 넣는다.
+            Label { Text(tabTitle("My")) } icon: { Image(uiImage: glgRingedTabPhoto(photo, ring: selectedTab == 3 ? UIColor(accent) : tabIdleIconColor)) }
+        } else {
+            Label(tabTitle("My"), image: "TabPerson")
+        }
+    }
+
+    /// 탭 이름을 글자로 그리는가 — **iOS 26 이상 아이폰은 아이콘만**(10/14 지시, Android 하단 툴바와 통일).
+    /// iOS 18 은 그대로 둔다(10/14 「IOS 18은 유지」). 펼친 듀오 · 아이패드도 바가 옆 · 위에 서고 칸이 넉넉해 이름을
+    /// 그대로 둔다(10/12 「듀오, 아이패드는 변경 X」와 같은 선).
+    ///
+    /// 시스템 탭바에는 이름을 숨기는 설정이 없어 **빈 이름**을 준다 — 10/12 에 확인한 방법이다(`Label` 을 `Image` 로
+    /// 바꾸거나 접근성 이름을 달면 그 글자가 도로 이름으로 그려졌다). 그래서 보이스오버도 탭 이름을 읽지 않는다.
+    /// 미선택 탭 아이콘 색 — 시스템 탭바와 같게(iOS 26+ 본문 색 · iOS 18 회색). 프로필 사진의 라인 원이 쓴다.
+    private var tabIdleIconColor: UIColor {
+        if #available(iOS 26.0, *) { return .label }
+        return .systemGray
+    }
+
+    private var showsTabTitles: Bool {
+        if #available(iOS 26.0, *) { return GLGFormFactor.current != .phone }
+        return true
+    }
+    private func tabTitle(_ title: String) -> String { showsTabTitles ? title : "" }
+
+    /// 탭 아이콘으로 쓸 사진 주소. 게스트는 빈 값 — 계정이 바뀌면 다시 받는다.
+    private var myPagePhotoUrl: String { store.account.isGuest ? "" : store.account.photoUrl }
+
+    private func loadMyPageTabIcon() async {
+        guard let url = URL(string: myPagePhotoUrl), !myPagePhotoUrl.isEmpty else { myPageTabIcon = nil; return }
+        // 시스템 탭 아이콘과 같은 자리 크기. 못 받으면 사람 아이콘 그대로 둔다.
+        myPageTabIcon = await glgCircularImage(url: url, side: GLGTabPhoto.photo)
+    }
 
     @ViewBuilder
     private var mainTabs: some View {
@@ -371,11 +428,12 @@ struct ContentView: View {
             // iOS 26: Tab API — "추가" 버튼은 .search 역할로 탭바에서 분리된 원형 글래스 버튼
             // (Mail 의 컴포즈 버튼과 동일한 시스템 배치 — 탭바 캡슐 우측, 같은 높이)
             TabView(selection: $selectedTab) {
-                // 라벨(문구) 노출 — 표준 시스템 탭뷰 (시스템 탭바 높이는 고정이라 아이콘전용 이점이 없어 라벨 복귀)
-                Tab("홈", systemImage: "house.fill", value: 0) { homeTabContent }
-                Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
-                Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
-                Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
+                // 아이폰은 아이콘만(10/14, [tabTitle]) — 듀오 · 아이패드 · iOS 18 은 이름을 그대로 둔다.
+                // 아이콘은 라인형(10/14 지시, 새로 그림 · iOS 18 부터 모두) — 에셋 `Tab*` 은 Android `GlgTabIcons` 와 같은 경로다.
+                Tab(tabTitle("홈"), image: "TabHome", value: 0) { homeTabContent }
+                Tab(tabTitle("지출"), image: "TabSpending", value: 1) { spendingTabContent }
+                Tab(tabTitle("게임 정보"), image: "TabGame", value: 2) { gameInfoTabContent }
+                Tab(value: 3) { myPageTabContent } label: { myPageTabLabel }
                 // '추가' 는 **시스템 바에 맡긴다** — 좁은 창이면 하단 탭바 옆 원형 버튼,
                 // 펼친 iPhone Duo 면 세로로 선 바에서 **4탭 아래**에 선다(iOS 27.1).
                 //
@@ -384,26 +442,34 @@ struct ContentView: View {
                 // 초기 동기화 게이트 동안에는 어느 쪽도 표시하지 않는다.
                 if !syncGateActive && !usesFloatingAdd {
                     Tab(value: 4, role: separatedActionRole) { Color.clear } label: {
-                        Label("추가", systemImage: "plus")
+                        Label("추가", image: "TabAdd")
                     }
                 }
             }
             .tint(accent)
             .glgMeasureCanvas($canvasWidth)
-            .tabBarMinimizeBehavior(.never) // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지)
+            // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지). 10/12 에 시스템 축소(`.onScrollDown` — 탭 넷이 하나로 접힌다)와
+            // 「스크롤할 때만 이름 숨기기」를 차례로 시도했다가 둘 다 되돌렸다. 10/14 부터 아이폰은 이름을 늘 숨긴다([tabTitle]).
+            .tabBarMinimizeBehavior(.never)
+            .task(id: myPagePhotoUrl) { await loadMyPageTabIcon() }
             // iPad: 탭바에서 뗀 '추가' 를 우측 하단에 둔다.
             //
             // 하위 화면이 하단 바를 띄우면(굿즈 목록의 장바구니 바) 감춘다 — 같은 우측 하단이라
             // 「장바구니」 버튼이 '+' 에 가렸다(2026-09-18 iPad 지적).
             .overlay(alignment: .bottomTrailing) {
-                if usesFloatingAdd && !syncGateActive && !store.hidesAddButton {
-                    fabAddButton
-                        .padding(.trailing, 24).padding(.bottom, 28)
-                        // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
-                        // 위로 올라가도 인셋은 남는다)를 그대로 쓰면 버튼이 허공에 뜬다
-                        // (2026-09-21 iPad 지적 — 바닥에서 100pt 가까이 떠 있었다).
-                        .ignoresSafeArea(.container, edges: .bottom)
+                ZStack {
+                    if usesFloatingAdd && !bottomChromeHidden && !store.hidesAddButton {
+                        fabAddButton
+                            .padding(.trailing, 24).padding(.bottom, 28)
+                            // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
+                            // 위로 올라가도 인셋은 남는다)를 그대로 쓰면 버튼이 허공에 뜬다
+                            // (2026-09-21 iPad 지적 — 바닥에서 100pt 가까이 떠 있었다).
+                            .ignoresSafeArea(.container, edges: .bottom)
+                            .transition(.opacity)
+                    }
                 }
+                // 탭바와 한 벌이다 — 지출 입력 페이지를 드나들 때 같이 서서히 사라지고 돌아온다.
+                .animation(GLGMotion.standard(GLGMotion.durationLong), value: bottomChromeHidden)
             }
             // iPhone Duo — 화면이 좁고 길어 바가 **세로로 설 때** 무엇을 남길지 고른다.
             //
@@ -412,7 +478,7 @@ struct ContentView: View {
             .modifier(GLGVerticalBarPrefersTabs())
             .onChange(of: selectedTab) { oldValue, newValue in
                 if newValue == 4 {
-                    // "추가" 는 탭이 아니라 액션 — 모달 열고 이전 탭으로 복귀
+                    // "추가" 는 탭이 아니라 액션 — 페이지를 열고 이전 탭으로 복귀
                     selectedTab = oldValue
                     openAddSpending()
                 }
@@ -420,32 +486,72 @@ struct ContentView: View {
         } else {
             // iOS 16~25: 기존 tabItem API + 오버레이 글래스 FAB
             TabView(selection: $selectedTab) {
-                // 라벨(문구) 노출 — 표준 시스템 탭뷰
+                // 라벨(문구) 노출 — 표준 시스템 탭뷰(iOS 18 은 이름을 그대로 둔다, 10/14). 아이콘은 라인형 에셋(10/14).
                 homeTabContent
-                    .tabItem { Label("홈", systemImage: "house.fill") }
+                    .tabItem { Label("홈", image: "TabHome") }
                     .tag(0)
                 spendingTabContent
-                    .tabItem { Label("지출", systemImage: "creditcard.fill") }
+                    .tabItem { Label("지출", image: "TabSpending") }
                     .tag(1)
                 gameInfoTabContent
-                    .tabItem { Label("게임 정보", systemImage: "gamecontroller.fill") }
+                    .tabItem { Label("게임 정보", image: "TabGame") }
                     .tag(2)
                 myPageTabContent
-                    .tabItem { Label("마이페이지", systemImage: "person.fill") }
+                    .tabItem { myPageTabLabel }
                     .tag(3)
             }
             .tint(accent)
+            .task(id: myPagePhotoUrl) { await loadMyPageTabIcon() }
+            .environment(\.glgTabBarHide) { hide in floatingTabBarHideDepth = max(0, floatingTabBarHideDepth + (hide ? 1 : -1)) }
+            // 탭 화면 아래 여백 — 떠 있는 툴바에 목록 끝이 가리지 않게 **탭 컨테이너의 안전 영역**을 늘린다(시스템 탭바가 하던 일).
+            // 탭 화면에 `.safeAreaInset` 을 거는 방식은 iOS 18 에서 탭 컨테이너 안으로 전달되지 않아 끝까지 내리면 겹쳤다(10/14).
+            .background(GLGTabSafeAreaInset(bottom: floatingTabBarClearance))
+            // iOS 18 아이폰은 시스템 탭바를 숨기고 iOS 26 과 같은 **떠 있는 캡슐 툴바**를 직접 그린다(10/14 「IOS18도 26과 같은 경험」).
+            .overlay {
+                if GLGFloatingTabBar.isActive {
+                    GeometryReader { geo in
+                        VStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            GLGFloatingTabBar(selection: $selectedTab, accent: accent, photo: myPageTabIcon,
+                                              // 탭 스택을 `.id` 로 새로 그려 첫 화면으로 보내던 것(10/15)은 걷었다 — iOS 18 에서 스택을 다시 만들면
+                                              // 화면 안 페이지 이동(navigationDestination)이 끊겨 다음 페이지로 넘어가지 않았다(지적). 지출만 경로를 비운다.
+                                              onReselect: { tab in if tab == 1 { spendingPath = [] } },
+                                              onAdd: { openAddSpending() })
+                                // 토스트가 이 위 12 에 선다 — 숨긴 동안은 세지 않는다.
+                                .background { if !floatingTabBarHidden { Color.clear.gldsToastObstacle() } }
+                                // 화면 바닥에서 [GLGFloatingTabBar.bottomGap] — 안전 영역 안쪽으로 내려 앉힌다(iOS 26 실측과 같은 자리).
+                                .padding(.bottom, max(0, GLGFloatingTabBar.bottomGap - geo.safeAreaInsets.bottom))
+                                .offset(y: max(0, geo.safeAreaInsets.bottom - GLGFloatingTabBar.bottomGap))
+                        }
+                        .opacity(floatingTabBarHidden ? 0 : 1)
+                        .allowsHitTesting(!floatingTabBarHidden)
+                        .animation(GLGMotion.standard(GLGMotion.durationLong), value: floatingTabBarHidden)
+                        .onAppear { windowSafeBottom = geo.safeAreaInsets.bottom }
+                        .onChange(of: geo.safeAreaInsets.bottom) { _, v in windowSafeBottom = v }
+                    }
+                    .ignoresSafeArea(.keyboard)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 // 선택 모드에서는 감춘다 — 선택 하단바('N건 선택 · 삭제 · 일괄 편집')와 자리가 겹쳐
                 // '일괄 편집'이 '+' 에 가려 눌리지 않았다. 같은 이유로 '맨 위로'도 이미 숨긴다.
                 // (지출을 고르는 중에 새 지출을 추가하는 흐름도 아니다)
-                if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab)
-                    && !bottomChromeHidden && !spendingSelectionMode && !store.hidesAddButton
-                    && !(selectedTab == 0 && store.homeSubpageOpen) {
+                //
+                // 하위 화면에서도 감춘다 — 홈은 `homeSubpageOpen`, 지출 탭은 [spendingTabSubpageOpen](27.52.0).
+                // 예전 조건의 `tabsWithSubPage` 는 선언만 있고 넣는 곳이 없어 늘 비어 있었고, 그래서 지출 상세 ·
+                // 캘린더 · 인사이트 위에 '+' 가 그대로 떠 있었다. 선택 모드도 지출 탭의 상태라 그 탭일 때만 본다.
+                ZStack {
+                if !GLGFloatingTabBar.isActive && selectedTab <= 1 && !bottomChromeHidden && !store.hidesAddButton
+                    && !(selectedTab == 0 && store.homeSubpageOpen)
+                    && !(selectedTab == 1 && (spendingSelectionMode || spendingTabSubpageOpen)) {
                     legacyAddButton
                         .padding(.trailing, GLGLegacyAddButton.trailingInset)
                         .padding(.bottom, GLGLegacyAddButton.bottomInset)
+                        .transition(.opacity)
                 }
+                }
+                // 탭바와 한 벌이다 — 지출 입력 페이지를 드나들 때 같이 서서히 사라지고 돌아온다.
+                .animation(GLGMotion.standard(GLGMotion.durationLong), value: bottomChromeHidden)
             }
         }
     }
@@ -476,8 +582,24 @@ struct ContentView: View {
     ///     바뀌면 그 아래 `NavigationStack` 의 구조가 재구성돼 **push 애니메이션이 사라진다.**
     ///
     /// 그래서 모디파이어는 **항상 달아 두고 값만 바꾼다.** 값 변화는 전환에 실리고 구조는 그대로다.
+    ///
+    /// **지출 입력 페이지에서는 이 숨김을 쓰지 않는다**(10/13). 시스템 숨김은 사라지는 모양을 고를 수 없어서,
+    /// 그때는 탭바를 그대로 둔 채 투명도로 서서히 감춘다([GLGTabBarFade]) — 페이지가 화면 전체를 덮고 있어 눌리지도 않는다.
     private var tabBarVisibility: Visibility {
-        bottomChromeHidden ? .hidden : .visible
+        // iOS 18 아이폰은 시스템 탭바를 늘 숨긴다 — 대신 [GLGFloatingTabBar] 를 그린다.
+        if GLGFloatingTabBar.isActive { return .hidden }
+        return syncGateActive ? .hidden : .visible
+    }
+
+    /// 떠 있는 탭 툴바(iOS 18 아이폰)를 감출 때 — 하단 크롬을 감출 때와, 탭바를 숨기는 화면에 들어갔을 때.
+    private var floatingTabBarHidden: Bool {
+        bottomChromeHidden || floatingTabBarHideDepth > 0
+    }
+
+    /// 탭 화면 아래에 비워 둘 높이 — 떠 있는 툴바에 목록 끝이 가리지 않게. 툴바가 없거나 숨었으면 0([GLGTabSafeAreaInset]).
+    private var floatingTabBarClearance: CGFloat {
+        guard GLGFloatingTabBar.isActive, !floatingTabBarHidden else { return 0 }
+        return max(0, GLGFloatingTabBar.bottomGap + GLGFloatingTabBar.height + GLGFloatingTabBar.contentGap - windowSafeBottom)
     }
 
     /// 화면 하단 크롬(탭바·'추가' 버튼)을 감춰야 하는 상태 — **여기 한 곳에서만 판단한다.**
@@ -486,7 +608,7 @@ struct ContentView: View {
     /// 페이지에서 **탭바는 사라지는데 '+' 만 남아** 입력 폼 위에 떠 있었다. 둘은 같이 나타나고
     /// 같이 사라져야 하는 한 벌이라 신호를 하나로 묶는다.
     private var bottomChromeHidden: Bool {
-        syncGateActive || spendingSheet != nil || spendingEditorOpen
+        syncGateActive || spendingEditorOpen
     }
 
     // ── 탭 콘텐츠 (네이티브 SwiftUI) ──────────────────────────────────
@@ -494,13 +616,13 @@ struct ContentView: View {
     // Phase 5 — SwiftUI 네이티브 홈. 시작 로직(refreshGameInfo)은 HomeView.task 에서 트리거.
     private var homeTabContent: some View {
         NavigationStack {
-            spendingEditorSheet(tab: 0, HomeView(store: store, onSwitchTab: { selectedTab = $0 }))
+            HomeView(store: store, onSwitchTab: { selectedTab = $0 })
         }
         .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility, for: .tabBar)
     }
 
-    // Phase 3 — SwiftUI 네이티브 지출(목록·분석·달력·상세). 수정 시 편집 대상 설정 후 기존 AddSpending 시트(Compose interim)를 연다.
+    // Phase 3 — SwiftUI 네이티브 지출(목록·분석·달력·상세). 수정은 편집 대상을 정해 지출 입력 페이지를 연다.
     private var spendingTabContent: some View {
         // **경로 기반 스택.** 목록 → 상세 → 수정이 한 경로 위에 쌓인다.
         //
@@ -508,27 +630,27 @@ struct ContentView: View {
         // `navigationDestination(수정)` 이 섞여 있었다. 목적지 안에서 목적지를 등록하면
         // SwiftUI 가 스택을 초기화해 **수정 버튼이 목록으로 튕겼다.**
         // 목적지는 여기서 한 번만 등록하고, 각 화면은 경로에 값을 밀어 넣기만 한다.
-        // 경로에는 **상세만** 쌓인다 — 추가·수정은 시트로 연다(→ [openAddSpending]).
-        spendingEditorSheet(tab: 1, NavigationStack(path: $spendingPath) {
+        // 경로에는 **상세만** 쌓인다 — 추가·수정은 스택 밖의 페이지로 연다(→ [spendingEditorPage]).
+        NavigationStack(path: $spendingPath) {
             SpendingView(store: store, onEdit: { spending in
-                spendingSheet = .edit(spending)
+                spendingEditor = .edit(spending)
             }, selectionMode: $spendingSelectionMode)
             .navigationDestination(for: SpendingRoute.self) { route in
                 switch route {
                 case .detail(let id):
                     SpendingDetailView(store: store, spendingId: id, onEdit: { s in
-                        spendingSheet = .edit(s)
+                        spendingEditor = .edit(s)
                     })
                 }
             }
-        })
+        }
         .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility, for: .tabBar)
     }
 
     // Phase 4 chunk ② — SwiftUI 게임정보(데일리·배너/전투/일지·패치·위시·천장·이벤트). 가챠 도구는 chunk ③.
     private var gameInfoTabContent: some View {
-        NavigationStack { spendingEditorSheet(tab: 2, GameInfoView(store: store)) }
+        NavigationStack { GameInfoView(store: store) }
             .glgAccent(index: store.accentIndex)
             .toolbar(tabBarVisibility, for: .tabBar)
     }
@@ -537,7 +659,7 @@ struct ContentView: View {
     // 설정은 NavigationStack push(시스템 슬라이드·뒤로가기), 탭바 숨김은 SettingsView 가 .toolbar(.hidden) 로 처리.
     private var myPageTabContent: some View {
         NavigationStack {
-            spendingEditorSheet(tab: 3, MyPageView(store: store))
+            MyPageView(store: store)
         }
         .glgAccent(index: store.accentIndex)
         // 초기 동기화 게이트(로딩) 중에는 탭바 숨김 — 서브페이지(설정)에서는 노출 유지
@@ -550,24 +672,233 @@ struct ContentView: View {
         // 강조색으로 채운 원 + 흰 '+' — iPad FAB 와 같은 모양(GLGFabStyle 의 iOS 26 미만 갈래).
         // 반투명 흰 원은 흰 카드 위에 뜨면 윤곽이 묻혀 버튼으로 잘 안 읽혔다(2026-09-28 지적).
         Button(action: { openAddSpending() }) {
-            Image(systemName: "plus")
-                .font(.system(size: 20, weight: .semibold))
+            Image("TabAdd")
                 .frame(width: GLGLegacyAddButton.size, height: GLGLegacyAddButton.size)
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
+        .gldsToastObstacle()
     }
 
     // ── iPad: 우측 하단 지출 추가 FAB (강조색 채움 원형 + 흰 '+') ─────────────
     private var fabAddButton: some View {
         Button(action: { openAddSpending() }) {
-            Image(systemName: "plus")
+            Image("TabAdd")
                 // 60pt 는 글래스 버튼이 제 여백을 더 얹어 화면에서 과하게 컸다(2026-09-21 지적).
-                .font(.system(size: 20, weight: .semibold))
                 .frame(width: 48, height: 48)
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
+        .gldsToastObstacle()
+    }
+}
+
+/**
+ iOS 18 아이폰의 **떠 있는 탭 툴바** — iOS 26 시스템 탭바와 같은 모양 · 같은 자리를 직접 그린다(10/14 「IOS18도 26과 같은 경험」).
+
+ iOS 18 시스템 탭바는 화면 아래에 붙은 바라 캡슐 · 미끄러지는 알약 · 옆의 추가 원을 켤 수 없다. 그래서 시스템 탭바는 숨기고
+ (`TabView` 는 그대로 — 탭마다 화면 상태가 남는다) 이 툴바를 위에 얹는다.
+
+ - 치수는 iOS 26 실측(iPhone 17 Pro Max): 캡슐 · 추가 원 높이 62.7, 둘 사이 7.3, 양옆 20.7, 화면 바닥에서 20.7.
+ - 선택 알약은 Android `TabStrip` 과 같은 규칙(GLDS 하단 툴바) — #F6F6F6 · 높이 48.7 · 폭은 캡슐의 85/328.7(최대 85),
+   양 끝 칸 알약은 캡슐 끝과 왼쪽(오른쪽) · 위 · 아래 간격이 같다. 알약은 고른 칸으로 미끄러져 간다.
+ - 아이콘은 `Tab*` 에셋(26), 선택 = 강조색 · 나머지 = 본문 색. My 칸은 프로필 사진 + 라인 원, 홈과 끝 여백이 같도록 안쪽으로 옮긴다.
+ - 추가 원은 iOS 26 처럼 캡슐 옆에 따로 선다(아이콘 본문 색).
+ iPad · iOS 26 이상은 쓰지 않는다([isActive]).
+ */
+struct GLGFloatingTabBar: View {
+    @Binding var selection: Int
+    let accent: Color
+    let photo: UIImage?
+    /// 이미 고른 탭을 다시 눌렀을 때 — 지출 탭은 목록으로 돌아간다(시스템 탭바가 하던 일).
+    let onReselect: (Int) -> Void
+    let onAdd: () -> Void
+
+    /// 이 툴바를 쓰는가 — iOS 26 미만 아이폰만.
+    static var isActive: Bool {
+        if #available(iOS 26.0, *) { return false }
+        return GLGFormFactor.current == .phone
+    }
+    static let height: CGFloat = GLGTabBarAddButton.diameter
+    static let bottomGap: CGFloat = GLGTabBarAddButton.trailingInset
+    static let sideInset: CGFloat = GLGTabBarAddButton.trailingInset
+    /// 캡슐과 '추가' 원 사이(iOS 26 실측 7.3).
+    static let gap: CGFloat = 22.0 / 3
+    /// 툴바 위로 목록이 더 비워 둘 틈 — 캡슐과 '추가' 원 사이와 같다. 지출 목록의 '맨 위로' 원도 이 틈을 두고 '추가' 원 위에 선다.
+    static let contentGap: CGFloat = gap
+    private static let pillH: CGFloat = 48.7
+    private static let pillRatio: CGFloat = 85 / 328.7
+    private static let pillMaxW: CGFloat = 85
+    private static let pillColor = Color(hex: 0xFFF6F6F6)
+    private static let icon: CGFloat = 26
+    /// My 칸 사진을 안쪽으로 옮기는 거리 — (링 26 − 아이콘 그림 폭 26 × 18/24) / 2. Android `TAB_PHOTO_NUDGE` 와 같다.
+    private static let photoNudge: CGFloat = (GLGTabPhoto.outer - icon * 18 / 24) / 2
+    private static let count = 4
+
+    var body: some View {
+        HStack(spacing: Self.gap) {
+            tabs
+            Button(action: onAdd) {
+                Image("TabAdd").renderingMode(.template)
+                    .foregroundStyle(GLGColor.textPrimary)
+            }
+            .buttonStyle(.plain)
+            .glgTabBarCircle()
+            .accessibilityLabel("지출 추가")
+        }
+        .padding(.horizontal, Self.sideInset)
+    }
+
+    private var tabs: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let pillW = min(w * Self.pillRatio, Self.pillMaxW)
+            let endGap = (Self.height - Self.pillH) / 2
+            // 양 끝 알약이 캡슐 끝에서 endGap 떨어지게 하는 양옆 여백 — side + (cell − pillW) / 2 = endGap 을 푼 값(Android 와 같다).
+            let side = max(0, (endGap + pillW / 2 - w / CGFloat(Self.count * 2)) * CGFloat(Self.count) / CGFloat(Self.count - 1))
+            let cell = (w - side * 2) / CGFloat(Self.count)
+            let index = min(max(selection, 0), Self.count - 1)
+            // My 칸(사진)은 사진이 안쪽으로 옮겨 가 있어, 알약은 바깥 끝을 그대로 두고 안쪽으로 두 배만큼 넓힌다.
+            let widen: CGFloat = (index == Self.count - 1 && photo != nil) ? Self.photoNudge * 2 : 0
+            ZStack(alignment: .leading) {
+                Capsule().fill(Self.pillColor)
+                    .frame(width: pillW + widen, height: Self.pillH)
+                    .offset(x: side + cell * CGFloat(index) + (cell - pillW) / 2 - widen)
+                HStack(spacing: 0) {
+                    cellButton(0, image: "TabHome", label: "홈")
+                    cellButton(1, image: "TabSpending", label: "지출")
+                    cellButton(2, image: "TabGame", label: "게임 정보")
+                    cellButton(3, image: "TabPerson", label: "My")
+                }
+                .padding(.horizontal, side)
+            }
+            .frame(width: w, height: Self.height)
+            .animation(.spring(response: 0.38, dampingFraction: 0.8), value: selection)
+        }
+        .frame(height: Self.height)
+        // 그림자는 바탕 캡슐에만 — 통째로 주면 알약 · 아이콘마다 그림자가 따로 비쳤다.
+        .background(Capsule().fill(Color.white).shadow(color: .black.opacity(0.06), radius: 10, y: 2))
+        .overlay(Capsule().strokeBorder(GLGColor.divider, lineWidth: 1))
+    }
+
+    private func cellButton(_ tab: Int, image: String, label: String) -> some View {
+        let selected = selection == tab
+        let fg = selected ? accent : GLGColor.textPrimary
+        return Button {
+            if selected { onReselect(tab) } else { selection = tab }
+        } label: {
+            Group {
+                if tab == 3, let photo {
+                    Image(uiImage: glgRingedTabPhoto(photo, ring: UIColor(fg)))
+                        .offset(x: -Self.photoNudge)
+                } else {
+                    Image(image).renderingMode(.template).foregroundStyle(fg)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+extension View {
+    /// 떠 있는 탭 툴바의 원 버튼 모양 — 흰 원 · 테두리 1 · 옅은 그림자. 지름 기본은 [GLGFloatingTabBar.height](62.7, '추가' 원).
+    /// 지출 목록의 '맨 위로' 원(iOS 18 아이폰)도 같은 모양으로 쓰되 크기는 예전 그대로 48 이다(10/14 「같은 형식 · 크기는 좀 작게」).
+    func glgTabBarCircle(diameter: CGFloat = GLGFloatingTabBar.height) -> some View {
+        self
+            .frame(width: diameter, height: diameter)
+            // 그림자는 바탕 원에만 — 버튼 전체에 주면 아이콘 선마다 그림자가 따로 진다.
+            .background(Circle().fill(Color.white).shadow(color: .black.opacity(0.06), radius: 10, y: 2))
+            .overlay(Circle().strokeBorder(GLGColor.divider, lineWidth: 1))
+            .contentShape(Circle())
+    }
+}
+
+/// 탭 컨테이너(`UITabBarController`)의 아래 안전 영역을 [bottom] 만큼 늘린다 — 떠 있는 탭 툴바([GLGFloatingTabBar]) 자리.
+/// 탭마다의 화면 · 밀어 넣은 하위 화면까지 모두 그만큼 위에서 끝난다. 시스템 탭바를 숨긴 iOS 18 아이폰에서만 0 이 아니다.
+private struct GLGTabSafeAreaInset: UIViewRepresentable {
+    let bottom: CGFloat
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        // 창에 붙은 뒤에 찾는다 — 처음 그릴 때는 아직 창이 없다.
+        DispatchQueue.main.async {
+            guard let tabs = GLGTabBarFade.tabBarController(in: view.window?.rootViewController),
+                  tabs.additionalSafeAreaInsets.bottom != bottom else { return }
+            tabs.additionalSafeAreaInsets.bottom = bottom
+        }
+    }
+}
+
+/// 떠 있는 탭 툴바를 숨기라고 알리는 통로 — true 는 들어옴, false 는 나감([glgHidesTabBar]).
+private struct GLGTabBarHideKey: EnvironmentKey {
+    static let defaultValue: @Sendable @MainActor (Bool) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    var glgTabBarHide: @Sendable @MainActor (Bool) -> Void {
+        get { self[GLGTabBarHideKey.self] }
+        set { self[GLGTabBarHideKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// 하단 탭바를 숨기는 화면 — 시스템 탭바(iOS 26)와 떠 있는 탭 툴바(iOS 18 아이폰, [GLGFloatingTabBar]) 둘 다 숨긴다.
+    func glgHidesTabBar() -> some View { modifier(GLGHidesTabBar()) }
+}
+
+private struct GLGHidesTabBar: ViewModifier {
+    @Environment(\.glgTabBarHide) private var hide
+    func body(content: Content) -> some View {
+        content
+            .toolbar(.hidden, for: .tabBar)
+            .onAppear { hide(true) }
+            .onDisappear { hide(false) }
+    }
+}
+
+/**
+ 시스템 탭바를 **서서히** 감추고 드러낸다(10/13 지시 — 지출 입력 페이지를 드나들 때).
+
+ SwiftUI 의 `.toolbar(.hidden, for: .tabBar)` 는 사라지는 모양을 시스템이 정한다(미끄러져 내려가거나 접힌다).
+ 여기서는 탭바를 숨기지 않고 **투명도만** 움직인다 — 자리와 뒤 화면의 배치는 그대로라, 돌아올 때도 아무것도 밀리지 않는다.
+ 탭바가 다른 자리에 놓이는 기기(넓은 iPad 의 위쪽 바 등)에서 이 값이 먹지 않더라도, 페이지가 화면 전체를 덮고 있어 가려진다.
+ */
+private struct GLGTabBarFade: UIViewRepresentable {
+    let hidden: Bool
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        let target: CGFloat = hidden ? 0 : 1
+        // 창에 붙은 뒤에 찾는다 — 처음 그릴 때는 아직 창이 없다.
+        DispatchQueue.main.async {
+            guard let bar = Self.tabBarController(in: view.window?.rootViewController)?.tabBar, bar.alpha != target else { return }
+            UIView.animate(withDuration: GLGMotion.durationLong, delay: 0, options: [.beginFromCurrentState, .curveEaseInOut]) {
+                bar.alpha = target
+            }
+        }
+    }
+
+    static func tabBarController(in controller: UIViewController?) -> UITabBarController? {
+        guard let controller else { return nil }
+        if let tabs = controller as? UITabBarController { return tabs }
+        for child in controller.children {
+            if let tabs = tabBarController(in: child) { return tabs }
+        }
+        return nil
     }
 }
 
@@ -600,8 +931,22 @@ enum GLGLegacyAddButton {
     /// iOS 26+ 는 '추가'가 탭바 캡슐 안(`.prominent`)이라 겹칠 일이 없다 → 0.
     static var contentClearanceIfNeeded: CGFloat {
         if #available(iOS 26.0, *) { return 0 }
+        // iOS 18 아이폰은 떠 있는 탭 툴바가 탭 화면 아래 여백을 이미 잡는다(10/14, [GLGFloatingTabBar]).
+        if GLGFloatingTabBar.isActive { return 0 }
         return contentClearance
     }
+}
+
+/// iOS 26+ **아이폰** 탭 바에서 캡슐과 떨어져 서는 '추가' 원의 자리 — 시스템이 그리는 것이라 잰 값이다
+/// (iPhone 17 Pro Max · iOS 27, 3배율 화면에서 지름 188px · 오른쪽 여백 62px).
+///
+/// 지출 리스트의 '맨 위로'(`SpendingView`)가 이 원과 **가운데를 맞춰** 바로 위에 선다(10/12). 듀오 · 아이패드는
+/// '추가'가 다른 자리에 있어 쓰지 않는다.
+enum GLGTabBarAddButton {
+    /// 원의 지름.
+    static let diameter: CGFloat = 188.0 / 3
+    /// 화면 오른쪽 끝에서 원까지.
+    static let trailingInset: CGFloat = 62.0 / 3
 }
 
 /// 넓은 창(iPad)의 '추가' FAB — iOS 26 은 **시스템 글래스**(.glassProminent), 이하는 솔리드 원.
@@ -644,67 +989,3 @@ private extension Color {
     }
 }
 
-/// 업데이트 창 — Android `UpdateDialog`(GlgDialog 규격)와 같은 모양.
-/// 딤 + 가운데 흰 카드(모서리 24 · 안쪽 22) · 제목 17 · 본문 14 · 단추 「나중에」(Secondary) : 「릴리즈 페이지 열기」(Primary) = 1 : 1.4.
-/// 강제 업데이트면 단추 하나뿐이고 바깥을 눌러도 닫히지 않는다. 변경 사항이 길면 본문만 스크롤된다.
-private struct UpdateDialog: View {
-    let force: Bool
-    let versionName: String
-    let notes: [String]
-    let onUpdate: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.32).ignoresSafeArea()
-                .onTapGesture { if !force { onDismiss() } }
-            VStack(alignment: .leading, spacing: 0) {
-                Text((force ? "필수 업데이트" : "업데이트 있어요") + (versionName.isEmpty ? "" : " (v\(versionName))"))
-                    .font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    .padding(.bottom, 16)
-                ViewThatFits(in: .vertical) {
-                    message
-                    ScrollView { message }
-                }
-                if force {
-                    GldsButton(title: "릴리즈 페이지 열기") { onUpdate() }
-                        .padding(.top, 20)
-                } else {
-                    GeometryReader { geo in
-                        let w = geo.size.width - 10
-                        HStack(spacing: 10) {
-                            GldsButton(title: "나중에", variant: .secondary) { onDismiss() }
-                                .frame(width: w / 2.4)
-                            GldsButton(title: "릴리즈 페이지 열기") { onUpdate() }
-                                .frame(width: w * 1.4 / 2.4)
-                        }
-                    }
-                    .frame(height: GldsSize.m.height)
-                    .padding(.top, 20)
-                }
-            }
-            .padding(22)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
-            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
-            .padding(24)
-            .frame(maxWidth: 480)
-        }
-    }
-
-    private var message: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(force ? "데이터 꼬임을 막기 위해 이전 버전 지원이 종료됐어요. 계속하려면 업데이트가 필요해요."
-                       : "GitHub 릴리즈 페이지에서 새 버전을 받아 설치할 수 있어요.")
-            ForEach(Array(notes.enumerated()), id: \.offset) { _, note in
-                HStack(alignment: .top, spacing: 0) {
-                    Text("· ")
-                    Text(note)
-                }
-            }
-        }
-        .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}

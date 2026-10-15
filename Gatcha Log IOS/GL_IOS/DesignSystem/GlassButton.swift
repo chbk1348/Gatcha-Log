@@ -123,9 +123,9 @@ struct GldsButtonStyle: ButtonStyle {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// GLDS 칩(9/30) — 필터 · 선택용 알약. Android `GldsChip` 과 같은 값.
-// 높이 32 · 좌우 12 · 13 Bold. 기본 흰 면 + 1 #E3E5EA, 선택은 **면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
-// (Menu 라벨의 글래스 모프 때 채운 면이 번져 보였다). dropdown 은 ▾, removable 은 ✕.
+// GLDS 칩 2.1(10/15 칩 시안 D 「옅은 강조 칩」) — 필터 · 선택용 알약. Android `GldsChip` 과 같은 값.
+// 높이 40 · 좌우 16 · 14(선택 Bold, 아니면 SemiBold). 기본 흰 면 + 1 #E3E5EA, 선택은 테두리 대신 강조색 12% 면 + deep 글자
+// (게임 칩은 게임색 12% + 게임색 글자). 2.0 은 36 · 14 · 선택 강조색 1.5 테두리였다. dropdown 은 ▾, removable 은 ✕.
 // ════════════════════════════════════════════════════════════════════════════
 
 /// 모양만 — `Menu` 라벨처럼 버튼이 따로 있는 자리에서 쓴다.
@@ -139,18 +139,18 @@ struct GldsChipLabel: View {
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let line = color ?? accent.primary
+        let tint = color ?? accent.primary
         let fg = selected ? (color ?? accent.deep) : GLGColor.textPrimary
-        HStack(spacing: 3) {
-            Text(label).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
-            if dropdown { Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(selected ? fg : GLGColor.textSecondary) }
-            if removable { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+        HStack(spacing: 4) {
+            Text(label).font(.pretendard(size: 14, weight: selected ? .bold : .semibold)).lineLimit(1)
+            if dropdown { Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(selected ? fg : GLGColor.textSecondary) }
+            if removable { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)) }
         }
         .foregroundStyle(fg)
-        .padding(.horizontal, 12)
-        .frame(height: 32)
-        .background(Color.white, in: Capsule())
-        .overlay(Capsule().strokeBorder(selected ? line : Color(hex: 0xFFE3E5EA), lineWidth: selected ? 1.5 : 1))
+        .padding(.horizontal, 16)
+        .frame(height: 40)
+        .background(selected ? tint.opacity(0.12) : Color.white, in: Capsule())
+        .overlay(Capsule().strokeBorder(selected ? Color.clear : Color(hex: 0xFFE3E5EA), lineWidth: 1))
         .contentShape(Capsule())
         .animation(.easeOut(duration: 0.15), value: selected)
     }
@@ -214,5 +214,95 @@ struct GldsSpinner: View {
         let sweep = 10 + 250 * (grow - shrink)
         let start = (c * 250 + 250 * shrink + t * 180).truncatingRemainder(dividingBy: 360)
         return (start, sweep)
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// GLDS 다이얼로그(10/14) — Android `GlgDialog` 와 같은 값 · 같은 인자.
+// 딤(검정 32%) + 가운데 흰 카드: 모서리 24 · 안쪽 22 · 1 테두리 · 바깥 여백 24. 제목 17 Bold + 아래 16(비면 줄째 생략),
+// 본문, 버튼 위 20, 버튼은 GLDS 버튼 M 을 취소(Secondary) 1 : 확인(Primary) 1.4 — 취소 글자가 없으면 확인 하나를 전체 폭으로.
+// 바깥을 누르면 닫힌다(`dismissable = false` 면 안 닫힌다).
+//
+// 띄우는 법: 화면에 `.glgDialogCover(isPresented:) { GlgDialog(…) { 본문 } }` 를 달고, 그 상태는 `glgDialogStill { … }` 안에서
+// 바꾼다. 덮개(fullScreenCover)라 내비게이션 바 · 탭 바 · 시트 위까지 덮고, 덮개의 밀려 올라오는 움직임은 끈 채 모달이
+// 제자리에서 나타나고 사라진다. 닫을 때 `onDismiss` · `onConfirm` 은 사라진 **뒤에** 불린다.
+// ════════════════════════════════════════════════════════════════════════════
+
+struct GlgDialog<Content: View>: View {
+    let title: String
+    var confirmText: String = "저장"
+    var dismissText: String? = "취소"
+    var dismissable: Bool = true
+    let onDismiss: () -> Void
+    let onConfirm: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var shown = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.32).ignoresSafeArea()
+                .onTapGesture { if dismissable { close(onDismiss) } }
+            VStack(alignment: .leading, spacing: 0) {
+                if !title.isEmpty {
+                    Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 16)
+                }
+                content().frame(maxWidth: .infinity, alignment: .leading)
+                buttons.padding(.top, 20)
+            }
+            .padding(22)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+            // 한 장으로 합친 뒤에 그림자를 준다 — 그냥 주면 카드 안의 버튼 · 글자마다 그림자가 따로 생긴다.
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+            .padding(24)
+            .frame(maxWidth: 480)
+            .scaleEffect(shown ? 1 : 0.96)
+        }
+        .opacity(shown ? 1 : 0)
+        .task { withAnimation(.easeOut(duration: 0.16)) { shown = true } }
+    }
+
+    @ViewBuilder private var buttons: some View {
+        if let dismissText {
+            GeometryReader { geo in
+                let w = geo.size.width - 10
+                HStack(spacing: 10) {
+                    GldsButton(title: dismissText, variant: .secondary) { close(onDismiss) }
+                        .frame(width: w / 2.4)
+                    GldsButton(title: confirmText) { close(onConfirm) }
+                        .frame(width: w * 1.4 / 2.4)
+                }
+            }
+            .frame(height: 44)
+        } else {
+            GldsButton(title: confirmText) { close(onConfirm) }
+        }
+    }
+
+    /// 흐려진 뒤에 닫는다 — 덮개는 움직임 없이 사라지므로 여기서 사라지는 모습을 그린다.
+    private func close(_ then: @escaping () -> Void) {
+        withAnimation(.easeIn(duration: 0.12)) { shown = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(130))
+            then()
+        }
+    }
+}
+
+/// 모달 덮개를 띄우거나 닫는 상태 변경을 감싼다 — 덮개가 밀려 올라오는 움직임을 끈다(모달이 제자리에서 나타난다).
+func glgDialogStill(_ change: () -> Void) {
+    var still = Transaction()
+    still.disablesAnimations = true
+    withTransaction(still, change)
+}
+
+extension View {
+    /// 가운데 모달을 **화면 전체 위에** 띄운다 — 내비게이션 바 · 탭 바 · 시트까지 덮는다. 상태는 [glgDialogStill] 안에서 바꾼다.
+    func glgDialogCover<D: View>(isPresented: Binding<Bool>, @ViewBuilder dialog: @escaping () -> D) -> some View {
+        fullScreenCover(isPresented: isPresented) { dialog().presentationBackground(.clear) }
     }
 }

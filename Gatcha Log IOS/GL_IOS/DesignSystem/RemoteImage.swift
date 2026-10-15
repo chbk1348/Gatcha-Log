@@ -175,9 +175,59 @@ private func glgDownsample(_ data: Data, maxPixel: Int) -> UIImage? {
     return UIImage(cgImage: cg)
 }
 
+/// 원형으로 자른 원격 이미지 — **SwiftUI 뷰가 아니라 `UIImage` 가 필요한 자리**(탭 바 아이콘)에 쓴다.
+/// 탭 바는 넘겨준 그림을 단색 틀로 바꿔 칠하므로 원본 색 그대로 그리도록 표시해 돌려준다.
+/// 디코딩 캐시와 진행 중 요청 합치기는 [GLGRemoteImage] 와 같은 것을 쓴다.
+func glgCircularImage(url: URL, side: CGFloat) async -> UIImage? {
+    let scale = await MainActor.run { UITraitCollection.current.displayScale }
+    let px = Int((side * scale).rounded())
+    let source: UIImage?
+    if let cached = GLGImageCache.shared.image(for: url, maxPixel: px) { source = cached }
+    else {
+        source = await GLGImageInFlight.shared.image(for: url, maxPixel: px) { await glgFetchImage(url, maxPixel: px) }
+        if let source { GLGImageCache.shared.store(source, for: url, maxPixel: px) }
+    }
+    guard let source else { return nil }
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = scale
+    let size = CGSize(width: side, height: side)
+    let round = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+        UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).addClip()
+        // 짧은 변을 맞춰 가운데를 채운다(aspect fill).
+        let ratio = max(side / source.size.width, side / source.size.height)
+        let w = source.size.width * ratio, h = source.size.height * ratio
+        source.draw(in: CGRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h))
+    }
+    return round.withRenderingMode(.alwaysOriginal)
+}
+
 // 기본 placeholder(빈 자리) 편의 이니셜라이저 — 기존 호출부는 그대로 쓴다.
 extension GLGRemoteImage where Placeholder == Color {
     init(url: URL?, side: CGFloat, contentMode: ContentMode = .fill) {
         self.init(url: url, side: side, contentMode: contentMode) { Color.clear }
     }
+}
+
+/// 하단 탭의 프로필 사진 치수(10/14) — 라인 원(두께 2) + 틈 1.5 + 사진 19 = 바깥 26. Android `BottomNavBar` 의 `TAB_PHOTO_*` 와 같다.
+enum GLGTabPhoto {
+    /// 탭 아이콘(26 — 10/14 「약간만 더 키워」, `Tab*` 에셋)과 같다 — 28 이었을 때 다른 탭 아이콘보다 눈에 띄게 컸다(10/14 「툴바 아이콘 크기는 모두 동일」).
+    static let outer: CGFloat = 26
+    static let ring: CGFloat = 2
+    static let gap: CGFloat = 1.5
+    static var photo: CGFloat { outer - 2 * (ring + gap) }
+}
+
+/// 원형 사진을 [ring] 색 라인 원으로 감싼 탭 아이콘 이미지. 사진은 [GLGTabPhoto.photo] 크기의 원형이어야 한다.
+func glgRingedTabPhoto(_ photo: UIImage, ring: UIColor) -> UIImage {
+    let side = GLGTabPhoto.outer
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = photo.scale
+    return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { _ in
+        let inset = GLGTabPhoto.ring + GLGTabPhoto.gap
+        photo.draw(in: CGRect(x: inset, y: inset, width: GLGTabPhoto.photo, height: GLGTabPhoto.photo))
+        let path = UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: side, height: side).insetBy(dx: GLGTabPhoto.ring / 2, dy: GLGTabPhoto.ring / 2))
+        path.lineWidth = GLGTabPhoto.ring
+        ring.setStroke()
+        path.stroke()
+    }.withRenderingMode(.alwaysOriginal)
 }

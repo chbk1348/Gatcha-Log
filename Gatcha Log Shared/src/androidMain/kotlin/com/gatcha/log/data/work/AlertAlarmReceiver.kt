@@ -6,7 +6,6 @@ import android.content.Intent
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.Notifier
-import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,6 +27,7 @@ class AlertAlarmReceiver : BroadcastReceiver() {
         val text = intent.getStringExtra(AlertScheduler.EXTRA_TEXT).orEmpty()
         val link = intent.getStringExtra(AlertScheduler.EXTRA_LINK).orEmpty()
         val id = intent.getIntExtra(AlertScheduler.EXTRA_NOTIF_ID, 0)
+        val key = intent.getStringExtra(AlertScheduler.EXTRA_KEY).orEmpty()
         if (title.isEmpty() || id == 0) return
 
         // 알림 발송·재예약은 suspend 다. goAsync 로 브로드캐스트 수명을 늘려 두지 않으면
@@ -38,8 +38,14 @@ class AlertAlarmReceiver : BroadcastReceiver() {
             try {
                 val settings = AppSettings()
                 val repo = GatchaRepository(AppSettings.currentAccountId())
-                runCatching { Notifier.notify(id, title, text, link) }
-                runCatching { ScheduledAlerts.reschedule(settings, repo) }
+                // 출석 리마인더는 **지금도 남은 출석이 있을 때만** 보낸다 — 예약은 어제 걸렸고, 그사이 자동 출석이나
+                // 직접 출석으로 끝났을 수 있다(예약이 고쳐지지 않은 채 울리는 경우를 여기서 한 번 더 거른다).
+                val stale = key == ScheduledAlerts.ATTEND_KEY &&
+                    runCatching { !ScheduledAlerts.attendanceStillPending(repo) }.getOrDefault(false)
+                if (!stale) runCatching { Notifier.notify(id, title, text, link) }
+                // 배달됐다고 적어 둔다 — 안 적으면 바로 아래 재예약이 「지났는데 안 온 알람」으로 보고 한 번 더 보낸다.
+                AlertScheduler.markDelivered(id)
+                BackgroundPass.rescheduleOnly(settings, repo)
             } finally {
                 pending.finish()
             }

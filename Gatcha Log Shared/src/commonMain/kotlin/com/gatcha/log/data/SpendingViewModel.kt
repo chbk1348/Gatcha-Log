@@ -45,7 +45,9 @@ import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.data.api.UpdateInfo
 import com.gatcha.log.data.vm.AppUpdateController
+import com.gatcha.log.data.vm.AttendanceController
 import com.gatcha.log.data.vm.CharMetaController
+import com.gatcha.log.data.vm.CloudSyncController
 import com.gatcha.log.data.vm.CombatClearsController
 import com.gatcha.log.data.vm.EnkaRosterController
 import com.gatcha.log.data.vm.FeedbackController
@@ -56,9 +58,12 @@ import com.gatcha.log.data.vm.NewsArticleController
 import com.gatcha.log.data.vm.NotifySettingsController
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.util.won
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -79,7 +84,11 @@ import kotlinx.coroutines.launch
 sealed interface RedeemState {
     data object Idle : RedeemState
     data object Loading : RedeemState
-    data class Done(val success: Boolean, val message: String) : RedeemState
+    /**
+     * [inputError] — 실패 사유가 **코드 자체**다(유효하지 않음 · 만료 · 이미 사용). 직접 입력 모달은 이때
+     * 토스트 대신 입력필드 오류로 보여 주고 모달을 닫지 않는다(10/15).
+     */
+    data class Done(val success: Boolean, val message: String, val inputError: Boolean = false) : RedeemState
 }
 
 /**
@@ -166,10 +175,36 @@ class SpendingViewModel : ViewModel() {
                 _pendingNewsId.value = arg
                 _pendingGameInfoAnchor.value = GameInfoAnchor.NEWS
                 _pendingTab.value = 2
-                refreshGameInfo()   // 목록이 비어 있으면 채운다 — 상세를 열려면 원본 항목이 필요하다
+                // 상세를 열려면 원본 항목이 필요하다. **목록에 그 글이 없으면 신선도와 무관하게 다시 받는다**(27.52.0) —
+                // 예전엔 5~30분 전에 갱신한 목록이면 다시 받지 않아 게임 정보 탭만 열렸고, 남은 요청이 한참 뒤
+                // 다른 갱신 때 갑자기 상세를 열었다.
+                refreshGameInfo(force = _gameNews.value.none { it.id == arg })
+                viewModelScope.launch {
+                    gameInfoJob?.join()
+                    // 다시 받아도 없는 글이다(내려갔거나 다른 언어권) — 요청을 비운다.
+                    if (_pendingNewsId.value == arg && _gameNews.value.none { it.id == arg }) _pendingNewsId.value = null
+                }
             }
             // 새 버전 알림 — 업데이트 창을 다시 띄운다(이미 떠 있던 앱은 시작 시 확인이 다시 돌지 않는다).
             "update" -> checkForUpdate()
+            // 탭만 여는 알림(예산 → 지출, 출석 → 게임 정보). 표는 [NotificationRoutes].
+            "tab" -> arg.toIntOrNull()?.takeIf { it in 0..3 }?.let { _pendingTab.value = it }
+            // 게임 정보 탭의 그 자리로(행동력 · 일정 · 전투).
+            "gameinfo" -> {
+                _pendingGameInfoAnchor.value = when (arg) {
+                    "notes" -> GameInfoAnchor.NOTES
+                    "schedule" -> GameInfoAnchor.SCHEDULE
+                    "combat" -> GameInfoAnchor.COMBAT
+                    else -> null
+                }
+                _pendingTab.value = 2
+            }
+            // 호요랜드 알림 — 게임 정보 탭의 호요랜드 자리로 간다(예매 버튼이 거기 있다).
+            // 27.51 까지의 「예매 1시간 전」 예약은 예매 주소(https…)를 그대로 실었다 — 남아 있는 것도 같은 자리로 보낸다.
+            ScheduledAlerts.HOYOLAND_LINK, "http", "https" -> {
+                _pendingGameInfoAnchor.value = GameInfoAnchor.HOYOLAND
+                _pendingTab.value = 2
+            }
         }
     }
     private val _autoCheckIn = MutableStateFlow(appSettings.autoCheckIn)
@@ -179,20 +214,28 @@ class SpendingViewModel : ViewModel() {
         _autoCheckIn.value = enabled
         NativeScheduler.apply()
         if (!enabled) {
-            emitStatus("자동 출석체크를 껐어요")
+            emitSuccess("자동 출석체크를 껐어요")
             return
         }
-        emitStatus("자동 출석체크를 켰어요 — 지금 한 번 시도할게요")
+        emitSuccess("자동 출석체크를 켰어요 — 지금 한 번 시도할게요")
         // 결과를 토스트로 즉시 피드백(완료/이미 완료/재연동 필요 등). 워커도 같은 Runner 를 쓰지만
         // 여기선 알림 중복을 피하려고 postFailureNotification=false 로 끄고 토스트만 띄운다.
-        viewModelScope.launch {
+        accountScope.launch {
             val outcome = AutoCheckInRunner.run(
                 settings = appSettings,
                 repo = repo,
                 cfg = repo.loadHoyolab(),
                 postFailureNotification = false,
             )
-            emitStatus(outcome?.toToastMessage() ?: "HoYoLAB 연동이 안 돼 있어요")
+            emitStatus(
+                outcome?.toToastMessage()
+                    ?: if (repo.loadHoyolab().isLinked) NO_UID_CHECK_IN else "HoYoLAB 연동이 안 돼 있어요",
+                when {
+                    outcome == null -> ToastKind.INFO
+                    outcome.hasAnyFail && outcome.newSuccess.isEmpty() -> ToastKind.ERROR
+                    else -> ToastKind.SUCCESS
+                },
+            )
         }
     }
 
@@ -213,7 +256,7 @@ class SpendingViewModel : ViewModel() {
     // 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같은 값을 쓴다(비어 있으면 전부). 계정 데이터라 기기 간 동기화된다.
     private val _myGames = MutableStateFlow(repo.loadMyGames())
     val myGames: StateFlow<Set<String>> = _myGames.asStateFlow()
-    fun setMyGames(keys: Set<String>) { repo.saveMyGames(keys); _myGames.value = keys }
+    fun setMyGames(keys: Set<String>) { repo.saveMyGames(keys); _myGames.value = keys; rescheduleTimedAlerts() }
     /** Swift 용 — SKIE 가 Set 을 NSSet 으로 넘겨 다루기 번거롭다. */
     fun setMyGamesList(keys: List<String>) = setMyGames(keys.toSet())
 
@@ -266,8 +309,44 @@ class SpendingViewModel : ViewModel() {
      * 우선순위: 게임별 한도 초과 예상 → 전체 예산 초과 예상 → 단건 큰 금액(평소치 초과).
      * 수정 시엔 같은 달의 기존 금액을 빼서 순증분으로 예측(이중 합산 방지).
      */
-    fun overspendNudge(game: Game, amount: Long, editingId: String? = null): String? {
+    fun overspendNudge(game: Game, amount: Long, editingId: String? = null): String? =
+        overspendNudge(game, amount, editingId, currentTimeMillis())
+
+    /**
+     * @param dateMillis 입력 중인 지출의 날짜. **이번 달이 아니면 예산 · 한도 예측을 하지 않는다**(27.52.0) —
+     *   지난달 날짜로 추가해도 「이번 달 이미 N원 썼어요」가 떴다. 단건 큰 금액 경고는 날짜와 무관하게 본다.
+     */
+    fun overspendNudge(game: Game, amount: Long, editingId: String?, dateMillis: Long): String? {
+        val hit = nudgeHit(game, amount, editingId, dateMillis) ?: return null
+        return when (hit.kind) {
+            NudgeKind.GAME_LIMIT -> "${game.shortName}에 이번 달 이미 ${won(hit.gameNow)} 썼어요.\n추가하면 한도 ${won(hit.gameLimit)}을 넘어요."
+            NudgeKind.BUDGET -> "이번 달 이미 ${won(hit.monthNow)} 썼어요.\n추가하면 예산 ${won(hit.overall)}을 넘어요."
+            NudgeKind.LARGE -> "${won(amount)}은 평소보다 큰 지출이에요.\n정말 추가할까요?"
+        }
+    }
+
+    /**
+     * 같은 판정의 **간결한 한 줄**(10/13) — 지출 입력 화면의 게임 칩 옆에 늘 서 있는 표시가 쓴다.
+     * 경고가 필요하면 "원신 한도 초과" · "이번 달 예산 초과" · "평소보다 큰 지출", 아니면 null(화면이 강조 없는 문구를 세운다).
+     * 저장 직전의 확인창은 자세한 문구([overspendNudge])를 그대로 쓴다.
+     */
+    fun overspendBadge(game: Game, amount: Long, editingId: String?, dateMillis: Long): String? {
+        val hit = nudgeHit(game, amount, editingId, dateMillis) ?: return null
+        return when (hit.kind) {
+            NudgeKind.GAME_LIMIT -> "${game.shortName} 한도 초과"
+            NudgeKind.BUDGET -> "이번 달 예산 초과"
+            NudgeKind.LARGE -> "평소보다 큰 지출"
+        }
+    }
+
+    private enum class NudgeKind { GAME_LIMIT, BUDGET, LARGE }
+
+    private class NudgeHit(val kind: NudgeKind, val gameNow: Long, val gameLimit: Long, val monthNow: Long, val overall: Long)
+
+    /** 과소비 판정 — [overspendNudge] · [overspendBadge] 가 같은 결과를 쓴다. 경고할 것이 없으면 null. */
+    private fun nudgeHit(game: Game, amount: Long, editingId: String?, dateMillis: Long): NudgeHit? {
         if (!appSettings.nudgeOverspend || amount <= 0) return null
+        val inThisMonth = DateUtil.isSameMonth(dateMillis, currentYear, currentMonth)
         val editRecord = editingId?.let { id -> _spendings.value.firstOrNull { it.id == id } }
         // 이번 달에 이미 집계된 기존 금액만 차감(다른 달 기록 수정 시 이중차감 방지).
         val prevInMonth = editRecord != null && DateUtil.isSameMonth(editRecord.dateMillis, currentYear, currentMonth)
@@ -283,15 +362,13 @@ class SpendingViewModel : ViewModel() {
         val gameLimit = _gameBudgets.value[game.key] ?: 0L
         val overall = _budget.value
         val threshold = appSettings.nudgeThreshold
-        return when {
-            gameLimit > 0 && projectedGame > gameLimit ->
-                "${game.shortName}에 이번 달 이미 ${won(gameNow)} 썼어요.\n추가하면 한도 ${won(gameLimit)}을 넘어요."
-            overall > 0 && projectedMonth > overall ->
-                "이번 달 이미 ${won(monthNow)} 썼어요.\n추가하면 예산 ${won(overall)}을 넘어요."
-            threshold > 0 && amount >= threshold ->
-                "${won(amount)}은 평소보다 큰 지출이에요.\n정말 추가할까요?"
-            else -> null
+        val kind = when {
+            inThisMonth && gameLimit > 0 && projectedGame > gameLimit -> NudgeKind.GAME_LIMIT
+            inThisMonth && overall > 0 && projectedMonth > overall -> NudgeKind.BUDGET
+            threshold > 0 && amount >= threshold -> NudgeKind.LARGE
+            else -> return null
         }
+        return NudgeHit(kind, gameNow, gameLimit, monthNow, overall)
     }
 
     fun setNotifyBudget(v: Boolean) { notify.setNotifyBudget(v) }
@@ -347,6 +424,8 @@ class SpendingViewModel : ViewModel() {
 
     /** 실시간 노트(행동력)를 마지막으로 받은 시각. 0 = 받은 적 없음. */
     private var lastLiveNoteAt = 0L
+    /** 행동력 지름길([refreshLiveNotesQuiet])을 마지막으로 **시도한** 시각 — 성공 여부와 무관하게 간격을 건다. */
+    private var lastLiveNoteTryAt = 0L
 
     /** 클라우드 스냅샷을 마지막으로 당겨온 시각. */
     private var lastCloudPullAt = 0L
@@ -362,7 +441,7 @@ class SpendingViewModel : ViewModel() {
         AppVisibility.onBackground()
         // 디바운스(1.5초) 중인 변경을 지금 올린다 — 저장 직후 앱을 내리면 OS 가 프로세스를 멈춰
         // 다른 기기에 안 보였고, 그대로 앱을 지우면 사라졌다.
-        viewModelScope.launch { flushPendingCloudSync() }
+        viewModelScope.launch { cloud.flushPending() }
     }
 
     /**
@@ -407,6 +486,9 @@ class SpendingViewModel : ViewModel() {
         AppVisibility.onForeground()  // 알림을 쏠지 말지의 판정 근거 — 아래 ② 점검보다 **먼저** 세운다
         DateUtil.refreshTimeZone()    // 캐시된 로컬 타임존 갱신(여행·자동 시간대 변경) — 알림 조건과 무관하게 항상
         recomputeSpendingDerived()    // 앱을 켜 둔 채 달이 바뀌면 지출은 그대로여서 '이번 달'이 안 갱신된다
+        // 백그라운드 자동 출석은 설정값만 고친다 — 화면이 읽는 흐름은 여기서 맞춘다. 예전엔 홈 진입 때만 읽어
+        // (iOS 는 프로세스당 한 번) 앱이 떠 있는 동안에는 만료 배너가 뜨지도 내려가지도 않았다(27.52.0).
+        refreshHoyoTokenExpired()
 
         val now = currentTimeMillis()
         val today = todayKey()
@@ -461,17 +543,30 @@ class SpendingViewModel : ViewModel() {
      */
     private var liveNotesJob: Job? = null
 
+    /**
+     * **지금 계정(과 지금 HoYoLAB 연동)에 딸린 작업의 스코프**(27.52.0) — 계정을 바꾸거나 연동을 풀면 통째로 끊고 새로 만든다
+     * ([cancelAccountWork]). 뷰모델 스코프의 자식이라 뷰모델이 끝나면 같이 끝난다.
+     *
+     * 여기에 띄우는 것은 「결과를 지금 계정의 화면 · 저장소에 싣는」 네트워크 작업이다. **지출 저장([persistSpendings])과
+     * 클라우드 올리기는 여기에 띄우지 않는다** — 끊기면 그 변경을 잃는다. 그쪽은 시작할 때 잡아 둔 저장소에만 쓴다.
+     */
+    private var accountScope: CoroutineScope = newAccountScope()
+    private fun newAccountScope(): CoroutineScope =
+        CoroutineScope(viewModelScope.coroutineContext + SupervisorJob(viewModelScope.coroutineContext[Job]))
+
     private fun refreshLiveNotesQuiet() {
         val cfg = _hoyolabConfig.value
         if (!cfg.isLinked) return
         if (_gameInfoRefreshing) return   // 전체 갱신이 이미 돌고 있으면 같은 요청을 두 번 쏘지 않는다
-        val uids = mapOf(
-            "genshin" to cfg.genshinUid,
-            "hsr" to cfg.hsrUid,
-            "zzz" to cfg.zzzUid,
-        ).filterValues { it.isNotBlank() }
+        // **진행 중이면 건너뛰고, 실패했어도 시도 간격은 지킨다**(27.52.0). 성공했을 때만 시각을 적어서, 토큰이 만료된
+        // 사용자는 탭에 들어올 때마다 HoYoLAB 에 3건을 보냈다. 탭을 빠르게 오가면 같은 요청이 겹치기도 했다.
+        if (liveNotesJob?.isActive == true) return
+        val now = currentTimeMillis()
+        if (now - lastLiveNoteTryAt < LIVE_NOTE_RETRY_MIN_MS) return
+        lastLiveNoteTryAt = now
+        val uids = cfg.linkedUids
         if (uids.isEmpty()) return
-        liveNotesJob = viewModelScope.launch {
+        liveNotesJob = accountScope.launch {
             if (!NetworkMonitor.isOnline()) return@launch
             // 전체 갱신 쪽과 같은 이유로 **도착하는 대로** 싣는다 — `awaitAll` 은 제일 느린 게임에
             // 나머지를 묶는다. 원자적 갱신([update])이어야 늦게 끝난 쪽이 남의 결과를 지우지 않는다.
@@ -508,7 +603,7 @@ class SpendingViewModel : ViewModel() {
      * 병합은 id 기준 합집합이라 여러 번 돌아도 중복이 생기지 않는다.
      */
     private fun cloudSyncQuiet() {
-        if (cloudConfigured && CloudSync.currentUid() != null) {
+        if (syncUid() != null) {
             lastCloudPullAt = currentTimeMillis()
             // ⚠️ **IO 로 띄운다.** 이 경로는 클라우드 스냅샷 JSON 파싱([GatchaRepository.importSnapshotJson])과
             // 저장소 20여 키를 다시 읽는 [loadAll] 을 포함한다. viewModelScope 기본값(Main)에 두면
@@ -522,49 +617,65 @@ class SpendingViewModel : ViewModel() {
     private val _accentIndex = MutableStateFlow(0)
     val accentIndex: StateFlow<Int> = _accentIndex.asStateFlow()
 
-    private var attendanceMap: Map<String, Set<String>> = emptyMap()
-    private val _attendanceToday = MutableStateFlow<Set<String>>(emptySet())
-    val attendanceToday: StateFlow<Set<String>> = _attendanceToday.asStateFlow()
-
+    // 출석 상태(오늘 · 날짜별 이력 · 연속 일수) — 읽고 고치는 일은 [AttendanceController]. 출석을 보내는 일은 아래 「출석」 절.
+    private val attendance = AttendanceController({ repo }) {
+        rescheduleTimedAlerts()   // 출석 리마인더는 남은 출석을 보고 걸린다
+    }
+    val attendanceToday: StateFlow<Set<String>> = attendance.today
     /** 날짜별 출석 이력(dayKey "yyyy-MM-dd" → 출석한 게임키 집합) — 7일 스트립·월간 달력용. */
-    private val _attendanceHistory = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
-    val attendanceHistory: StateFlow<Map<String, Set<String>>> = _attendanceHistory.asStateFlow()
-
+    val attendanceHistory: StateFlow<Map<String, Set<String>>> = attendance.history
     /** 연속 출석 일수(오늘 미출석이면 어제 기준으로 유지). */
-    private val _attendanceStreak = MutableStateFlow(0)
-    val attendanceStreak: StateFlow<Int> = _attendanceStreak.asStateFlow()
+    val attendanceStreak: StateFlow<Int> = attendance.streak
 
-    private fun computeAttendanceStreak(): Int {
-        var offset = 0
-        if (attendanceMap[DateUtil.hoyoDayKeyAgo(0)].isNullOrEmpty()) offset = 1
-        var streak = 0
-        while (!attendanceMap[DateUtil.hoyoDayKeyAgo(offset + streak)].isNullOrEmpty()) streak++
-        return streak
+    /**
+     * 현재 repo(계정)의 모든 데이터를 상태로 로드 — **앱 시작과 계정 전환에만** 쓴다.
+     *
+     * 예전엔 클라우드 동기화가 끝날 때마다 이 함수를 통째로 돌렸다(27.52.0 에서 가름). 그러면 로컬 전용 캐시까지
+     * 디스크 값으로 다시 깔려서, 그사이 도착한 새로고침 결과(행동력 · 일정 · 소식)가 지난 실행 때 값으로 되돌아가고
+     * '내 캐릭터' 의 빈 표시 · 오류 표시가 지워져 스켈레톤으로 남았다. 동기화 뒤에는 [reloadSyncedState] 만 돈다.
+     */
+    private fun loadAll() {
+        reloadSyncedState()
+        seedLocalCaches()
     }
 
-    /** 현재 repo(계정)의 모든 데이터를 상태로 로드. */
-    private fun loadAll() {
+    /** 스냅샷(클라우드 · 백업)이 바꿀 수 있는 값만 저장소에서 다시 읽는다. */
+    private fun reloadSyncedState() {
+        val enkaUidsBefore = enka.uidSnapshot()
         // 날짜 내림차순을 보장한다 — 클라우드 병합 결과는 순서가 섞여 와서, 화면마다 전체를 다시 정렬했다.
         _spendings.value = repo.loadSpendings().sortedByDescending { it.dateMillis }
         _budget.value = repo.loadBudget()
         _gameBudgets.value = repo.loadGameBudgets()
         _myGames.value = repo.loadMyGames()
         _profile.value = repo.loadProfile()
+        val canCheckInBefore = _hoyolabConfig.value.canCheckIn
         _hoyolabConfig.value = repo.loadHoyolab()
+        // 스냅샷은 게임 UID 를 실어 온다 — 출석을 챙길 수 있게(없게) 바뀌었으면 출석 리마인더 예약도 고쳐 건다.
+        if (_hoyolabConfig.value.canCheckIn != canCheckInBefore) rescheduleTimedAlerts()
         _accentIndex.value = repo.loadAccentIndex()
-        attendanceMap = repo.loadAttendance()
-        _attendanceHistory.value = attendanceMap
-        _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
-        _attendanceStreak.value = computeAttendanceStreak()
+        attendance.reload()
         _pity.value = repo.loadPity()
-        _readAlerts.value = repo.loadReadAlerts()
-        _dismissedAlerts.value = repo.loadDismissedAlerts()
-        enka.reload()   // UID 를 맞추고 화면 상태를 비운 뒤, 디스크 캐시로 '내 캐릭터' 를 즉시 채운다
-        seedGameInfoDiskCache()
+        enka.reloadAfterSync(enkaUidsBefore)   // UID 가 실제로 바뀐 게임만 화면 상태를 갈아끼운다
         gacha.loadGachaDeferred()
         giftCodes.reloadSaved()
         refreshChallenge()
         recomputeSpendingDerived()   // 첫 프레임이 0원으로 그려지지 않게 동기로 한 번
+    }
+
+    /**
+     * 이 기기에만 있는 값(스냅샷에 실리지 않는 것)과 디스크 캐시를 화면 상태로 올린다.
+     *
+     * 유효옵션 직접 설정과 완주율도 여기서 읽는다 — 예전엔 `init` 에서만 읽어, 계정을 바꾼 뒤 캐릭터 하나를 고치면
+     * 앞 계정의 지도가 새 계정 저장분을 통째로 덮었다(27.52.0).
+     */
+    private fun seedLocalCaches() {
+        _readAlerts.value = repo.loadReadAlerts()
+        _dismissedAlerts.value = repo.loadDismissedAlerts()
+        _keyStatOverrides.value = runCatching { repo.loadKeyStatOverrides() }.getOrDefault(emptyMap())
+        _taskStats.value = emptyList()
+        loadTaskStats()   // 노트를 받기 전에도 지난 완주율은 보여준다
+        enka.reload()   // UID 를 맞추고 화면 상태를 비운 뒤, 디스크 캐시로 '내 캐릭터' 를 즉시 채운다
+        seedGameInfoDiskCache()
     }
 
     /**
@@ -581,10 +692,13 @@ class SpendingViewModel : ViewModel() {
     private fun seedGameInfoDiskCache() {
         runCatching {
             val banners = repo.loadActiveBanners()
-            val notes = repo.loadLiveNotes()
-            val combats = repo.loadCombatModes()
+            // 행동력 · 전투 · 편성은 HoYoLAB 계정에 딸린 값이다 — **연동돼 있을 때만** 싣는다(27.52.0).
+            // 연동 해제는 메모리만 비웠고 이 캐시는 남아서, 앱을 다시 켜면 해제한 계정의 행동력이 홈에 되살아났다.
+            val linked = _hoyolabConfig.value.isLinked
+            val notes = if (linked) repo.loadLiveNotes() else emptyList()
+            val combats = if (linked) repo.loadCombatModes() else emptyList()
             // 클리어 편성은 전용 페이지에서만 쓰지만, 여기서 미리 채워야 페이지가 빈 화면으로 열리지 않는다.
-            runCatching { repo.loadCombatClears() }.getOrNull()
+            if (linked) runCatching { repo.loadCombatClears() }.getOrNull()
                 ?.takeIf { it.isNotEmpty() }?.let { clears.seed(it) }
             // 일정·소식도 함께 — 예전엔 이 둘만 캐시가 없어서, 배너·오늘 할 일은 캐시로 즉시 차는데
             // 홈의 '이번주 일정'·'게임 소식' 카드만 네트워크가 올 때까지 빈 채로 남았다.
@@ -626,11 +740,11 @@ class SpendingViewModel : ViewModel() {
                 is SignInOutcome.Success -> {
                     if (!completeSignIn(outcome.account)) {
                         _initialSyncing.value = false
-                        emitStatus("네트워크 오류로 로그인에 실패했어요")
+                        emitError("네트워크 오류로 로그인에 실패했어요")
                     }
                 }
                 SignInOutcome.NoCredential -> { _initialSyncing.value = false; emitStatus("로그인이 취소되었거나 완료되지 못했어요") }
-                is SignInOutcome.Error -> { _initialSyncing.value = false; emitStatus(outcome.message) }
+                is SignInOutcome.Error -> { _initialSyncing.value = false; emitError(outcome.message) }
             } } finally { signInInFlight = false }
         }
     }
@@ -662,7 +776,7 @@ class SpendingViewModel : ViewModel() {
         switchAccount(finalAcc)
         cloudSyncPullOrSeed()
         applyPendingOnboarding()
-        emitStatus("${finalAcc.name}님으로 로그인되었어요")
+        emitSuccess("${finalAcc.name}님으로 로그인되었어요")
         return true
     }
 
@@ -679,10 +793,17 @@ class SpendingViewModel : ViewModel() {
             _signingOut.value = true
             try {
                 // ★ 인증을 끊기 전에 대기 중인 클라우드 push 를 먼저 밀어낸다(아래 flush 주석 참고).
-                flushPendingCloudSync()
+                val flushed = cloud.flushPending()
                 val done = withTimeoutOrNull(SYNC_TIMEOUT_MS) { authManager.signOut() } != null
                 switchAccount(Account.GUEST)
-                emitStatus(if (done) "로그아웃되었어요" else "로그아웃했어요 (서버 정리는 나중에 완료돼요)")
+                emitSuccess(
+                    when {
+                        // 못 올린 변경은 지워지지 않는다 — 계정 저장소에 남아 있다가 다시 로그인하면 합쳐져 올라간다.
+                        !flushed -> "로그아웃했어요 — 올리지 못한 변경은 이 기기에 남아 있고, 다시 로그인하면 올라가요"
+                        done -> "로그아웃되었어요"
+                        else -> "로그아웃했어요 (서버 정리는 나중에 완료돼요)"
+                    },
+                )
             } finally {
                 _signingOut.value = false
             }
@@ -691,9 +812,15 @@ class SpendingViewModel : ViewModel() {
 
     private fun switchAccount(acc: Account) {
         cancelAccountWork()
+        // 대기 중이던 올리기도 끊는다 — 옛 계정 것이 새 계정 저장소를 올리지 않게. 올릴 것은 로그아웃 쪽이 먼저 밀어냈다.
+        cloud.cancel()
         repo = GatchaRepository(acc.id)
+        cloud = newCloudSync(repo)   // 올리기 상태(실패 횟수 · 알림 표시 · 마지막 스냅샷)도 계정과 함께 새로 선다
         repo.onChange = { scheduleCloudSync() }
+        // 만료 배너는 기기 단위 표시다 — 계정이 바뀌면 내린다(새 계정이 만료면 다음 시도에서 다시 선다).
+        clearHoyoTokenExpired()
         loadAll()
+        rescheduleTimedAlerts()   // 예약 · 출석 리마인더는 계정의 캐시 · 연동으로 만든다 — 앞 계정 것을 걷는다
         // 로그인 계정이면 프로필을 구글 계정 정보로 맞춤
         if (!acc.isGuest) {
             val p = UserProfile(name = acc.name, email = acc.email)
@@ -711,13 +838,32 @@ class SpendingViewModel : ViewModel() {
      * force 새로고침이 버려졌고, 그 회차가 옛 토큰으로 받은 값을 새 저장소에 썼다.
      */
     private fun cancelAccountWork() {
-        gameInfoJob?.cancel()
-        liveNotesJob?.cancel()
+        // 계정에 딸린 작업을 **통째로** 끊는다([accountScope]) — 게임 정보 갱신 · 행동력 · 출석 · 연동 직후의 UID 조회.
+        // 예전엔 끊을 작업을 하나씩 적어 두어, 목록에 없는 작업은 계속 돌며 새 계정 저장소에 썼다.
+        accountScope.cancel()
+        accountScope = newAccountScope()
         clears.cancel()
-        checkInJob?.cancel()
         giftCodes.cancelForAccountChange()
         clearHoyolabState()
         enkaUidsSynced = false
+    }
+
+    /**
+     * HoYoLAB 계정에 딸린 **디스크 캐시**를 비운다 — 연동을 해제했거나 다른 계정으로 바꿨을 때.
+     * 화면 상태([clearHoyolabState])만 비우면 다음 실행의 캐시 시드가 옛 계정 값을 되살린다.
+     */
+    private fun clearHoyolabDiskCaches(target: GatchaRepository) {
+        runCatching {
+            target.saveLiveNotes(emptyList())
+            target.saveCombatModes(emptyList())
+            target.saveCombatClears(emptyList())
+        }
+    }
+
+    /** 토큰 만료 배너를 내린다 — 연동 해제 · 계정 전환처럼 "다시 연동하라"는 말이 더는 맞지 않을 때. */
+    private fun clearHoyoTokenExpired() {
+        appSettings.hoyoTokenExpired = false
+        _hoyoTokenExpired.value = false
     }
 
     /** HoYoLAB 계정에 딸린 화면 상태 — 연동이 바뀌면 다른 사람 것이 된다. */
@@ -739,7 +885,7 @@ class SpendingViewModel : ViewModel() {
             s.gameName.isBlank() -> "게임을 골라 주세요"
             else -> return true
         }
-        emitStatus(msg)
+        emitError(msg)
         return false
     }
 
@@ -748,13 +894,14 @@ class SpendingViewModel : ViewModel() {
         if (!validSpending(spending)) return false
         // 같은 id 가 이미 있으면 추가하지 않는다 — 저장 버튼 연타 · 재시도로 같은 기록이 두 번 들어가 합계가 부풀었다.
         if (_spendings.value.any { it.id == spending.id }) return true
-        val stamped = spending.copy(updatedAt = currentTimeMillis())
+        // 전체 삭제 시각보다 반드시 뒤로 찍는다 — 시계가 앞선 기기에서 전체 삭제를 했어도 새 지출은 살아남는다.
+        val stamped = spending.copy(updatedAt = maxOf(currentTimeMillis(), repo.loadSpendingsClearedAt() + 1))
         // 상태 갱신과 저장을 분리한다 — update {} 블록은 CAS 재시도 시 통째로 다시 실행되므로
         // 그 안에 저장을 넣으면 디스크 쓰기와 클라우드 푸시 예약이 한 번 더 일어날 수 있다.
         val next = (listOf(stamped) + _spendings.value).sortedByDescending { it.dateMillis }
         _spendings.value = next
         persistSpendings(next)
-        emitStatus("지출이 저장되었어요")
+        emitSuccess("지출이 저장되었어요")
         return true
     }
 
@@ -763,30 +910,38 @@ class SpendingViewModel : ViewModel() {
         if (!validSpending(updated)) return false
         // 그사이 지워진 지출(다른 기기 삭제 · 동기화)이면 수정하지 않는다 — 예전엔 조용히 아무것도 안 하면서
         // "수정되었어요" 를 띄웠다.
-        if (_spendings.value.none { it.id == updated.id }) { emitStatus("이미 삭제된 지출이에요"); return true }
-        val stamped = updated.copy(updatedAt = currentTimeMillis())
+        val before = _spendings.value.firstOrNull { it.id == updated.id }
+        if (before == null) { emitStatus("이미 삭제된 지출이에요"); return true }
+        val stamped = updated.copy(updatedAt = stampAfter(before.updatedAt))
         val next = _spendings.value.map { if (it.id == stamped.id) stamped else it }
             .sortedByDescending { it.dateMillis }
         _spendings.value = next
         persistSpendings(next)
-        emitStatus("지출이 수정되었어요")
+        emitSuccess("지출이 수정되었어요")
         return true
     }
 
     // 지출 ↔ 정기결제 자동 연결(autoLinkSubscription·collectUnlinkedSubscriptions 등)은
     // 여기 있었다 — 정기결제를 기능째 걷어냈다(2026-09-09).
 
+    /**
+     * 수정 · 삭제 시각 — **이미 찍혀 있는 시각([seen])보다 반드시 뒤**(27.52.0).
+     * 지금 시각만 찍으면, 시계가 빠른 기기에서 고친 지출을 다른 기기가 나중에 고치거나 지워도 「더 최신」인 옛 값이 이겼다.
+     */
+    private fun stampAfter(seen: Long): Long = maxOf(currentTimeMillis(), seen + 1)
+
     fun deleteSpending(id: String) {
-        repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
         val (removed, next) = _spendings.value.partition { it.id == id }
+        // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어). 시각은 지운 지출의 수정 시각보다 뒤로.
+        repo.addDeletedSpendingIds(setOf(id), stampAfter(removed.maxOfOrNull { it.updatedAt } ?: 0L))
         _spendings.value = next
         persistSpendings(next)
     }
 
     fun deleteSpendings(ids: Set<String>) {
-        repo.addDeletedSpendingIds(ids) // tombstone — 삭제 전파
         // partition 1회 — 예전엔 같은 목록을 filter 로 두 번 훑었다.
         val (removed, next) = _spendings.value.partition { it.id in ids }
+        repo.addDeletedSpendingIds(ids, stampAfter(removed.maxOfOrNull { it.updatedAt } ?: 0L)) // tombstone — 삭제 전파
         _spendings.value = next
         persistSpendings(next)
     }
@@ -809,19 +964,20 @@ class SpendingViewModel : ViewModel() {
                 dateMillis = dateMillis?.let { DateUtil.startOfDay(it) + (s.dateMillis - DateUtil.startOfDay(s.dateMillis)) }
                     ?: s.dateMillis,
                 tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
-                updatedAt = currentTimeMillis(),
+                updatedAt = stampAfter(s.updatedAt),
             )
         }.sortedByDescending { it.dateMillis }
         _spendings.value = next
         persistSpendings(next)
-        emitStatus("${ids.size}건 일괄 수정했어요")
+        emitSuccess("${ids.size}건 일괄 수정했어요")
     }
 
     /** 모든 지출 기록 삭제. */
     fun clearSpendings() {
         // 전체 삭제는 id 마다 tombstone 이 아니라 **시각 하나**로 남긴다 — tombstone 은 상한(2000)이라
         // 그보다 많이 지우면 잘린 만큼 다른 기기에서 되살아났다([GatchaRepository.markSpendingsCleared]).
-        repo.markSpendingsCleared(currentTimeMillis())
+        // 지우는 지출들의 수정 시각보다 뒤로 — 시계가 빠른 기기가 찍은 지출도 함께 지워지게.
+        repo.markSpendingsCleared(stampAfter((_spendings.value.maxOfOrNull { it.updatedAt } ?: 0L) - 1))
         _spendings.value = emptyList()
         persistSpendings(emptyList())
     }
@@ -859,20 +1015,36 @@ class SpendingViewModel : ViewModel() {
         val config = input.trimmed().let { c ->
             // 계정(ltuid)이 바뀌었는데 교환 쿠키는 그대로면 옛 계정 것이다 — 남기면 선물코드가 다른
             // 계정으로 교환된다. 새 로그인에서 함께 들어온 쿠키(값이 바뀐 것)는 그대로 둔다.
-            if (c.ltuid == prev.ltuid) c
+            // **게임 UID 도 같다**(27.52.0) — 화면은 칸에 남아 있던 옛 계정 UID 를 그대로 실어 보내는데, 조회는 새 계정에
+            // 있는 게임만 덮어쓴다. 새 계정에 없는 게임에 옛 계정 UID 가 남아 남의 행동력 · 전투를 조회했다.
+            if (c.ltuid == prev.ltuid || !prev.isLinked) c
             else c.copy(
                 webCookie = c.webCookie.takeIf { it != prev.webCookie }.orEmpty(),
                 cookieToken = c.cookieToken.takeIf { it != prev.cookieToken }.orEmpty(),
+                genshinUid = c.genshinUid.takeIf { it != prev.genshinUid }.orEmpty(),
+                hsrUid = c.hsrUid.takeIf { it != prev.hsrUid }.orEmpty(),
+                zzzUid = c.zzzUid.takeIf { it != prev.zzzUid }.orEmpty(),
             )
         }
-        hoyolabInputError(config)?.let { emitStatus(it); return false }
-        if (prev.isLinked && (!config.isLinked || config.ltuid != prev.ltuid)) cancelAccountWork()
+        hoyolabInputError(config)?.let { emitError(it); return false }
+        if (prev.isLinked && (!config.isLinked || config.ltuid != prev.ltuid)) {
+            cancelAccountWork()
+            clearHoyolabDiskCaches(repo)
+        }
         _hoyolabConfig.value = config
+        // **출석은 HoYoLAB 계정마다 따로다**(27.52.0) — 다른 계정을 연동하면(해제 뒤 다시 연동 포함) 오늘 기록을 비운다.
+        // 비우지 않으면 앞 계정으로 한 오늘 출석 때문에 새 계정은 그날 출석 · 자동 출석 · 리마인더가 모두 건너뛰어졌다.
+        if (config.isLinked && config.ltuid != prev.ltuid) {
+            attendance.forgetToday()
+            AutoCheckInRunner.forgetTodayNotices(appSettings)
+        }
         // 보안 저장소를 못 쓰면 토큰은 저장되지 않는다(평문 폴백 금지) — 조용히 넘기지 않고 알린다.
         if (!repo.saveHoyolab(config)) {
-            emitStatus("보안 저장소를 쓸 수 없어 토큰을 저장하지 못했어요 — 앱을 재설치하거나 기기를 재시작해주세요")
+            emitError("보안 저장소를 쓸 수 없어 토큰을 저장하지 못했어요 — 앱을 재설치하거나 기기를 재시작해주세요")
             return false
         }
+        // 연동이 바뀌면 걸려 있던 예약도 다시 건다 — 해제했는데 완충 알림 · 출석 리마인더가 그대로 울리지 않게.
+        if (config.isLinked != prev.isLinked || config.ltuid != prev.ltuid || config.canCheckIn != prev.canCheckIn) rescheduleTimedAlerts()
         // 새 토큰이 들어왔으면 만료 플래그 자동 클리어 — 홈 상단 배너 즉시 사라짐.
         if (config.isLinked && config.ltoken.isNotBlank()) {
             appSettings.hoyoTokenExpired = false
@@ -880,16 +1052,24 @@ class SpendingViewModel : ViewModel() {
         }
         // 연동 성공/실패 넛징(전역 토스트). 토큰이 있으면 실제 유효성 검증 후 안내.
         if (!config.isLinked) {
-            emitStatus("연동되지 않았어요 — ltuid·ltoken을 입력하거나 로그인으로 가져오세요")
+            // 연동이 없으면 만료 배너도 내린다 — 예전엔 해제한 뒤에도 "재연동" 배너가 남고 내릴 길이 없었다(27.52.0).
+            clearHoyoTokenExpired()
+            // 연동돼 있던 것을 푼 경우와, 처음부터 빈 값을 저장한 경우의 안내를 가른다 — 토스트가 앱 루트로 올라오면서
+            // 온보딩의 「연결 해제」에서도 이 문구가 보이게 됐다(27.52.0).
+            if (prev.isLinked) emitSuccess("HoYoLAB 연동을 해제했어요")
+            else emitStatus("연동되지 않았어요 — ltuid·ltoken을 입력하거나 로그인으로 가져오세요")
             return true
         }
-        viewModelScope.launch {
+        val linkRepo = repo
+        accountScope.launch {
             val fetched = withContext(Dispatchers.IO) {
                 HoyolabApi.fetchGameUids(config.ltuid, config.ltoken)
             }
+            // 그사이 계정이나 연동이 바뀌었으면 버린다 — 옛 계정의 UID 를 새 저장소에 쓰지 않는다.
+            if (repo !== linkRepo || _hoyolabConfig.value.ltuid != config.ltuid) return@launch
             // 서버에 못 닿았다 — 토큰 탓이 아니다. "만료됐을 수 있어요" 로 안내하면 멀쩡한 토큰을 다시 뽑는다.
             if (fetched == null) {
-                emitStatus("연결을 확인해 주세요 — 토큰은 저장했고, 연결되면 게임 UID 를 다시 가져올게요")
+                emitError("연결을 확인해 주세요 — 토큰은 저장했고, 연결되면 게임 UID 를 다시 가져올게요")
                 return@launch
             }
             val uids = fetched
@@ -902,10 +1082,16 @@ class SpendingViewModel : ViewModel() {
                 // (재설치 후 연동 1회로 '저장 다시' 없이 바로 전체 노출 — force=true 로 5분 TTL 무시.)
                 autoLoadEnkaSection(listOf("genshin", "hsr", "zzz"), force = true)
             }
-            emitStatus(
-                if (uids.isNotEmpty()) "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
-                else "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요",
-            )
+            // **행동력 · 원장 · 전투도 여기서 바로 다시 받는다**(27.52.0). 예전엔 화면이 저장 뒤에 강제 갱신을 불러야 했는데
+            // 경로마다 빠져서(Android 설정의 연동 저장), 연동해 놓고도 신선도가 낡을 때까지 5~30분 비어 있었다.
+            refreshGameInfo(force = true, silent = true)
+            when {
+                uids.isEmpty() -> emitError("연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요")
+                // 교환용 쿠키가 없으면 선물코드 자동 교환이 안 된다 — 이메일 로그인이 아니면 받지 못한다.
+                config.cookieToken.isBlank() && config.webCookie.isBlank() ->
+                    emitSuccess("HoYoLAB 계정이 연동되었어요 — 선물코드 교환은 이메일 로그인으로 연동해야 돼요")
+                else -> emitSuccess("HoYoLAB 계정이 연동되었어요 — 캐릭터 UID 를 자동으로 맞췄어요")
+            }
         }
         return true
     }
@@ -928,8 +1114,15 @@ class SpendingViewModel : ViewModel() {
             hsrUid = uids["hsr"]?.ifBlank { null } ?: cur.hsrUid,
             zzzUid = uids["zzz"]?.ifBlank { null } ?: cur.zzzUid,
         )
-        _hoyolabConfig.value = merged
-        repo.saveHoyolab(merged)
+        // **바뀐 것이 없으면 저장하지 않는다**(27.52.0). 세 게임 중 하나를 안 하는 사용자는 UID 한 칸이 늘 비어 있어 실행마다
+        // 이 길을 탔는데, 값이 같아도 저장하면서 수정 시각을 「지금」으로 찍어 올리기가 돌았고 — 다른 기기에서 진짜로 바꾼
+        // 값을 이 기기의 옛 값이 이겼다.
+        if (merged != cur) {
+            _hoyolabConfig.value = merged
+            repo.saveHoyolab(merged)
+            // 첫 UID 가 들어오면 출석 리마인더를 걸 수 있게 된다([HoyolabConfig.canCheckIn]).
+            if (merged.canCheckIn != cur.canCheckIn) rescheduleTimedAlerts()
+        }
         enka.applyUids(genshin = uids["genshin"], hsr = uids["hsr"])
     }
 
@@ -943,9 +1136,14 @@ class SpendingViewModel : ViewModel() {
             enkaUidsSynced = true
             return
         }
+        val startRepo = repo
         val uids = withContext(Dispatchers.IO) { HoyolabApi.fetchGameUids(cfg.ltuid, cfg.ltoken) }.orEmpty()
+        // 조회하는 사이 로그아웃 · 다른 계정 로그인 · 연결 해제가 끝났으면 버린다(27.52.0) — 이 조회는 Enka 쪽 작업 안에서
+        // 돌아 계정 전환이 끊지 못한다. 그대로 쓰면 A 의 UID 가 B 의 저장소에 저장되고 클라우드로 올라갔다.
+        if (repo !== startRepo || _hoyolabConfig.value.ltuid != cfg.ltuid) return
         if (uids.isNotEmpty()) {
             applyGameUids(uids)
+            // 서버가 답했으면 이번 실행에서는 다시 묻지 않는다 — 계정에 없는 게임의 빈 칸은 물어도 채워지지 않는다.
             enkaUidsSynced = true
         }
     }
@@ -957,25 +1155,7 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----------------------------------------------------------------- 출석
-    fun toggleAttendance(gameKey: String) =
-        editTodayAttendance { if (gameKey in it) it - gameKey else it + gameKey }
-
-    /**
-     * 저장소의 출석 원본. 자동 출석([AutoCheckInRunner])은 따로 만든 저장소로 쓰므로 메모리 사본
-     * [attendanceMap] 으로 고치면 그쪽이 방금 저장한 출석을 덮어 지운다 — 고치기 직전에 늘 다시 읽는다.
-     */
-    private fun currentAttendance(): Map<String, Set<String>> = repo.loadAttendance()
-
-    private fun editTodayAttendance(edit: (Set<String>) -> Set<String>) {
-        val today = todayKey()
-        val map = currentAttendance()
-        val next = edit(map[today].orEmpty())
-        attendanceMap = map + (today to next)
-        repo.saveAttendance(attendanceMap)
-        _attendanceHistory.value = attendanceMap
-        _attendanceToday.value = next
-        _attendanceStreak.value = computeAttendanceStreak()
-    }
+    fun toggleAttendance(gameKey: String) = attendance.toggle(gameKey)
 
     /**
      * 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 안 하는 게임까지 분모에 넣으면
@@ -1189,7 +1369,7 @@ class SpendingViewModel : ViewModel() {
                 out.appendLine("GatchaScore: [$game] 캐릭터합계 ${percentileLine(perCharTotal)}")
             }
             println(out.toString().trimEnd())
-            emitStatus("점수 분포를 로그로 남겼어요 — GatchaScore 로 검색")
+            emitSuccess("점수 분포를 로그로 남겼어요 — GatchaScore 로 검색")
         }
     }
 
@@ -1213,7 +1393,7 @@ class SpendingViewModel : ViewModel() {
      */
     fun debugStageMock(on: Boolean) {
         if (on) HoyolandApi.debugInjectStageMock() else HoyolandApi.debugClearStageMock()
-        emitStatus(if (on) "무대 시간표 목업을 켰어요. 호요랜드 상세에서 확인하세요" else "무대 시간표 목업을 껐어요")
+        emitSuccess(if (on) "무대 시간표 목업을 켰어요 — 호요랜드 상세에서 확인하세요" else "무대 시간표 목업을 껐어요")
     }
 
     /** 지금 목업이 얹혀 있는지 — 개발자 화면 토글 표시. */
@@ -1230,17 +1410,17 @@ class SpendingViewModel : ViewModel() {
      */
     fun debugCycleHoyolandPhase(): String {
         val next = when (HoyolandApi.debugPhaseMockKey) {
-            HoyolandDefaults.PHASE_MOCK_BEFORE -> HoyolandDefaults.PHASE_MOCK_LIVE
-            HoyolandDefaults.PHASE_MOCK_LIVE -> HoyolandDefaults.PHASE_MOCK_ENDED
-            HoyolandDefaults.PHASE_MOCK_ENDED -> ""
-            else -> HoyolandDefaults.PHASE_MOCK_BEFORE
+            HoyolandMocks.PHASE_MOCK_BEFORE -> HoyolandMocks.PHASE_MOCK_LIVE
+            HoyolandMocks.PHASE_MOCK_LIVE -> HoyolandMocks.PHASE_MOCK_ENDED
+            HoyolandMocks.PHASE_MOCK_ENDED -> ""
+            else -> HoyolandMocks.PHASE_MOCK_BEFORE
         }
         HoyolandApi.debugInjectPhaseMock(next)
-        emitStatus(
+        emitSuccess(
             when (next) {
-                HoyolandDefaults.PHASE_MOCK_BEFORE -> "호요랜드를 개막 전(D-16)으로 뒀어요"
-                HoyolandDefaults.PHASE_MOCK_LIVE -> "호요랜드를 진행 중으로 뒀어요 — 무대도 같이 돕니다"
-                HoyolandDefaults.PHASE_MOCK_ENDED -> "호요랜드를 종료 상태로 뒀어요"
+                HoyolandMocks.PHASE_MOCK_BEFORE -> "호요랜드를 개막 전(D-16)으로 뒀어요"
+                HoyolandMocks.PHASE_MOCK_LIVE -> "호요랜드를 진행 중으로 뒀어요 — 무대도 같이 돕니다"
+                HoyolandMocks.PHASE_MOCK_ENDED -> "호요랜드를 종료 상태로 뒀어요"
                 else -> "호요랜드 단계 목업을 껐어요"
             },
         )
@@ -1252,9 +1432,9 @@ class SpendingViewModel : ViewModel() {
 
     /** 단계 목업 키를 사람이 읽는 말로. 개발자 화면 부제에 쓴다. */
     fun debugHoyolandPhaseLabel(key: String): String = when (key) {
-        HoyolandDefaults.PHASE_MOCK_BEFORE -> "개막 전"
-        HoyolandDefaults.PHASE_MOCK_LIVE -> "진행 중"
-        HoyolandDefaults.PHASE_MOCK_ENDED -> "종료"
+        HoyolandMocks.PHASE_MOCK_BEFORE -> "개막 전"
+        HoyolandMocks.PHASE_MOCK_LIVE -> "진행 중"
+        HoyolandMocks.PHASE_MOCK_ENDED -> "종료"
         else -> ""
     }
 
@@ -1269,13 +1449,13 @@ class SpendingViewModel : ViewModel() {
                 resinFullAtMillis = 0L,
             )
         }
-        emitStatus("행동력을 3게임 모두 가득으로 채웠어요")
+        emitSuccess("행동력을 3게임 모두 가득으로 채웠어요")
     }
 
     /** 모든 게임의 천장을 한 번에 설정. 계산기의 경계값 확인용. */
     fun debugSetPityAll(count: Int, guaranteed: Boolean) {
         GameData.games.forEach { g -> updatePity(g.key) { it.copy(count = count.coerceAtLeast(0), guaranteed = guaranteed) } }
-        emitStatus("천장을 ${count}${if (guaranteed) " · 확정 보유" else ""}로 맞췄어요")
+        emitSuccess("천장을 ${count}${if (guaranteed) " · 확정 보유" else ""}로 맞췄어요")
     }
 
     /**
@@ -1441,7 +1621,10 @@ class SpendingViewModel : ViewModel() {
         val prevBest = repo.loadBestNoSpend()
         val prevBadges = repo.loadEarnedBadges()
         applyChallenge(
-            SavingsChallenge.evaluate(_spendings.value, _budget.value, prevBest, prevBadges, _gameBudgets.value),
+            SavingsChallenge.evaluate(
+                _spendings.value, _budget.value, prevBest, prevBadges, _gameBudgets.value,
+                budgetSinceMillis = repo.budgetSetAt(),
+            ),
             prevBest, prevBadges,
         )
     }
@@ -1471,7 +1654,9 @@ class SpendingViewModel : ViewModel() {
             target.saveSpendings(list, notify = false)
             val prevBest = target.loadBestNoSpend()
             val prevBadges = target.loadEarnedBadges()
-            val summary = SavingsChallenge.evaluate(list, budget, prevBest, prevBadges, gameBudgets)
+            val summary = SavingsChallenge.evaluate(
+                list, budget, prevBest, prevBadges, gameBudgets, budgetSinceMillis = target.budgetSetAt(),
+            )
             withContext(Dispatchers.Main) {
                 if (repo !== target) return@withContext   // 그 사이 계정이 바뀌었다
                 applyChallenge(summary, prevBest, prevBadges)
@@ -1489,7 +1674,6 @@ class SpendingViewModel : ViewModel() {
         repo = { repo },
         hoyolab = { _hoyolabConfig.value },
         ensureUids = { ensureEnkaUids() },
-        persistDispatcher = persistDispatcher,
         prefetchCharCamps = { game, chars -> charMeta.prefetchCharCamps(game, chars) },
     )
     val enkaGiUid: StateFlow<String> = enka.enkaGiUid
@@ -1542,7 +1726,7 @@ class SpendingViewModel : ViewModel() {
 
 
     // ----- 가챠 효율 리포트 (UIGF/SRGF) — [GachaRecordsController] -----
-    private val gacha = GachaRecordsController(viewModelScope, { repo }, ::emitStatus)
+    private val gacha = GachaRecordsController(viewModelScope, { repo }) { msg, kind -> emitStatus(msg, kind) }
     val gachaStats: StateFlow<GachaStats?> = gacha.gachaStats
     val gachaDashboard: StateFlow<GachaDashboard?> = gacha.gachaDashboard
 
@@ -1568,17 +1752,20 @@ class SpendingViewModel : ViewModel() {
     fun importBackupFromContent(json: String) {
         viewModelScope.launch {
             if (json.isBlank() || runCatching { com.gatcha.log.json.JSONObject(json) }.isFailure) {
-                emitStatus("백업 파일을 읽지 못했어요 (형식 확인)")
+                emitError("백업 파일을 읽지 못했어요 — 형식을 확인해 주세요")
                 return@launch
             }
             persistJob?.join()
-            repo.importBackupJson(json)
-            loadAll()
-            // 로그인 상태면 복원 결과를 클라우드에도 업로드(다른 기기와 일치)
-            if (cloudConfigured) CloudSync.currentUid()?.let { uid ->
-                withContext(Dispatchers.IO) { cloudPush(uid) }
+            if (!repo.importBackupJson(json)) {
+                emitError("백업 파일이 아니에요 — 이 앱에서 내보낸 백업 파일을 골라 주세요")
+                return@launch
             }
-            emitStatus("백업을 복원했어요")
+            reloadSyncedState()
+            // 로그인 상태면 복원 결과를 클라우드에도 업로드(다른 기기와 일치)
+            syncUid()?.let { uid ->
+                withContext(Dispatchers.IO) { cloud.push(uid) }
+            }
+            emitSuccess("백업을 복원했어요")
         }
     }
 
@@ -1648,9 +1835,18 @@ class SpendingViewModel : ViewModel() {
     val statusMessage: StateFlow<String?> = feedback.statusMessage
 
     fun clearStatus() { feedback.clearStatus() }
-    private fun emitStatus(msg: String) { feedback.status(msg) }
+    /** 토스트 — 기본은 안내. 끝낸 일은 [emitSuccess], 실패는 [emitError](GLDS 2.1 토스트의 아이콘 원 색이 갈린다). */
+    private fun emitStatus(msg: String, kind: ToastKind = ToastKind.INFO) { feedback.status(msg, kind) }
+    private fun emitSuccess(msg: String) = emitStatus(msg, ToastKind.SUCCESS)
+    private fun emitError(msg: String) = emitStatus(msg, ToastKind.ERROR)
     /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
     fun showStatus(msg: String) = emitStatus(msg)
+
+    /** 화면이 상태를 정해 띄우는 토스트 — 저장 성공 · 실패처럼 결과가 분명한 것. */
+    fun showToast(msg: String, kind: ToastKind) = emitStatus(msg, kind)
+
+    /** 지금 띄울 토스트 — 상태 · 제목 · 설명. 화면은 [statusMessage] 대신 이것을 그린다. */
+    val statusToast: StateFlow<StatusToast?> = feedback.statusToast
 
     /** 오류 얼럿 모달 — null 이 아니면 노출. UI 가 확인 후 [clearErrorAlert]. 세우는 규칙은 [FeedbackController]. */
     val errorAlert: StateFlow<ErrorAlert?> = feedback.errorAlert
@@ -1662,7 +1858,7 @@ class SpendingViewModel : ViewModel() {
      * 앱 밖(백그라운드 작업·알람)에서 출석이 바뀌면 저장소에서 다시 읽는다.
      *
      * 자동 출석은 [GatchaRepository] 를 새로 만들어 저장소에 직접 쓰므로, 여기서 다시 읽지
-     * 않으면 화면의 `attendanceMap` 이 낡은 채로 남는다.
+     * 않으면 화면의 출석 상태([AttendanceController])가 낡은 채로 남는다.
      */
     private fun observeAttendance() {
         // 앱을 켜 둔 채 베이징 자정(출석 초기화)을 넘기면 '오늘 출석'이 어제 값으로 남았다 —
@@ -1674,9 +1870,21 @@ class SpendingViewModel : ViewModel() {
                 reloadAttendance()
             }
         }
+        // 같은 까닭으로 **로컬 자정**에는 「이번 달」과 절약 챌린지를 다시 계산한다(27.52.0) — 앱을 켠 채 달이 넘어가면
+        // 1일 00:10 에 넣는 지출에 지난달 합계로 「이번 달 이미 N원 썼어요」가 떴고, 무지출 연속 일수도 어제 값이었다.
+        viewModelScope.launch {
+            while (true) {
+                val now = currentTimeMillis()
+                delay(DateUtil.startOfDayPlus(now, 1) - now + 1_000)
+                recomputeSpendingDerived()
+                refreshChallenge()
+            }
+        }
         viewModelScope.launch {
             AttendanceBus.changed.collect {
                 reloadAttendance()
+                refreshHoyoTokenExpired()   // 그 출석이 토큰 만료를 찍었거나 풀었을 수 있다
+                rescheduleTimedAlerts()     // 출석 리마인더를 남은 출석에 맞춰 다시 건다
                 // 자동 출석은 따로 만든 저장소에 써서 onChange 가 안 걸린다 — 여기서 올리기를 예약하지
                 // 않으면 다음 변경 전까지 클라우드는 출석 전 값이고, 그 사이 pull 이 오늘 출석을 지운다.
                 scheduleCloudSync()
@@ -1685,12 +1893,7 @@ class SpendingViewModel : ViewModel() {
     }
 
     /** 출석 기록을 저장소에서 다시 읽어 화면 상태를 맞춘다. */
-    private fun reloadAttendance() {
-        attendanceMap = repo.loadAttendance()
-        _attendanceHistory.value = attendanceMap
-        _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
-        _attendanceStreak.value = computeAttendanceStreak()
-    }
+    private fun reloadAttendance() = attendance.reload()
 
     /** 읽은 알림 키 집합(안정 키 — 가변 메시지 아님). 기기 재진입에도 유지되도록 prefs 영구 저장(로컬 전용). */
     private val _readAlerts = MutableStateFlow<Set<String>>(emptySet())
@@ -1801,7 +2004,7 @@ class SpendingViewModel : ViewModel() {
         }
         val gen = ++gameInfoGen
         gameInfoSpinning = !silent
-        gameInfoJob = viewModelScope.launch {
+        gameInfoJob = accountScope.launch {
             // silent(백그라운드 복귀 자동 갱신)는 인디케이터를 켜지 않는다.
             // `_isRefreshing` 은 홈·지출·게임정보 세 탭의 당겨서-새로고침 표시와 새로고침 버튼
             // 비활성, 배너 스켈레톤을 한꺼번에 움직인다. 전체 갱신은 HoYoLAB 왕복까지 포함해
@@ -1829,11 +2032,7 @@ class SpendingViewModel : ViewModel() {
                 noteRetry = false
                 coroutineScope {
                     val cfg = _hoyolabConfig.value
-                    val uids = if (cfg.isLinked) mapOf(
-                        "genshin" to cfg.genshinUid,
-                        "hsr" to cfg.hsrUid,
-                        "zzz" to cfg.zzzUid,
-                    ).filterValues { it.isNotBlank() } else emptyMap()
+                    val uids = if (cfg.isLinked) cfg.linkedUids else emptyMap()
 
                     // 1) 홈/오늘 할 일 의존 최소셋 — 배너(ennead 2게임 + ZZZ) + 실시간 노트를 모두 동시에
                     // async(Dispatchers.IO) — 응답 본문 디코딩과 JSON 파싱을 메인 스레드 밖에서 한다.
@@ -2023,8 +2222,9 @@ class SpendingViewModel : ViewModel() {
                                     launch {
                                         val combats = d.await()
                                         if (combats.isEmpty()) return@launch
+                                        // 모드 단위로 갈아끼운다 — 이번에 못 받은 모드는 직전 값을 남긴다([mergeCombat]).
                                         _combat.update { prev ->
-                                            mergeByGame(prev, combats, combats.map { it.game }.toSet()) { it.game }.sortedByGameOrder { it.game }
+                                            mergeCombat(prev, combats, currentTimeMillis()).sortedByGameOrder { it.game }
                                         }
                                         anyCombat = true
                                     }
@@ -2075,35 +2275,35 @@ class SpendingViewModel : ViewModel() {
             _spendingRefreshing = true
             _isRefreshing.value = true
             try {
+            var reloaded = false   // 합치기가 이미 다시 읽었으면 아래에서 또 읽지 않는다
             if (cloudConfigured && !NetworkMonitor.isOnline()) {
                 // 오프라인 — 클라우드 동기화는 건너뛰고 로컬만 갱신하며 안내.
                 emitNetworkAlert()
             } else if (cloudConfigured) {
-                CloudSync.currentUid()?.let { uid ->
-                    val hasPendingLocal = syncJob?.isActive == true // 디바운스 푸시 대기 = 미반영 로컬 변경
-                    syncJob?.cancel()
+                syncUid()?.let { uid ->
+                    val sync = cloud   // 시작할 때의 계정 것을 잡아 둔다 — 받는 사이 계정이 바뀌면 이 컨트롤러는 아무것도 쓰지 않는다
+                    // 디바운스 푸시 대기 또는 못 올린 표시 = 미반영 로컬 변경
+                    val hasPendingLocal = sync.hasPendingLocal
+                    sync.cancel()
                     if (hasPendingLocal) {
                         // 로컬 변경을 먼저 클라우드에 반영(PTR 이 옛 클라우드로 덮어쓰지 않게)
-                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
+                        sync.pushNow(uid)
                     } else {
                         // pull 실패(네트워크)면 push 금지 — 빈/구 로컬로 클라우드 덮어쓰기 방지.
-                        when (val outcome = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pullOutcome(uid) }) {
-                            is CloudSync.PullOutcome.Loaded -> {
-                                persistJob?.join()
-                                outcome.json?.let { repo.importSnapshotJson(it) }
-                                carryOverGuestHoyolab()
-                                // cloudPush 는 repo(prefs)에서 직접 스냅샷을 만들므로 여기서 loadAll() 을
-                                // 먼저 돌릴 필요가 없다. 아래에서 어차피 한 번 부른다.
-                                withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
-                            }
+                        when (val outcome = sync.pull(uid)) {
+                            // 받는 사이(최대 8초) 로그아웃 · 계정 전환이 끝났으면 버린다 — 시작 동기화와 같은 함수를 쓴다.
+                            is CloudSync.PullOutcome.Loaded -> reloaded = sync.mergePulledAndPush(uid, outcome.json)
                             else -> emitNetworkAlert()
                         }
                     }
                 }
             }
-            // 어느 분기로 왔든 여기서 한 번만 — 예전엔 분기 안에서도 불러 PTR 1회에 loadAll() 이 두 번 돌았다.
-            // loadAll() 은 prefs 20여 키 파싱 + 저장소 읽기 다수를 포함한다.
-            loadAll()
+            // 어느 분기로 왔든 **한 번만** 다시 읽는다 — 예전엔 분기 안에서도 불러 PTR 1회에 다시 읽기가 두 번 돌았다.
+            // 저장이 덜 끝난 목록을 읽지 않게 기다린 뒤, 스냅샷이 바꿀 수 있는 값만 다시 읽는다([reloadSyncedState]).
+            if (!reloaded) {
+                persistJob?.join()
+                reloadSyncedState()
+            }
             } finally {
                 // 예외로 빠져나가도 가드를 반드시 푼다 — 안 그러면 새로고침이 영구히 막힌다.
                 _isRefreshing.value = false
@@ -2112,49 +2312,56 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    /** 출석체크 시도. HoYoLAB 연동 시 실제 API 호출, 미연동 시 로컬 수동 토글. */
+    /** 출석체크 시도 — HoYoLAB 연동 시에만 실제 API 를 부른다. 미연동이면 출석하지 않는다. */
     fun attemptCheckIn(gameKey: String) {
         // 한 번에 한 건만 — 다른 게임이 진행 중이어도 막는다. 예전엔 가드가 없어 연타가 체크인을
         // 두 번 쐈고, 먼저 끝난 쪽 finally 가 `_checkingIn` 을 풀어 [checkInAll] 가드까지 풀렸다.
         if (_checkingIn.value != null) return
         val cfg = _hoyolabConfig.value
+        // 미연동이면 출석으로 기록하지 않는다 — 예전엔 수동 출석으로 완료 처리해, HoYoLAB 계정도 UID 도 없는데
+        // 출석이 찍혔다(27.52.0). 화면도 미연동이면 출석 버튼을 내지 않는다.
         if (!cfg.isLinked) {
-            // 출석 버튼은 '하기'만 한다 — toggle 로 두면 두 번 탭이 방금 한 출석을 취소했다.
-            if (gameKey in currentAttendance()[todayKey()].orEmpty()) return
-            toggleAttendance(gameKey)
-            emitStatus("수동 출석 처리 (HoYoLAB 미연동)")
+            emitStatus(UNLINKED_CHECK_IN)
+            return
+        }
+        // 연동했어도 게임 UID 가 없으면 보내지 않는다 — 화면도 출석 버튼을 내지 않는다([GameData.trackedAttendanceGames]).
+        if (!cfg.canCheckIn) {
+            emitStatus(NO_UID_CHECK_IN)
             return
         }
         _checkingIn.value = gameKey   // launch 전에 세운다 — 같은 프레임의 두 번째 탭도 위 가드에 걸리게
-        checkInJob = viewModelScope.launch {
+        checkInJob = accountScope.launch {
             try {
                 val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, gameKey)
                 if (r.success) markCheckedIn(gameKey)
-                emitStatus(r.message)
+                emitStatus(r.message, if (r.success) ToastKind.SUCCESS else ToastKind.ERROR)
             } finally {
                 _checkingIn.value = null
             }
         }
     }
 
-    /** 전체 출석 한번에 — 오늘 미출석 게임을 순차로 체크인(연동 시 실제 API, 미연동 시 로컬 토글). */
+    /** 전체 출석 한번에 — 오늘 미출석 게임을 동시에 체크인. 미연동이면 출석하지 않는다([attemptCheckIn]). */
     fun checkInAll() {
         if (_checkingIn.value != null) return // 이미 진행 중
         // 메모리 값이 아니라 저장소에서 — 자정을 넘겼거나 자동 출석이 방금 저장했을 수 있다.
-        val done = currentAttendance()[todayKey()].orEmpty()
+        val done = attendance.todayDone()
         val pending = trackedAttendanceGames.value.filter { it.key !in done }
         if (pending.isEmpty()) {
-            emitStatus("오늘 출석을 모두 완료했어요")
+            emitSuccess("오늘 출석을 모두 완료했어요")
             return
         }
         val cfg = _hoyolabConfig.value
         if (!cfg.isLinked) {
-            pending.forEach { toggleAttendance(it.key) }
-            emitStatus("수동 출석 ${pending.size}건 처리 (HoYoLAB 미연동)")
+            emitStatus(UNLINKED_CHECK_IN)
+            return
+        }
+        if (!cfg.canCheckIn) {
+            emitStatus(NO_UID_CHECK_IN)
             return
         }
         _checkingIn.value = pending.first().key
-        checkInJob = viewModelScope.launch {
+        checkInJob = accountScope.launch {
             // 게임마다 호스트가 달라 동시에 보낸다 — 예전엔 한 게임씩 기다려 3게임이 3배 걸렸다.
             // 결과는 도착하는 대로 싣는다(markCheckedIn 은 메인에서 돈다 — 이 launch 가 메인이다).
             val results = try {
@@ -2173,15 +2380,13 @@ class SpendingViewModel : ViewModel() {
             val ok = results.count { it.second.success }
             // 실패 사유를 한 줄 붙인다 — "(일부 실패)" 만으로는 재연동인지 보안 인증인지 알 수 없었다.
             val fail = results.firstOrNull { !it.second.success }
-            emitStatus(
-                if (fail == null) "전체 출석 완료 — ${ok}개"
-                else "출석 ${ok}/${pending.size} 완료 · ${fail.first.shortName}: ${fail.second.message}",
-            )
+            if (fail == null) emitSuccess("전체 출석 완료 — ${pending.joinToString(" · ") { it.shortName }}")
+            else emitError("출석 ${ok}/${pending.size} 완료 — ${fail.first.shortName}: ${fail.second.message}")
         }
     }
 
     // ----------------------------------------------------------------- 선물코드 (자동 수집 + 교환)
-    private val giftCodes = GiftCodeController(viewModelScope, { repo }, { _hoyolabConfig.value }, ::emitStatus)
+    private val giftCodes = GiftCodeController(viewModelScope, { repo }, { _hoyolabConfig.value }) { msg, kind -> emitStatus(msg, kind) }
     val redeemState: StateFlow<RedeemState> = giftCodes.redeemState
 
     /** 자동 수집된 활성 코드. */
@@ -2205,6 +2410,9 @@ class SpendingViewModel : ViewModel() {
     /** HoYoLAB 선물코드 교환(단건). 결과는 [redeemState] 로 노출. */
     fun redeemGiftCode(gameKey: String, code: String) { giftCodes.redeemGiftCode(gameKey, code) }
 
+    /** 직접 입력 모달의 교환 — 코드 자체가 문제면 토스트 없이 [RedeemState.Done.inputError] 로만 알린다(입력필드 오류). */
+    fun redeemTypedCode(gameKey: String, code: String) { giftCodes.redeemGiftCode(gameKey, code, fromInput = true) }
+
     /** 수집된 활성 코드 중 미교환분을 순차 교환. 같은 사유로 연달아 실패하면 중단한다. */
     fun redeemAllCodes(gameKey: String) { giftCodes.redeemAllCodes(gameKey) }
 
@@ -2212,7 +2420,7 @@ class SpendingViewModel : ViewModel() {
     fun resetRedeem() { giftCodes.resetRedeem() }
 
 
-    private fun markCheckedIn(gameKey: String) = editTodayAttendance { it + gameKey }
+    private fun markCheckedIn(gameKey: String) = attendance.markCheckedIn(gameKey)
 
     // ── 파생 StateFlow(이번 달) ────────────────────────────────────────────────
     //
@@ -2314,10 +2522,19 @@ class SpendingViewModel : ViewModel() {
 
     // ----------------------------------------------------------------- 클라우드 동기화 (Firebase Firestore)
     private val cloudConfigured: Boolean get() = CloudSync.isConfigured()
-    private var syncJob: Job? = null
+
+    /**
+     * 지금 클라우드에 닿아도 되는 uid — **로그인한 계정일 때만**(27.52.0).
+     *
+     * 계정은 게스트인데 Firebase 세션만 살아 있는 상태가 있다(재설치 뒤 Keychain 에 남은 세션 · 로그인 도중 종료).
+     * 올리기 예약([scheduleCloudSync])에는 게스트 가드가 있었지만 시작 동기화 · 조용한 받기 · 당겨서 새로고침에는 없어서,
+     * 이전 계정의 스냅샷이 게스트 저장소에 합쳐지고 게스트 값이 그 계정 문서로 올라갈 수 있었다.
+     */
+    private fun syncUid(): String? =
+        if (!cloudConfigured || account.value.isGuest) null else CloudSync.currentUid()
 
     /** 기존 로그인 유저의 최초 클라우드 동기화(데이터 불러오는 중) 여부. 시작 시 로그인 상태면 true. */
-    private val _initialSyncing = MutableStateFlow(cloudConfigured && CloudSync.currentUid() != null)
+    private val _initialSyncing = MutableStateFlow(syncUid() != null)
     val initialSyncing: StateFlow<Boolean> = _initialSyncing.asStateFlow()
 
     /** 로그아웃 진행 중 — 양 플랫폼이 오버레이 스피너를 띄우는 데 쓴다. [signOut] 참고. */
@@ -2350,153 +2567,26 @@ class SpendingViewModel : ViewModel() {
         appSettings.syncedAccounts = appSettings.syncedAccounts + acc.id
     }
 
-    /** 데이터 변경 시 디바운스(1.5s) 후 Firestore 에 전체 스냅샷 푸시. */
-    private fun scheduleCloudSync() {
-        if (!cloudConfigured) return
-        // 게스트 데이터는 절대 올리지 않는다. switchAccount(GUEST) 가 게스트 repo 에 onChange 를 다시
-        // 붙이는데, 로그아웃이 타임아웃돼 Firebase uid 가 아직 살아있으면 게스트 스냅샷이 직전 계정
-        // 문서를 덮어쓸 수 있다. 계정 기준으로 먼저 차단해 그 레이스를 원천 차단.
-        if (account.value.isGuest) return
-        val uid = CloudSync.currentUid() ?: return
-        syncJob?.cancel()
-        syncJob = viewModelScope.launch {
-            delay(1500)
-            // 순간 끊김은 조용히 다시 올린다(9/30) — 9/29 부터 push 가 트랜잭션이라 오프라인 · 연결 전환 중이면
-            // 바로 실패했고(예전 set 은 오프라인 큐에 쌓였다) 그때마다 백업 실패 얼럿이 떠 잦아졌다.
-            // 얼럿은 [cloudPush] 가 연달아 PUSH_FAIL_ALERT_STREAK 번 실패했을 때만 띄운다.
-            for (wait in PUSH_RETRY_DELAYS_MS) {
-                if (wait > 0) delay(wait)
-                if (cloudPush(uid)) break
-            }
-        }
-    }
-
     /**
-     * 대기 중인 디바운스 push 를 **즉시** 밀어낸다 — 로그아웃처럼 인증이 끊기기 직전에 호출한다.
-     *
-     * [scheduleCloudSync] 는 1.5초 디바운스라, 마지막 편집 직후 로그아웃하면 아직 delay 중인
-     * syncJob 이 인증 해제와 함께 무의미해져 **그 1.5초 안의 변경분이 유실**됐다.
-     * (2026-07-03 지출 유실 사고와 같은 계열의 구멍)
-     *
-     * 디바운스 대기는 취소하되 push 자체는 지금 수행한다 — job.join() 으로 기다리면 남은 delay 만큼
-     * 로그아웃이 늦어지므로, 대기를 건너뛰고 곧바로 올리는 편이 빠르고 결과도 같다.
+     * **지금 계정의 클라우드 동기화**([CloudSyncController]) — 올리기 예약 · 밀어내기 · 「받은 것 합치기 → 올리기」와 그 상태.
+     * 계정이 바뀌면 앞의 것을 끊고 새 저장소로 다시 만든다([switchAccount]) — 올리기 상태가 계정을 넘어가지 않는다.
+     * 로딩 게이트 · 오프라인 안내 · 언제 받을지([cloudSyncPullOrSeed] · [refreshSpending])는 여기 남아 있다.
      */
-    private suspend fun flushPendingCloudSync() {
-        val job = syncJob ?: return
-        if (!job.isActive) return
-        job.cancel()                       // 남은 delay 는 버리고
-        syncJob = null
-        if (!cloudConfigured) return
-        if (account.value.isGuest) return
-        val uid = CloudSync.currentUid() ?: return
-        withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }   // 지금 올린다
-    }
+    private var cloud = newCloudSync(repo)
 
-    /** 마지막으로 Firestore 에 성공적으로 push 한 스냅샷(중복 쓰기 생략용). */
-    private var lastPushedSnapshot: String? = null
+    private fun newCloudSync(target: GatchaRepository) = CloudSyncController(
+        scope = viewModelScope,
+        repo = target,
+        syncUid = { syncUid() },
+        isCurrent = { repo === target },
+        awaitPersist = { persistJob?.join() },
+        beforeReload = { carryOverGuestHoyolab() },
+        reloadSynced = { reloadSyncedState() },
+        emitStatus = { msg, kind -> emitStatus(msg, kind) },
+    )
 
-    /** 용량 경고를 이미 띄웠는가 — 디바운스 push 마다 같은 토스트가 반복되지 않도록(임계 아래로 내려가면 해제). */
-    private var docSizeWarned = false
-
-    /** push 실패를 이미 알렸는가 — 실패가 이어질 때 토스트가 쌓이지 않도록(성공하면 해제). */
-    private var pushFailureNotified = false
-
-    /** 연달아 실패한 push 횟수(성공하면 0). 순간 끊김 한 번으로 얼럿을 띄우지 않으려고 센다. */
-    private var pushFailStreak = 0
-
-    /**
-     * UTF-8 인코딩 바이트 수.
-     *
-     * Firestore 문서 한도는 **바이트** 기준인데 [String.length] 는 UTF-16 단위라, 한글이 섞이면
-     * 실제 크기를 과소평가한다(한글 1자 = 1 단위 = 3 바이트). `encodeToByteArray().size` 로도 잴 수
-     * 있지만 스냅샷이 수백 KB 급이라 그 크기만큼을 push 마다 새로 할당하게 된다 — 세기만 한다.
-     */
-    private fun utf8Bytes(s: String): Int {
-        var n = 0
-        for (c in s) {
-            val v = c.code
-            n += when {
-                v < 0x80 -> 1
-                v < 0x800 -> 2
-                v in 0xD800..0xDFFF -> 2   // 서로게이트 쌍(2문자)이 합쳐 4바이트
-                else -> 3
-            }
-        }
-        return n
-    }
-
-    /**
-     * 전체 스냅샷을 Firestore 에 push 하는 단일 경로.
-     *  - 중복 방지: 직전 성공 push 와 내용이 같으면 쓰기를 생략(테마 변경·재로딩 등 무변화 churn 절감).
-     *  - 1MB 한도 경고: 문서 실제 크기(UTF-8 바이트)가 한도에 근접하면 미리 안내한다.
-     *  - 실패 안내: set 이 실패하면 사용자에게 알린다 — 알리지 않으면 백업이 멈춘 줄 모른다.
-     *  - 실패 시 lastPushedSnapshot 을 갱신하지 않아 다음 변경에서 재시도된다.
-     */
-    private suspend fun cloudPush(uid: String): Boolean {
-        // **이 작업 전체가 IO 로 간다.** 스냅샷 생성은 저장된 JSON 문자열을 전부 파싱하고
-        // 결과를 다시 직렬화하는 일이라 수백 KB 급인데, viewModelScope 가 Main.immediate 라
-        // 지출을 저장할 때마다 1.5초 뒤 그게 UI 스레드에서 돌고 있었다.
-        // (직렬화 형식 자체는 건드리지 않는다 — lastPushedSnapshot 비교와 Firestore 중복 쓰기
-        //  생략이 바이트 동일성에 걸려 있다.)
-        // 출석 원문은 스냅샷보다 **먼저** 뜬다. 그 사이에 출석이 바뀌면 둘이 어긋나 표시가 남는
-        // 쪽으로 기운다(안전한 쪽) — 거꾸로 뜨면 올리지 않은 출석의 보호를 풀 수 있다.
-        persistJob?.join()   // 대기 중인 지출 저장이 끝난 뒤의 저장소를 올린다
-        val attendanceAtExport = repo.attendanceRaw()
-        val json = withContext(Dispatchers.IO) { repo.exportSnapshotJson() }
-        if (json == lastPushedSnapshot) {
-            // 올릴 것이 없다 = 원격이 이미 로컬과 같다 → 출석 보호 표시도 풀어 준다.
-            repo.clearAttendanceDirtyIfUnchanged(attendanceAtExport)
-            return true   // 변경 없음 → write 생략
-        }
-        // 문서의 **실제** 크기로 잰다 — 한도는 UTF-16 단위가 아니라 UTF-8 바이트 기준이다.
-        // (섹션 dual-write 를 걷어내기 전에는 여기에 ×2 가 더 붙었다. 지금은 `data` 한 벌뿐이다.)
-        val docBytes = utf8Bytes(json)
-        if (docBytes > CLOUD_DOC_WARN_BYTES) {
-            if (!docSizeWarned) {
-                docSizeWarned = true
-                emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB) — 오래된 뽑기 기록 정리를 권장해요")
-            }
-        } else docSizeWarned = false
-        // 원격을 읽고 합쳐서 쓴다(트랜잭션) — 다른 기기가 방금 올린 변경을 덮지 않는다.
-        val target = repo
-        val merged = withContext(Dispatchers.IO) {
-            CloudSync.pushMerged(uid) { remote -> target.mergeForPush(json, remote) }
-        }
-        val ok = merged != null
-        if (merged != null) {
-            if (merged != json) {
-                // 원격에 이 기기가 모르던 변경이 있었다 — 합친 결과를 로컬에도 싣는다. 저장 큐가 끝난 뒤,
-                // 여전히 같은 계정일 때만(병합 결과가 이 기기의 최신 수정을 되돌리지는 않는다 — 수정 시각 비교).
-                withContext(Dispatchers.Main) {
-                    persistJob?.join()
-                    if (repo === target) { repo.importSnapshotJson(merged); loadAll() }
-                }
-            }
-            // 원격과 같다고 확신할 수 있을 때만 중복 생략 기준으로 삼는다. 합쳐졌으면 다음 push 가 한 번 더
-            // 읽어 보고(대개 쓰기 없이) 끝난다.
-            lastPushedSnapshot = if (merged == json) json else null
-            pushFailureNotified = false
-            pushFailStreak = 0
-            // 올라갔으니 다음 pull 은 출석을 그대로 받아도 된다 — 단 푸시 도중 자동 출석이 새로
-            // 쓰지 않았을 때만(→ [GatchaRepository.clearAttendanceDirtyIfUnchanged]).
-            repo.clearAttendanceDirtyIfUnchanged(attendanceAtExport)
-        } else if (++pushFailStreak >= PUSH_FAIL_ALERT_STREAK || docBytes > CLOUD_DOC_LIMIT_BYTES) {
-            // 용량 초과는 다시 해도 안 풀리니 바로, 그 밖은 연달아 실패했을 때만 알린다.
-            if (pushFailureNotified) return ok
-            // 실패를 삼키면 로컬만 계속 쌓이고 클라우드는 멈춘 채로, 기기를 바꾸는 순간에야 발견된다.
-            // 할 일이 원인마다 다르므로 용량 초과와 그 외를 나눠 안내한다.
-            pushFailureNotified = true
-            // 토스트로는 지나쳐 버린다 — 백업이 멈춘 건 모르고 지나가면 기기 교체 때 데이터를 잃는다.
-            ErrorBus.report(
-                ErrorBus.Kind.CLOUD, "클라우드",
-                if (docBytes > CLOUD_DOC_LIMIT_BYTES)
-                    "백업이 용량 한도를 넘어 멈췄어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB).\n오래된 뽑기 기록을 정리해주세요."
-                else
-                    "백업에 여러 번 실패했어요.\n연결을 확인해주세요 — 다음 변경 때 다시 시도해요.",
-            )
-        }
-        return ok
-    }
+    /** 데이터가 바뀌었다 — 디바운스 뒤 올린다. 저장소의 변경 알림과 화면의 편집이 부른다. */
+    private fun scheduleCloudSync() = cloud.schedule()
 
     /**
      * 게스트 상태에서 연동해둔 HoYoLAB 정보를 계정으로 **옮긴다.**
@@ -2511,10 +2601,13 @@ class SpendingViewModel : ViewModel() {
         val guest = GatchaRepository(Account.GUEST.id)
         val guestCfg = guest.loadHoyolab()
         if (!guestCfg.isLinked) return
-        if (repo.loadHoyolab().isLinked) { guest.saveHoyolab(HoyolabConfig()); return }
+        if (repo.loadHoyolab().isLinked) { guest.saveHoyolab(HoyolabConfig()); clearHoyolabDiskCaches(guest); return }
         if (!repo.saveHoyolab(guestCfg)) return          // 계정 쪽 저장이 실패했으면 게스트 것을 남겨 다음에 다시 시도한다
         guest.saveHoyolab(HoyolabConfig())
+        clearHoyolabDiskCaches(guest)   // 토큰만 비우면 나중에 로그아웃했을 때 몇 달 전 행동력이 게스트 화면에 뜬다
         _hoyolabConfig.value = guestCfg
+        // 연동이 생겼다 — 출석 리마인더 · 행동력 예약을 이 연동으로 다시 건다([HoyolabConfig.canCheckIn]).
+        rescheduleTimedAlerts()
         val gi = guest.loadEnkaGiUid()
         val hsr = guest.loadEnkaHsrUid()
         if (gi.isNotBlank() || hsr.isNotBlank()) {
@@ -2532,50 +2625,43 @@ class SpendingViewModel : ViewModel() {
      */
     private suspend fun cloudSyncPullOrSeed(quiet: Boolean = false) {
         if (!cloudConfigured) { if (!quiet) _initialSyncing.value = false; return }
-        val uid = CloudSync.currentUid() ?: run { if (!quiet) _initialSyncing.value = false; return }
+        val uid = syncUid() ?: run { if (!quiet) _initialSyncing.value = false; return }
         // 로딩 페이지 오프라인 분기: 8초 타임아웃을 기다리지 않고 즉시 로컬로 진행 + 얼럿 안내.
         // quiet(백그라운드 복귀 갱신)은 로딩 게이트도 얼럿도 띄우지 않는다 — 화면을 그대로 두고 값만 바꾼다.
         if (!NetworkMonitor.isOnline()) {
             if (quiet) return
             emitNetworkAlert()
-            loadAll()
+            reloadSyncedState()
             _initialSyncing.value = false
             return
         }
         if (!quiet) _initialSyncing.value = true
         // 대기 중인 로컬 변경이 있었는지 기억해 둔다 — 아래에서 디바운스 push 를 끊는데, pull 이 실패하면
         // 그 변경은 다음 편집 전까지 아무도 올리지 않았다(저장 직후 앱을 내리면 다른 기기에 안 보임).
-        val hadPendingPush = syncJob?.isActive == true
-        syncJob?.cancel()
-        // pull 은 최대 8초 — 그 사이 로그아웃 · 계정 전환이 끝나면 [repo] 는 다른 계정 것이 된다.
-        // 시작할 때의 저장소를 잡아 두고, 합치기 직전에 여전히 같은 계정일 때만 반영한다.
-        val targetRepo = repo
+        // pull 은 최대 8초 — 그 사이 로그아웃 · 계정 전환이 끝나면 [repo] · [cloud] 는 다른 계정 것이 된다.
+        // 시작할 때의 것을 잡아 두고, 합치기 직전에 여전히 같은 계정일 때만 반영한다.
+        val sync = cloud
+        val targetRepo = sync.repo
+        val hadPendingPush = sync.hasPendingLocal
+        sync.cancel()
         try {
             // pull 은 성공(문서 없음 포함)과 실패(네트워크/타임아웃)를 구분한다. **실패면 push 를 생략**해
             // 멀쩡한 클라우드를 빈/구 로컬로 덮어쓰지 않는다(이번 유실 사고 재발 방지).
-            when (val outcome = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pullOutcome(uid) }) {
+            when (val outcome = sync.pull(uid)) {
                 is CloudSync.PullOutcome.Loaded -> {
                     // 저장소를 읽고-합치고-쓰는 구간은 **메인에서** — 지출 추가 · 수정 · 삭제가 메인에서 저장소를
                     // 쓰므로 한 줄로 세워야 서로 끼어들지 않는다. 예전엔 IO 에서 돌아 그사이 추가한 지출이
                     // 병합 결과에서 빠지고 loadAll 이 그 목록으로 덮었다(2026-09-28 점검).
                     // ponytail: 스냅샷 파싱까지 메인에서 돈다 — 지출이 수천 건이 되어 복귀가 버벅이면 파싱만 IO 로 떼고 쓰기만 메인에 둔다.
-                    if (repo !== targetRepo || CloudSync.currentUid() != uid) return   // 계정이 바뀌었다 — A 의 데이터를 B 에 넣지 않는다
-                    withContext(Dispatchers.Main) {
-                        persistJob?.join()   // 늦게 끝난 옛 목록 저장이 병합 결과를 덮지 않게
-                        outcome.json?.let { repo.importSnapshotJson(it) }
-                        // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
-                        carryOverGuestHoyolab()
-                        loadAll()
-                        markAccountSynced()   // 첫 동기화 성공 — 다음 실행부터 로딩 게이트 없음
-                    }
-                    // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
-                    withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
+                    if (repo !== targetRepo || syncUid() != uid) return   // 계정이 바뀌었다 — A 의 데이터를 B 에 넣지 않는다
+                    // 첫 동기화 성공이면 다음 실행부터 로딩 게이트가 없다([markAccountSynced]).
+                    sync.mergePulledAndPush(uid, outcome.json) { markAccountSynced() }
                 }
                 else -> {
                     // Failed 또는 타임아웃(null) → 상태 불명이므로 push 금지, 로컬 유지 + 안내.
-                    if (!quiet) { emitNetworkAlert(); loadAll() }
+                    if (!quiet) { emitNetworkAlert(); reloadSyncedState() }
                     // 다만 끊어 둔 로컬 변경은 다시 예약한다 — 원래 올라갈 참이던 것이다.
-                    if (hadPendingPush && repo === targetRepo) scheduleCloudSync()
+                    if ((hadPendingPush || targetRepo.hasUnsynced) && repo === targetRepo) scheduleCloudSync()
                 }
             }
         } finally {
@@ -2597,17 +2683,14 @@ class SpendingViewModel : ViewModel() {
                 .filter { it.enneadKey != null || it == Game.ZZZ || it == Game.WUWA }
                 .map { it.displayName }.toSet()
 
-        /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
-        const val SYNC_TIMEOUT_MS = 8_000L
+        /** 미연동 상태에서 출석을 부른 경우의 안내 — 출석으로 기록하지 않는다. */
+        const val UNLINKED_CHECK_IN = "HoYoLAB 을 연동하면 출석할 수 있어요"
 
-        /** Firestore 문서 크기 한도(바이트). 이 값을 넘기면 set 이 실패한다. */
-        const val CLOUD_DOC_LIMIT_BYTES = 1_048_576
-        /** push 재시도 간격 — 첫 시도(0) · 15초 · 1분. 순간 끊김은 이 안에서 조용히 풀린다. */
-        val PUSH_RETRY_DELAYS_MS = longArrayOf(0L, 15_000L, 60_000L)
-        /** 연달아 이만큼 실패해야 백업 실패 얼럿(재시도 3회를 다 쓴 뒤). */
-        const val PUSH_FAIL_ALERT_STREAK = 3
-        /** 한도 근접 경고 임계치(바이트, 한도의 약 86%). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
-        const val CLOUD_DOC_WARN_BYTES = 900_000
+        /** 연동했지만 게임 UID 가 없는 계정에서 출석을 부른 경우의 안내. */
+        const val NO_UID_CHECK_IN = "이 HoYoLAB 계정에서 게임 UID 를 찾지 못했어요"
+
+        /** 클라우드 · 인증 요청의 최대 대기(ms) — 값은 동기화 컨트롤러와 같이 쓴다. */
+        const val SYNC_TIMEOUT_MS = CloudSyncController.SYNC_TIMEOUT_MS
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
 
@@ -2627,6 +2710,8 @@ class SpendingViewModel : ViewModel() {
          * 0.6개 차이라 "가득 찼나"를 오판할 만큼은 아니다.
          */
         const val LIVE_NOTE_MAX_AGE_MS = 5L * 60 * 1000
+        /** 행동력 지름길을 다시 시도하기까지의 최소 간격 — 실패가 이어져도 이보다 자주 보내지 않는다. */
+        const val LIVE_NOTE_RETRY_MIN_MS = 60L * 1000
 
         /**
          * 클라우드 스냅샷의 최대 나이 — 게임 자료와 **따로 잡는다.**
@@ -2657,17 +2742,20 @@ class SpendingViewModel : ViewModel() {
      * 사용자가 직접 'Google 로그인' 또는 '게스트'를 선택한다. 로그인 시 [signIn] → [completeSignIn] 으로 복원.
      */
     private fun bootstrapAuthAndSync() {
-        if (cloudConfigured && CloudSync.currentUid() != null) {
-            viewModelScope.launch { cloudSyncPullOrSeed() }
+        if (!cloudConfigured || CloudSync.currentUid() == null) return
+        if (account.value.isGuest) {
+            // 계정은 게스트인데 Firebase 세션만 남아 있다 — 세션을 끊는다(27.52.0). 그대로 두면 로그인 화면이 떠 있는
+            // 뒤에서 이전 계정의 스냅샷이 게스트 저장소로 내려온다. 다시 로그인하면 세션은 새로 선다.
+            viewModelScope.launch { runCatching { CloudSync.signOut() } }
+            return
         }
+        viewModelScope.launch { cloudSyncPullOrSeed() }
     }
 
     // 모든 프로퍼티 초기화 후 최초 로드 (init 순서 의존성 회피)
     init {
         repo.onChange = { scheduleCloudSync() }
         loadAll()
-        loadTaskStats()   // 노트를 받기 전에도 지난 완주율은 보여준다
-        runCatching { _keyStatOverrides.value = repo.loadKeyStatOverrides() }
         // 지출·정기결제가 바뀌면 파생값을 자동으로 다시 계산 — 갱신 지점(13곳)마다 따로 부르지 않는다.
         viewModelScope.launch {
             _spendings.collect { recomputeSpendingDerived() }

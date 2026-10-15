@@ -75,6 +75,15 @@ fun observeSyncGate(onChange: (Boolean) -> Unit) {
     onChange(isSyncGateActive())
     if (!syncGateCollectorStarted) {
         syncGateCollectorStarted = true
+        // **계정이 바뀌면 로딩 완료 표시를 되돌린다**(27.52.0, Android 는 `rememberSaveable(account.id)`). 표시가 프로세스
+        // 수명 동안 남아서, 같은 실행에서 로그아웃하고 다른 계정으로 로그인하면 로딩 화면을 건너뛰고 빈 홈이 먼저 떴다.
+        CoroutineScope(Dispatchers.Main).launch {
+            var lastId: String? = null
+            IosAppState.viewModel.account.collect { acc ->
+                if (lastId != null && lastId != acc.id) IosAppState.syncLoadingDone.value = false
+                lastId = acc.id
+            }
+        }
         CoroutineScope(Dispatchers.Main).launch {
             combine(IosAppState.viewModel.account, IosAppState.syncLoadingDone) { _, done ->
                 !done && IosAppState.viewModel.needsSyncGate

@@ -1,5 +1,6 @@
 package com.gatcha.log.data.vm
 
+import com.gatcha.log.data.ToastKind
 import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.GachaRecord
 import com.gatcha.log.data.GachaReport
@@ -20,7 +21,7 @@ import kotlinx.coroutines.yield
 internal class GachaRecordsController(
     private val scope: CoroutineScope,
     private val repo: () -> GatchaRepository,
-    private val status: (String) -> Unit,
+    private val status: (String, ToastKind) -> Unit,
 ) {
     private var gachaRecords: List<GachaRecord> = emptyList()
     private val _gachaStats = MutableStateFlow<GachaStats?>(null)
@@ -38,7 +39,7 @@ internal class GachaRecordsController(
                 }
             }
             if (parsed.isEmpty()) {
-                status("가챠 기록을 찾지 못했어요 (UIGF/SRGF JSON 확인)")
+                status("가챠 기록을 찾지 못했어요 — UIGF · SRGF JSON 인지 확인해 주세요", ToastKind.ERROR)
                 return@launch
             }
             val existingIds = gachaRecords.mapTo(HashSet()) { it.id }
@@ -54,7 +55,7 @@ internal class GachaRecordsController(
             val (stats, dash) = GachaReport.computeAll(merged)
             _gachaStats.value = stats
             _gachaDashboard.value = dash
-            status("가챠 기록 ${added}건 추가 (중복 ${skipped} 제외)")
+            status("가챠 기록 ${added}건 추가 — 중복 ${skipped}건 제외", ToastKind.SUCCESS)
         }
     }
 
@@ -64,7 +65,7 @@ internal class GachaRecordsController(
         repo().saveGachaRecords(emptyList())
         _gachaStats.value = null
         _gachaDashboard.value = null
-        status("가챠 기록을 초기화했어요")
+        status("가챠 기록을 초기화했어요", ToastKind.SUCCESS)
     }
 
     /** 가챠 기록이 하나라도 있는가 — 뷰모델이 '써 오던 기기'인지 가릴 때 본다. */

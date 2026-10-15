@@ -2,6 +2,8 @@ package com.gatcha.log.data.vm
 
 import com.gatcha.log.data.ErrorAlert
 import com.gatcha.log.data.ErrorBus
+import com.gatcha.log.data.StatusToast
+import com.gatcha.log.data.ToastKind
 import com.gatcha.log.data.api.Net
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.CoroutineScope
@@ -24,8 +26,21 @@ internal class FeedbackController(private val scope: CoroutineScope) {
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
-    fun clearStatus() { _statusMessage.value = null }
-    fun status(msg: String) { _statusMessage.value = msg }
+    /** 토스트 한 건 — 상태 · 제목 · 설명([StatusToast]). 화면은 이것을 그린다(GLDS 2.1 토스트, 10/15). */
+    private val _statusToast = MutableStateFlow<StatusToast?>(null)
+    val statusToast: StateFlow<StatusToast?> = _statusToast.asStateFlow()
+    private var toastSeq = 0L
+
+    fun clearStatus() {
+        _statusMessage.value = null
+        _statusToast.value = null
+    }
+
+    fun status(msg: String, kind: ToastKind = ToastKind.INFO) {
+        val (title, detail) = StatusToast.split(msg)
+        _statusMessage.value = msg
+        _statusToast.value = StatusToast(++toastSeq, title, detail, kind)
+    }
 
     /**
      * 오류 얼럿 모달 — 토스트가 아니라 모달로 세우는 것들(null 이 아니면 노출). UI 가 확인 후 [clearErrorAlert].

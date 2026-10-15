@@ -19,9 +19,9 @@ struct AnnualReportContent: View {
         var year: Int = 0
         var count: Int = 0
         var total: Int64 = 0
-        var monthly: [Int64] = Array(repeating: 0, count: 12)
+        var months: [AnnualMonthBar] = []
         var avg: Int64 = 0
-        var byGame: [(String, Int64)] = []
+        var byGame: [AnnualGameShare] = []
     }
 
     @State private var stats = AnnualStats()
@@ -48,29 +48,17 @@ struct AnnualReportContent: View {
 
     private var year: Int { stats.year }
 
+    /// 집계는 전부 공용 `AnnualReportLogic` — Android 와 같은 함수다(27.52.0). 여기서는 Swift 타입으로 옮겨 담기만 한다.
+    ///
+    /// 예전엔 같은 계산을 Swift 로 따로 갖고 있었다. 숫자는 같았지만 게임별 합계를 Dictionary 로 모아 정렬해서,
+    /// **금액이 같은 게임의 순서**가 실행마다 달라질 수 있었다(Android 는 먼저 기록된 게임이 위).
+    /// `selectedYear` 0(아직 안 고름)이나 기록이 다 사라진 해는 공용 쪽이 가장 최근 해로 바꿔 준다.
     private static func compute(spendings: [Spending], selectedYear: Int,
                                 displayYear: Int, displayMonth: Int) -> AnnualStats {
-        var s = AnnualStats()
-        // 연도 목록·연도별 항목을 **한 번의 순회**로 만든다(예전엔 각각 전체를 훑었다).
-        var yearSet = Set<Int>([displayYear])
-        for sp in spendings { yearSet.insert(DateMillis.comps(sp.dateMillis).year) }
-        s.years = yearSet.sorted(by: >)
-        s.year = selectedYear == 0 ? (s.years.first ?? displayYear) : selectedYear
-
-        var byGame: [String: Int64] = [:]
-        for sp in spendings {
-            let c = DateMillis.comps(sp.dateMillis)
-            guard c.year == s.year else { continue }
-            s.count += 1
-            s.total += sp.amount
-            if c.month >= 1 && c.month <= 12 { s.monthly[c.month - 1] += sp.amount }
-            byGame[sp.gameName, default: 0] += sp.amount
-        }
-        s.byGame = byGame.map { ($0.key, $0.value) }.sorted { $0.1 > $1.1 }
-
-        let months = s.year == displayYear ? displayMonth : max(s.monthly.filter { $0 > 0 }.count, 1)
-        s.avg = months > 0 ? s.total / Int64(months) : 0
-        return s
+        let r = AnnualReportLogic.shared.report(spendings: spendings, selectedYear: Int32(selectedYear),
+                                                displayYear: Int32(displayYear), displayMonth: Int32(displayMonth))
+        return AnnualStats(years: r.years.map { $0.intValue }, year: Int(r.year), count: Int(r.count),
+                           total: r.total, months: r.months, avg: r.monthlyAverage, byGame: r.byGame)
     }
 
     // 카드 없이 화면 폭 섹션 + 10 띠 — 월간 인사이트와 같은 규격(InsightSection, Android 와 같다).
@@ -96,15 +84,14 @@ struct AnnualReportContent: View {
             if stats.count > 0 {
                 InsightBand()
                 InsightSection(title: "월별 지출") {
-                    MonthlyBars(monthly: stats.monthly, currentMonth: year == store.displayYear ? store.displayMonth : nil)
+                    MonthlyBars(months: stats.months, currentMonth: year == store.displayYear ? store.displayMonth : nil)
                 }
                 if !stats.byGame.isEmpty {
                     InsightBand()
                     InsightSection(title: "게임별 지출") {
-                        let total = stats.total
-                        ForEach(stats.byGame, id: \.0) { (game, amt) in
-                            let color = Color(argb64: GameData.shared.colorFor(name: game))
-                            InsightShareRow(name: game, amount: amt, frac: total > 0 ? Double(amt) / Double(total) : 0, color: color, dot: color)
+                        ForEach(stats.byGame, id: \.game) { share in
+                            let color = Color(argb64: GameData.shared.colorFor(name: share.game))
+                            InsightShareRow(name: share.game, amount: share.amount, frac: share.ratio, color: color, dot: color)
                         }
                     }
                 }
@@ -117,20 +104,20 @@ struct AnnualReportContent: View {
     }
 }
 
+/// 월별 막대 12칸 — 높이 비율(최소 높이 포함)은 공용 `AnnualReportLogic` 이 정해 준다.
 struct MonthlyBars: View {
-    let monthly: [Int64]
+    let months: [AnnualMonthBar]
     let currentMonth: Int?
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        let maxM = max(monthly.max() ?? 0, 1)
         HStack(alignment: .bottom, spacing: 4) {
-            ForEach(0..<12, id: \.self) { m in
-                let isCur = currentMonth == m + 1
+            ForEach(months, id: \.month) { bar in
+                let month = Int(bar.month)
+                let isCur = currentMonth == month
                 VStack(spacing: 4) {
                     ZStack(alignment: .bottom) {
                         Color.clear.frame(height: 100)
-                        let frac = min(max(Double(monthly[m]) / Double(maxM), 0), 1)
-                        let h = monthly[m] > 0 ? max(frac, 0.05) : 0
+                        let h = bar.barRatio
                         if h > 0 {
                             UnevenRoundedRectangle(topLeadingRadius: 3, topTrailingRadius: 3)
                                 .fill(isCur ? accent.primary : accent.primary.opacity(0.3))
@@ -138,7 +125,7 @@ struct MonthlyBars: View {
                                 .frame(maxWidth: .infinity).padding(.horizontal, 2)
                         }
                     }
-                    Text("\(m + 1)").font(.pretendard(size: 11, weight: isCur ? .bold : .regular))
+                    Text("\(month)").font(.pretendard(size: 11, weight: isCur ? .bold : .regular))
                         .foregroundStyle(isCur ? GLGColor.textPrimary : GLGColor.textSecondary)
                 }
                 .frame(maxWidth: .infinity)

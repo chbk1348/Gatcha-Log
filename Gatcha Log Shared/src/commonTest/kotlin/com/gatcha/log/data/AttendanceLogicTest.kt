@@ -2,6 +2,7 @@ package com.gatcha.log.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -81,8 +82,26 @@ class AttendanceLogicTest {
     }
 
     @Test
-    fun `미연동이거나 UID 를 모르면 전부 센다`() {
+    fun `미연동이면 전부 세고, 연동했는데 UID 가 없으면 세지 않는다`() {
         assertEquals(keys, GameData.trackedAttendanceGames(HoyolabConfig()).map { it.key })
-        assertEquals(keys, GameData.trackedAttendanceGames(HoyolabConfig(ltuid = "1", ltoken = "t")).map { it.key })
+        assertTrue(GameData.trackedAttendanceGames(HoyolabConfig(ltuid = "1", ltoken = "t")).isEmpty())
+        assertTrue(GameData.trackedAttendanceGames(HoyolabConfig(ltuid = "1", ltoken = "t"), setOf("genshin")).isEmpty())
+    }
+
+    @Test
+    fun `미연동 · UID 없음 · 둘 다 없음이면 출석을 챙기지 않는다`() {
+        assertFalse(HoyolabConfig().canCheckIn)
+        assertFalse(HoyolabConfig(ltuid = "1", ltoken = "t").canCheckIn)
+        assertFalse(HoyolabConfig(genshinUid = "800000001").canCheckIn)
+        assertTrue(HoyolabConfig(ltuid = "1", ltoken = "t", hsrUid = "800000001").canCheckIn)
+    }
+
+    @Test
+    fun `출석을 챙길 수 없으면 알림 설정에서 출석 리마인더가 빠진다`() {
+        val hidden = NotificationCatalog.items(HoyolabConfig(ltuid = "1", ltoken = "t"))
+        assertTrue(hidden.none { it.key == NotifyKey.ATTENDANCE })
+        val shown = NotificationCatalog.items(HoyolabConfig(ltuid = "1", ltoken = "t", genshinUid = "800000001"))
+        assertTrue(shown.any { it.key == NotifyKey.ATTENDANCE })
+        assertEquals(shown.size - 1, hidden.size)
     }
 }

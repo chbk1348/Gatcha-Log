@@ -9,45 +9,46 @@ private class CurrencyAmountCalc(val label: String, val pulls: String?)
 // 새로 컴파일했다(패턴 파싱이라 매칭보다 비싸다). 지출 상세를 열 때마다 반복되던 비용이다.
 private val RE_TRAILING_MULT = Regex("×\\s*(\\d+)\\s*$")   // 끝의 "×N" = 구매 횟수
 private val RE_TRAILING_NUM = Regex("(\\d+)\\s*$")          // 끝의 숫자 = 재화 개수
-private val RE_BONUS_PLUS = Regex("^\\+(\\d+)$")            // 보너스 "+N"
-private val RE_BONUS_TIMES = Regex("^×(\\d+)$")             // 보너스 "×N"(엔드필드)
 
 /**
  * 지출 항목명 + 게임에서 재화 총량과 환산 뽑기 수를 계산 — 지출 상세 '재화양' + N번 구매 총량 표시.
  *
- * label: "창세의 결정 330"(기본 300 + "+30" 보너스), "창세의 결정 990"(×3 구매), "오리지늄 세트 26"(엔드필드 "×26")
- * pulls: "약 6뽑 가능"(재화 ÷ 1뽑 재화). 뽑기 1회 미만이면 null.
+ * label: "창세의 결정 330"(기본 300 + 보너스 30), "창세의 결정 990"(×3 구매), "오리지늄 세트 26"(엔드필드)
+ * pulls: "약 6뽑 가능"(재화 → 뽑기 환산, [PullRate]). 뽑기 1회 미만이면 null.
  * 재화 개수를 못 구하면(패스·월정액) 전체 null.
+ *
+ * 개수는 **상품 목록의 값**([GamePackage.count] · [GamePackage.bonusCount])이 먼저다(10/13) — 예전엔 꼬리표
+ * 글자("+30" · "×26")를 다시 읽어 냈다. 목록에 없는 이름(직접 적은 재화명)은 이름 끝 숫자를 읽는다.
  */
 private fun currencyCalc(gameName: String, itemName: String): CurrencyAmountCalc? {
     val s = itemName.trim()
-    // 끝의 "×N"(구매 횟수) 분리 — 상품 보너스의 "×N"(개수)과 다르다.
+    // 끝의 "×N"(구매 횟수) 분리 — 상품 꼬리표의 "×N"(개수)과 다르다.
     val multMatch = RE_TRAILING_MULT.find(s)
     val mult = multMatch?.groupValues?.get(1)?.toLongOrNull() ?: 1L
     val base = (if (multMatch != null) s.substring(0, multMatch.range.first) else s).trim()
 
     val game = GameData.byNameOrNull(gameName)
-    val bonus = game?.let { g -> GameData.packagesFor(g).firstOrNull { it.name == base } }?.bonus?.trim()
+    val pkg = game?.let { g -> GameData.packagesFor(g).firstOrNull { it.name == base } }
 
-    // 재화 개수(1회분): ① 이름 끝 숫자(+"+N" 보너스) ② 이름에 숫자가 없으면 보너스 "×N"(엔드필드)
+    // 재화명 · 1회분 개수: ① 목록의 상품이면 그 값(보너스 포함) ② 아니면 이름 끝 숫자.
     val nameCountMatch = RE_TRAILING_NUM.find(base)
-    val nameCount = nameCountMatch?.groupValues?.get(1)?.toLongOrNull()
-    val plusBonus = bonus?.let { RE_BONUS_PLUS.find(it)?.groupValues?.get(1)?.toLongOrNull() }
-    val timesCount = bonus?.let { RE_BONUS_TIMES.find(it)?.groupValues?.get(1)?.toLongOrNull() }
-    val unitCount = when {
-        nameCount != null -> nameCount + (plusBonus ?: 0L)
-        timesCount != null -> timesCount
-        else -> return null
+    val name: String
+    val unitCount: Long
+    if (pkg != null && pkg.count > 0) {
+        name = pkg.currency
+        unitCount = pkg.count + pkg.bonusCount
+    } else if (nameCountMatch != null) {
+        name = base.substring(0, nameCountMatch.range.first).trim()
+        unitCount = nameCountMatch.groupValues[1].toLongOrNull() ?: return null
+    } else {
+        return null
     }
     val totalCount = unitCount * mult
-
-    // 재화명 = 이름에서 끝 숫자를 뗀 앞부분(엔드필드처럼 숫자가 없으면 이름 그대로).
-    val name = if (nameCountMatch != null) base.substring(0, nameCountMatch.range.first).trim() else base
     val label = if (name.isEmpty()) num(totalCount) else "$name ${num(totalCount)}"
 
-    // 약 N뽑 — 게임 1뽑 재화(perPull)로 환산. 뽑기 1회 미만이면 생략.
-    val perPull = game?.key?.let { GachaRateData.byKey(it)?.character?.perPull } ?: 160
-    val pulls = if (perPull > 0) totalCount / perPull else 0L
+    // 약 N뽑 — 게임의 환산 비율([PullRate])로. 뽑기 1회 미만이면 생략.
+    // 엔드필드는 충전 재화(오리지늄)가 뽑기 재화(오로베릴)로 75배 바뀐 뒤 500개에 1뽑이다(10/13).
+    val pulls = GachaRateData.pullRate(game?.key).pullsOf(totalCount)
     return CurrencyAmountCalc(label, if (pulls >= 1) "약 ${pulls}뽑 가능" else null)
 }
 
@@ -99,23 +100,31 @@ enum class Game(
     val supportsAttendance: Boolean get() = attendanceReward.isNotEmpty()
 }
 
-/** 충전 패키지(상품) */
-data class GamePackage(
-    val name: String,
-    val bonus: String?,   // "+30", "월정액" 등 보조 라벨
-    val price: Long,
-)
-
 /** 빠른 상품 선택 카테고리 필터 (월정액·패스·재화). */
 enum class PkgCategory(val label: String) { ALL("전체"), MONTHLY("월정액"), PASS("패스"), CURRENCY("재화") }
 
-/** bonus 라벨로 카테고리 분류 — 월정액/패스 외에는 모두 재화. */
-val GamePackage.category: PkgCategory
-    get() = when (bonus) {
-        "월정액" -> PkgCategory.MONTHLY
-        "패스" -> PkgCategory.PASS
-        else -> PkgCategory.CURRENCY
-    }
+/**
+ * 충전 패키지(상품) — 지출 추가의 빠른 선택 한 칸. 목록은 [PackageCatalog] 가 만든다(어드민 「재화 목록」 → 내장값).
+ *
+ * @property name 지출에 저장되는 재화명("창세의 결정 300" · "오리지늄 세트"). 한 게임 안에서 겹치지 않는다.
+ * @property bonus 칸에 붙는 꼬리표 — "월정액" · "패스" · "+30"(덤) · "×26"(개수). 없으면 null.
+ * @property kind 종류 — 필터 칩이 이 값으로 가른다.
+ * @property count 재화 1회분 개수(덤 제외). 월정액 · 패스는 0.
+ * @property bonusCount 덤으로 붙는 개수.
+ * @property currency 개수를 뗀 재화 이름("창세의 결정") — 재화량 표기에 쓴다.
+ */
+data class GamePackage(
+    val name: String,
+    val bonus: String?,
+    val price: Long,
+    val kind: PkgCategory = PkgCategory.CURRENCY,
+    val count: Long = 0,
+    val bonusCount: Long = 0,
+    val currency: String = name,
+)
+
+/** 필터 칩의 분류 — [GamePackage.kind] 그대로. */
+val GamePackage.category: PkgCategory get() = kind
 
 object GameData {
 
@@ -126,13 +135,15 @@ object GameData {
     val attendanceGames: List<Game> = games.filter { it.supportsAttendance }
 
     /**
-     * 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 미연동이거나 UID 를 하나도 모르면 전부.
+     * 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 미연동이면 전부(화면은 연동 안내를 띄운다).
+     * **연동했는데 UID 가 하나도 없으면 없다**(27.52.0) — 예전엔 전부로 쳐서 게임이 없는 계정에도 출석 버튼이 뜨고 체크인을 쐈다.
      * [myGames](내 게임)를 정했으면 그중 고른 것만 — 겹치는 게 없으면(호요버스 게임을 안 고름) 거르지 않는다.
      */
     fun trackedAttendanceGames(cfg: HoyolabConfig, myGames: Set<String> = emptySet()): List<Game> {
-        val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+        val uids = cfg.uidByGame
         val base = if (!cfg.isLinked) attendanceGames
-        else attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }.ifEmpty { attendanceGames }
+        else attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }
+        if (base.isEmpty()) return base
         if (myGames.isEmpty()) return base
         return base.filter { it.key in myGames }.ifEmpty { base }
     }
@@ -177,73 +188,6 @@ object GameData {
 
     fun colorFor(name: String): Long = byNameOrNull(name)?.color ?: Game.GENSHIN.color
 
-    /** 게임별 충전 패키지. 미지원 게임은 generic 사용. */
-    fun packagesFor(game: Game): List<GamePackage> = when (game) {
-        Game.GENSHIN -> listOf(
-            GamePackage("공월의 축복", "월정액", 5_900),
-            GamePackage("기행", "패스", 12_000),
-            GamePackage("진주의 노래", "패스", 25_000),   // 기행 상급(즉시 +10레벨)
-            GamePackage("창세의 결정 60", null, 1_200),
-            GamePackage("창세의 결정 300", "+30", 6_500),
-            GamePackage("창세의 결정 980", "+110", 19_000),
-            GamePackage("창세의 결정 1980", "+260", 37_000),
-            GamePackage("창세의 결정 3280", "+600", 65_000),
-            GamePackage("창세의 결정 6480", "+1600", 119_000),
-        )
-        Game.HSR -> listOf(
-            GamePackage("열차 보급 허가증", "월정액", 5_900),
-            GamePackage("무명의 영광", "패스", 12_000),
-            GamePackage("무명객의 휘장", "패스", 25_000),   // 무명의 영광 상급(즉시 +10레벨)
-            GamePackage("오래된 꿈 60", null, 1_200),
-            GamePackage("오래된 꿈 300", "+30", 6_500),
-            GamePackage("오래된 꿈 980", "+110", 19_000),
-            GamePackage("오래된 꿈 1980", "+260", 37_000),
-            GamePackage("오래된 꿈 3280", "+600", 65_000),
-            GamePackage("오래된 꿈 6480", "+1600", 119_000),
-        )
-        Game.ZZZ -> listOf(
-            GamePackage("인터노트 멤버십", "월정액", 5_900),
-            GamePackage("정시 보너스", "패스", 12_000),
-            GamePackage("정시 보너스 프리미엄", "패스", 25_000),   // 리두 펀드 프리미엄 플랜(즉시 +10레벨)
-            GamePackage("모노크롬 60", null, 1_200),
-            GamePackage("모노크롬 300", "+30", 6_500),
-            GamePackage("모노크롬 980", "+110", 19_000),
-            GamePackage("모노크롬 1980", "+260", 37_000),
-            GamePackage("모노크롬 3280", "+600", 65_000),
-            GamePackage("모노크롬 6480", "+1600", 119_000),
-        )
-        Game.WUWA -> listOf(
-            GamePackage("달빛 관측 카드", "월정액", 5_900),
-            GamePackage("달빛 60", null, 1_200),
-            GamePackage("달빛 300", "+30", 5_900),
-            GamePackage("달빛 980", "+110", 19_000),
-            GamePackage("달빛 1980", "+260", 37_000),
-            GamePackage("달빛 3280", "+600", 65_000),
-            GamePackage("달빛 6480", "+1600", 119_000),
-            GamePackage("달빛 32400", "+8000", 595_000),
-            GamePackage("달빛 64800", "+16000", 1_190_000),
-        )
-        Game.NTE -> listOf(
-            GamePackage("이상 수정 채굴증", "월정액", 5_900),
-            GamePackage("헌터 레벨업 보급", "패스", 13_000),
-            GamePackage("이상 수정 60", null, 1_200),
-            GamePackage("이상 수정 300", null, 5_900),
-            GamePackage("이상 수정 980", null, 19_000),
-            GamePackage("이상 수정 1980", null, 37_000),
-            GamePackage("이상 수정 3280", null, 63_000),
-            GamePackage("이상 수정 6480", null, 119_000),
-            GamePackage("이상 수정 32400", null, 595_000),
-            GamePackage("이상 수정 64800", null, 1_190_000),
-        )
-        Game.ENDFIELD -> listOf(
-            GamePackage("프라임 액세스", "월정액", 5_900),
-            GamePackage("오리지늄 조각", "×6", 2_700),
-            GamePackage("오리지늄 세트", "×26", 11_500),
-            GamePackage("오리지늄 더미", "×40", 17_000),
-            GamePackage("오리지늄 자루", "×68", 28_000),
-            GamePackage("오리지늄 통", "×112", 45_000),
-            GamePackage("오리지늄 상자", "×388", 93_000),
-            GamePackage("오리지늄 수레", "×400", 153_000),
-        )
-    }
+    /** 게임별 충전 패키지 — 어드민 「재화 목록」이 있으면 그것, 없으면 앱 내장 목록([PackageCatalog]). */
+    fun packagesFor(game: Game): List<GamePackage> = PackageCatalog.packagesFor(game)
 }

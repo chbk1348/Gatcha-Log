@@ -7,16 +7,10 @@ import android.provider.Settings
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -59,16 +53,6 @@ fun <T> glgStandardSpec(durationMs: Int = GlgMotion.DurationStandard): FiniteAni
 /** 짧은 전환 스펙 — 페이드아웃 등, 기본 180ms([GlgMotion.DurationShort]). */
 fun <T> glgShortSpec(durationMs: Int = GlgMotion.DurationShort): FiniteAnimationSpec<T> =
     tween(durationMs, easing = GlgEasingStandard)
-
-/**
- * 되돌아오는 요소용 **스프링** 스펙 — 아래에서 올라와 살짝 넘쳤다가 자리를 잡는다(물방울처럼).
- *
- * tween 은 목표에 닿으면 그냥 멈춰서 "제자리로 돌아왔다"는 느낌이 약하다. 하단바처럼
- * **사라졌다 다시 나타나는** 요소는 약한 오버슈트가 있어야 복귀가 읽힌다.
- * 나갈 때는 쓰지 않는다 — 퇴장이 튀면 화면이 산만해진다(퇴장은 짧고 곧게).
- */
-fun <T> glgReturnSpring(): FiniteAnimationSpec<T> =
-    spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow)
 
 // ── 저사양·접근성 모션 감속 + 공유 시머 클럭 ──────────────────────────────────
 
@@ -154,30 +138,6 @@ fun rememberShimmerPhase(reduceMotion: Boolean): State<Float> {
 // 무력화된 뒤 1년 가까이 `= this` 로 남아 있던 사문화 코드**였다. 시그니처만 살아 있어서
 // 화면마다 MutableSet<Int> 를 만들어 넘기고 인덱스를 세고 있었다. iOS 에서 걷어낸 것과 같은 코드.
 // 실제로 남은 동작은 "LazyColumn 항목을 Column 으로 감싼다" 하나뿐이라 그것만 남긴다.
-
-/**
- * 조건이 켜질 때 **살짝 아래에서 밀려 올라오며** 나타나는 카드 (iOS `cardReveal` 파리티).
- *
- * 지출 추가에서 게임을 고르면 아래 입력 카드들이 이걸로 펼쳐진다. 예전엔 조건문으로 통째로
- * 잘라내 한꺼번에 튀어나왔고, 방금 누른 칩과 새로 생긴 입력란이 이어져 있다는 게 안 읽혔다.
- *
- * 카드마다 지연을 줘 **순서**를 만드는 것은 하지 않는다 — iOS 에서 그렇게 했다가 첫 카드가
- * 1초쯤 늦게 내려왔다. 위 주석([glgCardItem] 위)에 적힌 로드인 스태거를 걷어낸 것과 같은 이유다.
- */
-@Composable
-fun GlgCardReveal(
-    visible: Boolean,
-    /** 호출부 가독성용 — 지금은 쓰지 않는다(지연 없음). */
-    @Suppress("UNUSED_PARAMETER") order: Int = 0,
-    content: @Composable () -> Unit,
-) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(glgStandardSpec()) +
-            slideInVertically(glgStandardSpec()) { it / 8 },
-        exit = fadeOut(glgShortSpec()),
-    ) { content() }
-}
 
 /** [LazyListScope.item] 을 [Column] 으로 감싼다(콘텐츠 카드 배치용). */
 fun LazyListScope.glgCardItem(

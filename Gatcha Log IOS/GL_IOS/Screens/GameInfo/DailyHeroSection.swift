@@ -427,16 +427,19 @@ struct AttendanceDetailView: View {
     var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
-    private var summary: AttendanceSummary {
+    private func summary(todayKey: String) -> AttendanceSummary {
         AttendanceLogic.shared.summary(history: store.attendanceHistory,
                                        today: Set(store.attendanceToday),
                                        streak: Int32(store.attendanceStreak),
-                                       todayKey: DateUtil.shared.hoyoDayKey(millis: nowMs()),
+                                       todayKey: todayKey,
                                        games: store.trackedAttendanceGames)
     }
 
     var body: some View {
-        let s = summary
+        // 오늘(출석 기준일) 키는 **한 번만** 구해 집계 · 7일 스트립 · 달력이 같이 쓴다(27.52.0).
+        // 예전엔 셋이 각자 물었고, 스트립은 칸마다 다시 물었다(`HoyoAttendanceDates` 참고).
+        let todayKey = DateUtil.shared.hoyoDayKey(millis: nowMs())
+        let s = summary(todayKey: todayKey)
         // 카드 셋을 걷고 섹션 셋으로(10/1) — 오늘 · 게임별 · 최근 7일, 사이는 GiBand. 흰 바탕 · 좌우 20 은 섹션이 둔다.
         // 달력 판 · 통계 칸은 내용 묶음이라 둔다. Android AttendanceDetailContent 와 같다.
         ScrollView {
@@ -452,8 +455,10 @@ struct AttendanceDetailView: View {
                 }
                 GiBand()
                 GiPageSection("최근 7일") {
-                    WeekAttendanceStrip(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
-                    MonthAttendanceCalendar(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
+                    WeekAttendanceStrip(history: store.attendanceHistory, games: store.trackedAttendanceGames,
+                                        todayKey: todayKey)
+                    MonthAttendanceCalendar(history: store.attendanceHistory, games: store.trackedAttendanceGames,
+                                            todayKey: todayKey)
                         .padding(.top, 16)
                 }
             }
@@ -530,28 +535,75 @@ struct AttendanceDetailView: View {
     }
 }
 
-// 출석 완료도 — total 은 출석을 세는 게임 수(store.trackedAttendanceGames)
-enum AttendLevel { case none, partial, full }
-func attendLevel(_ count: Int, total: Int) -> AttendLevel {
-    if count <= 0 { return .none }
-    if count >= total { return .full }
-    return .partial
+// 출석 완료도 — 판정은 공유 `AttendanceLogic.dayLevel` 하나를 쓴다(27.52.0). games 는 출석을 세는 게임(store.trackedAttendanceGames).
+//
+// 예전엔 여기서 "그날 출석한 게임 **수**가 세는 게임 수 이상인가"로 따로 판정했다. 같은 화면의 「이번 달 전체 출석」
+// 누계와 마이페이지 30칸은 "세는 게임이 **전부** 들어 있는가"라, 세는 게임이 바뀐 사용자(젠레스를 「내 게임」에서 뺌)의
+// 지난 날짜가 달력 · 스트립에서는 '전체', 누계에서는 '일부'로 갈렸다. 그리는 모양은 그대로다.
+
+/**
+ 출석 달력이 쓰는 날짜 값 — **출석 기준일(베이징)이 바뀔 때만** Kotlin 에 다시 묻는다(27.52.0).
+
+ `DateUtil.hoyo…Ago` · `hoyoMonth…` 는 부를 때마다 시계를 읽고 시간대 변환을 한다. 예전엔 최근 7일 스트립이
+ 칸마다 셋씩(7 × 3 = 21번), 월 달력이 넷을 그릴 때마다 다시 불렀다. 값은 전부 "오늘에서 n일 · n달 전"이라
+ 오늘 키가 같으면 결과도 같다 — 한 번 받아 두고 키가 바뀌면 버린다. 날짜 계산 자체는 그대로 공유 DateUtil 이 한다.
+
+ `@State` + `.onChange` 로 채우지 않는 건 첫 프레임 때문이다 — 채워지기 전에 스트립이 빈 채로 한 번 그려질 수 있다.
+ */
+@MainActor
+private enum HoyoAttendanceDates {
+    /// 최근 7일 스트립의 한 칸 — 일자 · 요일 · 기록 키("yyyy-MM-dd").
+    struct Day { let dayNum: Int32; let dow: String; let key: String }
+    /// 달력 한 달 — 연 · 월(1~12) · 1일의 요일(일=0) · 일수.
+    struct Month { let year: Int32; let number: Int32; let firstDow: Int; let days: Int }
+
+    private static var weekKey = ""
+    private static var week: [Day] = []
+    private static var monthPrefix = ""
+    private static var months: [Int32: Month] = [:]
+
+    /// 최근 7일 — 오래된 날 → 오늘 순(마지막이 오늘).
+    static func recentWeek(todayKey: String) -> [Day] {
+        if weekKey != todayKey || week.isEmpty {
+            let du = DateUtil.shared
+            week = (0...6).reversed().map { offset in
+                let off = Int32(offset)
+                return Day(dayNum: du.hoyoDayOfMonthAgo(daysAgo: off), dow: du.hoyoWeekdayKoAgo(daysAgo: off),
+                           key: du.hoyoDayKeyAgoKey(daysAgo: off))
+            }
+            weekKey = todayKey
+        }
+        return week
+    }
+
+    /// 이번 달에서 [offset] 달 옮긴 달(0 = 이번 달, 음수 = 과거). 달이 넘어가면 받아 둔 것을 전부 버린다.
+    static func month(offset: Int32, todayKey: String) -> Month {
+        let prefix = String(todayKey.prefix(7))   // "yyyy-MM"
+        if monthPrefix != prefix { months = [:]; monthPrefix = prefix }
+        if let cached = months[offset] { return cached }
+        let du = DateUtil.shared
+        let m = Month(year: du.hoyoMonthYear(monthOffset: offset), number: du.hoyoMonthNumber(monthOffset: offset),
+                      firstDow: Int(du.hoyoMonthFirstDow(monthOffset: offset)), days: Int(du.hoyoMonthDays(monthOffset: offset)))
+        months[offset] = m
+        return m
+    }
 }
 
 private struct WeekAttendanceStrip: View {
     let history: [String: Set<String>]
-    let total: Int
+    let games: [Game]
+    /// 오늘의 출석 기준일 키 — 부모가 집계에 쓰려고 이미 구한 값.
+    let todayKey: String
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        let du = DateUtil.shared
+        let days = HoyoAttendanceDates.recentWeek(todayKey: todayKey)
         HStack {
-            ForEach(Array((0...6).reversed().enumerated()), id: \.offset) { idx, offset in
-                let off = Int32(offset)
-                let dayNum = du.hoyoDayOfMonthAgo(daysAgo: off)
-                let dow = du.hoyoWeekdayKoAgo(daysAgo: off)
-                let count = history[du.hoyoDayKeyAgoKey(daysAgo: off)]?.count ?? 0
+            ForEach(Array(days.enumerated()), id: \.offset) { idx, d in
+                let dayNum = d.dayNum
+                let dow = d.dow
+                let done = history[d.key] ?? []
                 let isToday = idx == 6
-                let level = attendLevel(count, total: total)
+                let level = AttendanceLogic.shared.dayLevel(done: done, games: games)
                 VStack(spacing: 5) {
                     Text(dow).font(.pretendard(size: 12, weight: isToday ? .bold : .regular))
                         .foregroundStyle(isToday ? accent.primary : GLGColor.textSecondary)
@@ -582,7 +634,7 @@ private struct WeekAttendanceStrip: View {
         }
     }
     /// 날짜 숫자 색 — 채움이 진한 '전체 출석'만 흰색.
-    private func dayNumColor(_ l: AttendLevel) -> Color {
+    private func dayNumColor(_ l: AttendanceDayLevel) -> Color {
         switch l {
         case .full: return .white
         case .partial: return accent.primary
@@ -590,7 +642,7 @@ private struct WeekAttendanceStrip: View {
         }
     }
 
-    private func fillColor(_ l: AttendLevel) -> Color {
+    private func fillColor(_ l: AttendanceDayLevel) -> Color {
         switch l {
         case .full: return accent.primary
         case .partial: return accent.primary.opacity(0.30)
@@ -601,16 +653,17 @@ private struct WeekAttendanceStrip: View {
 
 private struct MonthAttendanceCalendar: View {
     let history: [String: Set<String>]
-    let total: Int
+    let games: [Game]
+    /// 오늘의 출석 기준일 키 — 부모가 집계에 쓰려고 이미 구한 값.
+    let todayKey: String
     @Environment(\.glgAccent) private var accent
     @State private var monthOffset: Int32 = 0
     var body: some View {
-        let du = DateUtil.shared
-        let year = du.hoyoMonthYear(monthOffset: monthOffset)
-        let monthNum = du.hoyoMonthNumber(monthOffset: monthOffset)
-        let firstDow = Int(du.hoyoMonthFirstDow(monthOffset: monthOffset))
-        let days = Int(du.hoyoMonthDays(monthOffset: monthOffset))
-        let todayKey = du.hoyoDayKey(millis: nowMs())
+        let shown = HoyoAttendanceDates.month(offset: monthOffset, todayKey: todayKey)
+        let year = shown.year
+        let monthNum = shown.number
+        let firstDow = shown.firstDow
+        let days = shown.days
         let cells: [Int] = Array(repeating: 0, count: firstDow) + Array(1...days)
         let rows = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0+7, cells.count)]) }
         return VStack(spacing: 0) {
@@ -632,7 +685,7 @@ private struct MonthAttendanceCalendar: View {
                         if i < week.count, week[i] > 0 {
                             let day = week[i]
                             let key = String(format: "%04d-%02d-%02d", year, monthNum, day)
-                            let level = attendLevel(history[key]?.count ?? 0, total: total)
+                            let level = AttendanceLogic.shared.dayLevel(done: history[key] ?? [], games: games)
                             let isToday = key == todayKey
                             Text("\(day)").font(.pretendard(size: 12, weight: level != .none || isToday ? .bold : .regular))
                                 .foregroundStyle(dayColor(level, isToday))
@@ -657,12 +710,12 @@ private struct MonthAttendanceCalendar: View {
         .padding(14)
         .background(Color(hex: 0xFFF7F8FA), in: RoundedRectangle(cornerRadius: 16))
     }
-    private func dayColor(_ l: AttendLevel, _ today: Bool) -> Color {
+    private func dayColor(_ l: AttendanceDayLevel, _ today: Bool) -> Color {
         if l == .full { return .white }
         if l == .partial || today { return accent.primary }
         return GLGColor.textSecondary
     }
-    private func bgColor(_ l: AttendLevel) -> Color {
+    private func bgColor(_ l: AttendanceDayLevel) -> Color {
         switch l { case .full: return accent.primary; case .partial: return accent.primary.opacity(0.30); case .none: return .clear }
     }
     private func legendDot(_ c: Color, _ label: String) -> some View {

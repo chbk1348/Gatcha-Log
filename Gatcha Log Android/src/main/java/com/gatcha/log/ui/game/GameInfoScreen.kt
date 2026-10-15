@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
 import com.gatcha.log.ui.components.GldsSection
 import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.animation.AnimatedContent
@@ -18,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameData
@@ -61,6 +63,7 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.data.AttendanceLogic
 import com.gatcha.log.data.GameInfoAnchor
@@ -117,7 +120,7 @@ fun GameInfoScreen(
     val pity by viewModel.pity.collectAsStateWithLifecycle()
     val checkingIn by viewModel.checkingIn.collectAsStateWithLifecycle()
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
-    // statusMessage 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
+    // 토스트는 앱 루트(MainActivity)의 GldsToastRoot 가 처리(창이 떠 있으면 그 창의 GldsToastLayer)
     val enkaGiUid by viewModel.enkaGiUid.collectAsStateWithLifecycle()
     val enkaHsrUid by viewModel.enkaHsrUid.collectAsStateWithLifecycle()
     val enkaResult by viewModel.enkaResult.collectAsStateWithLifecycle()
@@ -125,19 +128,7 @@ fun GameInfoScreen(
     val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
     val gachaDashboard by viewModel.gachaDashboard.collectAsStateWithLifecycle()
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
-    val gachaSpendByGame = remember(spendings) {
-        val m = mutableMapOf<String, Long>()
-        spendings.forEach { sp ->
-            val key = when (sp.gameName) {
-                "원신" -> "genshin"
-                "붕괴: 스타레일" -> "starrail"
-                "젠레스 존 제로" -> "zzz"
-                else -> null
-            }
-            if (key != null) m[key] = (m[key] ?: 0L) + sp.amount
-        }
-        m
-    }
+    val gachaSpendByGame = remember(spendings) { GachaReport.spendByGameKey(spendings) }
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
@@ -349,6 +340,7 @@ fun GameInfoScreen(
                 unusableCount = unusableCodes.size,
                 onLoadCodes = { key, force -> viewModel.loadActiveCodes(key, force) },
                 onRedeem = { key, c -> viewModel.redeemGiftCode(key, c) },
+                onRedeemTyped = { key, c -> viewModel.redeemTypedCode(key, c) },
                 onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
                 onRestoreUnusable = { key -> viewModel.restoreUnusableCodes(key) },
                 onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
@@ -370,11 +362,9 @@ fun GameInfoScreen(
                 // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
                 actions = {
                     GlgCircleIconButton(
-                        Icons.Default.Refresh, "새로고침",
+                        GlgLineIcons.Refresh, "새로고침",
                         loading = combatClearsLoading,
                         enabled = hoyolab.isLinked && !combatClearsLoading,
-                        // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
-                        outlined = true, solidBackground = true,
                     ) { viewModel.refreshCombatClears(force = true) }
                 },
             ) {
@@ -392,6 +382,7 @@ fun GameInfoScreen(
                 AttendanceDetailContent(
                     summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak, games = attendanceGames),
                     history = attendanceHistory,
+                    games = attendanceGames,
                     checkingIn = checkingIn,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
@@ -419,13 +410,15 @@ fun GameInfoScreen(
                     if (n != null && n.url.isNotBlank()) {
                         // 공유 — 제목 + 링크(NewsLogic.shareText). 링크만 보내면 메신저에 URL 만
                         // 덩그러니 뜬다 — HoYoLab 은 og: 태그가 없어 미리보기가 안 잡힌다.
-                        // solidBackground — 본문(공지 이미지)이 헤더 아래를 지나가므로 버튼이 비치면 안 된다.
-                        GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true, solidBackground = true) {
-                            shareText(context, NewsLogic.shareText(n))
-                        }
-                        // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
-                        GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true, solidBackground = true) {
-                            openExternalLink(context, NewsLogic.shareUrl(n))
+                        // 공유 · 브라우저는 붙어 있으니 캡슐 하나(C 「묶음 캡슐」, 10/15). 면은 불투명이라 본문(공지 이미지)이 비치지 않는다.
+                        GlgHeaderButtonGroup {
+                            GlgHeaderGroupItem(GlgLineIcons.Share, "공유") {
+                                shareText(context, NewsLogic.shareText(n))
+                            }
+                            // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
+                            GlgHeaderGroupItem(GlgLineIcons.External, "브라우저에서 보기") {
+                                openExternalLink(context, NewsLogic.shareUrl(n))
+                            }
                         }
                     }
                 },
@@ -575,15 +568,18 @@ fun GameInfoScreen(
                     // 순서: 새로고침 → 리딤코드 → HoYoLAB 연동.
                     // 연동 버튼에 톱니를 쓰면 마이페이지의 '설정'과 같은 아이콘이 되어, 같은 곳으로
                     // 가는 줄 안다. 여기서 여는 건 앱 설정이 아니라 **HoYoLAB 쿠키를 넣는 곳**이라
-                    // 열쇠를 쓴다(앱 안에서 이 아이콘은 여기뿐이다).
-                    GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
-                        viewModel.refreshGameInfo(force = true)
-                    }
-                    if (hoyolab.isLinked) {
-                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
-                    }
-                    GlgCircleIconButton(Icons.Default.Key, "HoYoLAB 연동", outlined = true, solidBackground = true) {
-                        subPage = GiSub.HoyoLink
+                    // 맞물린 고리를 쓴다(10/14, 열쇠는 선이 가늘어 보여 바꿨다 — 앱 안에서 이 아이콘은 여기뿐이다).
+                    // 셋을 캡슐 하나로 묶는다(C 「묶음 캡슐」, 10/15). 리딤코드가 빠지면 칸과 세로선이 같이 빠진다.
+                    GlgHeaderButtonGroup {
+                        GlgHeaderGroupItem(GlgLineIcons.Refresh, "새로고침", enabled = !isRefreshing) {
+                            viewModel.refreshGameInfo(force = true)
+                        }
+                        if (hoyolab.isLinked) {
+                            GlgHeaderGroupItem(GlgLineIcons.Gift, "리딤코드") { subPage = GiSub.Gift }
+                        }
+                        GlgHeaderGroupItem(GlgLineIcons.Link, "HoYoLAB 연동") {
+                            subPage = GiSub.HoyoLink
+                        }
                     }
                 }
             }

@@ -30,6 +30,23 @@ struct NewsDetailView: View {
     /// 본문 컨테이너 폭 — 이미지 디코딩 목표 크기로 쓴다(첫 프레임 전에는 기본값).
     /// 화면 폭이 아니라 **이 뷰가 놓인 폭**이라 분할뷰·폴더블에서도 맞는다.
     @State private var bodyWidth: CGFloat = 390
+    /// 이 뷰가 본문을 요청해 둔 공지 id — [bodyIsMine] 판정에 쓴다. 탭을 오가도 남는다(뷰가 살아 있다).
+    @State private var requestedId: String? = nil
+
+    /// 지금 스토어의 본문 슬롯이 **이 공지 것**인가(27.52.0).
+    ///
+    /// 본문 슬롯은 앱 전체에 하나(`store.newsArticle`)이고 뒤로 나가도 비우지 않는다(탭 전환 때 비워지면
+    /// 스켈레톤이 깜빡여서 — 아래 `.task` 주석). 그래서 공지 A 를 보고 나와 B 에 들어가면, 본문 요청(`.task`)이
+    /// 돌기 전 첫 프레임에 **B 제목 아래 A 본문**이 한 번 그려졌다.
+    ///  · 이 뷰가 이 글로 `loadNewsArticle` 을 부른 뒤면 슬롯은 이 글 것이다(스토어가 부르는 자리에서 미러를 맞춘다).
+    ///  · 그 전(첫 프레임)에는 제목이 같을 때만 믿는다 — 같은 글에 다시 들어온 경우다. Kotlin 쪽도 같은 기준으로
+    ///    앞 본문을 남길지 정한다(NewsArticleController). `NewsArticle` 에는 id 가 없어 이보다 확실한 값이 없다.
+    /// 판정이 안 서면 로딩으로 그린다 — 남의 본문을 보여 주는 것보다 한 프레임 스켈레톤이 낫다.
+    private var bodyIsMine: Bool {
+        if requestedId == item.id { return true }
+        guard let article = store.newsArticle else { return false }
+        return article.title == item.title
+    }
 
     /// 스크롤 위치 추적용 좌표공간 이름.
     private static let scrollSpace = "newsDetailScroll"
@@ -62,7 +79,7 @@ struct NewsDetailView: View {
                 Spacer().frame(height: 16)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    if store.newsArticleLoading {
+                    if store.newsArticleLoading || !bodyIsMine {
                         bodySkeleton
                     } else if let article = store.newsArticle {
                         // 본문 로드 성공 — 문단과 이미지를 원문 순서대로.
@@ -131,7 +148,7 @@ struct NewsDetailView: View {
                     // 카카오톡 공유 확장이 "Failed to load URL" 로 실패했다(10/1) — UIKit 공유 창에
                     // NSURL 하나만 그대로 넘긴다.
                     Button { shareNewsURL(u) } label: {
-                        Image(systemName: "square.and.arrow.up")
+                        GLGLineIcon("IconShare", label: "공유")
                     }
                 }
                 if #available(iOS 26.0, *) {
@@ -139,13 +156,26 @@ struct NewsDetailView: View {
                 }
                 // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { openURL(u) } label: { Image(systemName: "safari") }
+                    Button { openURL(u) } label: { GLGLineIcon("IconExternal", label: "브라우저에서 보기") }
+                }
+            }
+        }
+        // iOS 18 아이폰 — GLDS 헤더(10/15). 제목은 툴바와 같은 규칙(맨 위 "공지" → 본문 제목이 헤더 밑으로 사라지면 그 제목),
+        // 오른쪽은 붙어 있는 둘 [공유 | 브라우저] 을 캡슐 하나로 묶는다.
+        .gldsPageHeader18(showBarTitle ? item.title : "공지") {
+            if let u = glgSafeURL(NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {
+                GldsHeaderGroup {
+                    GldsHeaderCellButton(icon: "IconShare", label: "공유") { shareNewsURL(u) }
+                    GldsHeaderCellButton(icon: "IconExternal", label: "브라우저에서 보기") { openURL(u) }
                 }
             }
         }
         // 같은 글이면 loadNewsArticle 이 조기 반환하므로 탭 전환 후 복귀해도 재요청·스켈레톤 없음.
         // (일부러 clearNewsArticle 를 onDisappear 에 걸지 않는다 — 탭 전환 때 발동해 본문이 비워지던 원인)
-        .task(id: item.id) { store.loadNewsArticle(item) }
+        .task(id: item.id) {
+            store.loadNewsArticle(item)
+            requestedId = item.id   // 이 뒤로는 슬롯이 이 글 것이다([bodyIsMine])
+        }
         .fullScreenCover(isPresented: Binding(
             get: { viewerUrl != nil },
             set: { if !$0 { viewerUrl = nil } }

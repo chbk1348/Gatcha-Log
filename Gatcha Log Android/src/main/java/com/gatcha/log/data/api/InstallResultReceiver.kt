@@ -6,12 +6,14 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.widget.Toast
+import com.gatcha.log.data.AndroidInAppUpdateProvider
 
 /**
  * [PackageInstaller] 설치 세션 결과 수신(앱 내부 전용).
  * - PENDING_USER_ACTION: 시스템 설치 확인 화면을 띄운다.
  * - SUCCESS: 새 버전으로 재시작되므로 별도 처리 없음.
- * - 그 외(실패/취소): 간단한 토스트 안내.
+ * - 그 외(실패): 앱이 떠 있으면 사유 + 릴리즈 페이지로 가는 창([AndroidInAppUpdateProvider.reportInstallFailure], 27.52.0),
+ *   창을 띄울 수 없으면(프로세스가 새로 떠 주소를 모른다) 예전처럼 토스트. 취소는 조용히 넘긴다.
  */
 class InstallResultReceiver : BroadcastReceiver() {
 
@@ -27,9 +29,13 @@ class InstallResultReceiver : BroadcastReceiver() {
                     intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                 else
                     intent.getParcelableExtra(Intent.EXTRA_INTENT)
-                confirm?.let {
+                val opened = confirm?.let {
                     it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    runCatching { context.startActivity(it) }
+                    runCatching { context.startActivity(it) }.isSuccess
+                } ?: false
+                // 설치 화면을 못 띄웠다 — 예전엔 조용히 넘어가 「받았는데 아무 일도 없는」 상태가 됐다(27.52.0).
+                if (!opened && !AndroidInAppUpdateProvider.reportInstallFailure(UpdateFailure.Reason.InstallScreen)) {
+                    Toast.makeText(context, "설치 화면을 열지 못했어요 — 다시 시도해 주세요", Toast.LENGTH_SHORT).show()
                 }
             }
             PackageInstaller.STATUS_SUCCESS -> {
@@ -49,12 +55,14 @@ class InstallResultReceiver : BroadcastReceiver() {
                     msg?.contains("INCOMPATIBLE", ignoreCase = true) == true ||
                     msg?.contains("signature", ignoreCase = true) == true
                 if (signatureConflict) {
-                    Toast.makeText(
-                        context,
-                        "서명이 달라 설치를 중단했어요. 공식 릴리즈 페이지의 안내를 확인해 주세요.",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                } else {
+                    if (!AndroidInAppUpdateProvider.reportInstallFailure(UpdateFailure.Reason.Signature)) {
+                        Toast.makeText(
+                            context,
+                            "서명이 달라 설치를 중단했어요. 공식 릴리즈 페이지의 안내를 확인해 주세요.",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                } else if (!AndroidInAppUpdateProvider.reportInstallFailure(UpdateFailure.Reason.Install, msg)) {
                     Toast.makeText(context, "설치 실패" + (msg?.let { " ($it)" } ?: ""), Toast.LENGTH_SHORT).show()
                 }
             }

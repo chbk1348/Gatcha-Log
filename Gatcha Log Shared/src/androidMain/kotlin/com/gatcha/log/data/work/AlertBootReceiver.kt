@@ -3,8 +3,6 @@ package com.gatcha.log.data.work
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.gatcha.log.data.AppSettings
-import com.gatcha.log.data.GatchaRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,9 +26,7 @@ class AlertBootReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                runCatching {
-                    ScheduledAlerts.reschedule(AppSettings(), GatchaRepository(AppSettings.currentAccountId()))
-                }
+                BackgroundPass.rescheduleOnly()
                 runCatching { DailyCheckInAlarm.apply() }
             } finally {
                 pending.finish()

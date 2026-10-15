@@ -2,6 +2,7 @@ package com.gatcha.log.ui.game
 
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.ui.components.SecureWindow
+import com.gatcha.log.ui.components.GldsToastLayer
 import com.gatcha.log.util.SafeUrl
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
@@ -27,8 +28,33 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.LocalAccentTint
+
+/**
+ * 「이메일 로그인 필수」 안내 — 로그인 창([HoyolabLoginDialog])을 열기 **전에** 띄운다.
+ * 소셜 로그인은 cookie_token 등 일부 토큰을 못 가져올 수 있다.
+ *
+ * 설정 ▸ HoYoLAB 연동과 온보딩 ④가 같은 창 · 같은 문구를 쓴다(27.52.0) — 예전엔 온보딩이 안내 없이
+ * 바로 로그인 창을 열었다(iOS 는 두 곳 다 안내한다).
+ */
+@Composable
+fun HoyolabEmailLoginGuide(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    GlgDialog(
+        title = "이메일 로그인 필수",
+        onDismiss = onDismiss,
+        confirmText = "이메일로 로그인",
+        onConfirm = onConfirm,
+        dismissText = "취소",
+    ) {
+        Text(
+            "토큰을 정상적으로 가져오려면 다음 화면에서 반드시 ‘이메일(비밀번호) 로그인’ 을 사용하세요.\n\n" +
+                "구글·애플 등 소셜 로그인은 cookie_token 등 일부 정보를 가져오지 못해 리딤코드 교환이 안 될 수 있어요.",
+            fontSize = 13.sp, color = TextSecondary,
+        )
+    }
+}
 
 /**
  * HoYoLAB 로그인 WebView — 로그인하면 인증 쿠키(ltoken_v2 / ltuid_v2 / cookie_token_v2 + 전체 쿠키)를 자동 추출해
@@ -42,6 +68,8 @@ import com.gatcha.log.ui.theme.LocalAccentTint
 fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, onDismiss: () -> Unit) {
     val collectedCb = rememberUpdatedState(onCollected)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // 별도 창 — 토스트도 이 창 위에 그린다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         SecureWindow()   // 로그인 화면은 캡처 · 최근 앱 미리보기에 남기지 않는다
         Column(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
@@ -114,6 +142,7 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
                 },
                 onRelease = { it.destroy(); clearHoyolabWebSession() },
             )
+        }
         }
     }
 }

@@ -226,4 +226,27 @@ class GachaReportTest {
         assertEquals(4, stats.byGame.getValue("genshin").total)
         assertEquals(1, stats.byGame.getValue("starrail").total)
     }
+
+    // ── 5성 단가 ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun 게임별_지출은_가챠_기록과_같은_키로_묶는다() {
+        val spend = GachaReport.spendByGameKey(
+            listOf(
+                Spending(gameName = "원신", amount = 10_000),
+                Spending(gameName = "원신", amount = 5_000),
+                Spending(gameName = "붕괴: 스타레일", amount = 7_000),
+                Spending(gameName = "젠레스 존 제로", amount = 3_000),
+                Spending(gameName = "명조: 워더링 웨이브", amount = 99_000),
+            ),
+        )
+        assertEquals(mapOf("genshin" to 15_000L, "starrail" to 7_000L, "zzz" to 3_000L), spend)
+    }
+
+    @Test
+    fun 단가는_지출을_5성_수로_나눈_값이고_없으면_0이다() {
+        assertEquals(33_333L, GachaReport.costPerFive(100_000, 3))
+        assertEquals(0L, GachaReport.costPerFive(0, 3))
+        assertEquals(0L, GachaReport.costPerFive(100_000, 0))
+    }
 }

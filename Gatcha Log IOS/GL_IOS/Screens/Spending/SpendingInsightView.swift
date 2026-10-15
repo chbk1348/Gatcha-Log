@@ -201,7 +201,7 @@ struct SpendingInsightView: View {
     // ── 월간 인사이트 / 연간 리포트 세그먼트 토글 ──
     private var insightToggle: some View {
         // GLDS 탭 neutral — 같은 데이터의 보기 방식 전환(9/30).
-        GldsTabs(labels: ["월간 인사이트", "연간 리포트"], selection: $tab, variant: .neutral)
+        GldsTabs(labels: ["월간 인사이트", "연간 리포트"], selection: $tab)
     }
 }
 

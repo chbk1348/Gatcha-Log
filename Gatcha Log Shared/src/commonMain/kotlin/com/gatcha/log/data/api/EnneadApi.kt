@@ -55,7 +55,7 @@ object EnneadApi {
      * 젠레스 존 제로 일정 — 응답 형태가 달라 [fetch] 와 따로 둔다.
      *
      * 필드명이 젠레스만 `agents`/`w_engines` 다(다른 게임은 `characters`/`weapons`·`light_cones`).
-     * 그건 [firstItems] 가 흡수한다. 보상은 폴리크롬 숫자 필드라 [rewardOf] 가 따로 다룬다.
+     * 그건 [firstItems] 가 흡수한다. 보상은 폴리크롬 숫자 필드라 [rewardItemsOf] 가 따로 다룬다.
      *
      * 예전엔 여기서 영문→한국어 이름 매핑을 씌웠다. ennead 가 ko-kr 요청에도 영문을 주던 시절의
      * 장치인데, **지금은 에이전트·W엔진·이벤트가 전부 한국어로 온다**(레미엘·실낙원·충돌 위치 에너지…).
@@ -81,7 +81,13 @@ object EnneadApi {
         }.getOrNull()
     }
 
+    /** 일정 응답이라면 하나쯤은 들어 있는 키. */
+    private val KNOWN_KEYS = listOf("banners", "events", "challenges")
+
     private fun parse(game: Game, root: JSONObject): EnneadResult {
+        // **아는 키가 하나도 없으면 실패다**(27.52.0). 상류가 오류 본문을 200 으로 주거나 형식을 바꾸면 예전엔 「배너 · 이벤트
+        // 없음」으로 읽혀, 그 게임의 일정이 화면에서 비워지고 그대로 저장됐다. 던지면 호출부가 실패(null)로 받는다.
+        if (KNOWN_KEYS.none { root.has(it) }) error("ennead: 아는 키가 없는 응답")
         val now = currentTimeMillis()
 
         val banners = mutableListOf<GachaBanner>()
@@ -106,11 +112,14 @@ object EnneadApi {
             // 이미 보여 주므로 글자로 또 늘어놓지 않는다(10/1). 5성 항목([picks])은 다른 소비처
             // (홈·천장·콜라보) 기준이라 그대로 둔다.
             val bannerName = bannerNameOf(b, itemsKey)
-            val lineup = (0 until items.length())
+            val lineupItems = (0 until items.length())
                 .mapNotNull { items.optJSONObject(it) }
                 .filterNot { isFiveStar(it) }
-                .map { spaced(it.optString("name")) }
-                .filter { it.isNotBlank() }
+                .map { spaced(it.optString("name")) to it.optString("icon") }
+                .filter { it.first.isNotBlank() }
+            val lineup = lineupItems.map { it.first }
+            // 4성 박스용 아이콘 — 이름과 같은 순서로 나란히 싣는다(10/13).
+            val lineupIcons = lineupItems.map { it.second }
             picks.forEach { pick ->
                 banners += GachaBanner(
                     game = game.displayName,
@@ -122,6 +131,7 @@ object EnneadApi {
                     iconUrl = pick.icon,
                     bannerName = bannerName,
                     lineup = lineup,
+                    lineupIcons = lineupIcons,
                 )
             }
         }
@@ -136,7 +146,7 @@ object EnneadApi {
             // 기간이 아니라 마감 지점으로만 그렸다. 배너와 같은 자리에 같은 형식으로 온다.
             val items = rewardItemsOf(e)
             events += GameEvent(
-                game.displayName, e.optString("name"), endMillis, rewardOf(e, items),
+                game.displayName, e.optString("name"), endMillis, rewardOf(items),
                 startMillis = e.optLong("start_time") * 1000,
                 rewardItems = items,
             )
@@ -150,7 +160,7 @@ object EnneadApi {
             val endMillis = c.optLong("end_time") * 1000
             if (endMillis <= now) continue
             val items = rewardItemsOf(c)
-            val reward = rewardOf(c, items)
+            val reward = rewardOf(items)
             challenges += GameChallenge(
                 game = game.displayName,
                 name = c.optString("name"),
@@ -169,13 +179,17 @@ object EnneadApi {
     /**
      * 이벤트/도전 보상 항목 — API `rewards` 를 **순서대로 전부**.
      * `rewards` 엔 대표 보상(special_reward, 원신의 원석 등)이 빠져 있을 때가 있어, 목록에 없으면 맨 앞에 둔다.
-     * `rewards` 가 비면 special_reward 하나만. 젠레스(polychrome 정수 필드)는 아이콘이 없어 빈 목록.
+     * `rewards` 가 비면 special_reward 하나만. 젠레스는 `polychrome` 정수 필드뿐이라 **아이콘 없는 항목 하나**로
+     * 싣는다(10/13) — 다른 게임과 같은 보상 목록에 들어가고, 아이콘 자리는 화면이 선물 아이콘으로 채운다.
      */
     internal fun rewardItemsOf(o: JSONObject): List<RewardItem> {
         val special = o.optJSONObject("special_reward")?.let(::rewardItemOf)
         val arr = o.optJSONArray("rewards")
         val list = (0 until (arr?.length() ?: 0)).mapNotNull { arr?.optJSONObject(it)?.let(::rewardItemOf) }
-        return if (special != null && list.none { it.name == special.name }) listOf(special) + list else list
+        val all = if (special != null && list.none { it.name == special.name }) listOf(special) + list else list
+        if (all.isNotEmpty()) return all
+        val poly = o.optInt("polychrome", 0)
+        return if (poly > 0) listOf(RewardItem("폴리크롬", "", poly)) else emptyList()
     }
 
     private fun rewardItemOf(o: JSONObject): RewardItem? {
@@ -184,12 +198,9 @@ object EnneadApi {
         return RewardItem(name, o.optString("icon"), o.optInt("amount", 0))
     }
 
-    /** 보상 글자 표기 — 항목을 "이름 ×수량"(수량 0 이면 이름만)으로 잇고, 없으면 polychrome(젠레스). */
-    private fun rewardOf(o: JSONObject, items: List<RewardItem>): String {
-        if (items.isNotEmpty()) return items.joinToString(" · ") { if (it.amount > 0) "${it.name} ×${it.amount}" else it.name }
-        val poly = o.optInt("polychrome", 0)
-        return if (poly > 0) "폴리크롬 ×$poly" else ""
-    }
+    /** 보상 글자 표기 — 항목을 "이름 ×수량"(수량 0 이면 이름만)으로 잇는다. 젠레스 폴리크롬도 [rewardItemsOf] 가 항목으로 준다. */
+    private fun rewardOf(items: List<RewardItem>): String =
+        items.joinToString(" · ") { if (it.amount > 0) "${it.name} ×${it.amount}" else it.name }
 
     /** NBSP 를 일반 공백으로 — 상류(특히 스타레일)가 이름에 섞어 보내 줄바꿈이 안 된다. */
     private fun spaced(s: String): String = s.replace('\u00A0', ' ')

@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.gldsToastObstacle
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.foundation.border
@@ -28,12 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.HoyolabConfig
-import com.gatcha.log.data.api.HoyolabApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.draw.clip
-import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
@@ -43,7 +39,6 @@ import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.components.SecureWindow
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
-import com.gatcha.log.ui.theme.TextSecondary
 
 /**
  * HoYoLAB 계정 연동 **페이지**(모달 대체). 상단 "로그인으로 자동 가져오기"(WebView 쿠키 추출) + 수동 입력 필드.
@@ -62,9 +57,17 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
     var zzz by remember { mutableStateOf(config.zzzUid) }
     var showLogin by remember { mutableStateOf(false) }
     var showEmailGuide by remember { mutableStateOf(false) }
-    var collectedMsg by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
     BackHandler { onBack() }
+    // 저장 — 하단 「저장」과 로그인으로 가져온 직후가 같은 길을 탄다. 검증 · 안내 · 게임 UID 조회는 뷰모델이 한다.
+    val save = {
+        onSave(
+            HoyolabConfig(
+                ltuid = ltuid.trim(), ltoken = ltoken.trim(),
+                genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
+                cookieToken = cookieToken.trim(), webCookie = webCookie,
+            ),
+        )
+    }
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val scrollState = rememberScrollState()
@@ -92,12 +95,6 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                         Text("ltuid · ltoken · cookie_token · UID 를 자동 입력해요", fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.7f))
                     }
                     Icon(Icons.AutoMirrored.Filled.Login, null, tint = Color.White, modifier = Modifier.size(22.dp))
-                }
-                collectedMsg?.let {
-                    Text(
-                        it, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF177881),
-                        modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEEF8F8)).padding(horizontal = 14.dp, vertical = 11.dp),
-                    )
                 }
             }
             GiBand()
@@ -132,21 +129,15 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
         // 「저장」은 하단에 상시 고정 — 예산 관리와 같은 바(스크롤해도 늘 보인다). iOS 와 같은 자리.
         GldsButton(
             "저장",
-            onClick = {
-                onSave(
-                    HoyolabConfig(
-                        ltuid = ltuid.trim(), ltoken = ltoken.trim(),
-                        genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
-                        cookieToken = cookieToken.trim(), webCookie = webCookie,
-                    ),
-                )
-            },
+            onClick = save,
             size = GldsSize.L,
             // 키보드 여백은 앱 루트(MainActivity)가 준다 — 여기서 더하면 두 배로 떴다(9/30 S23).
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
                 .background(Color.White).navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp)
+                // 토스트의 가리는 것 — 흰 바 전체가 아니라 버튼 면이다(바 위 여백 10 안쪽). 토스트는 그 위 12(10/15).
+                .gldsToastObstacle(),
         )
         GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrollState = scrollState)
     }
@@ -158,42 +149,21 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                 if (c.isNotBlank()) cookieToken = c
                 webCookie = raw // 전체 쿠키 보존 → 교환 인증에 그대로 사용
                 showLogin = false
-                collectedMsg = "토큰을 가져왔어요. 게임 UID 확인 중…"
-                // 토큰으로 게임 UID 자동 조회(getGameRecordCard)
-                scope.launch {
-                    val ck = if (c.isBlank()) " · cookie_token 없음(교환은 수동)" else " · cookie_token 포함"
-                    // null = 네트워크 실패 — 계정에 UID 가 없는 것과 구분해 안내한다.
-                    val uids = withContext(Dispatchers.IO) { HoyolabApi.fetchGameUids(u, t) }
-                    if (uids == null) {
-                        collectedMsg = "토큰 가져옴 (네트워크 오류로 UID 조회 못 함 — 수동 입력)$ck"
-                        return@launch
-                    }
-                    uids["genshin"]?.let { gi = it }
-                    uids["hsr"]?.let { hsr = it }
-                    uids["zzz"]?.let { zzz = it }
-                    collectedMsg = if (uids.isNotEmpty()) "토큰 + UID ${uids.size}개 자동 입력 완료$ck"
-                    else "토큰 가져옴 (UID 자동조회 실패 — 수동 입력)$ck"
-                }
+                // 가져오면 바로 저장한다(27.52.0) — 예전엔 칸만 채우고 「자동 입력 완료」라고 알려서, 저장을 누르지 않고
+                // 나가면 방금 받은 토큰이 버려졌다. 게임 UID 조회와 결과 안내는 저장 쪽(updateHoyolabConfig)이 한다 —
+                // 여기서 따로 조회하거나 알리지 않는다. 저장에 실패하면 화면이 남고, 칸에는 가져온 값이 그대로 있다.
+                save()
             },
             onDismiss = { showLogin = false },
         )
     }
 
-    // 이메일 로그인 강제 안내 — 소셜 로그인은 cookie_token 등 일부 토큰을 못 가져올 수 있음
+    // 이메일 로그인 강제 안내 — 온보딩 ④와 같은 창([HoyolabEmailLoginGuide]).
     if (showEmailGuide) {
-        GlgDialog(
-            title = "이메일 로그인 필수",
+        HoyolabEmailLoginGuide(
             onDismiss = { showEmailGuide = false },
-            confirmText = "이메일로 로그인",
             onConfirm = { showEmailGuide = false; showLogin = true },
-            dismissText = "취소",
-        ) {
-            Text(
-                "토큰을 정상적으로 가져오려면 다음 화면에서 반드시 ‘이메일(비밀번호) 로그인’ 을 사용하세요.\n\n" +
-                    "구글·애플 등 소셜 로그인은 cookie_token 등 일부 정보를 가져오지 못해 리딤코드 교환이 안 될 수 있어요.",
-                fontSize = 13.sp, color = TextSecondary,
-            )
-        }
+        )
     }
 }
 

@@ -140,6 +140,9 @@ class JSONObject {
     fun put(key: String, value: JSONObject): JSONObject = apply { mut()[key] = value.toJsonElement() }
     fun put(key: String, value: JSONArray): JSONObject = apply { mut()[key] = value.toJsonElement() }
 
+    /** 키를 뺀다(없으면 아무 일도 없다). */
+    fun remove(key: String): JSONObject = apply { mut().remove(key) }
+
     internal fun toJsonElement(): JsonObject = JsonObject(map)
 
     override fun toString(): String = toJsonElement().toString()

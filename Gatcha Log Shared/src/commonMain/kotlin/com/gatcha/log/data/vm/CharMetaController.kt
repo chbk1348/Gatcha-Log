@@ -105,7 +105,9 @@ internal class CharMetaController(
                 // (404) 지역 코드를 모르는 캐릭터는 맵에 영영 안 들어가서 로스터가 갱신될 때마다
                 // 같은 요청이 다시 나갔다 — 실측으로 같은 id 를 여섯 번까지 불렀다.
                 // 빈 문자열이 "물어봤고 없더라"는 뜻이다. 화면은 빈 값을 그리지 않는다.
-                val add = found.map { (id, camp) -> "$gameKey:$id" to camp.orEmpty() }
+                // 못 받은 것(null)은 적지 않는다 — 다음 로스터 갱신 때 다시 묻는다.
+                val add = found.mapNotNull { (id, camp) -> camp?.let { "$gameKey:$id" to it } }
+                if (add.isEmpty()) return@forEach
                 _charCamp.update { it + add }
                 repo().saveCharCamps(_charCamp.value)
             }
@@ -125,9 +127,9 @@ internal class CharMetaController(
         if (!charCampInFlight.add(key)) return
         scope.launch {
             try {
-                // 없어도 기록한다 — 재요청을 막는다([prefetchCharCamps] 주석 참고).
-                val camp = withContext(Dispatchers.IO) { NanokaApi.charCamp(gameKey, charId) }
-                _charCamp.update { it + (key to camp.orEmpty()) }
+                // 없어도(빈 값) 기록한다 — 재요청을 막는다([prefetchCharCamps] 주석 참고). 못 받았으면(null) 적지 않는다.
+                val camp = withContext(Dispatchers.IO) { NanokaApi.charCamp(gameKey, charId) } ?: return@launch
+                _charCamp.update { it + (key to camp) }
                 repo().saveCharCamps(_charCamp.value)
             } finally {
                 charCampInFlight.remove(key)

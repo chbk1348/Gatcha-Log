@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -287,7 +290,8 @@ private fun DevRow(icon: ImageVector, tint: Pair<Color, Color>, title: String, s
 @Composable
 private fun DevToggleRow(icon: ImageVector, tint: Pair<Color, Color>, title: String, subtitle: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable { onToggle(!checked) }.padding(horizontal = 20.dp, vertical = 12.dp),
+        // 역할 · 상태는 줄이 싣는다(27.52.0, 설정의 토글 줄과 같다) — 안의 스위치는 TalkBack 에 따로 읽히지 않게 한다.
+        Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onToggle).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DevIcon(icon, tint)
@@ -296,7 +300,7 @@ private fun DevToggleRow(icon: ImageVector, tint: Pair<Color, Color>, title: Str
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Text(subtitle, fontSize = 12.sp, color = TextSecondary)
         }
-        GlgSwitch(checked, onToggle)
+        GlgSwitch(checked, onToggle, Modifier.clearAndSetSemantics {})
     }
 }
 

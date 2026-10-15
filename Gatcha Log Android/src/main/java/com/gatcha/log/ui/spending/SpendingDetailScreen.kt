@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
 import com.gatcha.log.ui.components.GldsSection
 import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.GldsBand
@@ -42,6 +44,7 @@ import com.gatcha.log.data.SpendingDetailStats
 import com.gatcha.log.data.currencyAmountOrNull
 import com.gatcha.log.data.currencyPullsOrNull
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.glgDetailContentTop
@@ -113,17 +116,10 @@ fun SpendingDetailScreen(
             buttonTint = heroTint, buttonBackground = heroBg,
         ) {
             // 수정 · 삭제를 「더보기」 메뉴에 접지 않고 버튼 두 개로 바로 둔다(Android, 10/1 지시).
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GlgCircleIconButton(
-                    Icons.Default.Edit, "수정",
-                    outlined = true, solidBackground = true,
-                    tint = heroTint, background = heroBg,
-                ) { onEdit() }
-                GlgCircleIconButton(
-                    Icons.Default.Delete, "삭제",
-                    outlined = true, solidBackground = true,
-                    tint = heroTint, background = heroBg,
-                ) { confirmDelete = true }
+            // 붙어 있는 둘이라 캡슐 하나로 묶는다(C 「묶음 캡슐」, 10/15). 히어로 위에서는 캡슐 면도 히어로 색을 받는다.
+            GlgHeaderButtonGroup(background = heroBg) {
+                GlgHeaderGroupItem(GlgLineIcons.Edit, "수정", tint = heroTint) { onEdit() }
+                GlgHeaderGroupItem(GlgLineIcons.Delete, "삭제", tint = heroTint) { confirmDelete = true }
             }
         }
     }
@@ -179,7 +175,8 @@ private fun Hero(s: Spending, modifier: Modifier = Modifier) {
             // ⚠️ 여기만 고정폭 시스템 폰트를 쓴다(앱 전역은 Pretendard). 고정폭 자체가 디자인이라
             // 자간이 일정해야 하는데 Pretendard 에는 monospace 계열이 없다.
             Text(
-                GameData.byName(s.gameName).englishName,
+                // 목록에 없는 게임명이면 비운다(27.52.0) — byName 은 원신으로 돌려 「GENSHIN IMPACT」가 찍혔다.
+                GameData.byNameOrNull(s.gameName)?.englishName.orEmpty(),
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace,
@@ -327,7 +324,8 @@ private fun ShareSection(s: Spending, all: List<Spending>) {
         Spacer(Modifier.height(8.dp))
         ShareBar("${month}월 지출에서", share.monthPercent, base)
         Spacer(Modifier.height(16.dp))
-        ShareBar("${GameData.byName(s.gameName).shortName} ${month}월 지출에서", share.gamePercent, base)
+        // 목록에 없는 게임명은 적힌 이름 그대로 — byName 은 원신으로 돌려 「원신 …월 지출에서」가 됐다(목록 행과 같은 폴백).
+        ShareBar("${GameData.byNameOrNull(s.gameName)?.shortName ?: s.gameName} ${month}월 지출에서", share.gamePercent, base)
 
         // 표본이 모자라면(3건 미만) 이 줄 자체가 없다 — 근거 없는 '평소'를 말하지 않는다.
         if (typical != null) {

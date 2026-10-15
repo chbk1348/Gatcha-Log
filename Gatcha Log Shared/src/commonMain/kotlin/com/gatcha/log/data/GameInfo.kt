@@ -20,6 +20,18 @@ data class HoyolabConfig(
 ) {
     val isLinked: Boolean get() = ltuid.isNotBlank() && ltoken.isNotBlank()
 
+    /** 게임 키(genshin · hsr · zzz) → UID. 안 적은 게임도 빈 값으로 들어 있다 — 대응을 여기 한 군데만 둔다(27.52.0). */
+    val uidByGame: Map<String, String> get() = mapOf("genshin" to genshinUid, "hsr" to hsrUid, "zzz" to zzzUid)
+
+    /** UID 를 적은 게임만. */
+    val linkedUids: Map<String, String> get() = uidByGame.filterValues { it.isNotBlank() }
+
+    /**
+     * 출석을 챙길 수 있는 계정인가 — 연동돼 있고 게임 UID 가 하나라도 있다.
+     * 미연동 · UID 없음 · 둘 다 없음이면 false — 출석 알림(리마인더 · 자동 출석 결과)을 멈추고 알림 설정에서도 숨긴다(27.52.0).
+     */
+    val canCheckIn: Boolean get() = isLinked && linkedUids.isNotEmpty()
+
     /** 붙여 넣은 값의 앞뒤 공백·줄바꿈을 걷는다 — 줄바꿈이 섞인 토큰은 인증에서 조용히 실패한다. */
     fun trimmed(): HoyolabConfig = copy(
         ltuid = ltuid.trim(), ltoken = ltoken.trim(),
@@ -62,6 +74,11 @@ data class GachaBanner(
      * 다른 소비처(홈·천장·콜라보)는 그대로 두고, 게임 일정 부제만 이걸 쓴다.
      */
     val lineup: List<String> = emptyList(),
+    /**
+     * [lineup] 과 **같은 순서 · 같은 길이**의 아이콘 URL(없는 항목은 빈 문자열). 게임 일정의 4성 박스용.
+     * 옛 캐시 · 수동 JSON 은 빈 목록 — 그때는 박스 대신 글자 부제로 보여 준다([pickupLineup]).
+     */
+    val lineupIcons: List<String> = emptyList(),
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -73,10 +90,7 @@ data class GachaBanner(
     val isEndUnknown: Boolean get() = endMillis <= 0L
 
     /** 종료까지 남은 일수. 음수면 종료됨. 종료 미정이면 의미 없는 값이라 [isEndUnknown] 을 먼저 봐야 한다. */
-    fun dDay(nowMillis: Long = currentTimeMillis()): Int {
-        val diff = endMillis - nowMillis
-        return ceil(diff / (1000.0 * 60 * 60 * 24)).toInt()
-    }
+    fun dDay(nowMillis: Long = currentTimeMillis()): Int = DateUtil.daysLeft(endMillis, nowMillis)
 
     fun dDayLabel(nowMillis: Long = currentTimeMillis()): String {
         if (isEndUnknown) return "종료 미정"
@@ -125,8 +139,8 @@ data class GachaBanner(
 }
 
 /**
- * 남은 시간을 "N일 H시간" 형태로 (게임 일정 표시용). 1일 미만이면 "H시간", 지난 경우 "종료".
- * days·hours 모두 내림 — 예: 2일 5시간 남으면 "2일 5시간".
+ * 남은 시간을 "N일 H시간" 형태로 (게임 일정 표시용). 1일 미만이면 "H시간", 1시간 미만이면 "M분", 지난 경우 "종료".
+ * days·hours 모두 내림 — 예: 2일 5시간 남으면 "2일 5시간". 예전엔 40분 남은 픽업이 "0시간" 이었다(27.52.0).
  */
 fun dhLabel(targetMillis: Long, nowMillis: Long = currentTimeMillis()): String {
     val diff = targetMillis - nowMillis
@@ -134,7 +148,11 @@ fun dhLabel(targetMillis: Long, nowMillis: Long = currentTimeMillis()): String {
     val totalHours = (diff / (1000L * 60 * 60)).toInt()
     val days = totalHours / 24
     val hours = totalHours % 24
-    return if (days > 0) "${days}일 ${hours}시간" else "${hours}시간"
+    return when {
+        days > 0 -> "${days}일 ${hours}시간"
+        hours > 0 -> "${hours}시간"
+        else -> "${(diff / 60_000L).toInt().coerceAtLeast(1)}분"
+    }
 }
 
 /** 하루(ms) — '초까지 세는' 구간의 경계. */
@@ -188,8 +206,14 @@ fun collabTitle(banner: GachaBanner): String? {
     }
 }
 
-/** 이벤트·정기 콘텐츠 보상 하나 — ennead `rewards[]` 항목. 수량 0 은 '수량 미표기'. */
-data class RewardItem(val name: String, val iconUrl: String, val amount: Int)
+/**
+ * 이벤트·정기 콘텐츠 보상 하나 — ennead `rewards[]` 항목. 수량 0 은 '수량 미표기'.
+ * 아이콘은 없을 수 있다(젠레스 폴리크롬은 숫자만 온다) — 그때 화면은 선물 아이콘을 세운다.
+ */
+data class RewardItem(val name: String, val iconUrl: String, val amount: Int) {
+    /** 보상 목록의 수량 표기 — "×600,000". 수량 미표기(0)면 빈 문자열. */
+    val amountLabel: String get() = if (amount > 0) "×${com.gatcha.log.util.num(amount.toLong())}" else ""
+}
 
 /** 진행 중인 게임 이벤트 (ennead.cc) */
 data class GameEvent(
@@ -211,10 +235,7 @@ data class GameEvent(
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
-    fun dDay(nowMillis: Long = currentTimeMillis()): Int {
-        val diff = endMillis - nowMillis
-        return ceil(diff / (1000.0 * 60 * 60 * 24)).toInt()
-    }
+    fun dDay(nowMillis: Long = currentTimeMillis()): Int = DateUtil.daysLeft(endMillis, nowMillis)
 
     fun dDayLabel(nowMillis: Long = currentTimeMillis()): String {
         val d = dDay(nowMillis)
@@ -240,7 +261,7 @@ data class GameChallenge(
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
     fun dDayLabel(nowMillis: Long = currentTimeMillis()): String {
-        val d = ceil((endMillis - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
+        val d = DateUtil.daysLeft(endMillis, nowMillis)
         return when {
             d > 0 -> "D-$d"
             d == 0 -> "D-DAY"
@@ -255,8 +276,7 @@ data class PityState(val count: Int = 0, val guaranteed: Boolean = false)
 /** 패치(다음 일정) 카운트다운 정보 */
 data class PatchInfo(val game: String, val version: String, val targetMillis: Long, val isStart: Boolean) {
     val gameColor: Long get() = GameData.colorFor(game)
-    fun dDay(nowMillis: Long = currentTimeMillis()): Int =
-        ceil((targetMillis - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
+    fun dDay(nowMillis: Long = currentTimeMillis()): Int = DateUtil.daysLeft(targetMillis, nowMillis)
 }
 
 /** 실시간 노트의 부가 통계 한 칸 (탐사 파견·주간 보스·티팟 세진 등 게임별 항목) */
@@ -289,7 +309,16 @@ data class LiveNote(
     val extras: List<NoteStat> = emptyList(),
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
-    val resinRatio: Float get() = if (maxResin == 0) 0f else currentResin.toFloat() / maxResin
+    val resinRatio: Float get() = if (maxResin == 0) 0f else resinNow().toFloat() / maxResin
+
+    /**
+     * **지금 시점**의 재화 — 가득 찰 시각([resinFullAtMillis])이 지났으면 최대치로 본다(27.52.0).
+     *
+     * [currentResin] 은 받은 순간의 값 그대로다. 캐시로 열거나 그 게임 조회가 실패하면 "152/160 곧 가득" 인데
+     * 같은 카드의 회복 문구([resinRecoveryTime])는 "충전 완료" 라고 해서 한 칸 안에서 말이 갈렸다.
+     */
+    fun resinNow(nowMillis: Long = currentTimeMillis()): Int =
+        if (maxResin > 0 && resinFullAtMillis in 1..nowMillis) maxResin else currentResin
 
     /**
      * "약 N시간 후 충전" — **[resinFullAtMillis] 에서 읽는 시점에 만든다.**
@@ -365,7 +394,7 @@ data class CombatMode(
     val gameColor: Long get() = GameData.colorFor(game)
     val ratio: Float get() = if (maxStars <= 0) 0f else (stars.toFloat() / maxStars).coerceIn(0f, 1f)
     fun dDay(now: Long = currentTimeMillis()): Int? =
-        if (endMillis <= 0) null else ceil((endMillis - now) / (1000.0 * 60 * 60 * 24)).toInt()
+        if (endMillis <= 0) null else DateUtil.daysLeft(endMillis, now)
 }
 
 /** 전투 진행도 요약 머리 — 만점 [full] / 전체 [total], 만점 아닌 모드 중 가장 급한 마감 [urgentDDay](없으면 null). */

@@ -62,10 +62,25 @@ internal fun mustUpdate(current: Long, info: UpdateInfo): Boolean =
     current > 0 && current < info.minVersionCode && info.minVersionCode <= info.versionCode
 
 /** 원격 매니페스트를 받아 파싱. (?t= 로 CDN 캐시 우회 → 새 버전 즉시 반영) */
-internal suspend fun fetchUpdateInfo(current: Long): UpdateInfo? {
+internal suspend fun fetchUpdateInfo(current: Long): UpdateInfo? = fetchUpdateCheck(current).info
+
+/**
+ * 업데이트 확인 결과. [info] 가 null 인 까닭이 둘이라 갈라 둔다(27.52.0) —
+ * 「새 버전이 없다」와 「확인하지 못했다」([failed]). 예전엔 둘 다 null 이라 오프라인에서도 "이미 최신 버전이에요" 가 떴다.
+ */
+internal class UpdateCheck(val info: UpdateInfo?, val failed: Boolean)
+
+internal suspend fun fetchUpdateCheck(current: Long): UpdateCheck {
     val res = Net.get("$MANIFEST_URL?t=${currentTimeMillis()}")
-    if (!res.isOk) return null
-    return parseUpdateManifest(res.body, current)
+    if (!res.isOk) return UpdateCheck(null, failed = true)
+    return parseUpdateCheck(res.body, current)
+}
+
+/** 받은 본문 → 결과. 버전코드를 읽을 수 없는 본문은 「최신」이 아니라 「확인 실패」다. */
+internal fun parseUpdateCheck(body: String, current: Long): UpdateCheck {
+    val info = parseUpdateManifest(body, current)
+    val readable = runCatching { JSONObject(body).optLong("versionCode", 0L) > 0L }.getOrDefault(false)
+    return UpdateCheck(info, failed = info == null && !readable)
 }
 
 /**

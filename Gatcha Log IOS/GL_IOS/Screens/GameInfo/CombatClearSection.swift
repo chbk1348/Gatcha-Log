@@ -193,10 +193,10 @@ private struct ModeCard: View {
             modeTitle
             Spacer(minLength: 8)
             if hasCurrent && mode.hasPrevious {
-                // GLDS 탭 neutral(9/30) — Android SeasonSegment 와 같은 168 폭.
+                // GLDS 탭(2.1 규칙 하나) — Android SeasonSegment 와 같은 168 폭.
                 GldsTabs(labels: ["이번 시즌", "지난 시즌"], selection: Binding(
                     get: { showPrevious ? 1 : 0 }, set: { showPrevious = $0 == 1 }
-                ), variant: .neutral)
+                ))
                 .frame(width: 168)
             }
         }
