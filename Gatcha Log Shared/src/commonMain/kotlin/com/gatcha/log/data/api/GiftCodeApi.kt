@@ -11,7 +11,72 @@ import kotlinx.coroutines.coroutineScope
  * 자동 수집된 활성 리딤코드. rewards 는 한국어로 정규화돼 저장된다(영어 미노출).
  * highlight=true → 공식방송(공방) 추정 코드(프리미엄 재화 100개 이상) — UI 에서 강조.
  */
-data class GiftCode(val code: String, val rewards: String, val highlight: Boolean = false)
+data class GiftCode(val code: String, val rewards: String, val highlight: Boolean = false) {
+    /** 보상 항목 — [rewards] 글자를 나눈 것(화면의 「보상 목록 두 열」, 10/15). 자동 수집 · 어드민 코드가 같은 꼴이다. */
+    val items: List<GiftReward> get() = GiftReward.parse(rewards)
+
+    /** 이름을 몰라 「외 N종」 으로 묶인 보상 수. */
+    val moreCount: Int get() = GiftReward.moreCount(rewards)
+
+    /** 보상을 아직 모른다 — 수집 API 가 새 코드를 보상 칸을 비운 채 먼저 올린다. 화면은 「보상 확인 중」. */
+    val rewardsPending: Boolean get() = rewards.isBlank()
+}
+
+/**
+ * 리딤코드 보상 한 칸 — 이름 · 수량(쉼표 표기, 없으면 빈 칸) · 프리미엄 재화(원석 · 성옥 · 폴리크롬)인가.
+ * 프리미엄은 화면이 금색 박스로 그린다.
+ */
+data class GiftReward(val name: String, val qty: String, val premium: Boolean) {
+    /** 인게임 재화 아이콘(10/15). 모르는 이름이면 빈 글자 — 화면이 마름모(프리미엄) · 선물 아이콘을 세운다. */
+    val iconUrl: String get() = ICONS[name].orEmpty()
+
+    companion object {
+        /**
+         * 공식 한국어 이름 → 아이콘. 출처는 Android `GameCurrency` 와 같은 Project Amber(yatta) 의 ID 주소 —
+         * 이름 · ID 는 yatta `api/v2/kr` 로 맞춰 봤다(10/15). 젠레스(폴리크롬 · 데니 · 마스터 테이프)는
+         * 안정 공개 출처가 없어 비워 둔다.
+         */
+        private val ICONS: Map<String, String> = buildMap {
+            val gi = "https://gi.yatta.moe/assets/UI/UI_ItemIcon_"
+            val sr = "https://sr.yatta.moe/hsr/assets/UI/item/"
+            // 원신
+            put("원석", "${gi}201.png"); put("모라", "${gi}202.png")
+            put("방랑자의 경험", "${gi}104001.png"); put("모험가의 경험", "${gi}104002.png"); put("영웅의 경험", "${gi}104003.png")
+            put("정제용 하급 광물", "${gi}104011.png"); put("정제용 광물", "${gi}104012.png"); put("정제용 마법 광물", "${gi}104013.png")
+            // 스타레일
+            put("성옥", "${sr}900001.png"); put("신용 포인트", "${sr}2.png"); put("연료", "${sr}201.png")
+            put("여행 견문", "${sr}211.png"); put("모험 기록", "${sr}212.png"); put("여행 가이드", "${sr}213.png")
+            put("희박한 에테르", "${sr}221.png"); put("응축한 에테르", "${sr}222.png"); put("정제한 에테르", "${sr}223.png")
+        }
+
+        private val PREMIUM = setOf("원석", "성옥", "폴리크롬")
+        /** 항목 사이 쉼표 — 수량 안의 쉼표(「50,000」)에서는 자르지 않는다. */
+        private val SEP = Regex(",\\s*(?!\\d)")
+        private val NAME_QTY = Regex("^(.+?)\\s*[×xX]\\s*([0-9][0-9,]*)$")
+        private val MORE = Regex("^외\\s*(\\d+)\\s*종$")
+
+        /** 「원석 ×100, 모라 ×50000, 외 2종」 → 원석 100 · 모라 50,000. 「외 N종」 은 [moreCount] 가 센다. */
+        fun parse(rewards: String): List<GiftReward> =
+            rewards.split(SEP).map { it.trim() }.filter { it.isNotEmpty() && !MORE.matches(it) }.map { seg ->
+                val m = NAME_QTY.find(seg)
+                if (m == null) GiftReward(seg, "", seg in PREMIUM)
+                else {
+                    val name = m.groupValues[1].trim()
+                    GiftReward(name, groupDigits(m.groupValues[2]), name in PREMIUM)
+                }
+            }
+
+        fun moreCount(rewards: String): Int =
+            rewards.split(SEP).map { it.trim() }.firstNotNullOfOrNull { MORE.find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: 0
+
+        /** 「50000」 → 「50,000」. 이미 쉼표가 있으면 다시 맞춘다. */
+        private fun groupDigits(raw: String): String {
+            val d = raw.replace(",", "")
+            if (d.isEmpty() || !d.all { it.isDigit() }) return raw
+            return d.reversed().chunked(3).joinToString(",").reversed()
+        }
+    }
+}
 
 /**
  * 운영 어드민이 손으로 얹는 보정 — 자동 수집이 놓쳤거나 멈췄을 때 쓴다.
@@ -30,6 +95,7 @@ private val RE_PROSE_AND = Regex("(?i)\\band\\b")
 private val RE_QTY_NAME = Regex("^([0-9][0-9,]*k?|[a-zA-Z]+)\\s+(.+)$")  // 선두 수량 + 나머지 이름
 private val RE_QTY_K = Regex("\\d+k")
 private val RE_QTY_DIGITS = Regex("\\d+")
+private val RE_STRUCT_SEP = Regex(";|,(?!\\d)")
 
 /**
  * 활성 리딤코드 자동 수집.
@@ -139,8 +205,26 @@ object GiftCodeApi {
     internal fun merge(auto: List<GiftCode>?, overrides: GiftCodeOverrides, gameKey: String): List<GiftCode>? {
         val manual = overrides.manual[gameKey].orEmpty()
         if (auto == null && manual.isEmpty()) return null
-        return (manual + auto.orEmpty()).distinctBy { it.code }.filterNot { it.code in overrides.hidden }
+        return spreadLivestream((manual + auto.orEmpty()).distinctBy { it.code }.filterNot { it.code in overrides.hidden })
     }
+
+    /**
+     * 공방 묶음을 맞춘다(10/15) — 같은 묶음 코드 중 하나라도 공방이면 나머지도 공방으로 본다.
+     *
+     * 수집 API 는 새 코드를 **보상 칸을 비운 채** 먼저 올리고 나중에 채운다(예: 2026-10-15 `NEEI8A8341OW` 의 rewards 가 ""). 공방
+     * 판정이 보상(원석 · 성옥 · 폴리크롬 100개 이상)에 기대니, 보상이 채워질 때까지 공방 표시가 없다가 나중에 붙었다. 공방 코드는
+     * 한 방송에서 여러 개가 함께 풀리므로, 먼저 보상이 채워진 하나(또는 어드민이 공방으로 지정한 하나)로 묶음 전체를 켠다.
+     * 묶음은 [batchKey] — 12자리 영숫자 코드의 앞 4자리가 같으면 한 묶음이다. 그래도 못 잡는 것은 어드민 보정의 `highlight` 로 켠다.
+     */
+    internal fun spreadLivestream(codes: List<GiftCode>): List<GiftCode> {
+        val live = codes.filter { it.highlight }.mapNotNullTo(HashSet()) { batchKey(it.code) }
+        if (live.isEmpty()) return codes
+        return codes.map { c -> if (!c.highlight && batchKey(c.code) in live) c.copy(highlight = true) else c }
+    }
+
+    /** 공방 묶음 열쇠 — 12자리 영숫자(무작위 발급 꼴) 코드의 앞 4자리. 그 밖의 코드(이름 붙은 코드 등)는 묶지 않는다. */
+    private fun batchKey(code: String): String? =
+        code.takeIf { it.length == 12 && it.all { c -> c in 'A'..'Z' || c in '0'..'9' } }?.take(4)
 
     private fun parseItems(raw: String): List<Pair<String, String?>> {
         if (raw.isBlank()) return emptyList()
@@ -171,7 +255,8 @@ object GiftCodeApi {
 
     /** "Item*Qty;Item*Qty" → [(이름, 수량)] */
     private fun parseStructured(raw: String): List<Pair<String, String?>> =
-        raw.split(';', ',').mapNotNull { part ->
+        // 수량 안의 쉼표(「Denny*2,222」)에서는 자르지 않는다 — 예전엔 「데니 ×2」 와 이름 모를 「222」 로 갈라졌다(10/15).
+        raw.split(RE_STRUCT_SEP).mapNotNull { part ->
             val s = part.trim()
             if (s.isEmpty()) return@mapNotNull null
             val star = s.lastIndexOf('*')
@@ -222,16 +307,20 @@ object GiftCodeApi {
         "mora" to "모라",
         "heros wit" to "영웅의 경험",
         "adventurers experience" to "모험가의 경험",
-        "wanderers advice" to "유랑자의 경험",
-        "mystic enhancement ore" to "정제된 마법 광석",
-        "fine enhancement ore" to "정련용 광석",
-        "enhancement ore" to "강화용 광석",
+        // 이름은 인게임 공식 표기(yatta api/v2/kr 로 확인, 10/15) — 예전 「유랑자의 경험」 · 「…광석」 은 틀린 번역이었다.
+        "wanderers advice" to "방랑자의 경험",
+        "mystic enhancement ore" to "정제용 마법 광물",
+        "fine enhancement ore" to "정제용 광물",
+        "enhancement ore" to "정제용 하급 광물",
         // 스타레일
         "stellar jade" to "성옥",
         "credit" to "신용 포인트",
-        "travelers guide" to "여행자 안내서",
-        "refined aether" to "정제된 에테르",
-        "condensed aether" to "응축된 에테르",
+        "travelers guide" to "여행 가이드",
+        "travel encounters" to "여행 견문",
+        "adventure log" to "모험 기록",
+        "refined aether" to "정제한 에테르",
+        "condensed aether" to "응축한 에테르",
+        "sparse aether" to "희박한 에테르",
         "fuel" to "연료",
         // 젠레스
         "polychrome" to "폴리크롬",

@@ -84,7 +84,11 @@ import kotlinx.coroutines.launch
 sealed interface RedeemState {
     data object Idle : RedeemState
     data object Loading : RedeemState
-    data class Done(val success: Boolean, val message: String) : RedeemState
+    /**
+     * [inputError] — 실패 사유가 **코드 자체**다(유효하지 않음 · 만료 · 이미 사용). 직접 입력 모달은 이때
+     * 토스트 대신 입력필드 오류로 보여 주고 모달을 닫지 않는다(10/15).
+     */
+    data class Done(val success: Boolean, val message: String, val inputError: Boolean = false) : RedeemState
 }
 
 /**
@@ -2405,6 +2409,9 @@ class SpendingViewModel : ViewModel() {
 
     /** HoYoLAB 선물코드 교환(단건). 결과는 [redeemState] 로 노출. */
     fun redeemGiftCode(gameKey: String, code: String) { giftCodes.redeemGiftCode(gameKey, code) }
+
+    /** 직접 입력 모달의 교환 — 코드 자체가 문제면 토스트 없이 [RedeemState.Done.inputError] 로만 알린다(입력필드 오류). */
+    fun redeemTypedCode(gameKey: String, code: String) { giftCodes.redeemGiftCode(gameKey, code, fromInput = true) }
 
     /** 수집된 활성 코드 중 미교환분을 순차 교환. 같은 사유로 연달아 실패하면 중단한다. */
     fun redeemAllCodes(gameKey: String) { giftCodes.redeemAllCodes(gameKey) }

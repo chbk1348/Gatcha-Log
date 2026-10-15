@@ -153,18 +153,33 @@ internal class GiftCodeController(
         if (r.success || r.alreadyRedeemed) markRedeemed(code)
         // 다시 시도해도 소용없는 코드는 목록에서 뺀다. 재시도 가치가 있는 실패(쿠키·레이트리밋·네트워크)는
         // unusable 이 아니므로 여기 안 걸린다 — 멀쩡한 코드가 사라지지 않게 하는 게 이 분기의 요점.
-        else if (r.unusable) markUnusable(code)
+        // 직접 입력한 오타까지 가려 두면 「가려진 코드 N개」 가 목록에 없던 코드로 불어난다 — 수집된 코드만 가린다.
+        else if (r.unusable && isCollected(code)) markUnusable(code)
         return r
     }
 
-    /** HoYoLAB 선물코드 교환(단건). 결과는 [redeemState] 로 노출. */
-    fun redeemGiftCode(gameKey: String, code: String) {
+    /**
+     * HoYoLAB 선물코드 교환(단건). 진행은 [redeemState], 결과 문구는 토스트(10/15 — 직접 입력이 헤더 모달로 옮겨 가
+     * 페이지 아래 상태 문구 자리가 없어졌다). 이미 받은 코드는 실패가 아니라 안내로 띄운다.
+     */
+    fun redeemGiftCode(gameKey: String, code: String, fromInput: Boolean = false) {
         if (redeemJob?.isActive == true) return
         redeemJob = scope.launch {
             _redeemState.value = RedeemState.Loading
             val r = doRedeem(gameKey, code.trim().uppercase())
-            _redeemState.value = RedeemState.Done(r.success, r.message)
+            val inputError = !r.success && (r.unusable || r.alreadyRedeemed)
+            _redeemState.value = RedeemState.Done(r.success, r.message, inputError)
+            // 직접 입력에서 코드가 틀렸으면 입력필드가 알린다(10/15) — 토스트까지 띄우면 같은 말이 두 번 나온다.
+            if (fromInput && inputError) return@launch
+            status(r.message, when { r.success -> ToastKind.SUCCESS; r.alreadyRedeemed -> ToastKind.INFO; else -> ToastKind.ERROR })
         }
+    }
+
+    /** 자동 수집 목록(지금 보는 게임 · 캐시)에 있는 코드인가. */
+    private fun isCollected(code: String): Boolean {
+        val c = code.uppercase()
+        return _activeCodes.value.any { it.code.uppercase() == c } ||
+            codesCache.values.any { (_, list) -> list.any { it.code.uppercase() == c } }
     }
 
     /**
@@ -181,7 +196,11 @@ internal class GiftCodeController(
         else codesCache[gameKey]?.second.orEmpty().filterNot { it.code.uppercase() in _unusableCodes.value }
         val targets = source.map { it.code }.filter { it !in _redeemedCodes.value }
         if (redeemJob?.isActive == true) return
-        if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
+        if (targets.isEmpty()) {
+            _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요")
+            status("교환할 새 코드가 없어요", ToastKind.INFO)
+            return
+        }
         redeemJob = scope.launch {
             var ok = 0; var fail = 0; var lastFailMsg = ""
             var sameFailStreak = 0
@@ -210,6 +229,7 @@ internal class GiftCodeController(
                 else -> "교환 ${ok}건 완료 · 실패 ${fail}건 — $lastFailMsg"
             }
             _redeemState.value = RedeemState.Done(!aborted && fail == 0, detail)
+            status(detail, when { aborted || ok == 0 -> ToastKind.ERROR; fail == 0 -> ToastKind.SUCCESS; else -> ToastKind.INFO })
         }
     }
 

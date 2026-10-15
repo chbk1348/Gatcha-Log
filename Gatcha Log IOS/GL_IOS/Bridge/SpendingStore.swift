@@ -581,6 +581,8 @@ final class SpendingStore {
     // force = true 면 게임별 10분 캐시를 건너뛴다(재시도·새로고침 버튼용).
     func loadActiveCodes(_ gameKey: String, force: Bool = false) { vm.loadActiveCodes(gameKey: gameKey, force: force) }
     func redeemGiftCode(gameKey: String, code: String) { vm.redeemGiftCode(gameKey: gameKey, code: code) }
+    /// 직접 입력 모달의 교환 — 코드가 틀리면 토스트 대신 `RedeemStateDone.inputError` 로 돌아온다.
+    func redeemTypedCode(gameKey: String, code: String) { vm.redeemTypedCode(gameKey: gameKey, code: code) }
     func redeemAllCodes(_ gameKey: String) { vm.redeemAllCodes(gameKey: gameKey) }
     /// 가려 둔 코드를 전부 되살린다(잘못된 판정 복구).
     func restoreUnusableCodes(_ gameKey: String) { vm.restoreUnusableCodes(gameKey: gameKey) }

@@ -126,6 +126,13 @@ internal object GlgLineIcons {
         "M13.2 6L18 10.8",
     )
 
+    /** 더하기 — 리딤코드 헤더 「코드 직접 입력」(10/15). 하단 툴바 지출 추가([Add], 카드 + 더하기)와 다른 맨 + 다. */
+    val Plus: ImageVector = line(
+        "IconPlus",
+        "M12 5V19",
+        "M5 12H19",
+    )
+
     /** 삭제 — 지출 상세 헤더. */
     val Delete: ImageVector = line(
         "IconDelete",
