@@ -32,7 +32,6 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.SpendingInsightStats
 import com.gatcha.log.ui.components.GldsTabs
-import com.gatcha.log.ui.components.GldsTabsVariant
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -336,7 +335,7 @@ private fun BreakdownSection(title: String, sub: String?, rows: List<Triple<Stri
 @Composable
 private fun InsightTabToggle(tab: Int, onTab: (Int) -> Unit) {
     // GLDS 탭 Neutral — 같은 데이터의 보기 방식 전환(9/30).
-    GldsTabs(listOf("월간 인사이트", "연간 리포트"), tab, variant = GldsTabsVariant.Neutral, onSelect = onTab)
+    GldsTabs(listOf("월간 인사이트", "연간 리포트"), tab, onSelect = onTab)
 }
 
 /** 색 점 + 라벨 — 줄바꿈 범례. */

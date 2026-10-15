@@ -700,11 +700,15 @@ fun GlgChip(
 }
 
 // D 칩 토큰 — idle 아웃라인/글자색. (칩 규격을 따르는 다른 버튼도 참조하도록 internal)
-/** GLDS 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
-private val GlgSegmentHeight = 32.dp
+/** GLDS 탭 한 칸 높이 — 32 → 40(GLDS 2.1 · 10/15 탭 시안 C). 누름 영역을 넓혔다. */
+private val GlgSegmentHeight = 40.dp
 
-/** 둘째 줄(요일)이 붙는 칸 높이 — 두 줄이 눌리지 않게 값을 못 박는다. */
-private val GlgSegmentHeightTwoLine = 46.dp
+/** 둘째 줄(요일)이 붙는 칸 높이 — 두 줄이 눌리지 않게 값을 못 박는다(46 → 52). */
+private val GlgSegmentHeightTwoLine = 52.dp
+
+/** GLDS 탭 트랙 — 섹션 사이 띠와 같은 #F2F4F6. */
+private val GldsTabsTrack = Color(0xFFF2F4F6)
+private val GldsTabsSubText = Color(0xFF8A9491)
 
 /**
  * 세그먼트 탭 — **한 덩어리 트랙에 선택 칸만 채운다.**
@@ -719,19 +723,17 @@ private val GlgSegmentHeightTwoLine = 46.dp
  *
  * 칸 폭이 아니라 **위치만** 애니메이션한다. 회전·태블릿에서 폭이 바뀌어도 계산이 어긋나지 않는다.
  */
-/** GLDS 탭 모양 — Primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · Neutral: 회색 트랙 + 흰 알약(보기 방식 전환). */
-enum class GldsTabsVariant { Primary, Neutral }
-
 /**
- * **GLDS 탭**(9/30) — 옛 GldsTabs 를 GLDS 규격으로 올린 것. iOS `GldsTabs`(GLGChip.swift) 와 같은 값.
- * 트랙 반경 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 반경 11 · 라벨 12.5 SemiBold, 비선택 #6C727A.
+ * **GLDS 탭 2.1**(10/15 탭 시안 C 「회색 트랙 · 흰 알약」) — iOS `GldsTabs`(GLGChip.swift) 와 같은 값.
+ * 트랙 #F2F4F6 · 반경 14 · 안쪽 3 · 칸 40(서브라벨 52) · 알약은 헤더 · 툴바와 같은 흰 면([glgHeaderSurface] 의 면 ·
+ * 안쪽 1 [DividerColor] · [LiftShadow]) 반경 11 · 라벨 14(선택 Bold 짙은 강조색, 아니면 SemiBold #6C727A) · 서브 12.
+ * 2.0 의 Primary(흰 트랙 + 강조색 알약) · Neutral(회색 트랙 + 흰 알약) 둘을 **규칙 하나로 합쳤다**(10/15 지시).
  */
 @Composable
 fun GldsTabs(
     labels: List<String>,
     selected: Int,
     modifier: Modifier = Modifier,
-    variant: GldsTabsVariant = GldsTabsVariant.Primary,
     /**
      * 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
      * 크기가 [labels] 와 같아야 한다 — 모자란 칸은 한 줄로 그린다.
@@ -740,26 +742,23 @@ fun GldsTabs(
     /**
      * 칸마다 다른 선택색. 게임 탭처럼 **칸 자체가 색을 갖는** 자리에서 쓴다
      * (호요랜드 무대 게임 탭 — 목록의 색 띠와 같은 색이어야 규칙이 안 어긋난다).
-     * null 이면 전부 강조색.
+     * 2.1 에서는 알약이 흰 면이라 선택 **글자**가 이 색을 받는다. null 이면 짙은 강조색.
      */
     selectedColors: List<Color>? = null,
     onSelect: (Int) -> Unit,
 ) {
     if (labels.isEmpty()) return
-    val accent = LocalAccent.current
+    val deep = LocalAccentDeep.current
     val sel = selected.coerceIn(0, labels.lastIndex)
     val twoLine = subLabels != null
     val cellHeight = if (twoLine) GlgSegmentHeightTwoLine else GlgSegmentHeight
-    val neutral = variant == GldsTabsVariant.Neutral
-    val fill = if (neutral) Color.White else selectedColors?.getOrNull(sel) ?: accent
-    val fillColor by animateColorAsState(fill, glgStandardSpec(), label = "segmentFill")
-    val selText = if (neutral) TextPrimary else Color.White
+    val selText = selectedColors?.getOrNull(sel) ?: deep
+    val pill = RoundedCornerShape(11.dp)
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(if (neutral) Color(0xFFF1F2F4) else Color.White)
-            .border(1.dp, if (neutral) Color.Transparent else ChipIdleBorder, RoundedCornerShape(14.dp))
+            .background(GldsTabsTrack)
             .padding(3.dp),
     ) {
         val cellWidth = maxWidth / labels.size
@@ -769,9 +768,9 @@ fun GldsTabs(
                 .offset(x = slide)
                 .width(cellWidth)
                 .height(cellHeight)
-                .then(if (neutral) Modifier.shadow(1.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x14000000), spotColor = Color(0x14000000)) else Modifier)
-                .clip(RoundedCornerShape(11.dp))
-                .background(fillColor),
+                .dropShadow(pill, LiftShadow)
+                .background(Color.White, pill)
+                .border(1.dp, DividerColor, pill),
         )
         Row(Modifier.fillMaxWidth()) {
             labels.forEachIndexed { i, label ->
@@ -791,20 +790,14 @@ fun GldsTabs(
                 ) {
                     Text(
                         label,
-                        fontSize = 12.5.sp,
-                        fontWeight = if (neutral && i == sel) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        fontWeight = if (i == sel) FontWeight.Bold else FontWeight.SemiBold,
                         color = labelColor,
                         maxLines = 1,
                     )
                     val sub = subLabels?.getOrNull(i)
                     if (!sub.isNullOrBlank()) {
-                        Text(
-                            sub,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (i == sel) selText.copy(alpha = 0.85f) else TextSecondary.copy(alpha = 0.75f),
-                            maxLines = 1,
-                        )
+                        Text(sub, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = GldsTabsSubText, maxLines = 1)
                     }
                 }
             }

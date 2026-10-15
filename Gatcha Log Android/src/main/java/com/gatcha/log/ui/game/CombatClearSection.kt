@@ -64,7 +64,6 @@ import com.gatcha.log.data.CombatModeClears
 import com.gatcha.log.data.CombatRoom
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GldsTabs
-import com.gatcha.log.ui.components.GldsTabsVariant
 import com.gatcha.log.ui.components.RosterSkeleton
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.components.GlgBadgeText
@@ -304,7 +303,7 @@ private fun ModeTitle(mode: String, modifier: Modifier) {
 private fun SeasonSegment(showPrevious: Boolean, onChange: (Boolean) -> Unit) {
     GldsTabs(
         listOf("이번 시즌", "지난 시즌"), if (showPrevious) 1 else 0,
-        Modifier.width(168.dp), variant = GldsTabsVariant.Neutral,
+        Modifier.width(168.dp),
     ) { onChange(it == 1) }
 }
 

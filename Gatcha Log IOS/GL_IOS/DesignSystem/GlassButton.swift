@@ -123,9 +123,9 @@ struct GldsButtonStyle: ButtonStyle {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// GLDS 칩(9/30) — 필터 · 선택용 알약. Android `GldsChip` 과 같은 값.
-// 높이 36 · 좌우 14 · 14 Bold(10/12 에 32 · 12 · 13 에서 키웠다 — 높이는 GLDS 버튼 S 와 같다). 기본 흰 면 + 1 #E3E5EA, 선택은 **면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
-// (Menu 라벨의 글래스 모프 때 채운 면이 번져 보였다). dropdown 은 ▾, removable 은 ✕.
+// GLDS 칩 2.1(10/15 칩 시안 D 「옅은 강조 칩」) — 필터 · 선택용 알약. Android `GldsChip` 과 같은 값.
+// 높이 40 · 좌우 16 · 14(선택 Bold, 아니면 SemiBold). 기본 흰 면 + 1 #E3E5EA, 선택은 테두리 대신 강조색 12% 면 + deep 글자
+// (게임 칩은 게임색 12% + 게임색 글자). 2.0 은 36 · 14 · 선택 강조색 1.5 테두리였다. dropdown 은 ▾, removable 은 ✕.
 // ════════════════════════════════════════════════════════════════════════════
 
 /// 모양만 — `Menu` 라벨처럼 버튼이 따로 있는 자리에서 쓴다.
@@ -139,18 +139,18 @@ struct GldsChipLabel: View {
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let line = color ?? accent.primary
+        let tint = color ?? accent.primary
         let fg = selected ? (color ?? accent.deep) : GLGColor.textPrimary
         HStack(spacing: 4) {
-            Text(label).font(.pretendard(size: 14, weight: .bold)).lineLimit(1)
+            Text(label).font(.pretendard(size: 14, weight: selected ? .bold : .semibold)).lineLimit(1)
             if dropdown { Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold)).foregroundStyle(selected ? fg : GLGColor.textSecondary) }
             if removable { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)) }
         }
         .foregroundStyle(fg)
-        .padding(.horizontal, 14)
-        .frame(height: 36)
-        .background(Color.white, in: Capsule())
-        .overlay(Capsule().strokeBorder(selected ? line : Color(hex: 0xFFE3E5EA), lineWidth: selected ? 1.5 : 1))
+        .padding(.horizontal, 16)
+        .frame(height: 40)
+        .background(selected ? tint.opacity(0.12) : Color.white, in: Capsule())
+        .overlay(Capsule().strokeBorder(selected ? Color.clear : Color(hex: 0xFFE3E5EA), lineWidth: 1))
         .contentShape(Capsule())
         .animation(.easeOut(duration: 0.15), value: selected)
     }
