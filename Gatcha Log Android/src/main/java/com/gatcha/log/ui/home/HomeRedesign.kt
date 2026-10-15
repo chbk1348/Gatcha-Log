@@ -98,6 +98,7 @@ import com.gatcha.log.data.TodayTaskKind
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.GlgTabHeaderBottom
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
@@ -152,7 +153,7 @@ fun HomeHeader(
         modifier = Modifier
             .fillMaxWidth()
             .height(GlgTabHeaderHeight)
-            .padding(top = 12.dp, bottom = 16.dp),
+            .padding(top = 12.dp, bottom = GlgTabHeaderBottom),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 안쪽 여백 0 — 프로필 칸이 왼쪽 4 · 오른쪽 14 를, 알림 칸(52)이 오른쪽 둥근 끝을 스스로 갖는다.
