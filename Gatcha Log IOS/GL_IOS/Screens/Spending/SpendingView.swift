@@ -467,16 +467,18 @@ struct SpendingView: View {
     // 지금 뭐가 걸렸는지 읽힌다.
     private var quickFilters: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // 스크롤뷰에 넣지 않는다(9/30) — iOS 26 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다.
-            // 한 줄에 넘치면(고른 값이 긴 라벨일 때 · 좁은 화면) 두 줄로 나눈다.
-                ViewThatFits(in: .horizontal) {
+            // **한 줄 · 넘치면 가로 스크롤**(10/15 — Android 와 같다). 예전엔 넘치면 두 줄로 나눴는데, 칩이 40 으로
+            // 커진 뒤 고른 값이 긴 라벨이면 자주 두 줄이 돼 목록이 아래로 밀렸다(지적).
+            // 9/30 엔 스크롤뷰가 iOS 26 메뉴가 칩에서 부풀어 열리는 그림을 잘라 스크롤뷰를 피했다 —
+            // scrollClipDisabled 로 잘라내기를 끄면 메뉴가 온전히 나온다. 줄은 화면 끝까지 닿게(-16) 두고
+            // 칩은 섹션 시작선(16)에서 시작한다.
+                ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) { periodMenu; gameMenu; paymentMenu; sortMenu }
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) { periodMenu; gameMenu }
-                        HStack(spacing: 6) { paymentMenu; sortMenu }
-                    }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 16)
                 }
-                .padding(.vertical, 4)
+                .scrollClipDisabled()
+                .padding(.horizontal, -16)
                 // 라벨이 바뀌며 칩 폭이 변할 때 줄 전체가 미끄러지지 않게 — 레이아웃 애니메이션을 끊는다.
                 .transaction { $0.animation = nil }
 
