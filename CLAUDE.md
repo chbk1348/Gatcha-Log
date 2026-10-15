@@ -4,9 +4,12 @@
 
 화면을 새로 그리거나 고칠 때는 **GLDS 가이드가 기준**이다. Android · iOS 코드, 시안 아티팩트 모두 해당한다.
 
-- 가이드: <https://claude.ai/artifact/N1EhVcQFLFdc2wS53N65FL> (「GLDS 가이드」, 현재 기준 2.1 — 2.1 은 입력필드를 새로 정했다). 디자인 작업 전에 읽는다.
+- 가이드: 「GLDS 가이드」, 현재 기준 2.1(54판, 2026-10-15). 디자인 작업 전에 읽는다.
+  - **사본(정본):** 비공개 Vault 레포 `chbk1348/Gatcha-Log-vault` 의 `artifacts/glds-guide/index.html`. 받아서 그 폴더에서 `python3 -m http.server` 를 띄워 연다(폰트 · `inventory.html` 이 같은 폴더에 있다).
+  - **원본 링크:** <https://claude.ai/artifact/N1EhVcQFLFdc2wS53N65FL> — 이 링크는 claude.ai 계정에 묶여 있어 그 계정을 닫으면 열리지 않는다. 열리지 않으면 Vault 사본을 기준으로 이어서 작업한다.
+  - 다른 시안(드롭다운 · 탭 · 칩 · 토스트 · 헤더 · 리딤코드 · 어드민 등)도 같은 레포 `artifacts/` 에 있다. 목록과 원본 링크는 `artifacts/README.md`.
 - 가이드에 없는 모양이 필요하면 임의로 만들지 않는다. 먼저 묻고, 정해지면 가이드에 추가한다.
-- 가이드와 코드가 어긋난 곳을 보면 알린다. 고친 규격은 가이드에도 반영한다.
+- 가이드와 코드가 어긋난 곳을 보면 알린다. 고친 규격은 가이드에도 반영한다 — 원본 링크가 열리지 않으면 Vault 의 `index.html` 을 직접 고쳐 커밋하고, `artifacts/README.md` 의 판 설명도 같이 고친다.
 
 가이드를 열 수 없을 때를 위한 요약 — 자세한 수치와 예외는 가이드가 우선한다.
 
