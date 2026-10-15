@@ -688,7 +688,7 @@ private fun NotificationDetailScreen(
             ) {
                 Icon(Icons.Default.NotificationsNone, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
                 Spacer(Modifier.height(12.dp))
-                Text("새로운 알림이 없어요 🎉", color = TextSecondary, fontSize = 14.sp)
+                Text("새로운 알림이 없어요", color = TextSecondary, fontSize = 14.sp)
                 Text("예산·픽업 배너·출석 알림이 여기에 모여요", color = Color.LightGray, fontSize = 12.sp)
             }
         } else {
