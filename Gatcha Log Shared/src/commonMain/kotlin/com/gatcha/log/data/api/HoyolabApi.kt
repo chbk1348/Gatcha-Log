@@ -463,7 +463,7 @@ object HoyolabApi {
             onParse = { CodeResult(false, Err.PARSE) },
         ) { retcode, msg, _ ->
             val r = when (retcode) {
-                0 -> CodeResult(true, "교환 완료! 게임 우편함을 확인하세요")
+                0 -> CodeResult(true, "교환 완료 — 게임 우편함을 확인하세요")
                 -2017, -2018 -> CodeResult(false, "이미 사용한 코드예요", alreadyRedeemed = true)
                 // ── 코드 자체가 죽은 경우만 영구 차단한다 ──
                 -2001 -> CodeResult(false, "만료된 코드예요", unusable = true)

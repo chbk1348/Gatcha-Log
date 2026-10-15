@@ -2,13 +2,13 @@ import SwiftUI
 import UIKit
 import Shared
 
-// 리딤코드 — 페이지 형식(네비게이션 푸시). 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력.
+// 리딤코드 — 페이지 형식(네비게이션 푸시). 활성 코드 자동 수집 + 교환(단건/모두). 직접 입력은 헤더 + 버튼 → 가운데 모달(10/15).
 // (Compose GiftCodePage 대응) 시트 → 페이지로 전환하며 글래스 카드로 디자인 개선.
 struct GiftCodePage: View {
     var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var selected = "genshin"
-    @State private var code = ""
+    @State private var showInput = false
     @State private var showRedeemed = false
     @State private var didInit = false
 
@@ -41,13 +41,6 @@ struct GiftCodePage: View {
                     }
                     // 아래 여백 = 20 − 마지막 요소 자체 여백 — 띠까지 눈에 20(10/1).
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20 - codeListTail)
-                    GiBand()
-                    // 직접 입력 섹션 — GLDS 입력필드 규격 그대로, 상태 문구는 그 아래.
-                    VStack(alignment: .leading, spacing: 12) {
-                        directInput
-                        statusText
-                    }
-                    .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
                 }
                 // 맨 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
@@ -60,6 +53,15 @@ struct GiftCodePage: View {
         .navigationBarTitleDisplayMode(.inline)
         // 모두 교환 — iOS 는 헤더 시스템 버튼(9/30 사용자 지정). Android 는 코드 카드 아래 GLDS 버튼.
         .toolbar {
+            // 직접 입력 — 페이지 아래 섹션에서 헤더 + 버튼으로 옮겼다(10/15). UID 있는 게임이 없으면 교환할 곳이 없어 숨긴다.
+            if !games.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { glgDialogStill { showInput = true } } label: { GLGLineIcon("IconPlus", label: "코드 직접 입력") }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }
                     .fontWeight(.bold)
@@ -71,6 +73,15 @@ struct GiftCodePage: View {
         }
         .onChange(of: selected) { _, newValue in if !games.isEmpty { store.loadActiveCodes(newValue) } }
         .onDisappear { store.resetRedeem() }
+        .glgDialogCover(isPresented: $showInput) {
+            GiftCodeInputDialog(
+                store: store,
+                games: games,
+                game: selected,
+                needsRelink: cfg.cookieToken.isEmpty && cfg.webCookie.isEmpty,
+                onDismiss: { glgDialogStill { showInput = false } }
+            )
+        }
     }
 
     /// 게임 탭 — **게임 일정 페이지와 같은 시스템 세그먼트**(`Picker(.segmented)`).
@@ -165,33 +176,36 @@ struct GiftCodePage: View {
         }
     }
 
+    /// 코드 한 줄 — 코드 · 복사 · 교환 위에, 아래 보상 목록 두 열(10/15 리딤코드 시안 C, GLDS 「보상 목록」 꼴). Android `CodeRow` 와 같은 값.
     private func codeRow(_ c: GiftCode, redeemed: Bool) -> some View {
         let highlight = c.highlight && !redeemed
-        let inner = HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
+        let inner = VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     if highlight {
-                        HStack(spacing: 3) { Image(systemName: "megaphone.fill").font(.pretendard(size: 9)); Text("공방").font(.pretendard(size: 9, weight: .bold)) }
-                            .foregroundStyle(.white).padding(.horizontal, 6).padding(.vertical, 2).background(accent.primary, in: RoundedRectangle(cornerRadius: 6))
+                        // 공방 뱃지 — 9 는 GLDS 보조 글자 하한(12)보다 작아 12 로 올렸다(10/15).
+                        Text("공방").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(.white)
+                            .padding(.horizontal, 7).frame(height: 20)
+                            .background(accent.primary, in: RoundedRectangle(cornerRadius: 6))
                     }
                     Text(c.code).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(redeemed ? GLGColor.textSecondary : GLGColor.textPrimary)
                         .strikethrough(redeemed).lineLimit(1)
                 }
-                if !c.rewards.isEmpty { Text(c.rewards).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(2) }
+                Spacer(minLength: 0)
+                CopyCodeButton(code: c.code)
+                if redeemed {
+                    HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
+                } else {
+                    GldsButton(title: "교환", variant: highlight ? .primary : .secondary, size: .xs, fullWidth: false) {
+                        store.redeemGiftCode(gameKey: selected, code: c.code)
+                    }.disabled(loading)
+                }
             }
-            Spacer(minLength: 8)
-            CopyCodeButton(code: c.code)
-            if redeemed {
-                HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
-            } else {
-                GldsButton(title: "교환", variant: highlight ? .primary : .secondary, size: .xs, fullWidth: false) {
-                    store.redeemGiftCode(gameKey: selected, code: c.code)
-                }.disabled(loading)
-            }
+            GiftRewardList(code: c)
         }
         return Group {
             if highlight {
-                inner.padding(.horizontal, 10).padding(.vertical, 8)
+                inner.padding(10)
                     .background(accent.primary.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.primary.opacity(0.45), lineWidth: 1.5))
                     .padding(.vertical, 4)
@@ -199,31 +213,6 @@ struct GiftCodePage: View {
                 // 보통 줄은 헤어라인 목록이라 위아래를 넉넉히(10/1, 5 → 12).
                 inner.padding(.vertical, 12)
             }
-        }
-    }
-
-    private var directInput: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            GldsTextField(label: "직접 입력 (새 코드)", placeholder: "예: GENSHINGIFT", text: $code).autocapitalization(.allCharacters)
-                .onChange(of: code) { _, newValue in code = newValue.uppercased().filter { $0.isLetter || $0.isNumber } }
-            if !code.isEmpty {
-                GldsButton(title: "이 코드 교환", variant: .secondary, size: .xs, fullWidth: false) {
-                    store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = ""
-                }.disabled(loading)
-            }
-        }
-    }
-
-    @ViewBuilder private var statusText: some View {
-        if store.redeemState is RedeemStateLoading {
-            Text("교환 중…").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-        } else if let done = store.redeemState as? RedeemStateDone {
-            Text(done.message).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(done.success ? accent.primary : GLGColor.dangerText)
-        } else {
-            Text(cfg.cookieToken.isEmpty && cfg.webCookie.isEmpty
-                 ? "교환하려면 HoYoLAB 재연동(이메일 로그인)이 필요해요. 보상은 게임 우편함으로 와요."
-                 : "코드를 눌러 교환하거나 '모두 교환'을 누르세요. 보상은 게임 우편함으로 와요.")
-                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
         }
     }
 
@@ -240,6 +229,181 @@ private struct CopyCodeButton: View {
             UIPasteboard.general.string = code
             withAnimation(.easeOut(duration: 0.15)) { copied = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { withAnimation { copied = false } }
+        }
+    }
+}
+
+
+/// 리딤코드 보상 목록 — 두 열 · 열 사이 12 · 줄 사이 6. 칸 = 박스 28(반경 8) → 8 띄우고 이름 12(한 줄) → 수량 12 Bold.
+/// 원석 · 성옥 · 폴리크롬은 금색 박스(#D8A12E 16%), 나머지는 #F7F8FA. 박스 안은 인게임 아이콘 22 — 모르면 마름모(프리미엄) · 선물 16. 이름 모를 보상은 아래 「외 N종」,
+/// 보상을 아직 모르는 새 코드는 점선 박스 + 「보상 확인 중」(10/15 시안 C). Android `GiftRewardList` 와 같은 값.
+private struct GiftRewardList: View {
+    let code: GiftCode
+
+    var body: some View {
+        let items = code.items
+        VStack(alignment: .leading, spacing: 6) {
+            if code.rewardsPending {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 8).strokeBorder(Color(hex: 0xFFC8CBD3), lineWidth: 1).frame(width: 28, height: 28)
+                    Text("보상 확인 중").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                }
+            } else if !items.isEmpty {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], alignment: .leading, spacing: 6) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, it in cell(it) }
+                }
+            }
+            if code.moreCount > 0 {
+                Text("외 \(code.moreCount)종").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            }
+        }
+    }
+
+    private func cell(_ it: GiftReward) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(it.premium ? Color(hex: 0xFFD8A12E).opacity(0.16) : Color(hex: 0xFFF7F8FA))
+                if !it.iconUrl.isEmpty {
+                    // 인게임 재화 아이콘 — 게임 일정 보상(`RewardList`)과 같은 22(10/15). 받기 전에는 대체 아이콘.
+                    AsyncImage(url: URL(string: it.iconUrl)) { phase in
+                        if case .success(let img) = phase { img.resizable().aspectRatio(contentMode: .fit) } else { fallback(it) }
+                    }
+                    .frame(width: 22, height: 22)
+                } else {
+                    fallback(it)
+                }
+            }
+            .frame(width: 28, height: 28)
+            Text(it.name).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if !it.qty.isEmpty {
+                Text("×\(it.qty)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textPrimary).fixedSize()
+            }
+        }
+    }
+
+    /// 아이콘을 모르는 보상 — 프리미엄은 마름모, 나머지는 선물.
+    @ViewBuilder private func fallback(_ it: GiftReward) -> some View {
+        if it.premium {
+            GiftGemShape().fill(Color(hex: 0xFFD8A12E)).frame(width: 14, height: 14)
+        } else {
+            Image("IconGift").renderingMode(.template).resizable().frame(width: 16, height: 16).foregroundStyle(GLGColor.textSecondary)
+        }
+    }
+}
+
+/// 프리미엄 재화 마름모 — 24 칸 (12,2) (21,12) (12,22) (3,12).
+private struct GiftGemShape: Shape {
+    func path(in r: CGRect) -> Path {
+        let s = r.width / 24
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX + 12 * s, y: r.minY + 2 * s))
+        p.addLine(to: CGPoint(x: r.minX + 21 * s, y: r.minY + 12 * s))
+        p.addLine(to: CGPoint(x: r.minX + 12 * s, y: r.minY + 22 * s))
+        p.addLine(to: CGPoint(x: r.minX + 3 * s, y: r.minY + 12 * s))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// 리딤코드 직접 입력 — **가운데 모달**(10/15). 넛지 기준 금액(`NudgeThresholdDialog`)과 같은 틀이다 —
+/// 딤 + 흰 카드(모서리 24 · 안쪽 22 · 1 테두리) · 제목 17 Bold · 설명 12 → 게임 탭 → 입력필드 → 취소 1 : 교환 1.4(GLDS 버튼 M).
+/// 게임은 모달 안에서 고른다(기본은 페이지에서 보던 탭). UID 있는 게임이 하나뿐이면 고를 게 없어 탭을 두지 않는다.
+/// 교환을 누르면 모달을 연 채 결과를 기다린다(버튼 「교환 중…」). 성공이면 닫고 토스트, 코드 자체가 틀렸으면
+/// (유효하지 않음 · 만료 · 이미 사용) **입력필드 오류**로 보여 주고 연 채 둔다(10/15). 그 밖의 실패(쿠키 · 네트워크 ·
+/// 너무 잦음)는 코드를 고칠 일이 아니라 토스트로 뜨고 모달은 그대로다. 코드나 게임을 바꾸면 오류를 지운다.
+/// Android `GiftCodeInputDialog`(GlgDialog) 와 같은 모양 · 같은 값.
+private struct GiftCodeInputDialog: View {
+    var store: SpendingStore
+    let games: [(String, String)]
+    @State var game: String
+    let needsRelink: Bool
+    let onDismiss: () -> Void
+    @State private var code = ""
+    @State private var error: String? = nil
+    /// 이 모달에서 누른 교환의 결과를 기다리는 중 — 모두 교환 등 다른 교환의 결과와 섞이지 않게 한다.
+    @State private var submitted = false
+    private var busy: Bool { submitted || store.redeemState is RedeemStateLoading }
+    @FocusState private var focused: Bool
+    /// 제자리에서 나타나고 사라진다 — 덮개 자체의 움직임은 꺼 두었다.
+    @State private var shown = false
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.32).ignoresSafeArea()
+                .onTapGesture { close { onDismiss() } }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("코드 직접 입력").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    .padding(.bottom, 16)
+                Text(needsRelink ? "교환하려면 HoYoLAB 재연동(이메일 로그인)이 필요해요. 보상은 게임 우편함으로 와요." : "보상은 게임 우편함으로 와요.")
+                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 12)
+                if games.count > 1 {
+                    GldsTabs(labels: games.map(\.1), selection: Binding(
+                        get: { games.firstIndex { $0.0 == game } ?? 0 },
+                        set: { i in if games.indices.contains(i) { game = games[i].0; error = nil } }
+                    ))
+                    .padding(.bottom, 12)
+                }
+                GldsTextField(placeholder: "예: GENSHINGIFT", text: $code, error: error, bold: true, focus: $focused)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .onChange(of: code) { _, v in
+                        let cleaned = v.uppercased().filter { $0.isLetter || $0.isNumber }
+                        if cleaned != v { code = cleaned }
+                        error = nil
+                    }
+                GeometryReader { geo in
+                    let w = geo.size.width - 10
+                    HStack(spacing: 10) {
+                        GldsButton(title: "취소", variant: .secondary) { close { onDismiss() } }
+                            .frame(width: w / 2.4)
+                        GldsButton(title: busy ? "교환 중…" : "교환") {
+                            error = nil; submitted = true
+                            store.redeemTypedCode(gameKey: game, code: code)
+                        }
+                            .frame(width: w * 1.4 / 2.4)
+                            .disabled(busy || code.isEmpty || error != nil)
+                    }
+                }
+                .frame(height: 44)
+                .padding(.top, 20)
+                .gldsToastObstacle()
+            }
+            .padding(22)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+            // 한 장으로 합친 뒤에 그림자를 준다 — 그냥 주면 카드 안의 입력칸 · 버튼 · 글자마다 그림자가 따로 생긴다.
+            .compositingGroup()
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+            .padding(24)
+            .frame(maxWidth: 480)
+            .scaleEffect(shown ? 1 : 0.96)
+        }
+        .opacity(shown ? 1 : 0)
+        // RedeemState 는 Equatable 이 아니라 객체 정체로 바뀜을 잡는다 — 결과마다 새 객체가 온다.
+        .onChange(of: ObjectIdentifier(store.redeemState as AnyObject)) { _, _ in
+            guard submitted, let done = store.redeemState as? RedeemStateDone else { return }
+            submitted = false
+            if done.success { close { onDismiss() } }
+            else if done.inputError { error = done.message; focused = true }
+        }
+        .task {
+            withAnimation(.easeOut(duration: 0.16)) { shown = true }
+            // 나타나는 도중에 거는 포커스는 무시돼 키보드가 안 뜬다 — 자리를 잡은 뒤에 건다.
+            try? await Task.sleep(for: .milliseconds(220))
+            focused = true
+        }
+    }
+
+    /// 키보드를 내리고 흐려진 뒤에 닫는다 — 덮개는 움직임 없이 사라지므로 여기서 사라지는 모습을 그린다.
+    private func close(_ then: @escaping () -> Void) {
+        focused = false
+        withAnimation(.easeIn(duration: 0.12)) { shown = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(130))
+            then()
         }
     }
 }

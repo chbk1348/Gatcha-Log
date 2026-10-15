@@ -340,6 +340,7 @@ fun GameInfoScreen(
                 unusableCount = unusableCodes.size,
                 onLoadCodes = { key, force -> viewModel.loadActiveCodes(key, force) },
                 onRedeem = { key, c -> viewModel.redeemGiftCode(key, c) },
+                onRedeemTyped = { key, c -> viewModel.redeemTypedCode(key, c) },
                 onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
                 onRestoreUnusable = { key -> viewModel.restoreUnusableCodes(key) },
                 onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
