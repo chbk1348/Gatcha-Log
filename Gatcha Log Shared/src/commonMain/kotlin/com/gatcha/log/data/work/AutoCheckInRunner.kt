@@ -17,7 +17,7 @@ import com.gatcha.log.util.currentTimeMillis
  */
 object AutoCheckInRunner {
 
-    /** 출석 시도 결과(게임별 분류). null 반환 = HoYoLAB 미연동 또는 토큰 비어있음. */
+    /** 출석 시도 결과(게임별 분류). null 반환 = HoYoLAB 미연동 · 토큰 비어있음 · 게임 UID 없음. */
     data class Outcome(
         val newSuccess: List<String>,         // 이번 시도에 새로 출석 성공한 게임 shortName
         val alreadyDone: List<String>,        // 시도 전부터 오늘 이미 출석되어 있던 게임
@@ -51,6 +51,9 @@ object AutoCheckInRunner {
         postFailureNotification: Boolean,
     ): Outcome? {
         if (!cfg.isLinked || cfg.ltuid.isBlank() || cfg.ltoken.isBlank()) return null
+        // 게임 UID 가 하나도 없으면 돌지 않는다(27.52.0) — 예전엔 「UID 를 모르면 전부」 규칙으로 세 게임에 체크인을 쏴,
+        // 게임이 없는 계정에도 출석이 기록되고 「출석 대신 해 뒀어요」 알림까지 나갔다.
+        if (!cfg.canCheckIn) return null
 
         val today = DateUtil.hoyoDayKey()
         var attendance = repo.loadAttendance()
@@ -104,6 +107,18 @@ object AutoCheckInRunner {
     /** 성공 알림 · 실패 알림의 하루 1회 표시. 값은 호요 날짜 — 실패가 풀리면 [RESOLVED] 를 붙여 둔다. */
     private const val OK_TAG = "auto_checkin_ok"
     private const val FAIL_TAG = "auto_checkin_fail"
+
+    /**
+     * 출석 알림의 「오늘 보냄」 표시를 지운다 — HoYoLAB 계정이 바뀌었을 때(27.52.0).
+     *
+     * 표시는 구글 계정마다 따로지만 HoYoLAB 계정은 가리지 않는다. 앞 계정 몫으로 오늘 리마인더 · 자동 출석 알림이 나갔으면
+     * 새 계정은 그날 같은 알림을 받지 못했다. 방해금지로 미뤄 둔 앞 계정의 성공 알림도 함께 버린다.
+     */
+    fun forgetTodayNotices(settings: AppSettings) {
+        listOf(
+            OK_TAG, FAIL_TAG, "attend", NotificationChecker.ATTEND_SCHEDULED_TAG, ScheduledAlerts.CHECKIN_DEFERRED_TAG,
+        ).forEach { settings.setLastNotified(it, "") }
+    }
     private const val RESOLVED = ":resolved"
 
     /**

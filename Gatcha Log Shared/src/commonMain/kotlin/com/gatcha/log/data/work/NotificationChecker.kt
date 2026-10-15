@@ -161,7 +161,8 @@ object NotificationChecker {
         }
 
         // ② 출석 리마인더 (베이징 저녁 이후 미출석) — 하루 1회
-        if (settings.notifyAttendance && cfg.isLinked) {
+        // 미연동이거나 게임 UID 가 없으면 멈춘다([HoyolabConfig.canCheckIn]) — 챙길 출석이 없다.
+        if (settings.notifyAttendance && cfg.canCheckIn) {
             if (DateUtil.hoyoHour() >= 18) {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today] ?: emptySet()

@@ -177,6 +177,8 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
     var busy by remember { mutableStateOf(false) }
 
     val noHoyo = games.none { it in HOYO_KEYS.split(',') }
+    // 출석 알림은 출석을 챙길 수 있을 때만 묻는다 — ④ 에서 연동하지 않았거나 게임 UID 가 없으면 ⑤ 에서 뺀다(27.52.0).
+    val noAttend = noHoyo || !hoyo.canCheckIn
     var applied by rememberSaveable { mutableStateOf(false) }   // 로그인 재시도로 다시 눌러도 설정은 한 번만
     // ④ 에서 한 게임 UID 조회가 **서버에 닿았는가** — 닿았는데 UID 가 없는 것과 못 닿은 것은 안내가 다르다([HoyolabStep]).
     // 단계가 바뀌면 그 화면의 상태는 사라지므로 여기 둔다 — ⑤ 에 갔다 돌아와도 문구가 안 바뀌게(iOS hoyoUidsChecked 와 같다).
@@ -356,7 +358,7 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
                     2 -> BudgetStep(budget, custom, onBudget = { v, c -> budgetTouched = true; budget = v; custom = c }, onNext = { go(3) }, onSkip = { budgetTouched = true; budget = -1L; go(3) })
                     3 -> HoyolabStep(viewModel, hoyo, viewport, uidsChecked = hoyoUidsChecked, onUidsChecked = { hoyoUidsChecked = it }, onNext = { go(4) })
                     4 -> NotifyStep(
-                        noHoyo, attend, resin, pickup, budgetAlert, dndStart, dndEnd, viewport,
+                        noHoyo, noAttend, attend, resin, pickup, budgetAlert, dndStart, dndEnd, viewport,
                         onToggle = { k ->
                             when (k) { 0 -> attend = !attend; 1 -> resin = !resin; 2 -> pickup = !pickup; else -> budgetAlert = !budgetAlert }
                         },
@@ -376,7 +378,7 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
                             add(Triple(Icons.Outlined.AccountBalanceWallet, "월 예산", if (budget > 0) "${won(budget)}원" else "없음"))
                             if (!noHoyo) add(Triple(Icons.Outlined.Link, "HoYoLAB", if (hoyo.isLinked) "연결됨" else "나중에"))
                             val on = buildList {
-                                if (!noHoyo && attend) add("출석"); if (!noHoyo && resin) add("행동력 가득")
+                                if (!noAttend && attend) add("출석"); if (!noHoyo && resin) add("행동력 가득")
                                 if (pickup) add("픽업 마감"); if (budgetAlert) add("예산 초과")
                             }
                             add(Triple(Icons.Outlined.Notifications, "알림", if (alerts) shortList(on, empty = "모두 끔") else "받지 않음"))
@@ -394,7 +396,7 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
                                 games = if (afterLogin && !gamesTouched && mine.isNotEmpty()) mine else games.toList(),
                                 budget = if (afterLogin && !budgetTouched && accountBudget > 0L) -1L else if (budget > 0) budget else -1L,
                                 alerts = alerts,
-                                attendance = !noHoyo && attend,
+                                attendance = !noAttend && attend,
                                 resin = !noHoyo && resin,
                                 pickup = pickup,
                                 budgetAlert = budgetAlert,
@@ -850,13 +852,13 @@ private fun HoyolabStep(
 
 @Composable
 private fun NotifyStep(
-    noHoyo: Boolean, attend: Boolean, resin: Boolean, pickup: Boolean, budgetAlert: Boolean,
+    noHoyo: Boolean, noAttend: Boolean, attend: Boolean, resin: Boolean, pickup: Boolean, budgetAlert: Boolean,
     dndStart: Int, dndEnd: Int, viewport: Dp, onToggle: (Int) -> Unit, onFinish: (Boolean) -> Unit,
 ) {
     data class Row5(val k: Int, val icon: ImageVector, val fg: Color, val bg: Color, val t: String, val d: String, val on: Boolean)
     val rows = buildList {
+        if (!noAttend) add(Row5(0, Icons.Outlined.EventAvailable, Teal, TealSoft, "출석", "자동 출석 결과 · 저녁까지 미출석이면", attend))
         if (!noHoyo) {
-            add(Row5(0, Icons.Outlined.EventAvailable, Teal, TealSoft, "출석", "자동 출석 결과 · 저녁까지 미출석이면", attend))
             add(Row5(1, Icons.Outlined.Schedule, Color(0xFF3E76E0), Color(0xFFE8F0FD), "행동력 가득", "가득 차기 전 한 번", resin))
         }
         add(Row5(2, Icons.Outlined.StarOutline, Color(0xFF9350F0), Color(0xFFF1E8FD), "픽업 마감", "D-3 · D-1", pickup))

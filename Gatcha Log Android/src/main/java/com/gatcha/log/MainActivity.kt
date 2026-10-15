@@ -106,8 +106,10 @@ class MainActivity : ComponentActivity() {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today].orEmpty()
                 // 출석을 세는 게임만 본다 — UID 없는 게임이 남은 걸로 치면 실행마다 워커를 헛돌린다.
-                val games = GameData.trackedAttendanceGames(repo.loadHoyolab(), repo.loadMyGames())
-                if (games.any { it.key !in done }) {
+                // 출석을 챙길 수 없는 계정(미연동 · 게임 UID 없음)이면 자동 출석이 돌지 않으니 깨우지 않는다.
+                val cfg = repo.loadHoyolab()
+                val games = GameData.trackedAttendanceGames(cfg, repo.loadMyGames())
+                if (cfg.canCheckIn && games.any { it.key !in done }) {
                     AndroidWorkScheduler.runNow(ctx)
                 }
             }

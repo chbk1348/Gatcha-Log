@@ -60,6 +60,14 @@ internal class AttendanceController(
     fun markCheckedIn(gameKey: String) = editToday { it + gameKey }
 
     /**
+     * 오늘 출석을 비운다 — HoYoLAB 계정이 바뀌었을 때. 오늘 기록은 앞 계정 것이라 새 계정의 출석을 막는다.
+     * 새 계정이 이미 출석했으면 체크인이 먼저 묻는 출석 여부([com.gatcha.log.data.api.HoyolabApi.checkIn])로 다시 채워진다.
+     */
+    fun forgetToday() {
+        if (todayDone().isNotEmpty()) editToday { emptySet() }
+    }
+
+    /**
      * 오늘 몫을 고친다. **고치기 직전에 저장소를 다시 읽는다** — 메모리 사본으로 고치면 자동 출석이 방금 저장한 출석을
      * 덮어 지운다.
      */
