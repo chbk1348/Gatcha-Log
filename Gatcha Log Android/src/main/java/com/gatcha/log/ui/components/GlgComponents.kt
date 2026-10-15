@@ -165,7 +165,7 @@ fun GlgScreenHeader(
         )
         Row(
             // edge-to-edge: 하위 페이지 헤더가 상태바 인셋을 직접 소유(공용 상단 패딩 없음).
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = GlgDetailHeaderBottom),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 뒤로 + 제목 영역이 **남은 폭을 전부** 차지하고, 그 안에서 캡슐은 글자 길이만큼만 커진다.
@@ -466,15 +466,20 @@ private fun GlgHeaderBadge(count: Int, modifier: Modifier = Modifier) {
 /**
  * 탭(루트) 헤더의 고정 높이. 4개 탭이 모두 이 높이를 쓰고, 각 탭의 스크롤 인셋(contentPadding
  * 또는 Spacer)도 이 값을 참조한다 — 헤더 높이를 바꾸면 여기 한 곳만 고치면 된다.
- * top 12 + 요소 [GlgHeaderElementHeight] + bottom 16. 요소가 44 → 48 로 커지며(10/15) 72 → 76.
+ * top 12 + 요소 [GlgHeaderElementHeight] + bottom [GlgTabHeaderBottom](12) = 72.
+ * 요소가 44 → 48 로 커질 때(10/15) 아래 여백 16 을 그대로 둬 76 이 됐더니 헤더와 콘텐츠 사이가 넓다는 지적이 와서,
+ * 커진 4 를 아래 여백에서 덜어 예전 높이로 되돌렸다(같은 날).
  */
-val GlgTabHeaderHeight = 12.dp + GlgHeaderElementHeight + 16.dp
+val GlgTabHeaderBottom = 12.dp
+val GlgTabHeaderHeight = 12.dp + GlgHeaderElementHeight + GlgTabHeaderBottom
 
 /**
  * 하위(상세) 페이지 헤더가 차지하는 높이(**상태바 제외**).
- * [GlgScreenHeader] 의 구성과 같이 움직여야 한다 — top 12 + 요소 [GlgHeaderElementHeight] + bottom 8(지금 68).
+ * [GlgScreenHeader] 의 구성과 같이 움직여야 한다 — top 12 + 요소 [GlgHeaderElementHeight] + bottom [GlgDetailHeaderBottom](4) = 64.
+ * 탭 헤더와 같은 이유로 아래 여백 8 → 4(10/15 — 요소가 커진 만큼 덜어 예전 높이로).
  */
-val GlgDetailHeaderHeight = 12.dp + GlgHeaderElementHeight + 8.dp
+val GlgDetailHeaderBottom = 4.dp
+val GlgDetailHeaderHeight = 12.dp + GlgHeaderElementHeight + GlgDetailHeaderBottom
 
 /** 상세 페이지 콘텐츠가 고정 헤더 아래에서 시작하도록 하는 상단 인셋(상태바 + 헤더). */
 @Composable
@@ -608,7 +613,7 @@ fun GlgTabHeader(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = 16.dp),
+        modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = GlgTabHeaderBottom),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
