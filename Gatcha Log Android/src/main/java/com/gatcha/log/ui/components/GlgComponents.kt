@@ -180,16 +180,33 @@ fun GlgScreenHeader(
 
 /**
  * 헤더 요소가 **합친 캡슐 안**에 놓였는가 — 그때 원 버튼 · 묶음 · 알약은 자기 면을 그리지 않고 칸으로만 선다.
- * [GlgHeaderMergeRow] 가 합칠 때만 true 로 내려준다.
+ * [Trail] 은 캡슐 오른쪽 액션 자리라 요소마다 **앞에 세로선**을 하나 긋는다(버튼마다 선 — 묶음 캡슐의 「칸 사이마다 세로선」과
+ * 같은 규칙, iOS 18 과 같게 10/15). [Lead] 는 캡슐 왼쪽(탭 헤더의 leading)이라 앞 선이 없다.
  */
-internal val LocalGlgHeaderMerged = staticCompositionLocalOf { false }
+internal enum class GlgHeaderMerge { None, Lead, Trail }
 
-private enum class GlgHeaderMergeSlot { Left, LeftFinal, Right, Merged, Back, Title, Acts, Divs }
+internal val LocalGlgHeaderMerged = staticCompositionLocalOf { GlgHeaderMerge.None }
+
+/** 합친 캡슐의 액션 자리면 앞에 세로선을 긋고, 안쪽 요소는 앞 선 없이(Lead) 칸으로 그린다. */
+@Composable
+private fun GlgMergeTrailDivider(content: @Composable () -> Unit) {
+    if (LocalGlgHeaderMerged.current == GlgHeaderMerge.Trail) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlgHeaderGroupDivider()
+            CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Lead) { content() }
+        }
+    } else {
+        content()
+    }
+}
+
+private enum class GlgHeaderMergeSlot { Left, LeftFinal, Right, Merged, Back, Title, Acts }
 
 /**
  * 하위 페이지 헤더 한 줄 — 평소엔 왼쪽 [‹ | 제목] 캡슐(남은 폭 · 제목 말줄임) + 오른쪽 액션.
  * 왼쪽 캡슐의 본래 폭 + 48 + 액션 폭이 줄 폭을 넘으면(둘 사이가 요소 하나보다 좁아지면) **캡슐 하나**로 그린다 —
- * [‹ 칸 | 14 · 제목(남은 폭 · 말줄임) · 16 | 세로선 · 액션 | 세로선 · 액션 …] + 오른쪽 안쪽 4. iOS 18 `GldsPageHeader18` 과 같은 규칙.
+ * [‹ 칸 | 14 · 제목(남은 폭 · 말줄임) · 16 | 세로선 · 액션 | 세로선 · 액션 …] + 오른쪽 안쪽 4 — 묶음 액션은 그 안의 칸마다 선.
+ * iOS 18 `GldsPageHeader18` 과 같은 규칙.
  */
 @Composable
 private fun GlgHeaderMergeRow(
@@ -273,11 +290,11 @@ private fun GlgHeaderMergedCapsule(
             .padding(end = GlgHeaderGroupInset),
     ) { c ->
         val back = subcompose(GlgHeaderMergeSlot.Back, backCell).map { it.measure(Constraints()) }
+        // 액션은 저마다 앞에 세로선을 긋는다(Trail) — 캡슐이 선을 따로 놓지 않는다.
         val acts = subcompose(GlgHeaderMergeSlot.Acts) {
-            CompositionLocalProvider(LocalGlgHeaderMerged provides true) { Row { actions() } }
+            CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Trail) { Row(verticalAlignment = Alignment.CenterVertically) { actions() } }
         }.map { it.measure(Constraints()) }
-        val divs = subcompose(GlgHeaderMergeSlot.Divs) { GlgHeaderGroupDivider() }.map { it.measure(Constraints()) }
-        val fixed = back.sumOf { it.width } + acts.sumOf { it.width } + divs.sumOf { it.width }
+        val fixed = back.sumOf { it.width } + acts.sumOf { it.width }
         val titleP = subcompose(GlgHeaderMergeSlot.Title, titleText)
             .map { it.measure(Constraints(minWidth = 0, maxWidth = (c.maxWidth - fixed).coerceAtLeast(0))) }
         val h = c.maxHeight.takeIf { it != Constraints.Infinity } ?: GlgHeaderElementHeight.roundToPx()
@@ -286,8 +303,7 @@ private fun GlgHeaderMergedCapsule(
             back.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
             titleP.forEach { it.placeRelative(x, (h - it.height) / 2) }
             // 제목은 남은 폭을 다 차지한다 — 액션은 오른쪽 끝에 붙인다.
-            x = c.maxWidth - acts.sumOf { it.width } - divs.sumOf { it.width }
-            divs.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
+            x = c.maxWidth - acts.sumOf { it.width }
             acts.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
         }
     }
@@ -350,7 +366,8 @@ fun GlgHeaderDropdownPill(
     onClick: () -> Unit,
 ) {
     // 합친 헤더 캡슐 안이면 고르지 않은 알약은 면 없이 글자만, 고른 알약은 그림자 없이 색 면만.
-    val merged = LocalGlgHeaderMerged.current
+    GlgMergeTrailDivider {
+    val merged = LocalGlgHeaderMerged.current != GlgHeaderMerge.None
     Row(
         modifier
             // 고른 상태도 떠 있는 건 같다 — 그림자는 그대로 두고 면만 색으로 채운다(테두리 없음).
@@ -376,6 +393,7 @@ fun GlgHeaderDropdownPill(
             fontWeight = FontWeight.Black,
             color = if (selected) Color.White.copy(alpha = 0.9f) else TextPrimary.copy(alpha = 0.75f),
         )
+    }
     }
 }
 
@@ -440,7 +458,8 @@ fun GlgHeaderButtonGroup(
     content: @Composable () -> Unit,
 ) {
     // 합친 헤더 캡슐 안이면 자기 면 · 안쪽 여백 없이 칸과 세로선만 — 면은 바깥 캡슐이 깐다.
-    val merged = LocalGlgHeaderMerged.current
+    GlgMergeTrailDivider {
+    val merged = LocalGlgHeaderMerged.current != GlgHeaderMerge.None
     SubcomposeLayout(
         modifier
             .height(GlgHeaderElementHeight)
@@ -473,6 +492,7 @@ fun GlgHeaderButtonGroup(
                 }
             }
         }
+    }
     }
 }
 
@@ -516,7 +536,7 @@ fun GlgHeaderGroupItem(
                 .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            GlgHeaderIcon(icon, contentDescription, fg, iconSize, loading)
+            Box(Modifier.alpha(if (enabled || loading) 1f else 0.35f)) { GlgHeaderIcon(icon, contentDescription, fg, iconSize, loading) }
         }
         // 원 버튼의 배지는 보이는 원 끝에서 오른쪽 5 · 위 5 로 걸친다 — 끝 칸의 둥근 끝도 같은 자리.
         if (badgeCount > 0) GlgHeaderBadge(badgeCount, Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
@@ -702,6 +722,11 @@ fun GlgTabHeader(
     leading: @Composable RowScope.() -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    // 제목 없는 탭 헤더도 왼쪽 묶음과 오른쪽 액션 사이가 48 보다 좁아지면 캡슐 하나로 합친다(10/15 — iOS 18 과 같게).
+    if (title.isEmpty()) {
+        GlgTabHeaderMergeRow(leading, actions, modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = GlgTabHeaderBottom))
+        return
+    }
     Row(
         modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = GlgTabHeaderBottom),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -720,6 +745,51 @@ fun GlgTabHeader(
             horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap),
             content = actions,
         )
+    }
+}
+
+private enum class GlgTabMergeSlot { Left, Right, Merged }
+
+/**
+ * 탭 헤더 한 줄 — 평소엔 왼쪽 묶음 · 오른쪽 액션을 양 끝에, 둘의 본래 폭 + 48 이 줄 폭을 넘으면 **캡슐 하나**
+ * [왼쪽 칸들 | 세로선 · 액션 …](안쪽 좌우 4)로 그린다. 하위 페이지 [GlgHeaderMergeRow] 와 같은 기준.
+ */
+@Composable
+private fun GlgTabHeaderMergeRow(
+    leading: @Composable RowScope.() -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+    modifier: Modifier,
+) {
+    val left: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap), content = leading)
+    }
+    val right: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap), content = actions)
+    }
+    SubcomposeLayout(modifier) { c ->
+        val maxW = c.maxWidth
+        val leftP = subcompose(GlgTabMergeSlot.Left, left).map { it.measure(Constraints()) }
+        val rightP = subcompose(GlgTabMergeSlot.Right, right).map { it.measure(Constraints()) }
+        val leftW = leftP.sumOf { it.width }
+        val rightW = rightP.sumOf { it.width }
+        val h = c.maxHeight.takeIf { it != Constraints.Infinity } ?: GlgHeaderElementHeight.roundToPx()
+        if (leftW == 0 || rightW == 0 || leftW + GlgHeaderElementHeight.roundToPx() + rightW <= maxW) {
+            layout(maxW, h) {
+                leftP.forEach { it.placeRelative(0, (h - it.height) / 2) }
+                rightP.forEach { it.placeRelative(maxW - rightW, (h - it.height) / 2) }
+            }
+        } else {
+            val merged = subcompose(GlgTabMergeSlot.Merged) {
+                Row(
+                    Modifier.height(GlgHeaderElementHeight).glgHeaderSurface().padding(horizontal = GlgHeaderGroupInset),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Lead) { leading() }
+                    CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Trail) { actions() }
+                }
+            }.map { it.measure(Constraints(maxWidth = maxW)) }
+            layout(maxW, h) { merged.forEach { it.placeRelative(0, (h - it.height) / 2) } }
+        }
     }
 }
 
@@ -1003,7 +1073,8 @@ fun GlgCircleIconButton(
 ) {
     val fg = tint ?: TextPrimary
     // 합친 헤더 캡슐 안이면 원을 그리지 않고 48 칸으로만 선다 — 면은 캡슐이 깐다.
-    val merged = LocalGlgHeaderMerged.current
+    GlgMergeTrailDivider {
+    val merged = LocalGlgHeaderMerged.current != GlgHeaderMerge.None
     Box(modifier) {
         Box(
             modifier = Modifier
@@ -1017,11 +1088,13 @@ fun GlgCircleIconButton(
                 .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            GlgHeaderIcon(icon, contentDescription, fg, GlgHeaderIconSize, loading)
+            // 못 누르는 헤더 버튼은 35% 로 흐린다 — iOS 18 헤더와 같은 값(10/15).
+            Box(Modifier.alpha(if (enabled || loading) 1f else 0.35f)) { GlgHeaderIcon(icon, contentDescription, fg, GlgHeaderIconSize, loading) }
         }
         if (badgeCount > 0) {
             GlgHeaderBadge(badgeCount, Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
         }
+    }
     }
 }
 
