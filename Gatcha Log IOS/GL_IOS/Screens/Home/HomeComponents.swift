@@ -212,7 +212,13 @@ struct NotificationDetailView: View {
             }
         }
         .background(Color.white)
-        .glgPageTitle("알림").navigationBarTitleDisplayMode(.inline)
+        .glgPageTitle("알림") {
+            // iOS 18 아이폰 GLDS 헤더(10/15) — 「모두 지우기」 글자 알약. 툴바 때의 보조 글자색을 그대로 둔다.
+            if !alerts.isEmpty {
+                GldsHeaderTextButton(title: "모두 지우기", color: GLGColor.textSecondary) { onDismissAll() }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
         .toolbar {
             // 모두 지우기 — 한 번에 전체 dismiss

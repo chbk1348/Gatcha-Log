@@ -88,6 +88,20 @@ struct SpendingView: View {
         }
     }
 
+    /// 두 하위 화면은 뜨고 사라질 때 `store.spendingSubpageOpen` 을 세운다(27.52.0) — iOS 18 의 탭바 위 '+' 가 그동안 숨는다.
+    /// 툴바(iOS 26) · GLDS 헤더(iOS 18) 가 같은 목적지를 쓴다.
+    private var calendarPage: some View {
+        CalendarView(store: store)
+            .onAppear { store.spendingSubpageOpen = true }
+            .onDisappear { store.spendingSubpageOpen = false }
+    }
+
+    private var insightPage: some View {
+        SpendingInsightView(store: store)
+            .onAppear { store.spendingSubpageOpen = true }
+            .onDisappear { store.spendingSubpageOpen = false }
+    }
+
     private var listContent: some View {
         ScrollViewReader { proxy in
         ScrollView {
@@ -187,9 +201,7 @@ struct SpendingView: View {
                 // 그동안 숨는다. 뷰 기반 링크라 ContentView 의 경로(spendingPath)로는 열렸는지 알 수 없다.
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink {
-                        CalendarView(store: store)
-                            .onAppear { store.spendingSubpageOpen = true }
-                            .onDisappear { store.spendingSubpageOpen = false }
+                        calendarPage
                     } label: { GLGLineIcon("IconCalendar", label: "캘린더") }
                 }
                 if #available(iOS 26.0, *) {
@@ -197,9 +209,7 @@ struct SpendingView: View {
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     NavigationLink {
-                        SpendingInsightView(store: store)
-                            .onAppear { store.spendingSubpageOpen = true }
-                            .onDisappear { store.spendingSubpageOpen = false }
+                        insightPage
                     } label: { GLGLineIcon("IconInsight", label: "인사이트") }
                 }
             }
@@ -211,6 +221,27 @@ struct SpendingView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { selectionMode = true; selectedIds = [] } label: { GLGLineIcon("IconSelect", label: "선택") }
                 }
+            }
+        }
+        // iOS 18 아이폰 — 시스템 바 대신 GLDS 탭 헤더(10/15, Android SpendingScreen 과 같은 구성).
+        // 왼쪽 = 보기 전환 [캘린더 | 인사이트] 캡슐, 오른쪽 = 「선택」 원. 선택 모드에선 둘 다 비운다(위 툴바와 같다) —
+        // 헤더 높이는 그대로라 목록이 위로 튀지 않는다.
+        .gldsTabHeader18 {
+            if !selectionMode {
+                GldsHeaderGroup {
+                    NavigationLink { calendarPage } label: {
+                        GldsHeaderIcon(name: "IconCalendar", label: "캘린더").gldsHeaderCell()
+                    }
+                    NavigationLink { insightPage } label: {
+                        GldsHeaderIcon(name: "IconInsight", label: "인사이트").gldsHeaderCell()
+                    }
+                }
+                .buttonStyle(GldsHeaderButtonStyle())
+                .foregroundStyle(GLGColor.textPrimary)
+            }
+        } trailing: {
+            if !selectionMode {
+                GldsHeaderCircleButton(icon: "IconSelect", label: "선택") { selectionMode = true; selectedIds = [] }
             }
         }
         // 선택 하단바 — overlay 가 아닌 safeAreaInset 으로 배치해 스크롤 콘텐츠를 그만큼 위로 인셋한다.

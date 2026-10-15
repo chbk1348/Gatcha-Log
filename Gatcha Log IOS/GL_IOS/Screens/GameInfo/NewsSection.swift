@@ -224,6 +224,8 @@ struct NewsPage: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { filterMenu }
         }
+        // iOS 18 아이폰 — GLDS 헤더 [‹ | 공지·뉴스] + 게임 필터 알약(10/15). 메뉴는 그대로 시스템 `Menu` 다.
+        .gldsPageHeader18("공지·뉴스") { filterMenu18 }
         .navigationDestination(isPresented: $showDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
@@ -241,6 +243,29 @@ struct NewsPage: View {
      ⚠️ 라벨에 `.glassProminent`(채움)를 쓰지 않는다. 메뉴가 닫힐 때 색 덩어리가 스치는
      잔상이 남고 애니메이션 차단으로도 막지 못한다(GL 기록). 선택 표시는 색으로만 한다.
      */
+    /// iOS 18 아이폰 GLDS 헤더의 게임 필터 — 헤더 드롭다운 알약(48 · 15 Bold · ▾). 메뉴 항목은 툴바 메뉴 그대로다.
+    @ViewBuilder
+    private var filterMenu18: some View {
+        let chipGames = GLGGames.all.filter { g in store.gameNews.contains { $0.game == g.displayName } }
+        if chipGames.count > 1 {
+            let selected = chipGames.first { $0.key == chip }
+            Menu {
+                Picker("게임 선택", selection: $chip.animation(.easeInOut(duration: 0.2))) {
+                    Text("전체").tag("all")
+                    ForEach(chipGames, id: \.key) { g in
+                        Text(g.shortName).tag(g.key)
+                    }
+                }
+            } label: {
+                // 게임을 고르면 그 게임색으로 채우고 글자 · ▾ 를 희게(10/15, Android `GlgHeaderDropdownPill` 과 같다). 「전체」 는 흰 알약.
+                GldsHeaderDropdownPillLabel(label: selected?.shortName ?? "전체", selected: selected != nil,
+                                            color: selected.map { Color(argb64: $0.color) } ?? GLGColor.textPrimary)
+            }
+            .menuStyle(.button)
+            .buttonStyle(GldsHeaderButtonStyle())
+        }
+    }
+
     @ViewBuilder
     private var filterMenu: some View {
         // 실제로 공지가 있는 게임만 — 소식이 없는 게임을 골라 빈 화면을 보게 두지 않는다.

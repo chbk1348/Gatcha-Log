@@ -72,7 +72,10 @@ struct HoyolabLinkView: View {
             // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정). Android 는 하단 고정 GLDS 버튼.
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }
             .background(Color.white)
-            .glgPageTitle("HoYoLAB 계정 연동")
+            // iOS 18 아이폰 GLDS 헤더(10/15) — 「저장」 글자 알약.
+            .glgPageTitle("HoYoLAB 계정 연동") {
+                GldsHeaderTextButton(title: "저장") { save() }
+            }
             .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             guard !didInit else { return }; didInit = true

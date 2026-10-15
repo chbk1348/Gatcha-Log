@@ -102,7 +102,13 @@ struct GameInfoView: View {
         // 있어서, 일지 페이지에 들어가 있을 때만 등록됐다 — 데일리 카드에서 눌러도 아무 일이
         // 일어나지 않던 원인이다(상태만 true 로 바뀌고 push 할 destination 이 없었다).
         .navigationDestination(isPresented: $showCombatClears) {
-            sectionPage("클리어 편성", flat: true) { CombatClearSection(store: store) }
+            sectionPage("클리어 편성", flat: true) { CombatClearSection(store: store) } trailing: {
+                // iOS 18 아이폰 GLDS 헤더의 새로고침 원(10/15) — 아래 툴바와 같은 동작 · 같은 비활성 조건.
+                GldsHeaderCircleButton(icon: "IconRefresh", label: "새로고침", loading: store.combatClearsLoading) {
+                    store.refreshCombatClears(force: true)
+                }
+                .disabled(store.combatClearsLoading || !store.hoyolabConfig.isLinked)
+            }
                 // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -329,9 +335,23 @@ struct GameInfoView: View {
             if linked { store.refreshGameInfo(force: true) }
         }
         // 화면에는 안 보이지만 제목은 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
-        .glgHiddenTitle("게임 정보")
+        .glgHiddenTitleWithoutHeader18("게임 정보")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
+        // iOS 18 아이폰 — GLDS 탭 헤더(10/15, Android GameInfoScreen 과 같은 구성). 오른쪽 [새로고침 | 리딤코드 | 연동] 캡슐 하나.
+        // 리딤코드는 연동했을 때만 — 칸이 빠지면 세로선도 같이 빠진다(GldsHeaderGroup).
+        .gldsTabHeader18 { EmptyView() } trailing: {
+            GldsHeaderGroup {
+                GldsHeaderCellButton(icon: "IconRefresh", label: "새로고침", loading: store.isRefreshing) {
+                    store.refreshGameInfo(force: true)
+                }
+                .disabled(store.isRefreshing)
+                if store.hoyolabConfig.isLinked {
+                    GldsHeaderCellButton(icon: "IconGift", label: "리딤코드") { showGift = true }
+                }
+                GldsHeaderCellButton(icon: "IconLink", label: "HoYoLAB 연동") { showHoyolab = true }
+            }
+        }
     }
 
     /// 하단 진입 카드(가챠 도구).
@@ -379,7 +399,9 @@ struct GameInfoView: View {
 
     // 페이지로 분류된 섹션을 감싸는 페이지 래퍼 — 섹션 자체 헤더를 그대로 쓰고 시스템 뒤로가기 제공.
     /// flat=true — 카드 없는 페이지(10/1): 흰 바탕 · 좌우 여백 없음(섹션이 스스로 좌우 20). Android SectionPage(flat) 와 같다.
-    @ViewBuilder private func sectionPage<C: View>(_ title: String, flat: Bool = false, @ViewBuilder _ content: () -> C) -> some View {
+    /// [trailing] — iOS 18 아이폰 GLDS 헤더 오른쪽(클리어 편성의 새로고침). 툴바(iOS 26 · iPad)는 호출부의 `.toolbar` 가 맡는다.
+    @ViewBuilder private func sectionPage<C: View, T: View>(_ title: String, flat: Bool = false, @ViewBuilder _ content: () -> C,
+                                                           @ViewBuilder trailing: () -> T = { EmptyView() }) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) { content() }
                 // flat 은 아래 여분 없음 — 마지막 섹션이 아래 20 을 두고, 홈 인디케이터는 ScrollView 가 비킨다(GLDS 2.0, 10/1).
@@ -388,7 +410,7 @@ struct GameInfoView: View {
         }
         .scrollIndicators(.hidden)
         .background { if flat { Color.white } else { GLGBackground { Color.clear } } }
-        .glgPageTitle(title)
+        .glgPageTitle(title, trailing: trailing)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

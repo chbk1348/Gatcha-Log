@@ -49,7 +49,14 @@ struct GiftCodePage: View {
         }
         .scrollIndicators(.hidden)
         .background(Color.white)
-        .glgPageTitle("리딤코드")
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 직접 입력 + 원 · 「모두 교환」 글자 알약. 따로 떨어진 둘이라 묶지 않는다(툴바와 같다).
+        .glgPageTitle("리딤코드") {
+            if !games.isEmpty {
+                GldsHeaderCircleButton(icon: "IconPlus", label: "코드 직접 입력") { glgDialogStill { showInput = true } }
+            }
+            GldsHeaderTextButton(title: loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }
+                .disabled(pending == 0 || loading || games.isEmpty)
+        }
         .navigationBarTitleDisplayMode(.inline)
         // 모두 교환 — iOS 는 헤더 시스템 버튼(9/30 사용자 지정). Android 는 코드 카드 아래 GLDS 버튼.
         .toolbar {

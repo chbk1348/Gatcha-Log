@@ -160,6 +160,16 @@ struct NewsDetailView: View {
                 }
             }
         }
+        // iOS 18 아이폰 — GLDS 헤더(10/15). 제목은 툴바와 같은 규칙(맨 위 "공지" → 본문 제목이 헤더 밑으로 사라지면 그 제목),
+        // 오른쪽은 붙어 있는 둘 [공유 | 브라우저] 을 캡슐 하나로 묶는다.
+        .gldsPageHeader18(showBarTitle ? item.title : "공지") {
+            if let u = glgSafeURL(NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {
+                GldsHeaderGroup {
+                    GldsHeaderCellButton(icon: "IconShare", label: "공유") { shareNewsURL(u) }
+                    GldsHeaderCellButton(icon: "IconExternal", label: "브라우저에서 보기") { openURL(u) }
+                }
+            }
+        }
         // 같은 글이면 loadNewsArticle 이 조기 반환하므로 탭 전환 후 복귀해도 재요청·스켈레톤 없음.
         // (일부러 clearNewsArticle 를 onDisappear 에 걸지 않는다 — 탭 전환 때 발동해 본문이 비워지던 원인)
         .task(id: item.id) {

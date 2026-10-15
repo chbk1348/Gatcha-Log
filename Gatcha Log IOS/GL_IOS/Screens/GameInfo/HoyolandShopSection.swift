@@ -172,7 +172,12 @@ struct HoyolandGoodsView: View {
         .onChange(of: hasCartLines) { _, shown in store.hidesAddButton = shown }
         // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
         .background(Color.white)
-        .glgPageTitle("굿즈 목록")
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 이용 안내 원(아래 툴바와 같은 조건).
+        .glgPageTitle("굿즈 목록") {
+            if !event.goodsGuide.isEmpty {
+                GldsHeaderCircleButton(icon: "IconInfo", label: "굿즈존 이용 안내") { showGuide = true }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showCart) {
             HoyolandCartView(event: event, store: store)
@@ -474,7 +479,12 @@ struct HoyolandCartView: View {
         .scrollIndicators(.hidden)
         // 흰 바탕(10/1).
         .background(Color.white)
-        .glgPageTitle("장바구니")
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 「비우기」 글자 알약(툴바 때의 위험색 그대로).
+        .glgPageTitle("장바구니") {
+            if !store.hoyolandCart.isEmpty {
+                GldsHeaderTextButton(title: "비우기", color: GLGDanger) { store.clearGoodsCart() }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 비우기는 헤더 우측 — 실수로 누르기 어려운 자리다.

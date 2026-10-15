@@ -50,6 +50,10 @@ struct MyPageView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(removing: .title)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
+        // iOS 18 아이폰 — GLDS 탭 헤더(10/15). 제목 없이 오른쪽 설정 원 하나(Android MyPageScreen 도 10/15 제목을 걷었다).
+        .gldsTabHeader18 { EmptyView() } trailing: {
+            GldsHeaderCircleButton(icon: "IconSettings", label: "설정") { openSettings = true }
+        }
         // 설정은 마이페이지의 하위 페이지. 다른 화면이 HoYoLAB 연동을 요청하면(홈 만료 배너 「재연동」) 설정까지
         // 자동으로 들어간다 — 설정이 onAppear 에서 요청을 소비해 연동 페이지를 연다(9/30, Android 와 같은 흐름).
         .navigationDestination(isPresented: $openSettings) { SettingsView(store: store) }

@@ -540,7 +540,11 @@ struct BudgetSettingsView: View {
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .background(Color.white.ignoresSafeArea())
-        .glgPageTitle("예산 관리")
+        // iOS 18 아이폰 GLDS 헤더(10/15) — 「월 예산 끄기」 · 「저장」 글자 알약. 성격이 달라 캡슐 하나로 묶지 않고 떼어 둔다(툴바와 같다).
+        .glgPageTitle("예산 관리") {
+            GldsHeaderTextButton(title: "월 예산 끄기") { save(0) }
+            GldsHeaderTextButton(title: "저장") { save(amount) }
+        }
         .navigationBarTitleDisplayMode(.inline)
         // 입력 페이지라 하단 탭바를 숨긴다(업데이트 로그와 같은 처리).
         .glgHidesTabBar()

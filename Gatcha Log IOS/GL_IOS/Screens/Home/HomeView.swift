@@ -61,15 +61,7 @@ struct HomeView: View {
                 // 사라지는 SwiftUI 버그가 있었다. Menu 는 그 문제가 없다. .tint 로 라벨이 강조색으로
                 // 틴트돼 닉네임이 안 보이던 문제도 방지.
                 Menu {
-                    if store.account.isGuest {
-                        Button { store.signIn() } label: {
-                            Label("로그인", systemImage: "person.crop.circle.badge.plus")
-                        }
-                    } else {
-                        Button(role: .destructive) { store.signOut() } label: {
-                            Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
-                        }
-                    }
+                    profileMenuItems
                 } label: {
                     HStack(spacing: 8) {
                         ProfileAvatarView(photoUrl: store.account.isGuest ? nil : store.account.photoUrl, size: 32)
@@ -87,15 +79,19 @@ struct HomeView: View {
             // 알림(우). 누를 때 도는 클로저(전체 삭제 · 읽음 처리)는 그 순간의 목록을 다시 만든다 — 그릴 때 드는 값이 아니다.
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    NotificationDetailView(store: store, alerts: shownAlerts,
-                                           onGameInfo: { onSwitchTab(2) },
-                                           onDismiss: { store.dismissAlert($0.key) },
-                                           onDismissAll: { store.dismissAlerts(alerts.map { $0.key }) })
+                    notificationPage(shownAlerts)
                 } label: {
                     GLGLineIcon(unread > 0 ? "IconBellBadge" : "IconBell", label: "알림")
                 }
                 .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
             }
+        }
+        // iOS 18 아이폰 — 시스템 바 대신 GLDS 탭 헤더(10/15, Android `HomeHeader` 와 같은 구성). 위 툴바는 iOS 26 · iPad 몫이다.
+        // 프로필과 알림을 **캡슐 하나**로 묶고 사이에 세로선 — 둘 다 '나'에 관한 것이라 붙여 둔다. 캡슐은 왼쪽, 오른쪽은 비운다.
+        .gldsTabHeader18 {
+            homeHeaderCapsule(shownAlerts, unread: unread)
+        } trailing: {
+            EmptyView()
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
         // 호요랜드가 열려 있는 동안 iOS 18 의 '+' 를 감춘다 — 행사 페이지에서 지출 추가는 할 일이 아니고,
@@ -121,6 +117,62 @@ struct HomeView: View {
         // HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신 — 실시간 노트가 첫 진입에서 누락되는 문제 방지
         .onChange(of: store.hoyolabConfig.isLinked) { _, linked in
             if linked { store.refreshGameInfo(force: true) }
+        }
+    }
+
+    /// 프로필 메뉴 — 게스트면 로그인, 아니면 로그아웃. 툴바(iOS 26) · GLDS 헤더(iOS 18) 가 같이 쓴다.
+    @ViewBuilder private var profileMenuItems: some View {
+        if store.account.isGuest {
+            Button { store.signIn() } label: {
+                Label("로그인", systemImage: "person.crop.circle.badge.plus")
+            }
+        } else {
+            Button(role: .destructive) { store.signOut() } label: {
+                Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
+            }
+        }
+    }
+
+    /// 알림 페이지. 누를 때 도는 클로저(전체 삭제 · 읽음 처리)는 그 순간의 목록을 다시 만든다 — 그릴 때 드는 값이 아니다.
+    private func notificationPage(_ shownAlerts: [HomeAlert]) -> some View {
+        NotificationDetailView(store: store, alerts: shownAlerts,
+                               onGameInfo: { onSwitchTab(2) },
+                               onDismiss: { store.dismissAlert($0.key) },
+                               onDismissAll: { store.dismissAlerts(alerts.map { $0.key }) })
+    }
+
+    /// iOS 18 아이폰 홈 헤더 캡슐 [프로필 | 알림](10/15, Android `HomeHeader`).
+    /// 안쪽 여백 0 — 프로필 칸이 왼쪽 4 · 오른쪽 14 를, 알림 칸(52)이 오른쪽 둥근 끝을 스스로 갖는다. 사진(36)은 48 가운데 — 위아래 6.
+    /// 알림 배지는 지금 iOS 그대로 종 아이콘의 점(IconBellBadge)이다 — Android 의 숫자 원은 iOS 에 없던 모양이라 들이지 않았다.
+    private func homeHeaderCapsule(_ shownAlerts: [HomeAlert], unread: Int) -> some View {
+        GldsHeaderGroup(inset: 0) {
+            Menu {
+                profileMenuItems
+            } label: {
+                HStack(spacing: 8) {
+                    ProfileAvatarView(photoUrl: store.account.isGuest ? nil : store.account.photoUrl, size: 36)
+                    Text(nickname)
+                        .font(.pretendard(size: 16, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                        .lineLimit(1)
+                }
+                .padding(.leading, 4).padding(.trailing, 14)
+                .frame(height: GldsHeader18.element)
+                .contentShape(Rectangle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(GldsHeaderButtonStyle())
+            .tint(GLGColor.textPrimary)
+            NavigationLink {
+                notificationPage(shownAlerts)
+            } label: {
+                // 52 — 둥근 오른쪽 끝을 더 받는다(시안 48 + 칸 커진 만큼, Android 와 같다).
+                GldsHeaderIcon(name: unread > 0 ? "IconBellBadge" : "IconBell", label: "알림")
+                    .gldsHeaderCell(width: GldsHeader18.element + 4)
+            }
+            .buttonStyle(GldsHeaderButtonStyle())
+            .foregroundStyle(GLGColor.textPrimary)
+            .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
         }
     }
 
