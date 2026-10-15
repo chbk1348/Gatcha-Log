@@ -16,8 +16,8 @@ struct SettingsView: View {
 
     /// 프로젝트 저장소 홈. OTA·릴리즈는 같은 저장소의 raw/releases 경로를 쓴다.
     private static let githubRepoURL = "https://github.com/chbk1348/Gatcha-Log"
-    /// 개발자 홈페이지(앱 소개 · 설치 안내). Firebase Hosting 의 yuki-develop 사이트.
-    private static let developerHomeURL = "https://yuki-develop.web.app"
+    /// 개발자 홈페이지(개발자 소개 · 앱 소개). Firebase Hosting 의 yukiworks 사이트 — 옛 yuki-develop 주소는 여기로 넘긴다(10/15).
+    private static let developerHomeURL = "https://yukiworks.web.app"
 
     // 시트/다이얼로그 상태
     @State private var showBudget = false
