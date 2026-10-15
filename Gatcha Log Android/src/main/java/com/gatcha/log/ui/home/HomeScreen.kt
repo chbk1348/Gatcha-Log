@@ -425,8 +425,12 @@ fun HomeContent(
     // 홈은 스크롤·애니메이션·플로우 방출로 재구성이 잦아 그때마다 알림 전량을 다시 만들었다.
     // monthKey 는 게터 2개(시계 읽기 + 날짜 변환)라 람다 밖으로 뺀다.
     val monthKey = "${viewModel.displayYear}-${viewModel.displayMonth}"
-    val alerts = remember(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, attendanceGames, monthKey, dismissedAlerts) {
-        HomeLogic.buildAlerts(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, monthKey, attendanceGames = attendanceGames)
+    val alerts = remember(monthlyTotal, budget, gameOverBudget, banners, hoyolab.isLinked, attendanceToday, attendanceGames, monthKey, dismissedAlerts) {
+        // 미연동이면 출석 알림을 내지 않는다 — 출석할 길이 없는데 「출석체크가 N개 남아있어요」가 떴다. 오늘 할 일과 같은 규칙.
+        HomeLogic.buildAlerts(
+            monthlyTotal, budget, gameOverBudget, banners, attendanceToday, monthKey,
+            attendanceGames = if (hoyolab.isLinked) attendanceGames else emptyList(),
+        )
             .filter { it.key !in dismissedAlerts }
     }
     val unreadCount = remember(alerts, readAlerts) { alerts.count { it.key !in readAlerts } }
@@ -461,10 +465,11 @@ fun HomeContent(
     // 계산(공유 로직)과 UI 매핑을 나눈다. 계산은 입력이 바뀔 때만 — 예전엔 재구성마다 돌았다.
     // 매핑(toTodayItems)은 remember 에 넣지 않는다: 콜백이 상위에서 새로 만들어질 수 있어
     // 캐시하면 낡은 람다를 붙들게 된다. 항목이 몇 개뿐이라 매핑 자체는 싸다.
-    val todayRaw = remember(gameInfoReady, attendanceToday, attendanceGames, resinAlerts, budget, monthlyTotal, combatDeadlines) {
+    val todayRaw = remember(gameInfoReady, hoyolab.isLinked, attendanceToday, attendanceGames, resinAlerts, budget, monthlyTotal, combatDeadlines) {
         if (gameInfoReady) {
             HomeLogic.resolveTodayTasks(
-                pendingAttendance = HomeLogic.pendingAttendanceCount(attendanceToday, attendanceGames),
+                // 미연동이면 출석할 길이 없다 — 「한 번에 출석」을 내지 않는다(예전엔 수동 출석으로 전부 완료 처리했다).
+                pendingAttendance = if (hoyolab.isLinked) HomeLogic.pendingAttendanceCount(attendanceToday, attendanceGames) else 0,
                 resins = resinAlerts,
                 urgentBanner = null,  // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인(중복 제거)
                 budget = budget,

@@ -132,7 +132,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val nNews by viewModel.notifyNews.collectAsStateWithLifecycle()
     val nHoyoland by viewModel.notifyHoyoland.collectAsStateWithLifecycle()
     val nAppUpdate by viewModel.notifyAppUpdate.collectAsStateWithLifecycle()
-    val notifyOnCount = NotificationCatalog.items.count {
+    // 보이는 항목만 센다 — 출석은 출석을 챙길 수 있는 계정일 때만 보인다([HoyolabConfig.canCheckIn]).
+    val notifyOnCount = NotificationCatalog.items(hoyolab).count {
         when (it.key) {
             NotifyKey.BUDGET -> nBudget; NotifyKey.RESIN -> nResin; NotifyKey.ATTENDANCE -> nAttend; NotifyKey.PICKUP -> nPickup
             NotifyKey.COMBAT -> nCombat; NotifyKey.NEWS -> nNews; NotifyKey.HOYOLAND -> nHoyoland
@@ -266,7 +267,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         // GLDS 2.0 — 카드를 걷고 화면 폭 섹션 + 회색 띠(마이페이지 3.0 과 같은 규격).
         item {
             SetSection("알림", "받을 알림 · 방해 금지") {
-                SettingsNavRow(Icons.Default.Notifications, Tint.teal, "알림 설정", NotificationCatalog.enabledLabel(notifyOnCount)) { showNotif.value = true }
+                SettingsNavRow(Icons.Default.Notifications, Tint.teal, "알림 설정", NotificationCatalog.enabledLabel(notifyOnCount, hoyolab)) { showNotif.value = true }
             }
         }
 
@@ -543,6 +544,8 @@ private val DangerRed = Color(0xFFD32F2F)
  */
 @Composable
 private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
+    // 출석 리마인더는 출석을 챙길 수 있는 계정일 때만 보인다(미연동 · 게임 UID 없음이면 숨김 — 27.52.0).
+    val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val notifyBudget by viewModel.notifyBudget.collectAsStateWithLifecycle()
     val notifyAttendance by viewModel.notifyAttendance.collectAsStateWithLifecycle()
@@ -632,15 +635,16 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         }
 
         // 설정 ▸ 알림 설정 개편(아티팩트 S1) — 온보딩 ⑤와 같은 결: 미리보기 알림 + 묶음별 색 아이콘 줄 + 보내는 방식.
-        // 보이는 항목만 센다 — 행사가 끝난 호요랜드는 목록에서 빠진다(NotificationCatalog.hoyolandAlertsActive).
+        // 보이는 항목만 센다 — 행사가 끝난 호요랜드 · 출석을 챙길 수 없는 계정의 출석은 목록에서 빠진다(NotificationCatalog.items).
         // 첫 섹션 — 미리보기 + 권한 안내(제목 없음 · 헤더 바로 아래라 띠도 없다).
         item {
             Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
-                NotifyPreviewCard(NotificationCatalog.enabledLabel(NotificationCatalog.items.count { notifyState[it.key] == true }))
+                NotifyPreviewCard(NotificationCatalog.enabledLabel(NotificationCatalog.items(hoyolab).count { notifyState[it.key] == true }, hoyolab))
                 // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내.
                 // **일곱 개 전부**를 본다 — 예전엔 앞 네 개만 봐서, 픽업·전투·정기결제·공지만 켠 사람에겐
                 // 권한이 막혀 있어도 배너가 뜨지 않았다.
-                val notifOn = notifyState.any { it.value }
+                // 숨긴 항목(출석 등)은 켜져 있어도 보내지 않으니 세지 않는다.
+                val notifOn = NotificationCatalog.items(hoyolab).any { notifyState[it.key] == true }
                 val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin, permRefresh) {
                     com.gatcha.log.data.Notifier.notificationsEnabled()
                 }
@@ -681,8 +685,8 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                 }
             }
         }
-        NotificationCatalog.groups.forEach { group ->
-            val groupItems = NotificationCatalog.itemsIn(group)
+        NotificationCatalog.groups(hoyolab).forEach { group ->
+            val groupItems = NotificationCatalog.itemsIn(group, hoyolab)
             // 빈 묶음은 띠째 뺀다 — 띠만 남지 않게.
             if (groupItems.isEmpty()) return@forEach
             band()

@@ -135,13 +135,15 @@ object GameData {
     val attendanceGames: List<Game> = games.filter { it.supportsAttendance }
 
     /**
-     * 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 미연동이거나 UID 를 하나도 모르면 전부.
+     * 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 미연동이면 전부(화면은 연동 안내를 띄운다).
+     * **연동했는데 UID 가 하나도 없으면 없다**(27.52.0) — 예전엔 전부로 쳐서 게임이 없는 계정에도 출석 버튼이 뜨고 체크인을 쐈다.
      * [myGames](내 게임)를 정했으면 그중 고른 것만 — 겹치는 게 없으면(호요버스 게임을 안 고름) 거르지 않는다.
      */
     fun trackedAttendanceGames(cfg: HoyolabConfig, myGames: Set<String> = emptySet()): List<Game> {
         val uids = cfg.uidByGame
         val base = if (!cfg.isLinked) attendanceGames
-        else attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }.ifEmpty { attendanceGames }
+        else attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }
+        if (base.isEmpty()) return base
         if (myGames.isEmpty()) return base
         return base.filter { it.key in myGames }.ifEmpty { base }
     }

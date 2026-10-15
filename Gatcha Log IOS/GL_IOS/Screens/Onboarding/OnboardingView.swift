@@ -88,6 +88,8 @@ struct OnboardingView: View {
     @State private var hoyoUidsChecked = false
 
     private var noHoyo: Bool { games.isDisjoint(with: OB.hoyoKeys) }
+    /// 출석 알림은 출석을 챙길 수 있을 때만 묻는다 — ④ 에서 연동하지 않았거나 게임 UID 가 없으면 ⑤ 에서 뺀다(27.52.0). Android 와 같다.
+    private var noAttend: Bool { noHoyo || !store.hoyolabConfig.canCheckIn }
     @Environment(\.scenePhase) private var scenePhase
     @State private var leftAt: Date? = nil     // 백그라운드로 내려간 시각 — 오래 떠나 있었는지 잰다
     @State private var gamesTouched = false    // 직접 고르기 시작하면 계정 값을 더는 따라가지 않는다
@@ -370,10 +372,12 @@ struct OnboardingView: View {
                         .padding(.top, 20)
                 }
                 VStack(spacing: 0) {
-                    // 호요버스 게임이 없으면 출석 · 행동력은 쓸 데가 없어 숨긴다.
-                    if !noHoyo {
+                    // 호요버스 게임이 없으면 출석 · 행동력은 쓸 데가 없어 숨긴다. 출석은 연동 · 게임 UID 가 없어도 숨긴다(noAttend).
+                    if !noAttend {
                         notifyRow("calendar.badge.checkmark", .teal, "출석", "자동 출석 결과 · 저녁까지 미출석이면", $attend)
                         SetDivider()
+                    }
+                    if !noHoyo {
                         notifyRow("clock", .blue, "행동력 가득", "가득 차기 전 한 번", $resin)
                         SetDivider()
                     }
@@ -441,7 +445,7 @@ struct OnboardingView: View {
         rows.append(("wallet.pass", "월 예산", budget > 0 ? "\(obWon(budget))원" : "없음"))
         if !noHoyo { rows.append(("link", "HoYoLAB", store.hoyolabConfig.isLinked ? "연결됨" : "나중에")) }
         var on: [String] = []
-        if !noHoyo && attend { on.append("출석") }
+        if !noAttend && attend { on.append("출석") }
         if !noHoyo && resin { on.append("행동력 가득") }
         if pickup { on.append("픽업 마감") }
         if budgetAlert { on.append("예산 초과") }
@@ -462,7 +466,7 @@ struct OnboardingView: View {
             let finalBudget: Int64 = (afterLogin && !budgetTouched && store.budget > 0) ? -1 : (budget > 0 ? budget : -1)
             store.applyOnboarding(
                 games: finalGames, budget: finalBudget, alerts: alerts,
-                attendance: !noHoyo && attend, resin: !noHoyo && resin, pickup: pickup, budgetAlert: budgetAlert
+                attendance: !noAttend && attend, resin: !noHoyo && resin, pickup: pickup, budgetAlert: budgetAlert
             )
         }
         // 로그인 전이면 온보딩을 **띄운 채로** 구글 로그인만 띄운다 — 먼저 끝내면 뒤에 옛 로그인 화면이 깔려 보였다(9/29).

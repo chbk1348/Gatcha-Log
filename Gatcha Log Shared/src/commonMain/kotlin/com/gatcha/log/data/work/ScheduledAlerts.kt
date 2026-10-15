@@ -329,7 +329,8 @@ object ScheduledAlerts {
         //    오늘 남은 출석이 있고 18시 전이면 오늘, 아니면 내일 것을 건다. 출석 · 토글 · 연동 · 계정이 바뀌면
         //    [reschedule] 이 다시 돌아 고쳐 건다. Android 는 울리는 순간에도 한 번 더 확인한다([attendanceStillPending]).
         val cfg = repo.loadHoyolab()
-        if (settings.notifyAttendance && cfg.isLinked) {
+        // 미연동이거나 게임 UID 가 없으면 걸지 않는다([HoyolabConfig.canCheckIn]).
+        if (settings.notifyAttendance && cfg.canCheckIn) {
             val today18 = hoyoDayStart(nowMillis) + ATTEND_REMIND_HOUR * 3_600_000L
             val at = shiftOutOfQuiet(settings, if (attendanceStillPending(repo, nowMillis) && nowMillis < today18) today18 else today18 + DAY_MS)
             out += ScheduledAlert(
@@ -361,16 +362,21 @@ object ScheduledAlerts {
     /** 출석 기준일(베이징 자정)의 시작 시각. */
     private fun hoyoDayStart(millis: Long): Long = (millis + HOYO_SHIFT_MS) / DAY_MS * DAY_MS - HOYO_SHIFT_MS
 
-    /** 오늘(베이징 기준) 아직 출석하지 않은 게임이 있는가 — 세는 게임은 화면 · 자동 출석과 같은 목록이다. */
+    /**
+     * 오늘(베이징 기준) 아직 출석하지 않은 게임이 있는가 — 세는 게임은 화면 · 자동 출석과 같은 목록이다.
+     * 미연동이거나 게임 UID 가 없으면 없다고 본다([HoyolabConfig.canCheckIn]) — 걸어 둔 Android 알람이 해제 뒤 울리는 순간에도 거른다.
+     */
     fun attendanceStillPending(repo: GatchaRepository, nowMillis: Long = currentTimeMillis()): Boolean {
+        val cfg = repo.loadHoyolab()
+        if (!cfg.canCheckIn) return false
         val done = repo.loadAttendance()[DateUtil.hoyoDayKey(nowMillis)].orEmpty()
-        return GameData.trackedAttendanceGames(repo.loadHoyolab(), repo.loadMyGames()).any { it.key !in done }
+        return GameData.trackedAttendanceGames(cfg, repo.loadMyGames()).any { it.key !in done }
     }
 
     /** 호요랜드 알림의 딥링크 — [com.gatcha.log.data.SpendingViewModel.handleNotificationLink] 가 받는다. */
     const val HOYOLAND_LINK = "hoyoland"
 
-    private const val CHECKIN_DEFERRED_TAG = "auto_checkin_deferred"
+    internal const val CHECKIN_DEFERRED_TAG = "auto_checkin_deferred"
     private const val FIELD_SEP = '\u001F'
 
     private fun deferredCheckIn(raw: String): Triple<Long, String, String>? {

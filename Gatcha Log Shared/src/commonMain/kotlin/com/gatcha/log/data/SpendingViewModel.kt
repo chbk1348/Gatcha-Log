@@ -223,7 +223,15 @@ class SpendingViewModel : ViewModel() {
                 cfg = repo.loadHoyolab(),
                 postFailureNotification = false,
             )
-            emitStatus(outcome?.toToastMessage() ?: "HoYoLAB 연동이 안 돼 있어요")
+            emitStatus(
+                outcome?.toToastMessage()
+                    ?: if (repo.loadHoyolab().isLinked) NO_UID_CHECK_IN else "HoYoLAB 연동이 안 돼 있어요",
+                when {
+                    outcome == null -> ToastKind.INFO
+                    outcome.hasAnyFail && outcome.newSuccess.isEmpty() -> ToastKind.ERROR
+                    else -> ToastKind.SUCCESS
+                },
+            )
         }
     }
 
@@ -636,7 +644,10 @@ class SpendingViewModel : ViewModel() {
         _gameBudgets.value = repo.loadGameBudgets()
         _myGames.value = repo.loadMyGames()
         _profile.value = repo.loadProfile()
+        val canCheckInBefore = _hoyolabConfig.value.canCheckIn
         _hoyolabConfig.value = repo.loadHoyolab()
+        // 스냅샷은 게임 UID 를 실어 온다 — 출석을 챙길 수 있게(없게) 바뀌었으면 출석 리마인더 예약도 고쳐 건다.
+        if (_hoyolabConfig.value.canCheckIn != canCheckInBefore) rescheduleTimedAlerts()
         _accentIndex.value = repo.loadAccentIndex()
         attendance.reload()
         _pity.value = repo.loadPity()
@@ -1017,13 +1028,19 @@ class SpendingViewModel : ViewModel() {
             clearHoyolabDiskCaches(repo)
         }
         _hoyolabConfig.value = config
+        // **출석은 HoYoLAB 계정마다 따로다**(27.52.0) — 다른 계정을 연동하면(해제 뒤 다시 연동 포함) 오늘 기록을 비운다.
+        // 비우지 않으면 앞 계정으로 한 오늘 출석 때문에 새 계정은 그날 출석 · 자동 출석 · 리마인더가 모두 건너뛰어졌다.
+        if (config.isLinked && config.ltuid != prev.ltuid) {
+            attendance.forgetToday()
+            AutoCheckInRunner.forgetTodayNotices(appSettings)
+        }
         // 보안 저장소를 못 쓰면 토큰은 저장되지 않는다(평문 폴백 금지) — 조용히 넘기지 않고 알린다.
         if (!repo.saveHoyolab(config)) {
             emitError("보안 저장소를 쓸 수 없어 토큰을 저장하지 못했어요 — 앱을 재설치하거나 기기를 재시작해주세요")
             return false
         }
         // 연동이 바뀌면 걸려 있던 예약도 다시 건다 — 해제했는데 완충 알림 · 출석 리마인더가 그대로 울리지 않게.
-        if (config.isLinked != prev.isLinked || config.ltuid != prev.ltuid) rescheduleTimedAlerts()
+        if (config.isLinked != prev.isLinked || config.ltuid != prev.ltuid || config.canCheckIn != prev.canCheckIn) rescheduleTimedAlerts()
         // 새 토큰이 들어왔으면 만료 플래그 자동 클리어 — 홈 상단 배너 즉시 사라짐.
         if (config.isLinked && config.ltoken.isNotBlank()) {
             appSettings.hoyoTokenExpired = false
@@ -1099,6 +1116,8 @@ class SpendingViewModel : ViewModel() {
         if (merged != cur) {
             _hoyolabConfig.value = merged
             repo.saveHoyolab(merged)
+            // 첫 UID 가 들어오면 출석 리마인더를 걸 수 있게 된다([HoyolabConfig.canCheckIn]).
+            if (merged.canCheckIn != cur.canCheckIn) rescheduleTimedAlerts()
         }
         enka.applyUids(genshin = uids["genshin"], hsr = uids["hsr"])
     }
@@ -2289,17 +2308,21 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    /** 출석체크 시도. HoYoLAB 연동 시 실제 API 호출, 미연동 시 로컬 수동 토글. */
+    /** 출석체크 시도 — HoYoLAB 연동 시에만 실제 API 를 부른다. 미연동이면 출석하지 않는다. */
     fun attemptCheckIn(gameKey: String) {
         // 한 번에 한 건만 — 다른 게임이 진행 중이어도 막는다. 예전엔 가드가 없어 연타가 체크인을
         // 두 번 쐈고, 먼저 끝난 쪽 finally 가 `_checkingIn` 을 풀어 [checkInAll] 가드까지 풀렸다.
         if (_checkingIn.value != null) return
         val cfg = _hoyolabConfig.value
+        // 미연동이면 출석으로 기록하지 않는다 — 예전엔 수동 출석으로 완료 처리해, HoYoLAB 계정도 UID 도 없는데
+        // 출석이 찍혔다(27.52.0). 화면도 미연동이면 출석 버튼을 내지 않는다.
         if (!cfg.isLinked) {
-            // 출석 버튼은 '하기'만 한다 — toggle 로 두면 두 번 탭이 방금 한 출석을 취소했다.
-            if (gameKey in attendance.todayDone()) return
-            toggleAttendance(gameKey)
-            emitStatus("수동 출석 처리 (HoYoLAB 미연동)")
+            emitStatus(UNLINKED_CHECK_IN)
+            return
+        }
+        // 연동했어도 게임 UID 가 없으면 보내지 않는다 — 화면도 출석 버튼을 내지 않는다([GameData.trackedAttendanceGames]).
+        if (!cfg.canCheckIn) {
+            emitStatus(NO_UID_CHECK_IN)
             return
         }
         _checkingIn.value = gameKey   // launch 전에 세운다 — 같은 프레임의 두 번째 탭도 위 가드에 걸리게
@@ -2314,7 +2337,7 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    /** 전체 출석 한번에 — 오늘 미출석 게임을 순차로 체크인(연동 시 실제 API, 미연동 시 로컬 토글). */
+    /** 전체 출석 한번에 — 오늘 미출석 게임을 동시에 체크인. 미연동이면 출석하지 않는다([attemptCheckIn]). */
     fun checkInAll() {
         if (_checkingIn.value != null) return // 이미 진행 중
         // 메모리 값이 아니라 저장소에서 — 자정을 넘겼거나 자동 출석이 방금 저장했을 수 있다.
@@ -2326,8 +2349,11 @@ class SpendingViewModel : ViewModel() {
         }
         val cfg = _hoyolabConfig.value
         if (!cfg.isLinked) {
-            pending.forEach { toggleAttendance(it.key) }
-            emitStatus("수동 출석 ${pending.size}건 처리 (HoYoLAB 미연동)")
+            emitStatus(UNLINKED_CHECK_IN)
+            return
+        }
+        if (!cfg.canCheckIn) {
+            emitStatus(NO_UID_CHECK_IN)
             return
         }
         _checkingIn.value = pending.first().key
@@ -2573,6 +2599,8 @@ class SpendingViewModel : ViewModel() {
         guest.saveHoyolab(HoyolabConfig())
         clearHoyolabDiskCaches(guest)   // 토큰만 비우면 나중에 로그아웃했을 때 몇 달 전 행동력이 게스트 화면에 뜬다
         _hoyolabConfig.value = guestCfg
+        // 연동이 생겼다 — 출석 리마인더 · 행동력 예약을 이 연동으로 다시 건다([HoyolabConfig.canCheckIn]).
+        rescheduleTimedAlerts()
         val gi = guest.loadEnkaGiUid()
         val hsr = guest.loadEnkaHsrUid()
         if (gi.isNotBlank() || hsr.isNotBlank()) {
@@ -2647,6 +2675,12 @@ class SpendingViewModel : ViewModel() {
                 // 명조는 공지 피드(notice.json)의 startTimeMs·endTimeMs 가 곧 일정표다([NewsApi.events]).
                 .filter { it.enneadKey != null || it == Game.ZZZ || it == Game.WUWA }
                 .map { it.displayName }.toSet()
+
+        /** 미연동 상태에서 출석을 부른 경우의 안내 — 출석으로 기록하지 않는다. */
+        const val UNLINKED_CHECK_IN = "HoYoLAB 을 연동하면 출석할 수 있어요"
+
+        /** 연동했지만 게임 UID 가 없는 계정에서 출석을 부른 경우의 안내. */
+        const val NO_UID_CHECK_IN = "이 HoYoLAB 계정에서 게임 UID 를 찾지 못했어요"
 
         /** 클라우드 · 인증 요청의 최대 대기(ms) — 값은 동기화 컨트롤러와 같이 쓴다. */
         const val SYNC_TIMEOUT_MS = CloudSyncController.SYNC_TIMEOUT_MS

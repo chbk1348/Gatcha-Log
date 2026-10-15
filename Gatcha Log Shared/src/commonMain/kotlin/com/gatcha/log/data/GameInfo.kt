@@ -26,6 +26,12 @@ data class HoyolabConfig(
     /** UID 를 적은 게임만. */
     val linkedUids: Map<String, String> get() = uidByGame.filterValues { it.isNotBlank() }
 
+    /**
+     * 출석을 챙길 수 있는 계정인가 — 연동돼 있고 게임 UID 가 하나라도 있다.
+     * 미연동 · UID 없음 · 둘 다 없음이면 false — 출석 알림(리마인더 · 자동 출석 결과)을 멈추고 알림 설정에서도 숨긴다(27.52.0).
+     */
+    val canCheckIn: Boolean get() = isLinked && linkedUids.isNotEmpty()
+
     /** 붙여 넣은 값의 앞뒤 공백·줄바꿈을 걷는다 — 줄바꿈이 섞인 토큰은 인증에서 조용히 실패한다. */
     fun trimmed(): HoyolabConfig = copy(
         ltuid = ltuid.trim(), ltoken = ltoken.trim(),

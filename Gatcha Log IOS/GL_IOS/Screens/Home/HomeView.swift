@@ -265,13 +265,16 @@ struct HomeView: View {
         HomeLogic.shared.buildAlerts(monthlyTotal: monthlyTotal, budget: store.budget, gameOverBudget: gameOverBudget,
                                      banners: store.activeBanners, attendanceToday: store.attendanceToday,
                                      monthKey: "\(store.displayYear)-\(store.displayMonth)", nowMillis: nowMs(),
-                                     attendanceGames: store.trackedAttendanceGames)
+                                     // 미연동이면 출석 알림을 내지 않는다 — 오늘 할 일과 같은 규칙. Android 와 같다.
+                                     attendanceGames: store.hoyolabConfig.isLinked ? store.trackedAttendanceGames : [])
             .filter { !store.dismissedAlerts.contains($0.key) }
     }
     private var todayTasks: [TodayItem] {
         // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인 — 오늘 할 일에서는 제외(urgentBanner: nil)
         HomeLogic.shared.resolveTodayTasks(
-            pendingAttendance: HomeLogic.shared.pendingAttendanceCount(attendanceToday: store.attendanceToday, games: store.trackedAttendanceGames),
+            // 미연동이면 출석할 길이 없다 — 「한 번에 출석」을 내지 않는다(예전엔 수동 출석으로 전부 완료 처리했다). Android 와 같다.
+            pendingAttendance: store.hoyolabConfig.isLinked
+                ? HomeLogic.shared.pendingAttendanceCount(attendanceToday: store.attendanceToday, games: store.trackedAttendanceGames) : 0,
             resins: HomeLogic.shared.resinAlerts(liveNotes: store.liveNotes),
             urgentBanner: nil, budget: store.budget, monthlyTotal: monthlyTotal,
             combats: HomeLogic.shared.combatDeadlines(combats: store.combat, nowMillis: nowMs()),

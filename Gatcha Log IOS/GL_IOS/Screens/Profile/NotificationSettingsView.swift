@@ -28,7 +28,7 @@ struct NotificationSettingsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // 첫 섹션 — 미리보기 + 권한 안내(제목 없음 · 헤더 바로 아래라 띠도 없다).
                 SetSection {
-                    NotifyPreviewCard(status: NotificationCatalog.shared.enabledLabel(onCount: Int32(onCount)))
+                    NotifyPreviewCard(status: NotificationCatalog.shared.enabledLabel(onCount: Int32(onCount), hoyolab: store.hoyolabConfig))
                         .padding(.horizontal, 20)
                     permissionBanner.padding(.horizontal, 20)
                 }
@@ -58,7 +58,8 @@ struct NotificationSettingsView: View {
     // (호요랜드는 행사가 끝나면 목록에서 빠진다 — NotificationCatalog.hoyolandAlertsActive).
 
     // 항목별 켜짐 상태와 개수는 아래 `SpendingStore.notifyState` · `notifyOnCount` 하나를 설정 메인과 같이 쓴다.
-    private var anyNotifyOn: Bool { store.notifyState.values.contains(true) }
+    // 숨긴 항목(출석 등)은 켜져 있어도 보내지 않으니 세지 않는다. Android 와 같다.
+    private var anyNotifyOn: Bool { store.visibleNotifyItems.contains { store.notifyState[$0.key] == true } }
     /// 보이는 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
     private var onCount: Int { store.notifyOnCount }
 
@@ -106,8 +107,8 @@ struct NotificationSettingsView: View {
 
     @ViewBuilder
     private var notificationSection: some View {
-        ForEach(Array(NotificationCatalog.shared.groups.enumerated()), id: \.offset) { _, group in
-            let entries = NotificationCatalog.shared.itemsIn(group: group)
+        ForEach(Array(NotificationCatalog.shared.groups(hoyolab: store.hoyolabConfig).enumerated()), id: \.offset) { _, group in
+            let entries = NotificationCatalog.shared.itemsIn(group: group, hoyolab: store.hoyolabConfig)
             // 빈 묶음은 띠째 뺀다 — 띠만 남지 않게.
             if !entries.isEmpty {
                 SetBand()
@@ -213,8 +214,11 @@ extension SpendingStore {
          .appUpdate: notifyAppUpdate]
     }
 
-    /// 보이는 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
-    var notifyOnCount: Int { NotificationCatalog.shared.items.filter { notifyState[$0.key] == true }.count }
+    /// 보이는 항목 — 행사가 끝난 호요랜드, 출석을 챙길 수 없는 계정(미연동 · 게임 UID 없음)의 출석은 빠진다.
+    var visibleNotifyItems: [NotifyItem] { NotificationCatalog.shared.items(hoyolab: hoyolabConfig) }
+
+    /// 보이는 항목 중 켜진 개수.
+    var notifyOnCount: Int { visibleNotifyItems.filter { notifyState[$0.key] == true }.count }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

@@ -235,7 +235,7 @@ struct SettingsView: View {
     private var notificationLinkSection: some View {
         SetSection(title: "알림", caption: "받을 알림 · 방해 금지") {
             SetNavRow(symbol: "bell", tint: .teal, title: "알림 설정",
-                      value: NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyOnCount))) { showNotifSettings = true }
+                      value: NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyOnCount), hoyolab: store.hoyolabConfig)) { showNotifSettings = true }
         }
     }
 
