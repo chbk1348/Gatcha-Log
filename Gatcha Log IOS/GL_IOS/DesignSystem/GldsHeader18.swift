@@ -143,7 +143,7 @@ struct GldsHeaderButtonStyle: ButtonStyle {
         @Environment(\.isEnabled) private var enabled
         var body: some View {
             configuration.label
-                .scaleEffect(configuration.isPressed ? 0.9 : 1)
+                .scaleEffect(configuration.isPressed ? 0.95 : 1)
                 .opacity(enabled ? 1 : 0.35)
                 .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
         }
@@ -349,13 +349,24 @@ private struct GldsHeaderMergeRow<Leading: View, Trailing: View>: View {
                 // 오른쪽 칸은 줄지 않는다 — 모자라면 왼쪽 글자 칸(제목)이 말줄임으로 준다. Group 에 건 수정자는 칸마다 걸린다.
                 Group { trailing }.fixedSize().layoutPriority(1)
             }
+            .environment(\.gldsHeaderMerged, true)
+            // 오른쪽 끝은 묶음 캡슐과 같은 안쪽 4 — 끝 칸 아이콘이 둥근 끝에 붙어 보이지 않게.
+            .padding(.leading, leadingInset).padding(.trailing, GldsHeader18.groupInset)
+            .frame(height: GldsHeader18.element)
+            .gldsHeaderSurface(Capsule(), fill: fill)
+            // 빈 자리는 캡슐 **밖**에 둔다 — 안에 두면 칸이 왼쪽에 몰리고 캡슐 오른쪽이 비었다(10/15 지적).
+            // 제목이 있는 줄은 제목 칸([GldsHeaderMergedTitle])이 남은 폭을 다 받아 오른쪽 버튼이 캡슐 끝에 붙는다(Android 와 같다).
             Spacer(minLength: 0)
         }
-        .environment(\.gldsHeaderMerged, true)
-        // 오른쪽 끝은 묶음 캡슐과 같은 안쪽 4 — 끝 칸 아이콘이 둥근 끝에 붙어 보이지 않게.
-        .padding(.leading, leadingInset).padding(.trailing, GldsHeader18.groupInset)
-        .frame(height: GldsHeader18.element)
-        .gldsHeaderSurface(Capsule(), fill: fill)
+    }
+}
+
+/// 제목 칸 — 합친 캡슐 안에서는 남은 폭을 다 받아(왼쪽 정렬) 오른쪽 버튼을 캡슐 끝으로 민다. 따로 설 때는 글자 폭 그대로.
+private struct GldsHeaderMergedTitle<Content: View>: View {
+    @Environment(\.gldsHeaderMerged) private var merged
+    @ViewBuilder var content: Content
+    var body: some View {
+        content.frame(maxWidth: merged ? .infinity : nil, alignment: .leading)
     }
 }
 
@@ -393,13 +404,15 @@ struct GldsPageHeader18<Trailing: View>: View {
                 GldsHeaderGroup(fill: fill, inset: 0) {
                     GldsHeaderCellButton(icon: "IconBack", label: "뒤로", iconSize: GldsHeader18.backIcon,
                                          tint: tint, action: onBack)
-                    Text(title)
-                        .font(.pretendard(size: 16, weight: .bold))
-                        .foregroundStyle(tint ?? GLGColor.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.leading, 14).padding(.trailing, 16)
-                        .accessibilityAddTraits(.isHeader)
+                    GldsHeaderMergedTitle {
+                        Text(title)
+                            .font(.pretendard(size: 16, weight: .bold))
+                            .foregroundStyle(tint ?? GLGColor.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .padding(.leading, 14).padding(.trailing, 16)
+                            .accessibilityAddTraits(.isHeader)
+                    }
                 }
             } else {
                 // 제목이 없으면 뒤로만 흰 원으로 선다(Android `GlgBackButton`) — 아이콘은 ‹ 규격 22.
