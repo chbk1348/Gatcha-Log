@@ -72,27 +72,23 @@ struct GLGBadge: View {
 // ════════════════════════════════════════════════════════════════════════════
 
 /// GLDS 탭 모양 — primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · neutral: 회색 트랙 + 흰 알약(보기 방식 전환).
-enum GldsTabsVariant { case primary, neutral }
-
-/// **GLDS 탭**(9/30) — Android `GldsTabs` 와 같은 값. 트랙 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 11 · 12.5 SemiBold.
+/// **GLDS 탭 2.1**(10/15 탭 시안 C 「회색 트랙 · 흰 알약」) — Android `GldsTabs` 와 같은 값.
+/// 트랙 #F2F4F6 · 반경 14 · 안쪽 3 · 칸 40(서브라벨 52) · 알약은 헤더 · 툴바와 같은 흰 면(안쪽 1 #F0F0F0 · 그림자 6% · 10 · y2) 반경 11 ·
+/// 라벨 14(선택 Bold 짙은 강조색, 아니면 SemiBold #6C727A) · 서브 12. 2.0 의 Primary · Neutral 둘을 규칙 하나로 합쳤다(10/15 지시).
 struct GldsTabs: View {
     let labels: [String]
     /// 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
     var subLabels: [String]? = nil
-    /// 칸마다 다른 선택색. nil 이면 전부 강조색.
+    /// 칸마다 다른 선택색 — 2.1 은 알약이 흰 면이라 선택 **글자**가 이 색을 받는다. nil 이면 짙은 강조색.
     var selectedColors: [Color]? = nil
     @Binding var selection: Int
-    var variant: GldsTabsVariant = .primary
     @Environment(\.glgAccent) private var accent
-    private var neutral: Bool { variant == .neutral }
-    private var selText: Color { neutral ? GLGColor.textPrimary : .white }
 
-    private var height: CGFloat { subLabels == nil ? 32 : 46 }
+    private var height: CGFloat { subLabels == nil ? 40 : 52 }
     private var sel: Int { min(max(selection, 0), max(labels.count - 1, 0)) }
-    private var fill: Color {
-        if neutral { return .white }
+    private var selText: Color {
         if let c = selectedColors, sel < c.count { return c[sel] }
-        return accent.primary
+        return accent.deep
     }
 
     var body: some View {
@@ -104,24 +100,23 @@ struct GldsTabs: View {
                 let cell = geo.size.width / CGFloat(labels.count)
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(fill)
-                        .shadow(color: .black.opacity(neutral ? 0.08 : 0), radius: 1, y: 1)
+                        .fill(Color.white)
+                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Color(hex: 0xFFF0F0F0), lineWidth: 1))
+                        .shadow(color: .black.opacity(0.06), radius: 10, y: 2)
                         .frame(width: cell, height: height)
                         .offset(x: cell * CGFloat(sel))
                         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: sel)
-                        .animation(.easeInOut(duration: 0.22), value: fill)
                     HStack(spacing: 0) {
                         ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
                             VStack(spacing: 0) {
                                 Text(label)
-                                    .font(.pretendard(size: 12.5, weight: neutral && i == sel ? .bold : .semibold))
+                                    .font(.pretendard(size: 14, weight: i == sel ? .bold : .semibold))
                                     .foregroundStyle(i == sel ? selText : GLGColor.textSecondary)
                                     .lineLimit(1)
                                 if let sub = subLabels?[safe: i], !sub.isEmpty {
                                     Text(sub)
-                                        .font(.pretendard(size: 10, weight: .medium))
-                                        .foregroundStyle(i == sel ? selText.opacity(0.85)
-                                                                  : GLGColor.textSecondary.opacity(0.75))
+                                        .font(.pretendard(size: 12, weight: .medium))
+                                        .foregroundStyle(Color(hex: 0xFF8A9491))
                                         .lineLimit(1)
                                 }
                             }
@@ -136,11 +131,7 @@ struct GldsTabs: View {
             }
             .frame(height: height)
             .padding(3)
-            .background(neutral ? Color(hex: 0xFFF1F2F4) : .white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(neutral ? .clear : Color(hex: 0xFFE3E5EA), lineWidth: 1)
-            )
+            .background(Color(hex: 0xFFF2F4F6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }
 }

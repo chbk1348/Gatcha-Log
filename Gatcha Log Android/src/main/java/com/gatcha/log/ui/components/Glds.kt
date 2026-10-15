@@ -403,9 +403,10 @@ fun Modifier.dismissKeyboardOnTap(): Modifier = composed {
 }
 
 /**
- * GLDS 칩(9/30) — 필터 · 선택용 알약. iOS `GldsChip` · `GldsChipLabel` 과 같은 값.
- * 높이 36 · 좌우 14 · 14 Bold(10/12 에 32 · 12 · 13 에서 키웠다 — 높이는 GLDS 버튼 S 와 같다). 기본 흰 면 + 1 #E3E5EA, **선택은 면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
- * (iOS 메뉴 모프 때 채운 면이 번져 보였다 — 두 플랫폼 같은 모양으로 맞춘다).
+ * GLDS 칩 2.1(10/15 칩 시안 D 「옅은 강조 칩」) — 필터 · 선택용 알약. iOS `GldsChip` · `GldsChipLabel` 과 같은 값.
+ * 높이 40 · 좌우 16 · 14(선택 Bold, 아니면 SemiBold). 기본 흰 면 + 안쪽 1 #E3E5EA,
+ * 선택은 테두리 대신 강조색 12% 면(GLDS Secondary 버튼 면) + deep 글자 · 게임 칩은 게임색 12% + 게임색 글자.
+ * 2.0(36 · 14 · 14 Bold · 선택 강조색 1.5 테두리)에서 바꿨다.
  * [dropdown] 은 ▾(메뉴가 열리는 칩), [removable] 은 ✕(눌러 해제).
  */
 @Composable
@@ -421,21 +422,22 @@ fun GldsChip(
 ) {
     val accent = color ?: LocalAccent.current
     val deep = color ?: LocalAccentDeep.current
-    val border by animateColorAsState(if (selected) accent else GldsChipLine, label = "gldsChipBorder")
+    val fill by animateColorAsState(if (selected) accent.copy(alpha = 0.12f) else Color.White, label = "gldsChipFill")
+    val border by animateColorAsState(if (selected) Color.Transparent else GldsChipLine, label = "gldsChipBorder")
     val shape = RoundedCornerShape(50)
     Row(
         modifier
-            .height(36.dp)
+            .height(40.dp)
             .clip(shape)
-            .background(Color.White)
-            .border(if (selected) 1.5.dp else 1.dp, border, shape)
+            .background(fill)
+            .border(1.dp, border, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         val fg = if (selected) deep else TextPrimary
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = fg, maxLines = 1)
+        Text(label, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold, color = fg, maxLines = 1)
         if (dropdown) Icon(Icons.Default.KeyboardArrowDown, null, tint = if (selected) deep else TextSecondary, modifier = Modifier.size(18.dp))
         if (removable) Icon(Icons.Default.Close, null, tint = fg, modifier = Modifier.size(15.dp))
     }
