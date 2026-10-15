@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
 import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.ui.components.GldsToastLayer
@@ -349,7 +351,7 @@ fun SpendingScreen(
                 .fillMaxWidth()
                 .statusBarsPadding(),
         ) {
-            // 헤더 바 배경 없음(투명) — 리스트가 버튼 아래로 지나가고, 버튼만 불투명(solidBackground).
+            // 헤더 바 배경 없음(투명) — 리스트가 버튼 아래로 지나가고, 버튼만 불투명(헤더 면 — glgHeaderSurface).
             Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
                 GlgTabHeader(
@@ -357,12 +359,15 @@ fun SpendingScreen(
                     leading = {
                         // 나가기 전에 선택 모드를 푼다(27.52.0) — 켠 채로 나가면 선택 바는 안 보이는데 뒤로가기 첫 번째가
                         // 그 안 보이는 선택 모드를 푸는 데 먹혀, 두 번 눌러야 목록으로 돌아왔다.
-                        GlgCircleIconButton(GlgLineIcons.Calendar, "캘린더", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Calendar }
-                        GlgCircleIconButton(GlgLineIcons.Insight, "인사이트", outlined = true, solidBackground = true) { exitSelection(); nav = SpendingScreenNav.Insight }
+                        // 보기 전환 둘은 붙어 있으니 캡슐 하나로 묶는다(C 「묶음 캡슐」, 10/15).
+                        GlgHeaderButtonGroup {
+                            GlgHeaderGroupItem(GlgLineIcons.Calendar, "캘린더") { exitSelection(); nav = SpendingScreenNav.Calendar }
+                            GlgHeaderGroupItem(GlgLineIcons.Insight, "인사이트") { exitSelection(); nav = SpendingScreenNav.Insight }
+                        }
                     },
                 ) {
                     // 필터 버튼은 없앴다(10/14 「상세 필터 버튼 제거 후 퀵필터로 기능 이관」) — 조건은 모두 목록 위 퀵필터에 있다.
-                    GlgCircleIconButton(GlgLineIcons.Select, "선택", outlined = true, solidBackground = true) { selectionMode = true; selectedIds = emptySet() }
+                    GlgCircleIconButton(GlgLineIcons.Select, "선택") { selectionMode = true; selectedIds = emptySet() }
                 }
             }
         }

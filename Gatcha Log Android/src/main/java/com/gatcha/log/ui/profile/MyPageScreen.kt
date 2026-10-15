@@ -210,10 +210,10 @@ fun MyPageScreen(
     Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
         GlgTabHeader(
             "",
-            // 제목도 헤더 버튼 톤의 불투명 알약(콘텐츠 비침 방지) — 하위 페이지 헤더와 같은 컴포넌트.
+            // 제목도 헤더 버튼과 같은 면의 불투명 알약(콘텐츠 비침 방지). 설정과 떨어져 있으니 묶지 않는다 — 흰 알약 + 흰 원.
             leading = { GlgHeaderTitlePill("마이페이지") },
         ) {
-            GlgCircleIconButton(GlgLineIcons.Settings, "설정", outlined = true, solidBackground = true) { showSettings.value = true }
+            GlgCircleIconButton(GlgLineIcons.Settings, "설정") { showSettings.value = true }
         }
     }
     }

@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
 import com.gatcha.log.ui.components.GldsSection
 import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.GldsBand
@@ -114,17 +116,10 @@ fun SpendingDetailScreen(
             buttonTint = heroTint, buttonBackground = heroBg,
         ) {
             // 수정 · 삭제를 「더보기」 메뉴에 접지 않고 버튼 두 개로 바로 둔다(Android, 10/1 지시).
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GlgCircleIconButton(
-                    GlgLineIcons.Edit, "수정",
-                    outlined = true, solidBackground = true,
-                    tint = heroTint, background = heroBg,
-                ) { onEdit() }
-                GlgCircleIconButton(
-                    GlgLineIcons.Delete, "삭제",
-                    outlined = true, solidBackground = true,
-                    tint = heroTint, background = heroBg,
-                ) { confirmDelete = true }
+            // 붙어 있는 둘이라 캡슐 하나로 묶는다(C 「묶음 캡슐」, 10/15). 히어로 위에서는 캡슐 면도 히어로 색을 받는다.
+            GlgHeaderButtonGroup(background = heroBg) {
+                GlgHeaderGroupItem(GlgLineIcons.Edit, "수정", tint = heroTint) { onEdit() }
+                GlgHeaderGroupItem(GlgLineIcons.Delete, "삭제", tint = heroTint) { confirmDelete = true }
             }
         }
     }

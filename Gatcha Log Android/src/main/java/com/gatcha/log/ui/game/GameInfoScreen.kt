@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
 import com.gatcha.log.ui.components.GldsSection
 import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.animation.AnimatedContent
@@ -362,8 +364,6 @@ fun GameInfoScreen(
                         GlgLineIcons.Refresh, "새로고침",
                         loading = combatClearsLoading,
                         enabled = hoyolab.isLinked && !combatClearsLoading,
-                        // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
-                        outlined = true, solidBackground = true,
                     ) { viewModel.refreshCombatClears(force = true) }
                 },
             ) {
@@ -409,13 +409,15 @@ fun GameInfoScreen(
                     if (n != null && n.url.isNotBlank()) {
                         // 공유 — 제목 + 링크(NewsLogic.shareText). 링크만 보내면 메신저에 URL 만
                         // 덩그러니 뜬다 — HoYoLab 은 og: 태그가 없어 미리보기가 안 잡힌다.
-                        // solidBackground — 본문(공지 이미지)이 헤더 아래를 지나가므로 버튼이 비치면 안 된다.
-                        GlgCircleIconButton(GlgLineIcons.Share, "공유", outlined = true, solidBackground = true) {
-                            shareText(context, NewsLogic.shareText(n))
-                        }
-                        // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
-                        GlgCircleIconButton(GlgLineIcons.External, "브라우저에서 보기", outlined = true, solidBackground = true) {
-                            openExternalLink(context, NewsLogic.shareUrl(n))
+                        // 공유 · 브라우저는 붙어 있으니 캡슐 하나(C 「묶음 캡슐」, 10/15). 면은 불투명이라 본문(공지 이미지)이 비치지 않는다.
+                        GlgHeaderButtonGroup {
+                            GlgHeaderGroupItem(GlgLineIcons.Share, "공유") {
+                                shareText(context, NewsLogic.shareText(n))
+                            }
+                            // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
+                            GlgHeaderGroupItem(GlgLineIcons.External, "브라우저에서 보기") {
+                                openExternalLink(context, NewsLogic.shareUrl(n))
+                            }
                         }
                     }
                 },
@@ -566,14 +568,17 @@ fun GameInfoScreen(
                     // 연동 버튼에 톱니를 쓰면 마이페이지의 '설정'과 같은 아이콘이 되어, 같은 곳으로
                     // 가는 줄 안다. 여기서 여는 건 앱 설정이 아니라 **HoYoLAB 쿠키를 넣는 곳**이라
                     // 맞물린 고리를 쓴다(10/14, 열쇠는 선이 가늘어 보여 바꿨다 — 앱 안에서 이 아이콘은 여기뿐이다).
-                    GlgCircleIconButton(GlgLineIcons.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
-                        viewModel.refreshGameInfo(force = true)
-                    }
-                    if (hoyolab.isLinked) {
-                        GlgCircleIconButton(GlgLineIcons.Gift, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
-                    }
-                    GlgCircleIconButton(GlgLineIcons.Link, "HoYoLAB 연동", outlined = true, solidBackground = true) {
-                        subPage = GiSub.HoyoLink
+                    // 셋을 캡슐 하나로 묶는다(C 「묶음 캡슐」, 10/15). 리딤코드가 빠지면 칸과 세로선이 같이 빠진다.
+                    GlgHeaderButtonGroup {
+                        GlgHeaderGroupItem(GlgLineIcons.Refresh, "새로고침", enabled = !isRefreshing) {
+                            viewModel.refreshGameInfo(force = true)
+                        }
+                        if (hoyolab.isLinked) {
+                            GlgHeaderGroupItem(GlgLineIcons.Gift, "리딤코드") { subPage = GiSub.Gift }
+                        }
+                        GlgHeaderGroupItem(GlgLineIcons.Link, "HoYoLAB 연동") {
+                            subPage = GiSub.HoyoLink
+                        }
                     }
                 }
             }

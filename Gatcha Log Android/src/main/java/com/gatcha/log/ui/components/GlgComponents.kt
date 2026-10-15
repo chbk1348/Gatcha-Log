@@ -40,6 +40,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -79,21 +85,12 @@ import com.gatcha.log.ui.theme.TextSecondary
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
 // ============================================================
 
-// 뒤로가기 버튼 테두리 — #E3E3EA 는 연회색 면(#F2F2F6)과 거의 같아 윤곽이 흐렸다(2026-09-28 지적). 한 단 진하게.
-private val GhostBorder = Color(0xFFC8CBD3)
-private val GhostText = Color(0xFF6C727A)
-
-/** 입력 필드 위 라벨 (대문자 느낌의 작은 라벨) */
-
-
-
-
 /**
- * 하위 페이지 공통 뒤로가기 버튼.
+ * 하위 페이지 공통 뒤로가기 버튼 — **제목이 없을 때만** 홀로 선다(지출 상세 히어로 등).
+ * 제목이 있으면 [GlgScreenHeader] 가 뒤로와 제목을 캡슐 하나 [‹ | 제목] 으로 묶는다.
  *
- * 규격은 탭 헤더의 원형 아이콘 버튼([GlgCircleIconButton])과 맞춘다 — 44dp 원, 흰 베이스 위
- * 옅은 틴트, 1.5dp 아웃라인, 20dp 아이콘. 예전엔 40dp·1dp 라 같은 화면에서 헤더 버튼과
- * 미묘하게 크기가 달라 보였다. **색은 고스트 톤 그대로** 유지한다(강조색 버튼과 역할이 다르다).
+ * 면은 다른 헤더 요소와 같다([glgHeaderSurface] — 흰 원 · 테두리 1 · 들뜸 그림자). 아이콘은 본문색 22 —
+ * 다른 헤더 아이콘(24)보다 한 단 작은 건 시안 그대로다(‹ 는 획이 단순해 같은 크기면 혼자 커 보인다).
  */
 @Composable
 fun GlgBackButton(
@@ -107,21 +104,15 @@ fun GlgBackButton(
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
-            .then(
-                if (background != null) Modifier.background(background)
-                // 기본: 흰 베이스 위 연회색 + 테두리. 흰 배경 화면에서 버튼이 면으로 읽히게 한다.
-                else Modifier.background(Color.White).background(Color(0xFFF2F2F6))
-                    .border(1.5.dp, GhostBorder, CircleShape),
-            )
+            .glgHeaderSurface(CircleShape, background)
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             GlgLineIcons.Back,
             contentDescription = "뒤로",
-            tint = tint ?: GhostText,
-            modifier = Modifier.size(20.dp),
+            tint = tint ?: TextPrimary,
+            modifier = Modifier.size(GlgHeaderBackIconSize),
         )
     }
 }
@@ -131,8 +122,11 @@ fun GlgBackButton(
  * 가로 16dp 여백이 없는 컨테이너(전체화면 Column 등)에선 [modifier] 로 `padding(horizontal = 16.dp)` 를 넘긴다.
  * 이미 가로 16dp 패딩된 컨테이너(LazyColumn 등) 안에선 [modifier] 없이 사용.
  *
- * 제목은 **불투명 알약**([GlgHeaderTitlePill]) — 마이페이지 헤더와 같은 디자인이다.
- * 하위 페이지도 콘텐츠가 헤더 아래로 지나가므로, 맨 글자 제목은 스크롤 중 배경과 겹쳐 읽혔다.
+ * 뒤로와 제목은 **캡슐 하나** [‹ | 제목] 이다(C 「묶음 캡슐」, 10/15) — 뒤로 칸 48(시안 44 에서 10/15 키움), 세로선 뒤 14, 제목 16 Bold, 오른쪽 안쪽 16.
+ * 하위 페이지도 콘텐츠가 헤더 아래로 지나가므로 제목은 불투명 면 위에 둔다 — 맨 글자는 스크롤 중 배경과 겹쳐 읽혔다.
+ * 제목이 비면 뒤로만 흰 원([GlgBackButton])으로 선다.
+ *
+ * 우측 [actions] 는 묶음 규칙을 따른다 — 하나면 [GlgCircleIconButton], 붙은 버튼이 둘 이상이면 [GlgHeaderButtonGroup].
  */
 @Composable
 fun GlgScreenHeader(
@@ -174,18 +168,37 @@ fun GlgScreenHeader(
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GlgBackButton(onBack, tint = buttonTint, background = buttonBackground)
-            Spacer(Modifier.width(GlgHeaderItemGap))
-            // 제목 영역이 **남은 폭을 전부** 차지하고, 그 안에서 알약은 글자 길이만큼만 커진다.
+            // 뒤로 + 제목 영역이 **남은 폭을 전부** 차지하고, 그 안에서 캡슐은 글자 길이만큼만 커진다.
             //
             // 예전엔 알약에 weight(1f, fill=false) 를 주고 그 뒤에 Spacer(weight(1f)) 를 뒀는데,
             // 가중치가 둘이면 남은 폭을 **반씩 나눠** 갖는다 → 자리가 남아도 알약이 절반에서 잘렸다.
             // 가중치는 이 영역 하나만 갖고, 우측 액션은 콘텐츠 크기로 밀려난다.
             Row(
-                modifier = Modifier.weight(1f),
+                // 끝 간격 — 긴 제목 캡슐이 우측 액션에 붙지 않게 헤더 요소 간격만큼 띄운다.
+                modifier = Modifier.weight(1f).padding(end = GlgHeaderItemGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (title.isNotEmpty()) GlgHeaderTitlePill(title)
+                if (title.isEmpty()) {
+                    GlgBackButton(onBack, tint = buttonTint, background = buttonBackground)
+                } else {
+                    // 묶음 안쪽 여백 없이 — 뒤로 칸이 캡슐 왼쪽 끝에서 시작하고, 제목 칸이 오른쪽 16 을 스스로 갖는다.
+                    // 제목 칸은 마지막에 재므로 남은 폭만 받는다 — 길면 말줄임으로 줄고 뒤로 칸은 밀리지 않는다.
+                    GlgHeaderButtonGroup(background = buttonBackground, contentPadding = PaddingValues(0.dp)) {
+                        GlgHeaderGroupItem(
+                            GlgLineIcons.Back, "뒤로",
+                            iconSize = GlgHeaderBackIconSize, tint = buttonTint, onClick = onBack,
+                        )
+                        Text(
+                            title,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = buttonTint ?: TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 14.dp, end = 16.dp),
+                        )
+                    }
+                }
             }
             // 우측 액션 슬롯 — 제목을 좌측에 붙이고 액션은 우측 정렬.
             Row(
@@ -206,24 +219,19 @@ fun GlgScreenHeader(
 val GlgHeaderItemGap = 8.dp
 
 /**
- * 헤더 제목 알약 — 흰 베이스 위 강조색 10% 틴트 + 30% 아웃라인.
+ * 헤더 제목 알약 — 흰 면 · 본문색 16 Bold. 따로 떨어진 제목(마이페이지)에 쓴다.
+ * 하위 페이지는 뒤로와 제목을 캡슐 하나로 묶으므로 이 알약을 쓰지 않는다([GlgScreenHeader]).
  *
- * 헤더 원형 버튼([GlgCircleIconButton]·[GlgBackButton])과 **같은 44dp 높이**라 한 줄로 정렬된다.
+ * 헤더 원형 버튼([GlgCircleIconButton]·[GlgBackButton])과 **같은 높이**([GlgHeaderElementHeight])라 한 줄로 정렬된다.
  * 불투명한 이유는 장식이 아니다 — 탭/하위 페이지 모두 콘텐츠가 헤더 아래를 지나가는 구조라,
  * 배경이 없으면 스크롤 중 글자가 콘텐츠와 겹쳐 읽힌다.
  */
-
-
 @Composable
 fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
-    val accent = LocalAccent.current
     Box(
         modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White)
-            .background(accent.copy(alpha = 0.10f))
-            .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
             .height(GlgHeaderElementHeight)
+            .glgHeaderSurface()
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -231,7 +239,7 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
             title,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = accent,
+            color = TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -241,15 +249,14 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
 /**
  * 헤더 우측 액션 자리의 **드롭다운 알약** — 열면 [GlgDropdownMenu] 가 붙는다.
  *
- * 헤더 요소는 전부 같은 규격이다: 높이 [GlgHeaderElementHeight], 999 라운드, 흰 베이스 +
- * 색 10% 채움, 1.5dp 색 30% 테두리. [GlgHeaderTitlePill]·[GlgCircleIconButton] 과 나란히
- * 놓았을 때 높이가 어긋나면 헤더 한 줄이 들쭉날쭉해진다.
+ * 헤더 요소는 전부 같은 규격이다: 높이 [GlgHeaderElementHeight], 완전히 둥근 캡슐, 흰 면([glgHeaderSurface]).
+ * [GlgHeaderTitlePill]·[GlgCircleIconButton] 과 나란히 놓았을 때 높이가 어긋나면 헤더 한 줄이 들쭉날쭉해진다.
  *
  * 지출 화면의 필터 칩([GldsChip])은 **본문 필터 줄**용이라 이보다 한참 작다 — 헤더에
- * 그걸 갖다 쓰면 옆의 44dp 버튼들 사이에서 혼자 작아 보인다(2026-08-18 지적).
+ * 그걸 갖다 쓰면 옆의 헤더 버튼들 사이에서 혼자 작아 보인다(2026-08-18 지적).
  *
  * [selected] 면 [color] 로 채우고 글자를 희게 뒤집는다 — 지금 무엇에 좁혀져 있는지가
- * 색만으로 읽혀서 따로 표식을 붙일 필요가 없다.
+ * 색만으로 읽혀서 따로 표식을 붙일 필요가 없다. 고르지 않은 상태는 흰 면 · 본문색이라 [color] 를 쓰지 않는다(C, 10/15).
  */
 @Composable
 fun GlgHeaderDropdownPill(
@@ -259,47 +266,212 @@ fun GlgHeaderDropdownPill(
     color: Color = LocalAccent.current,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(999.dp)
     Row(
         modifier
-            .clip(shape)
-            .background(Color.White)
-            .background(if (selected) color else color.copy(alpha = 0.10f))
-            .then(if (selected) Modifier else Modifier.border(1.5.dp, color.copy(alpha = 0.30f), shape))
+            // 고른 상태도 떠 있는 건 같다 — 그림자는 그대로 두고 면만 색으로 채운다(테두리 없음).
+            .then(
+                if (selected) Modifier.dropShadow(GlgHeaderCapsule, LiftShadow).background(color, GlgHeaderCapsule)
+                else Modifier.glgHeaderSurface()
+            )
             .clickable { onClick() }
             .height(GlgHeaderElementHeight)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 줄 상자를 글자에 맞춘다 — 기본 Text 는 폰트 패딩 때문에 고정 높이 안에서 아래로 처진다.
-        GlgBadgeText(label, 15.sp, if (selected) Color.White else color)
+        GlgBadgeText(label, 15.sp, if (selected) Color.White else TextPrimary)
         Spacer(Modifier.width(5.dp))
         Text(
             "▾",
             fontSize = 12.sp,
             fontWeight = FontWeight.Black,
-            color = if (selected) Color.White.copy(alpha = 0.9f) else color.copy(alpha = 0.75f),
+            color = if (selected) Color.White.copy(alpha = 0.9f) else TextPrimary.copy(alpha = 0.75f),
         )
     }
 }
 
 /**
- * 헤더 안 요소의 공통 높이 — 뒤로가기·제목 알약·액션 버튼·드롭다운 알약이 **전부 이 값**을 쓴다.
- * 바꿀 땐 여기 한 곳만 고친다.
+ * 헤더 안 요소의 공통 높이 — 뒤로가기·제목 알약·액션 버튼·드롭다운 알약·묶음 캡슐이 **전부 이 값**을 쓴다.
+ * 바꿀 땐 여기 한 곳만 고친다 — 탭 · 하위 페이지 헤더 높이([GlgTabHeaderHeight] · [GlgDetailHeaderHeight])가 따라온다.
+ * 44 → 48(10/15 사용자 지시) — 누름 영역 48 을 보이는 크기 그대로 채운다.
  */
-val GlgHeaderElementHeight = 44.dp
+val GlgHeaderElementHeight = 48.dp
+
+// ── 헤더 C 「묶음 캡슐」(10/15) ─────────────────────────────────────────────────
+// 붙어 있는 버튼 여럿은 캡슐 하나로 묶고, 따로 떨어진 버튼은 흰 원 하나로 둔다. 모든 헤더 요소는 같은 면
+// ([glgHeaderSurface])을 쓴다. 예전엔 요소마다 강조색 10% 틴트 + 30% 테두리 1.5 라 헤더가 강조색 덩어리로 읽혔다.
+
+/** 헤더 캡슐 · 알약 모양 — 완전히 둥글다. */
+private val GlgHeaderCapsule = RoundedCornerShape(999.dp)
+
+/** 헤더 아이콘 크기 — 본문색 24(10/15 사용자 지시로 22 → 24). 강조색 아이콘은 쓰지 않는다. */
+private val GlgHeaderIconSize = 24.dp
+
+/** 뒤로(‹) 아이콘만 한 단 작은 22(시안의 20 → 22, 10/15). 획이 단순해 같은 크기면 혼자 커 보인다. */
+private val GlgHeaderBackIconSize = 22.dp
+
+/** 묶음 캡슐 한 칸 너비 — 높이([GlgHeaderElementHeight])와 같아 칸이 정사각이다. */
+val GlgHeaderGroupCellWidth = GlgHeaderElementHeight
+
+/** 묶음 캡슐 안쪽 좌우 여백 — 끝 칸 아이콘이 둥근 끝에 붙어 보이지 않게. */
+private val GlgHeaderGroupInset = 4.dp
+
+/**
+ * 헤더 요소의 면 — 흰 바탕 · 안쪽 테두리 1 [DividerColor] · 하단 툴바와 같은 들뜸 그림자([LiftShadow]).
+ * 떠 있는 것의 그림자는 한 벌이다 — 툴바 · 토스트 · 헤더가 같은 값을 쓴다.
+ *
+ * [fill] 을 넘기면(색이 깔린 히어로 위 — 지출 상세 · 캐릭터 상세) 그 면만 깐다. 히어로 면은 반투명이라
+ * 그림자 · 테두리를 두면 비쳐 탁해지고, 히어로와 한 층으로 읽혀야 하는 자리라 띄우지도 않는다.
+ *
+ * clip 을 걸지 않는다 — 알림 배지가 면 밖으로 걸쳐 나가야 한다.
+ */
+internal fun Modifier.glgHeaderSurface(shape: Shape = GlgHeaderCapsule, fill: Color? = null): Modifier =
+    if (fill != null) this.background(fill, shape)
+    else this.dropShadow(shape, LiftShadow).background(Color.White, shape).border(1.dp, DividerColor, shape)
+
+private enum class GlgHeaderGroupSlot { Items, Dividers }
+
+/**
+ * 헤더 **묶음 캡슐** — 붙어 있는 버튼 여럿을 캡슐 하나에 담고 칸 사이에 세로선(1 × 20 [GldsHairColor])을 긋는다.
+ * 칸은 보통 [GlgHeaderGroupItem](48 × 48)이고, 홈 프로필 · 하위 페이지 제목처럼 글자 칸도 그냥 넣으면 된다.
+ *
+ * 세로선은 **실제로 그려진 칸 사이에만** 선다. 칸을 `if` 로 빼면(게임 정보의 리딤코드 — 연동했을 때만) 세로선도
+ * 같이 빠진다 — 호출부가 선을 직접 넣으면 조건마다 선을 따로 챙겨야 해서 빠뜨리기 쉽다.
+ *
+ * 칸은 **앞에서부터** 재고 각 칸은 남은 폭만 받는다 — 글자 칸을 맨 뒤에 두면 길 때 그 칸만 줄어 말줄임이 된다.
+ *
+ * @param background 색이 깔린 히어로 위에서만 — [glgHeaderSurface] 의 `fill`.
+ * @param contentPadding 캡슐 안쪽 여백. 기본 좌우 4. 끝 칸이 스스로 여백을 갖는 묶음(홈 프로필 · [‹ | 제목])은 0.
+ */
+@Composable
+fun GlgHeaderButtonGroup(
+    modifier: Modifier = Modifier,
+    background: Color? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = GlgHeaderGroupInset),
+    content: @Composable () -> Unit,
+) {
+    SubcomposeLayout(
+        modifier
+            .height(GlgHeaderElementHeight)
+            .glgHeaderSurface(fill = background)
+            .padding(contentPadding),
+    ) { constraints ->
+        val items = subcompose(GlgHeaderGroupSlot.Items, content)
+        val dividers = subcompose(GlgHeaderGroupSlot.Dividers) {
+            repeat((items.size - 1).coerceAtLeast(0)) { GlgHeaderGroupDivider() }
+        }.map { it.measure(Constraints()) }
+        val bounded = constraints.hasBoundedWidth
+        var remaining = if (bounded) constraints.maxWidth - dividers.sumOf { it.width } else Constraints.Infinity
+        val placeables = items.map { m ->
+            m.measure(
+                Constraints(
+                    maxWidth = if (bounded) remaining.coerceAtLeast(0) else Constraints.Infinity,
+                    maxHeight = constraints.maxHeight,
+                ),
+            ).also { if (bounded) remaining -= it.width }
+        }
+        val width = constraints.constrainWidth(placeables.sumOf { it.width } + dividers.sumOf { it.width })
+        val height = constraints.constrainHeight(placeables.maxOfOrNull { it.height } ?: 0)
+        layout(width, height) {
+            var x = 0
+            placeables.forEachIndexed { i, p ->
+                p.placeRelative(x, (height - p.height) / 2)
+                x += p.width
+                dividers.getOrNull(i)?.let { d ->
+                    d.placeRelative(x, (height - d.height) / 2)
+                    x += d.width
+                }
+            }
+        }
+    }
+}
+
+/** 묶음 캡슐 칸 사이 세로선 — 1 × 20, 헤어라인 색. */
+@Composable
+private fun GlgHeaderGroupDivider() {
+    Box(Modifier.size(width = 1.dp, height = 20.dp).background(GldsHairColor))
+}
+
+/**
+ * 묶음 캡슐([GlgHeaderButtonGroup]) 안의 아이콘 칸 — 48 × 48, 아이콘 24 본문색.
+ *
+ * 칸에는 면이 없다 — 면은 캡슐이 한 장으로 깐다. 눌림은 앱 전역 인디케이션(아이콘이 살짝 작아진다)이라
+ * 칸에 회색 면을 따로 깔지 않는다. 칸이 48 × 48 이라 누름 영역 48 이 그대로 확보된다.
+ *
+ * @param width 칸 너비. 홈 알림 칸만 52(시안의 48 에 칸이 커진 만큼 더해 — 프로필 글자 칸 옆 끝 칸이라 둥근 끝을 더 받는다).
+ * @param tint 색이 깔린 히어로 위에서만. null 이면 본문색.
+ * @param badgeCount 0 보다 크면 칸 오른쪽 위에 숫자 배지 — [GlgCircleIconButton] 과 같은 규격 · 같은 자리(끝 칸 기준).
+ */
+@Composable
+fun GlgHeaderGroupItem(
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    width: Dp = GlgHeaderGroupCellWidth,
+    iconSize: Dp = GlgHeaderIconSize,
+    loading: Boolean = false,
+    enabled: Boolean = true,
+    badgeCount: Int = 0,
+    tint: Color? = null,
+    onClick: () -> Unit,
+) {
+    val fg = tint ?: TextPrimary
+    Box(modifier.size(width = width, height = GlgHeaderElementHeight)) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            GlgHeaderIcon(icon, contentDescription, fg, iconSize, loading)
+        }
+        // 원 버튼의 배지는 보이는 원 끝에서 오른쪽 5 · 위 5 로 걸친다 — 끝 칸의 둥근 끝도 같은 자리.
+        if (badgeCount > 0) GlgHeaderBadge(badgeCount, Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-5).dp))
+    }
+}
+
+/** 헤더 아이콘 — [loading] 이면 같은 색 스피너(18). */
+@Composable
+private fun GlgHeaderIcon(icon: ImageVector, contentDescription: String, color: Color, size: Dp, loading: Boolean) {
+    if (loading) {
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = color)
+    } else {
+        Icon(icon, contentDescription = contentDescription, tint = color, modifier = Modifier.size(size))
+    }
+}
+
+/** 헤더 숫자 배지(알림 개수 등) — 16 원 · 주황 · 흰 9 Bold, 10 이상은 9+. */
+@Composable
+private fun GlgHeaderBadge(count: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(16.dp)
+            .clip(CircleShape)
+            .background(Color(0xFFFFA500)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (count > 9) "9+" else "$count",
+            color = Color.White,
+            fontSize = 9.sp,
+            lineHeight = 9.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
 
 /**
  * 탭(루트) 헤더의 고정 높이. 4개 탭이 모두 이 높이를 쓰고, 각 탭의 스크롤 인셋(contentPadding
  * 또는 Spacer)도 이 값을 참조한다 — 헤더 높이를 바꾸면 여기 한 곳만 고치면 된다.
+ * top 12 + 요소 [GlgHeaderElementHeight] + bottom 16. 요소가 44 → 48 로 커지며(10/15) 72 → 76.
  */
-val GlgTabHeaderHeight = 72.dp
+val GlgTabHeaderHeight = 12.dp + GlgHeaderElementHeight + 16.dp
 
 /**
  * 하위(상세) 페이지 헤더가 차지하는 높이(**상태바 제외**).
- * [GlgScreenHeader] 의 구성과 같이 움직여야 한다 — top 12 + 버튼 44 + bottom 8.
+ * [GlgScreenHeader] 의 구성과 같이 움직여야 한다 — top 12 + 요소 [GlgHeaderElementHeight] + bottom 8(지금 68).
  */
-val GlgDetailHeaderHeight = 64.dp
+val GlgDetailHeaderHeight = 12.dp + GlgHeaderElementHeight + 8.dp
 
 /** 상세 페이지 콘텐츠가 고정 헤더 아래에서 시작하도록 하는 상단 인셋(상태바 + 헤더). */
 @Composable
@@ -332,7 +504,7 @@ fun BoxScope.GlgDetailHeaderOverlay(
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 덮지 않아 콘텐츠가 아래로 지나가는 연출 유지).
     //
     // 본문에 이미지가 있어도 헤더까지 덮지 않는다. 헤더 요소는 전부 불투명이라(뒤로가기·제목 알약·
-    // 액션 버튼의 solidBackground) 그림 위에 얹혀도 읽힌다 — 가려야 할 건 상태바 글자뿐이다.
+    // 액션 버튼 모두 흰 면 — glgHeaderSurface) 그림 위에 얹혀도 읽힌다 — 가려야 할 건 상태바 글자뿐이다.
     Box(
         Modifier
             .align(Alignment.TopStart)
@@ -414,7 +586,7 @@ fun glgTabContentBottom(): Dp =
  * 상단 스크림이 상태바 **아래로 더 내려가는 높이**.
  *
  * 스크림을 상태바 높이에 딱 맞추면 남는 페이드 구간이 3~6dp 뿐이라 알파가 급히 끊겨
- * 가로선처럼 보인다. 이만큼 더 내려 흐려지는 거리를 벌되, 헤더 버튼 줄(72dp)까지는 덮지 않는다.
+ * 가로선처럼 보인다. 이만큼 더 내려 흐려지는 거리를 벌되, 헤더 버튼 줄([GlgTabHeaderHeight])까지는 덮지 않는다.
  */
 val GlgTopScrimFadeExtra = 20.dp
 
@@ -715,7 +887,8 @@ fun GlgDialog(
 }
 
 /**
- * 헤더용 공통 커스텀 원형 아이콘 버튼 — 강조색 틴트 + 눌림 효과(전역 인디케이션).
+ * 헤더용 공통 원형 아이콘 버튼 — **따로 떨어진 버튼 하나**(48 흰 원). 붙어 있는 버튼이 둘 이상이면
+ * [GlgHeaderButtonGroup] 으로 묶는다. 면은 [glgHeaderSurface], 아이콘은 본문색 24 · 눌림은 전역 인디케이션.
  * [loading] 시 스피너, [badgeCount] > 0 이면 우상단 배지.
  */
 @Composable
@@ -723,26 +896,21 @@ fun GlgCircleIconButton(
     icon: ImageVector,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    size: Dp = 44.dp,
+    size: Dp = GlgHeaderElementHeight,
     loading: Boolean = false,
     enabled: Boolean = true,
     badgeCount: Int = 0,
-    /** true 면 강조색 아웃라인(테두리)을 그린다 — 확률표 알약 버튼과 동일한 톤 */
-    outlined: Boolean = false,
-    /** true 면 불투명 배경(흰색 베이스 + accent 틴트) — 아래 콘텐츠가 비치지 않게(홈 헤더 오버레이용) */
-    solidBackground: Boolean = false,
     /**
-     * 색이 깔린 헤더 위에 올릴 때만 지정한다(지출 상세 히어로 등). null 이면 강조색 기본 버튼.
+     * 색이 깔린 헤더 위에 올릴 때만 지정한다(지출 상세 히어로 등). null 이면 흰 원 · 본문색 기본 버튼.
      *
-     * 강조색 아이콘 + 흰 원은 흰 배경에서는 자연스럽지만, 파스텔 히어로 위에 얹으면
+     * 흰 원은 흰 배경에서는 자연스럽지만, 파스텔 히어로 위에 얹으면
      * 버튼만 다른 화면에서 떼어 붙인 것처럼 뜬다 — 그때는 히어로의 글자색·면색을 그대로 받는다.
      */
     tint: Color? = null,
     background: Color? = null,
     onClick: () -> Unit,
 ) {
-    val accent = LocalAccent.current
-    val fg = tint ?: accent
+    val fg = tint ?: TextPrimary
     Box(modifier) {
         Box(
             modifier = Modifier
@@ -752,41 +920,14 @@ fun GlgCircleIconButton(
                 // 보이는 크기는 그대로 두고 잡히는 범위만 넓힌다.
                 .minimumInteractiveComponentSize()
                 .size(size)
-                .clip(CircleShape)
-                .then(
-                    if (background != null) Modifier.background(background)
-                    else Modifier
-                        .then(if (solidBackground) Modifier.background(Color.White) else Modifier)
-                        .background(accent.copy(alpha = 0.10f))
-                        .then(if (outlined) Modifier.border(1.5.dp, accent.copy(alpha = 0.30f), CircleShape) else Modifier),
-                )
+                .glgHeaderSurface(CircleShape, background)
                 .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            if (loading) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = fg)
-            } else {
-                Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(20.dp))
-            }
+            GlgHeaderIcon(icon, contentDescription, fg, GlgHeaderIconSize, loading)
         }
         if (badgeCount > 0) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 3.dp, y = (-3).dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFFA500)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    if (badgeCount > 9) "9+" else "$badgeCount",
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    lineHeight = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            GlgHeaderBadge(badgeCount, Modifier.align(Alignment.TopEnd).offset(x = 3.dp, y = (-3).dp))
         }
     }
 }

@@ -146,7 +146,7 @@ fun NewsFilterAction(news: List<NewsItem>, chip: String, onChip: (String) -> Uni
     val selected = chipGames.firstOrNull { it.key == chip }
     var menuOpen by remember { mutableStateOf(false) }
     Box {
-        // 헤더 표준 부품 — 옆의 뒤로가기·액션 버튼과 같은 44dp 규격이다.
+        // 헤더 표준 부품 — 옆의 뒤로가기·액션 버튼과 같은 높이(GlgHeaderElementHeight) 규격이다.
         // (지출 화면 퀵필터 알약은 본문 필터 줄용이라 헤더에 놓으면 혼자 작아 보인다.)
         GlgHeaderDropdownPill(
             label = selected?.shortName ?: "전체",

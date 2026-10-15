@@ -283,10 +283,10 @@ fun HomeScreen(
                 },
             ) { paddingValues ->
                 GlassBackground(modifier = Modifier.fillMaxSize()) {
-                    // 홈 탭은 흰 바탕(10/1) — 히어로 뒤 강조색 그라데이션을 걷었다. 하위 페이지는 각자 바탕을 둔다.
-                    if (selectedTab == 0 && !subPageActive) {
-                        Box(Modifier.matchParentSize().background(Color.White))
-                    }
+                    // 홈 탭의 흰 바탕(10/1)은 홈 페이지가 스스로 깐다(HomeContent 의 GlgPullToRefreshBox, 10/15).
+                    // 예전엔 여기서 `selectedTab == 0 && !subPageActive` 일 때만 깔았는데, 알림을 여는 순간
+                    // subPageActive 가 켜져 바탕이 **전환 시작과 함께 꺼졌다** — 바탕 없는 홈 페이지가 회색
+                    // GlassBackground 위로 밀려 나가며 헤더 줄이 회색 띠째 남아 보였다(10/15 「헤더 잔상」 제보).
                     // 전 화면 edge-to-edge(상단 인셋 없음). 각 화면이 자기 상단 인셋을 소유한다 —
                     // 메인 탭 헤더/하위 페이지 헤더 모두 statusBarsPadding 으로 직접 처리(전환 중 레이아웃
                     // 점프 방지). 리스트는 상태바 뒤로 스크롤된다.
@@ -543,10 +543,11 @@ fun HomeContent(
     GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refreshGameInfo(force = true) },
-        modifier = Modifier.fillMaxSize(),
+        // 흰 바탕은 페이지가 갖는다 — 하위 화면으로 밀려 나갈 때 바탕도 같이 움직이고 같이 흐려진다
+        // (Scaffold 층에 두면 전환 시작에 꺼져 헤더 줄이 회색 띠째 남았다, 10/15).
+        modifier = Modifier.fillMaxSize().background(Color.White),
     ) {
     Box(Modifier.fillMaxSize()) {
-    // 히어로 그라데이션은 HomeScreen(Scaffold 레벨)에서 상태바 뒤까지 그린다.
     // 콘텐츠 로드인 스태거 — 앱 진입 후 1회만 등장(스크롤·탭 재진입 시 재애니메이션 방지). 세션 영속 집합.
     // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 (상태바+헤더)만큼 인셋.
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
