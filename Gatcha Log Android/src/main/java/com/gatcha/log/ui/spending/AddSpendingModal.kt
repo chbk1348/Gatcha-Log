@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import com.gatcha.log.ui.components.GlgDropdownItem
+import com.gatcha.log.ui.components.GlgDropdownMark
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -756,6 +757,7 @@ private fun AmountHero(
                         text = g.displayName,
                         // 목록에 없는 게임명이면 고른 것이 없는 상태다 — 원신을 눌러도(game 과 같다) 바꾼 것으로 받는다.
                         selected = unknownGameName == null && g == game,
+                        mark = GlgDropdownMark.Radio,
                         onClick = { pickGame = false; if (unknownGameName != null || g != game) onGameChange(g) },
                     )
                 }
