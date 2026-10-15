@@ -39,7 +39,9 @@ enum GldsHeader18 {
     /// 헤더 요소 사이 · 좌우 여백.
     static let gap: CGFloat = 8
     static let side: CGFloat = 16
-    static let top: CGFloat = 12
+    /// 위 여백 — 4(10/15 12 → 4). iOS 의 위쪽 안전 영역은 상태바 아이콘 아래 여백까지 품고 있어, Android 처럼 12 를 더하면
+    /// 헤더가 한 단 아래로 처져 보였다(지적). Android 는 상태바 인셋이 아이콘에 딱 맞아 12 그대로다.
+    static let top: CGFloat = 4
     /// 아래 여백 — 탭 뿌리 12 · 하위 페이지 4(10/15, Android `GlgTabHeaderBottom` · `GlgDetailHeaderBottom`).
     static let tabBottom: CGFloat = 12
     static let pageBottom: CGFloat = 4
@@ -165,6 +167,19 @@ struct GldsHeaderIcon: View {
             GLGLineIcon(name, size: size, label: label).opacity(loading ? 0 : 1)
             if loading { GldsSpinner(size: 18, lineWidth: 2, inheritForeground: true) }
         }
+    }
+}
+
+/// 헤더 숫자 배지 — 16 원 · 주황 #FFA500 · 흰 9 Bold, 10 이상은 9+(Android `GlgHeaderBadge`). 칸 오른쪽 위에 5 · 5 걸친다.
+struct GldsHeaderBadge: View {
+    let count: Int
+    var body: some View {
+        Text(count > 9 ? "9+" : "\(count)")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 16, height: 16)
+            .background(Color(hex: 0xFFFFA500), in: Circle())
+            .accessibilityHidden(true)
     }
 }
 
@@ -507,7 +522,23 @@ struct GldsHeader18Modifier<Leading: View, Trailing: View>: ViewModifier {
         }
     }
 
+    /// 헤더 아래로 늘어나는 칸(보유 캐릭터 검색 입력필드, 10/15) — 바깥에서 `.environment(\.gldsHeaderExtension, …)` 로 건다.
+    @Environment(\.gldsHeaderExtension) private var headerExtension
+
     private var header: some View {
+        VStack(spacing: 0) {
+            headerRow
+            // 늘어난 칸 — 캡슐 줄 아래 4 · 칸 · 아래 8, 헤더 전체 뒤에 흰 판(목록이 비치지 않게). Android `extension` 과 같다.
+            if let headerExtension {
+                headerExtension
+                    .padding(.horizontal, GldsHeader18.side)
+                    .padding(.top, 4).padding(.bottom, 8)
+            }
+        }
+        .background { if headerExtension != nil { Color.white.ignoresSafeArea(edges: .top) } }
+    }
+
+    private var headerRow: some View {
         Group {
             switch kind {
             case .tab:
@@ -621,5 +652,19 @@ final class GLGPopGestureDelegate: NSObject, UIGestureRecognizerDelegate {
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard let nav else { return false }
         return nav.viewControllers.count > 1 && nav.transitionCoordinator == nil
+    }
+}
+
+// ── 늘어나는 칸 ─────────────────────────────────────────────────────────────
+
+private struct GldsHeaderExtensionKey: EnvironmentKey {
+    static var defaultValue: AnyView? { nil }
+}
+
+extension EnvironmentValues {
+    /// 헤더 아래로 늘어나는 칸 — 있으면 iOS 18 헤더가 그만큼 늘어나고 흰 판을 깐다(10/15 보유 캐릭터 검색).
+    var gldsHeaderExtension: AnyView? {
+        get { self[GldsHeaderExtensionKey.self] }
+        set { self[GldsHeaderExtensionKey.self] = newValue }
     }
 }

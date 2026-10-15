@@ -200,7 +200,7 @@ private fun GlgMergeTrailDivider(content: @Composable () -> Unit) {
     }
 }
 
-private enum class GlgHeaderMergeSlot { Left, LeftFinal, Right, Merged, Back, Title, Acts }
+private enum class GlgHeaderMergeSlot { Left, LeftFinal, Right, Merged, Back, BackDiv, Title, Acts }
 
 /**
  * 하위 페이지 헤더 한 줄 — 평소엔 왼쪽 [‹ | 제목] 캡슐(남은 폭 · 제목 말줄임) + 오른쪽 액션.
@@ -290,17 +290,20 @@ private fun GlgHeaderMergedCapsule(
             .padding(end = GlgHeaderGroupInset),
     ) { c ->
         val back = subcompose(GlgHeaderMergeSlot.Back, backCell).map { it.measure(Constraints()) }
+        // 뒤로 칸과 제목 사이 세로선 — 따로 선 [‹ | 제목] 캡슐과 같다(합칠 때 빠졌던 것, 10/15 지적).
+        val backDiv = subcompose(GlgHeaderMergeSlot.BackDiv) { GlgHeaderGroupDivider() }.map { it.measure(Constraints()) }
         // 액션은 저마다 앞에 세로선을 긋는다(Trail) — 캡슐이 선을 따로 놓지 않는다.
         val acts = subcompose(GlgHeaderMergeSlot.Acts) {
             CompositionLocalProvider(LocalGlgHeaderMerged provides GlgHeaderMerge.Trail) { Row(verticalAlignment = Alignment.CenterVertically) { actions() } }
         }.map { it.measure(Constraints()) }
-        val fixed = back.sumOf { it.width } + acts.sumOf { it.width }
+        val fixed = back.sumOf { it.width } + backDiv.sumOf { it.width } + acts.sumOf { it.width }
         val titleP = subcompose(GlgHeaderMergeSlot.Title, titleText)
             .map { it.measure(Constraints(minWidth = 0, maxWidth = (c.maxWidth - fixed).coerceAtLeast(0))) }
         val h = c.maxHeight.takeIf { it != Constraints.Infinity } ?: GlgHeaderElementHeight.roundToPx()
         layout(c.maxWidth, h) {
             var x = 0
             back.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
+            backDiv.forEach { it.placeRelative(x, (h - it.height) / 2); x += it.width }
             titleP.forEach { it.placeRelative(x, (h - it.height) / 2) }
             // 제목은 남은 폭을 다 차지한다 — 액션은 오른쪽 끝에 붙인다.
             x = c.maxWidth - acts.sumOf { it.width }
@@ -591,6 +594,9 @@ val GlgTabHeaderHeight = 12.dp + GlgHeaderElementHeight + GlgTabHeaderBottom
 val GlgDetailHeaderBottom = 4.dp
 val GlgDetailHeaderHeight = 12.dp + GlgHeaderElementHeight + GlgDetailHeaderBottom
 
+/** 헤더 아래로 늘어나는 칸(검색 입력필드 S 38)의 높이 — 위 4 + 38 + 아래 8. [GlgDetailHeaderOverlay] 의 `extension`. */
+val GlgHeaderExtensionHeight = 4.dp + 38.dp + 8.dp
+
 /** 상세 페이지 콘텐츠가 고정 헤더 아래에서 시작하도록 하는 상단 인셋(상태바 + 헤더). */
 @Composable
 fun glgDetailContentTop(): Dp =
@@ -615,8 +621,31 @@ fun BoxScope.GlgDetailHeaderOverlay(
     /** 색이 깔린 헤더 위일 때 뒤로가기 버튼이 받을 색. null 이면 기본 흰 버튼. */
     buttonTint: Color? = null,
     buttonBackground: Color? = null,
+    /**
+     * 헤더 아래로 **늘어나는 칸**(보유 캐릭터 검색 입력필드 S 38, 10/15). 있으면 캡슐 줄 아래 4 + 칸 + 아래 8 이 헤더가 되고
+     * 헤더 전체 뒤에 흰 판이 깔린다(목록이 비치지 않게). 본문은 [GlgHeaderExtensionHeight] 만큼 더 내려 시작한다.
+     */
+    extension: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    if (extension != null) {
+        Box(Modifier.align(Alignment.TopStart).fillMaxWidth().background(Color.White)) {
+            // 흰 판의 빈 자리를 누르면 뒤 목록이 눌리지 않게 삼킨다 — 자식 아래 형제로 둔다([GlgScreenHeader] 와 같은 이유).
+            Spacer(
+                Modifier.matchParentSize().pointerInput(Unit) {
+                    awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { if (!it.isConsumed) it.consume() } }
+                },
+            )
+            Column {
+                GlgScreenHeader(
+                    title = title, onBack = onBack, modifier = Modifier.padding(horizontal = 16.dp),
+                    buttonTint = buttonTint, buttonBackground = buttonBackground, actions = actions,
+                )
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)) { extension() }
+            }
+        }
+        return
+    }
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val scrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "detailScrim")
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 덮지 않아 콘텐츠가 아래로 지나가는 연출 유지).
@@ -1160,16 +1189,30 @@ fun GlgDropdownMenu(
     visibleState.targetState = expanded
     if (!visibleState.currentState && !visibleState.targetState) return
     val density = LocalDensity.current
+    // 자리 — **앵커 아래 6**, 왼쪽(alignEnd 면 오른쪽) 끝에 맞춘다. 그림자 여백(GlgMenuShadowPad)만큼 창이 커서 그만큼 되돌린다.
+    // 예전엔 Popup(alignment = TopStart) 라 앵커의 **윗변**에 맞춰 떠서 메뉴가 버튼 · 칩을 덮었다(10/15 보유 캐릭터 헤더에서 드러남).
+    // 아래 자리가 모자라면 앵커 위로 띄운다. 좌우는 화면 안으로 당긴다.
+    val positionProvider = remember(alignEnd, density) {
+        object : androidx.compose.ui.window.PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: androidx.compose.ui.unit.IntRect,
+                windowSize: androidx.compose.ui.unit.IntSize,
+                layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                popupContentSize: androidx.compose.ui.unit.IntSize,
+            ): IntOffset {
+                val pad = with(density) { GlgMenuShadowPad.roundToPx() }
+                val gap = with(density) { 6.dp.roundToPx() }
+                val x = (if (alignEnd) anchorBounds.right - popupContentSize.width + pad else anchorBounds.left - pad)
+                    .coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+                val below = anchorBounds.bottom + gap - pad
+                val above = anchorBounds.top - gap - popupContentSize.height + pad
+                val y = if (below + popupContentSize.height <= windowSize.height || above < 0) below else above
+                return IntOffset(x, y)
+            }
+        }
+    }
     Popup(
-        alignment = if (alignEnd) Alignment.TopEnd else Alignment.TopStart,
-        // 그림자 여백(GlgMenuShadowPad)만큼 메뉴가 안쪽으로 밀리므로, 그만큼 되돌려
-        // 앵커 기준 위치를 그대로 유지한다(좌측 정렬이면 왼쪽으로, 우측 정렬이면 오른쪽으로).
-        offset = with(density) {
-            IntOffset(
-                (if (alignEnd) GlgMenuShadowPad else -GlgMenuShadowPad).roundToPx(),
-                (6.dp - GlgMenuShadowPad).roundToPx(),
-            )
-        },
+        popupPositionProvider = positionProvider,
         onDismissRequest = onDismissRequest,
         properties = PopupProperties(focusable = true),
     ) {
@@ -1212,8 +1255,13 @@ fun GlgDropdownMenu(
             ) {
                 // width(IntrinsicSize.Max) 가 없으면 항목의 fillMaxWidth 가 Popup 의 최대 제약
                 // (= 화면 폭)까지 늘어나 메뉴가 좌우로 꽉 찬다. 가장 긴 항목 기준으로 폭을 잡는다.
+                // 길면(보유 캐릭터 필터처럼 묶음이 여럿이면) 화면 높이의 60% 에서 멈추고 안에서 스크롤한다(10/15).
                 Column(
-                    Modifier.width(IntrinsicSize.Max).padding(vertical = 6.dp),
+                    Modifier
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.6f).dp)
+                        .verticalScroll(rememberScrollState())
+                        .width(IntrinsicSize.Max)
+                        .padding(vertical = 6.dp),
                     content = content,
                 )
             }
@@ -1286,6 +1334,18 @@ fun GlgDropdownItem(
             modifier = Modifier.weight(1f).padding(vertical = 12.dp),
         )
     }
+}
+
+/**
+ * 드롭다운 안의 **묶음 머리** — 한 메뉴에서 축 여럿을 고를 때(보유 캐릭터 필터의 등급 · 속성 · 운명의 길).
+ * 12 SemiBold #6C727A · 좌우 16 · 위 12 · 아래 4. 누르지 않는 글자(10/15 사용자 결정 「메뉴 하나 + 묶음 머리」).
+ */
+@Composable
+fun GlgDropdownSectionHeader(text: String) {
+    Text(
+        text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
 }
 
 /** 라디오 원 · 체크 상자 20 — 고르면 강조색 면 + 흰 점 8 · 흰 체크 14, 아니면 1.5 #C8CBD3 테두리. */
