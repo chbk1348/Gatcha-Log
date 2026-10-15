@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.gldsToastObstacle
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.foundation.border
@@ -134,7 +135,9 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
                 .background(Color.White).navigationBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp)
+                // 토스트의 가리는 것 — 흰 바 전체가 아니라 버튼 면이다(바 위 여백 10 안쪽). 토스트는 그 위 12(10/15).
+                .gldsToastObstacle(),
         )
         GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrollState = scrollState)
     }

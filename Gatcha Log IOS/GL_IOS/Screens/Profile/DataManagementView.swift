@@ -101,8 +101,8 @@ struct DataManagementView: View {
     /// 내보내기 결과 안내(27.52.0). 저장 창을 그냥 닫은 것(취소)은 실패가 아니라 알리지 않는다.
     private func reportExport(_ result: Result<URL, Error>, saved: String, failed: String) {
         switch result {
-        case .success: store.showStatus(saved)
-        case .failure(let error): if !isUserCancel(error) { store.showStatus(failed) }
+        case .success: store.showToast(saved, .success)
+        case .failure(let error): if !isUserCancel(error) { store.showToast(failed, .error) }
         }
     }
 
@@ -110,7 +110,7 @@ struct DataManagementView: View {
     private func pickedBackup(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url): readBackup(url)
-        case .failure(let error): if !isUserCancel(error) { store.showStatus("파일을 읽지 못했어요") }
+        case .failure(let error): if !isUserCancel(error) { store.showToast("파일을 읽지 못했어요", .error) }
         }
     }
 
@@ -124,7 +124,7 @@ struct DataManagementView: View {
     /// 예전엔 `?? ""` 로 0바이트 파일이 저장돼, 백업해 둔 줄 알았다가 복원할 때에야 빈 파일인 걸 알게 됐다.
     private func startBackupExport() {
         guard let json = store.exportBackupContent() else {
-            store.showStatus("백업 파일을 만들지 못했어요")
+            store.showToast("백업 파일을 만들지 못했어요", .error)
             return
         }
         backupDocument = TextDocument(json)
@@ -137,7 +137,7 @@ struct DataManagementView: View {
         // 못 읽으면 알린다(27.52.0) — 예전엔 아무 일도 일어나지 않아, 복원이 된 건지 안 된 건지 알 수 없었다.
         // 읽은 뒤의 안내(형식 오류 · 복원 완료)는 공용 importBackupFromContent 가 낸다 — 여기서 겹쳐 내지 않는다.
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {
-            store.showStatus("파일을 읽지 못했어요")
+            store.showToast("파일을 읽지 못했어요", .error)
             return
         }
         store.importBackupFromContent(text)

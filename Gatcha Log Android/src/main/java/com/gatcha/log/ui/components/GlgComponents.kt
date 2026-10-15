@@ -672,6 +672,9 @@ fun GlgDialog(
             dismissOnClickOutside = dismissable,
         ),
     ) {
+        // 다이얼로그는 별도 창이라 토스트도 이 창에서 그린다(GLDS 2.1 토스트, 10/15). 버튼 줄은 가리는 것 — 토스트와 겹칠 만큼
+        // 내려온 긴 다이얼로그에서만 토스트가 그 위로 올라간다.
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Box(Modifier.fillMaxWidth().dismissKeyboardOnTap().padding(24.dp), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
@@ -696,7 +699,7 @@ fun GlgDialog(
                         content()
                     }
                     Spacer(Modifier.height(20.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.gldsToastObstacle(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (dismissText != null) {
                             GldsButton(dismissText, onDismiss, Modifier.weight(1f), variant = GldsVariant.Secondary)
                             GldsButton(confirmText, onConfirm, Modifier.weight(1.4f), enabled = confirmEnabled)
@@ -706,6 +709,7 @@ fun GlgDialog(
                     }
                 }
             }
+        }
         }
     }
 }

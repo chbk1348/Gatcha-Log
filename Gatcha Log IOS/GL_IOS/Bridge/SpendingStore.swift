@@ -94,6 +94,7 @@ final class SpendingStore {
         mirror(vm.onboardingReplay, to: \.onboardingReplay, .nowUnseeded)
         mirror(vm.profile, to: \.profile, .now)
         mirror(vm.statusMessage, to: \.statusMessage, .now)
+        mirror(vm.statusToast, to: \.statusToast, .now)
         mirror(vm.errorAlert, to: \.errorAlert, .nowUnseeded)
         mirror(vm.initialSyncing, to: \.initialSyncing, .now)
         mirror(vm.signingOut, to: \.signingOut, .nowUnseeded)
@@ -323,12 +324,16 @@ final class SpendingStore {
     // MARK: - 피드백 (FeedbackController)
 
     private(set) var statusMessage: String?
+    /// 띄울 토스트 — 상태 · 제목 · 설명(GLDS 2.1 토스트, 10/15). 앱 루트의 `gldsToast` 가 그린다.
+    private(set) var statusToast: StatusToast?
     /// 오류 얼럿 모달용(nil 이 아니면 표시). 토스트(statusMessage)와 분리.
     /// 네트워크 미연결·HoYoLAB 연동 만료·클라우드 백업 실패가 모두 이 자리에 뜬다 — 제목이 종류마다 달라
     /// 문자열이 아니라 `ErrorAlert`(title/message)로 받는다.
     private(set) var errorAlert: ErrorAlert?
 
     func showStatus(_ msg: String) { vm.showStatus(msg: msg) }
+    /// 결과가 분명한 토스트 — 저장 성공 · 실패처럼 상태를 정해 띄운다.
+    func showToast(_ msg: String, _ kind: ToastKind) { vm.showToast(msg: msg, kind: kind) }
     /// 상태 토스트 소비.
     func clearStatus() { vm.clearStatus() }
     /// 네트워크 미연결 얼럿 소비.

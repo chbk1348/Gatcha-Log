@@ -160,7 +160,7 @@ struct HoyolandGoodsView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // 지금 목록 기준으로 센다 — 목록에서 빠진 이름만 남은 장바구니로 「담은 0종 · 0원」 바가 서지 않게.
             if hasCartLines {
-                goodsBar(cart).transition(.move(edge: .bottom).combined(with: .opacity))
+                goodsBar(cart).gldsToastObstacle().transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(GLGMotion.standard(), value: hasCartLines)
@@ -994,7 +994,7 @@ struct HoyolandGoodsImageSheet: View {
             // 네비 바 · 홈 인디케이터를 재는 [glgSheetChromeHeight] 보다 **안쪽**에 건다 —
             // 바깥에 걸면 시트가 바 높이를 chrome 으로 한 번, [barHeight] 로 또 한 번 세어
             // 그만큼 아래가 빈다.
-            .safeAreaInset(edge: .bottom) { if !readOnly { cartBar(item: item, quantity: quantity) } }
+            .safeAreaInset(edge: .bottom) { if !readOnly { cartBar(item: item, quantity: quantity).gldsToastObstacle() } }
             .navigationTitle("굿즈 사진")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

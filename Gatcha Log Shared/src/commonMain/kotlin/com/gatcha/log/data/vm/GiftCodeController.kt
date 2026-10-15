@@ -1,5 +1,6 @@
 package com.gatcha.log.data.vm
 
+import com.gatcha.log.data.ToastKind
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.RedeemState
@@ -29,7 +30,7 @@ internal class GiftCodeController(
     private val scope: CoroutineScope,
     private val repo: () -> GatchaRepository,
     private val hoyolab: () -> HoyolabConfig,
-    private val status: (String) -> Unit,
+    private val status: (String, ToastKind) -> Unit,
 ) {
     private val _redeemState = MutableStateFlow<RedeemState>(RedeemState.Idle)
     val redeemState: StateFlow<RedeemState> = _redeemState.asStateFlow()
@@ -134,7 +135,7 @@ internal class GiftCodeController(
         val n = _unusableCodes.value.size
         _unusableCodes.value = emptySet()
         repo().saveUnusableCodes(emptySet())
-        status("가려진 코드 ${n}개를 되살렸어요")
+        status("가려진 코드 ${n}개를 되살렸어요", ToastKind.SUCCESS)
         loadActiveCodes(gameKey)   // 걸러내던 목록을 다시 받아 화면에 올린다
     }
 
@@ -145,7 +146,7 @@ internal class GiftCodeController(
         val uid = cfg.uidByGame[gameKey].orEmpty()
         if (uid.isBlank()) return CodeResult(false, "이 게임 UID가 없어요")
         if (cfg.cookieToken.isBlank() && cfg.webCookie.isBlank()) {
-            return CodeResult(false, "HoYoLAB 재연동이 필요해요 (교환 인증 쿠키 없음)")
+            return CodeResult(false, "HoYoLAB 재연동이 필요해요 — 교환 인증 쿠키가 없어요")
         }
         val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, cfg.webCookie, gameKey, uid, code)
         // 교환 성공 또는 이미 계정 귀속(retcode -2017/-2018)이면 '받음' 표시 — 메시지 문자열 매칭 금지(확실 분기).
@@ -204,9 +205,9 @@ internal class GiftCodeController(
             // 실패 사유를 그대로 노출(전부 실패 시 원인 파악 — 쿠키/만료/리전 등)
             val detail = when {
                 aborted -> "같은 사유로 ${sameFailStreak}번 실패해 중단했어요 — $lastFailMsg"
-                fail == 0 -> "교환 ${ok}건 완료 (우편함 확인)"
+                fail == 0 -> "교환 ${ok}건 완료 — 게임 우편함을 확인하세요"
                 ok == 0 -> "교환 실패 ${fail}건 — $lastFailMsg"
-                else -> "교환 ${ok}건 완료 · 실패 ${fail}건 ($lastFailMsg)"
+                else -> "교환 ${ok}건 완료 · 실패 ${fail}건 — $lastFailMsg"
             }
             _redeemState.value = RedeemState.Done(!aborted && fail == 0, detail)
         }

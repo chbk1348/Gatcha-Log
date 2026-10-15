@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GldsToastLayer
 import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import android.app.Activity
@@ -726,6 +727,8 @@ private fun KeyStatSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
+        // 시트는 별도 창 — 토스트도 이 창 위에 그린다(GLDS 2.1 토스트, 10/15).
+        GldsToastLayer {
         LightSystemBarsInWindow()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
             Text("점수 기준", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -736,6 +739,7 @@ private fun KeyStatSheet(
                 onSet(stats)
                 onDismiss()
             }
+        }
         }
     }
 }
