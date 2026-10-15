@@ -38,6 +38,7 @@ import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgDropdownItem
+import com.gatcha.log.ui.components.GlgDropdownMark
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GldsChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
@@ -492,7 +493,7 @@ private fun SpendingQuickFilters(
                 active = period != PeriodFilter.ALL,
             ) { close ->
                 PeriodFilter.entries.forEach { p ->
-                    GlgDropdownItem(text = p.label, selected = period == p, onClick = { onPeriod(p); close() })
+                    GlgDropdownItem(text = p.label, selected = period == p, mark = GlgDropdownMark.Radio, onClick = { onPeriod(p); close() })
                 }
             }
             // 날짜 두 칸은 이 줄에 두지 않는다 — '기간 지정'일 때만 아랫줄로 펼친다.
@@ -505,20 +506,21 @@ private fun SpendingQuickFilters(
                 },
                 active = selectedGames.isNotEmpty(),
             ) { close ->
-                GlgDropdownItem(text = "전체", selected = selectedGames.isEmpty(), onClick = { onGamesClear(); close() })
+                GlgDropdownItem(text = "전체", selected = selectedGames.isEmpty(), mark = GlgDropdownMark.Check, onClick = { onGamesClear(); close() })
                 GameData.games.forEach { g ->
                     GlgDropdownItem(
                         text = g.shortName,
                         selected = g.displayName in selectedGames,
+                        mark = GlgDropdownMark.Check,
                         onClick = { onGameToggle(g.displayName) },
                     )
                 }
             }
             // 결제 수단 — 단일 선택(10/14 상세 필터에서 옮김).
             QuickFilterMenu(label = paymentFilter ?: "결제", active = paymentFilter != null) { close ->
-                GlgDropdownItem(text = "전체", selected = paymentFilter == null, onClick = { onPayment(null); close() })
+                GlgDropdownItem(text = "전체", selected = paymentFilter == null, mark = GlgDropdownMark.Radio, onClick = { onPayment(null); close() })
                 GameData.paymentMethods.forEach { m ->
-                    GlgDropdownItem(text = m, selected = paymentFilter == m, onClick = { onPayment(m); close() })
+                    GlgDropdownItem(text = m, selected = paymentFilter == m, mark = GlgDropdownMark.Radio, onClick = { onPayment(m); close() })
                 }
             }
             // 정렬 — 거르는 게 아니라 늘어놓는 방식이지만, 기간만큼 자주 바꾼다.
@@ -527,7 +529,7 @@ private fun SpendingQuickFilters(
                 active = sortOrder != SortOrder.DATE_DESC,
             ) { close ->
                 SortOrder.entries.forEach { s ->
-                    GlgDropdownItem(text = s.label, selected = sortOrder == s, onClick = { onSort(s); close() })
+                    GlgDropdownItem(text = s.label, selected = sortOrder == s, mark = GlgDropdownMark.Radio, onClick = { onSort(s); close() })
                 }
             }
         }

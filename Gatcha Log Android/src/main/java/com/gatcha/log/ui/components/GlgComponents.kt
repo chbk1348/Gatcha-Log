@@ -41,6 +41,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
@@ -980,9 +982,11 @@ fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Mo
 /**
  * 앱 공통 드롭다운 메뉴 — Material3 [androidx.compose.material3.DropdownMenu] 대체.
  *
- * 시스템 메뉴를 쓰지 않는 이유: M3 기본 메뉴는 서피스 톤·모서리(3dp)·타이포가 앱 디자인
- * (흰 불투명 + 20dp 라운드 + accent 30% 아웃라인 + Pretendard)과 어긋나고, 배경이 반투명이라
- * 헤더 오버레이 아래 콘텐츠가 비쳤다. [GlgDropdownItem] 과 함께 사용한다.
+ * 시스템 메뉴를 쓰지 않는 이유: M3 기본 메뉴는 서피스 톤·모서리(3dp)·타이포가 앱 디자인과 어긋나고,
+ * 배경이 반투명이라 헤더 오버레이 아래 콘텐츠가 비쳤다. [GlgDropdownItem] 과 함께 사용한다.
+ *
+ * GLDS 2.1(10/15 드롭다운 시안 C) — 헤더 · 하단 툴바 · 토스트와 같은 흰 면(안쪽 1 [DividerColor]) · 반경 16 ·
+ * 그림자 검정 12% · 퍼짐 24 · 아래로 8. 예전 강조색 30% 테두리 1.5 · 반경 20 은 걷었다.
  *
  * 앵커(호출한 Box) 기준으로 아래에 뜨고, 오른쪽 정렬이 필요하면 [alignEnd] 를 켠다.
  */
@@ -992,13 +996,6 @@ fun GlgDropdownMenu(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     alignEnd: Boolean = false,
-    /**
-     * 테두리 색. null 이면 강조색 30% — 앱 전역 기본이다.
-     *
-     * 색이 깔린 화면 위에서 열릴 때만 지정한다(지출 상세 히어로). 메뉴는 흰 팝업이라
-     * 배경과는 어차피 대비되지만, **테두리만 다른 계열이면** 그 선이 먼저 눈에 들어온다.
-     */
-    borderColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // 열림/닫힘 모션 — 상태를 별도로 추적해 닫힐 때도 퇴장 애니메이션 후 언마운트한다.
@@ -1006,7 +1003,6 @@ fun GlgDropdownMenu(
     val visibleState = remember { MutableTransitionState(false) }
     visibleState.targetState = expanded
     if (!visibleState.currentState && !visibleState.targetState) return
-    val accent = LocalAccent.current
     val density = LocalDensity.current
     Popup(
         alignment = if (alignEnd) Alignment.TopEnd else Alignment.TopStart,
@@ -1042,17 +1038,18 @@ fun GlgDropdownMenu(
                 .padding(GlgMenuShadowPad),
         ) {
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = GlgMenuShape,
                 color = Color.White,                                   // 불투명 — 아래 콘텐츠 비침 방지
-                border = BorderStroke(1.5.dp, borderColor ?: accent.copy(alpha = 0.30f)),
-                // 그림자를 scale/alpha 와 같은 graphicsLayer 에 합쳐 그린다 — 애니메이션 중 그림자가
-                // 별도 레이어로 따로 스케일·페이드되며 엉성해지던 문제 해결(메뉴와 하나로 부드럽게).
+                border = BorderStroke(1.dp, DividerColor),
+                // 그림자는 scale/alpha 와 **같은 graphicsLayer 의 플랫폼 그림자**(elevation 12)로 그린다.
+                // dropShadow(흐림 그림자)는 팝업이 뜬 뒤 한 박자 늦게 나타났다(10/15 지적) — 같은 층이면
+                // 메뉴와 첫 프레임부터 함께 나타나고, 층의 alpha 로 같이 페이드된다.
                 modifier = modifier
                     .graphicsLayer {
                         scaleX = scale; scaleY = scale; this.alpha = alpha
                         transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0f)
-                        shadowElevation = 12.dp.toPx() * alpha        // 페이드와 함께 그림자도 서서히
-                        shape = RoundedCornerShape(20.dp)
+                        shadowElevation = GlgMenuElevation.toPx()
+                        shape = GlgMenuShape
                         clip = false
                     }
                     .widthIn(min = 160.dp, max = 280.dp),
@@ -1074,9 +1071,22 @@ fun GlgDropdownMenu(
  */
 private val GlgMenuShadowPad = 20.dp
 
+private val GlgMenuShape = RoundedCornerShape(16.dp)
+
+/** 드롭다운 그림자 — 화면 위에 뜬 판이라 헤더 · 툴바(6% · 10 · y2)보다 깊은 플랫폼 그림자 12. */
+private val GlgMenuElevation = 12.dp
+
 /**
- * [GlgDropdownMenu] 의 항목 한 줄. 선택된 항목은 accent 볼드 + 우측 체크로 표시하고,
- * 파괴적 동작(로그아웃·삭제)은 [danger] 로 빨간 톤을 준다.
+ * 드롭다운 항목 왼쪽 표시(GLDS 2.1 · 10/15 시안 C) — 몇 개를 고를 수 있는지가 모양에서 보이게 한다.
+ * [Radio] 하나만 고르는 메뉴(기간 · 정렬 · 게임 고르기), [Check] 여럿 고르는 메뉴(지출 퀵필터 게임),
+ * [None] 고르는 메뉴가 아닌 동작 목록(로그아웃 등 — 왼쪽은 [GlgDropdownItem] 의 icon).
+ */
+enum class GlgDropdownMark { None, Radio, Check }
+
+/**
+ * [GlgDropdownMenu] 의 항목 한 줄 — 높이 48 · 좌우 16 · 왼쪽 표시 20 → 12 → 15 Medium(고른 항목은 Bold 본문색).
+ * 왼쪽 표시는 [mark] — 라디오 원 · 체크 상자(고르면 강조색으로 채움, 아니면 1.5 #C8CBD3 테두리). 동작 목록은 [icon] 20.
+ * 파괴적 동작(로그아웃·삭제)은 [danger] 로 빨강 SemiBold. GLDS 2.1(10/15 드롭다운 시안 C).
  */
 @Composable
 fun GlgDropdownItem(
@@ -1085,38 +1095,61 @@ fun GlgDropdownItem(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     selected: Boolean = false,
+    mark: GlgDropdownMark = GlgDropdownMark.None,
     danger: Boolean = false,
 ) {
     val accent = LocalAccent.current
-    val tint = when {
-        danger -> DangerText
-        selected -> accent
-        else -> TextPrimary
-    }
+    val tint = if (danger) DangerText else TextPrimary
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(10.dp))
+        when {
+            mark != GlgDropdownMark.None -> {
+                GlgDropdownMarkBox(mark, selected, accent)
+                Spacer(Modifier.width(12.dp))
+            }
+            icon != null -> {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+            }
         }
         Text(
             text,
-            fontSize = 14.sp,
-            fontWeight = if (selected || danger) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = 15.sp,
+            fontWeight = when {
+                danger -> FontWeight.SemiBold
+                selected -> FontWeight.Bold
+                else -> FontWeight.Medium
+            },
             color = tint,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).padding(vertical = 12.dp),
         )
+    }
+}
+
+/** 라디오 원 · 체크 상자 20 — 고르면 강조색 면 + 흰 점 8 · 흰 체크 14, 아니면 1.5 #C8CBD3 테두리. */
+@Composable
+private fun GlgDropdownMarkBox(mark: GlgDropdownMark, selected: Boolean, accent: Color) {
+    val shape = if (mark == GlgDropdownMark.Radio) CircleShape else RoundedCornerShape(6.dp)
+    Box(
+        Modifier
+            .size(20.dp)
+            .then(if (selected) Modifier.background(accent, shape) else Modifier.border(1.5.dp, GlgMarkLine, shape)),
+        contentAlignment = Alignment.Center,
+    ) {
         if (selected) {
-            Spacer(Modifier.width(10.dp))
-            Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(18.dp))
+            if (mark == GlgDropdownMark.Radio) Box(Modifier.size(8.dp).background(Color.White, CircleShape))
+            else Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }
+
+private val GlgMarkLine = Color(0xFFC8CBD3)
 
 /**
  * 작은 원·알약 안의 글자를 **시각적 정중앙**에 놓는다.

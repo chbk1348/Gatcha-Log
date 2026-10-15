@@ -46,6 +46,7 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.components.GlgDropdownItem
+import com.gatcha.log.ui.components.GlgDropdownMark
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -155,12 +156,12 @@ fun NewsFilterAction(news: List<NewsItem>, chip: String, onChip: (String) -> Uni
         ) { menuOpen = true }
         GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true) {
             GlgDropdownItem(
-                text = "전체", selected = chip == "all",
+                text = "전체", selected = chip == "all", mark = GlgDropdownMark.Radio,
                 onClick = { menuOpen = false; onChip("all") },
             )
             chipGames.forEach { g ->
                 GlgDropdownItem(
-                    text = g.shortName, selected = chip == g.key,
+                    text = g.shortName, selected = chip == g.key, mark = GlgDropdownMark.Radio,
                     onClick = { menuOpen = false; onChip(g.key) },
                 )
             }
