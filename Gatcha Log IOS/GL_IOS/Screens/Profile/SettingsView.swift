@@ -258,10 +258,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var infoSection: some View {
         SetSection(title: "앱 정보", caption: "v\(version)", bottom: 20) { // 페이지 맨 아래 — 안전 영역 위로 숨 쉴 여백을 남긴다
-            // 업데이트 확인(27.51.1 — Android 와 같은 항목). 새 버전이 있으면 앱 루트의 업데이트 창이 뜨고(ContentView),
-            // 최신이면 「이미 최신 버전이에요」 토스트가 뜬다. IPA 사이드로드 배포라 설치는 GitHub 릴리즈 페이지에서 한다.
-            SetNavRow(symbol: "arrow.down.circle", tint: .teal, title: "업데이트 확인") { store.checkForUpdate(manual: true) }
-            SetDivider()
+            // 「업데이트 확인」은 iOS 에서 뺐다(10/15 지시) — Android 만 있다.
             SetNavRow(symbol: "sparkles", tint: .blue, title: "업데이트 로그") { showUplog = true }
             SetDivider()
             SetNavRow(symbol: "c.circle", tint: .slate, title: "출처 · 저작권") { glgDialogStill { showCredits = true } }

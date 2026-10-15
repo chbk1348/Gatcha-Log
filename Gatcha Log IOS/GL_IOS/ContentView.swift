@@ -172,23 +172,7 @@ struct ContentView: View {
             }
         }
         .animation(GLGMotion.standard(), value: store.signingOut)
-        // 업데이트 창 — Android UpdateDialog(GlgDialog)와 같은 가운데 카드 · 같은 제목 · 같은 단추 순서.
-        // 실행할 때 · 설정 ▸ 업데이트 확인 · 새 버전 알림을 눌렀을 때 모두 이 창으로 온다.
-        // 강제 업데이트(최소 지원 버전 미만)면 「나중에」가 없고 바깥을 눌러도 닫히지 않는다 — 데이터 꼬임 방지 · 구버전 지원 종료.
-        // iOS 는 앱이 설치까지 할 수 없어 「릴리즈 페이지 열기」가 GitHub 릴리즈 페이지를 연다(거기서 IPA 를 받아 설치).
-        .overlay {
-            if store.updateAvailable {
-                UpdateDialog(
-                    force: store.forceUpdate,
-                    versionName: store.updateVersionName,
-                    notes: store.updateNotes,
-                    onUpdate: { store.startInAppUpdate() },
-                    onDismiss: { store.dismissUpdate() }
-                )
-                .transition(.opacity)
-            }
-        }
-        .animation(GLGMotion.standard(), value: store.updateAvailable)
+        // 업데이트 창 · 실행 시 새 버전 확인은 iOS 에서 뺐다(10/15 지시) — 사이드로드 배포라 앱이 설치를 도울 수 없다. Android 만 남는다.
         // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
         .animation(GLGMotion.standard(), value: rootPhase)
         // 홈이 뜨기 전(온보딩 · 로그인 · 불러오기)에는 알림을 붙잡았다가 홈에서 보낸다(9/29).
@@ -207,8 +191,6 @@ struct ContentView: View {
                 syncGateActive = active.boolValue
             }
         }
-        // 실행 시 원격 매니페스트로 강제 업데이트 여부 확인(구버전이면 store.forceUpdate=true).
-        .task { store.checkForUpdate(manual: false) }
         #if DEBUG
         // 개발자 전용 — 실행하자마자 API Ping 을 N 회 잰다(실행 인자 `-glPing 3`). 결과는 콘솔 `GatchaPing` 과 기기 기록에 남는다.
         .task {
@@ -531,6 +513,8 @@ struct ContentView: View {
                         VStack(spacing: 0) {
                             Spacer(minLength: 0)
                             GLGFloatingTabBar(selection: $selectedTab, accent: accent, photo: myPageTabIcon,
+                                              // 탭 스택을 `.id` 로 새로 그려 첫 화면으로 보내던 것(10/15)은 걷었다 — iOS 18 에서 스택을 다시 만들면
+                                              // 화면 안 페이지 이동(navigationDestination)이 끊겨 다음 페이지로 넘어가지 않았다(지적). 지출만 경로를 비운다.
                                               onReselect: { tab in if tab == 1 { spendingPath = [] } },
                                               onAdd: { openAddSpending() })
                                 // 토스트가 이 위 12 에 선다 — 숨긴 동안은 세지 않는다.
@@ -1005,69 +989,3 @@ private extension Color {
     }
 }
 
-/// 업데이트 창 — Android `UpdateDialog`(GlgDialog 규격)와 같은 모양.
-/// 딤 + 가운데 흰 카드(모서리 24 · 안쪽 22) · 제목 17 · 본문 14 · 단추 「나중에」(Secondary) : 「릴리즈 페이지 열기」(Primary) = 1 : 1.4.
-/// 강제 업데이트면 단추 하나뿐이고 바깥을 눌러도 닫히지 않는다. 변경 사항이 길면 본문만 스크롤된다.
-private struct UpdateDialog: View {
-    let force: Bool
-    let versionName: String
-    let notes: [String]
-    let onUpdate: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.32).ignoresSafeArea()
-                .onTapGesture { if !force { onDismiss() } }
-            VStack(alignment: .leading, spacing: 0) {
-                Text((force ? "필수 업데이트" : "업데이트 있어요") + (versionName.isEmpty ? "" : " (v\(versionName))"))
-                    .font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    .padding(.bottom, 16)
-                ViewThatFits(in: .vertical) {
-                    message
-                    ScrollView { message }
-                }
-                if force {
-                    GldsButton(title: "릴리즈 페이지 열기") { onUpdate() }
-                        .padding(.top, 20)
-                } else {
-                    GeometryReader { geo in
-                        let w = geo.size.width - 10
-                        HStack(spacing: 10) {
-                            GldsButton(title: "나중에", variant: .secondary) { onDismiss() }
-                                .frame(width: w / 2.4)
-                            GldsButton(title: "릴리즈 페이지 열기") { onUpdate() }
-                                .frame(width: w * 1.4 / 2.4)
-                        }
-                    }
-                    .frame(height: GldsSize.m.height)
-                    .padding(.top, 20)
-                }
-            }
-            .padding(22)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
-            // 한 장으로 합친 뒤에 그림자를 준다 — 그냥 주면 카드 안의 버튼 · 글자마다 그림자가 따로 생긴다(10/14).
-            .compositingGroup()
-            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
-            .padding(24)
-            .frame(maxWidth: 480)
-        }
-    }
-
-    private var message: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(force ? "데이터 꼬임을 막기 위해 이전 버전 지원이 종료됐어요. 계속하려면 업데이트가 필요해요."
-                       : "GitHub 릴리즈 페이지에서 새 버전을 받아 설치할 수 있어요.")
-            ForEach(Array(notes.enumerated()), id: \.offset) { _, note in
-                HStack(alignment: .top, spacing: 0) {
-                    Text("· ")
-                    Text(note)
-                }
-            }
-        }
-        .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}

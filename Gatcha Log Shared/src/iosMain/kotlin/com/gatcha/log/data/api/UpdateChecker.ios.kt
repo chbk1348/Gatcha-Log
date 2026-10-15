@@ -17,7 +17,8 @@ actual object UpdateChecker {
 
     actual suspend fun check(): UpdateInfo? = fetchUpdateInfo(currentVersionCode())
 
-    actual val notifiesNewVersion: Boolean = true
+    // iOS 는 업데이트 기능을 뺐다(10/15 지시) — 새 버전 알림 · 알림 설정의 「앱 업데이트」 항목도 iOS 에선 나오지 않는다.
+    actual val notifiesNewVersion: Boolean = false
 
     actual val installsInApp: Boolean = false
 }
