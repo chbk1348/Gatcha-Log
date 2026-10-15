@@ -332,7 +332,7 @@ internal fun Modifier.glgHeaderSurface(shape: Shape = GlgHeaderCapsule, fill: Co
 private enum class GlgHeaderGroupSlot { Items, Dividers }
 
 /**
- * 헤더 **묶음 캡슐** — 붙어 있는 버튼 여럿을 캡슐 하나에 담고 칸 사이에 세로선(1 × 20 [GldsHairColor])을 긋는다.
+ * 헤더 **묶음 캡슐** — 붙어 있는 버튼 여럿을 캡슐 하나에 담고 칸 사이에 세로선(1 × 20 #E3E5EA)을 긋는다.
  * 칸은 보통 [GlgHeaderGroupItem](48 × 48)이고, 홈 프로필 · 하위 페이지 제목처럼 글자 칸도 그냥 넣으면 된다.
  *
  * 세로선은 **실제로 그려진 칸 사이에만** 선다. 칸을 `if` 로 빼면(게임 정보의 리딤코드 — 연동했을 때만) 세로선도
@@ -386,10 +386,13 @@ fun GlgHeaderButtonGroup(
     }
 }
 
-/** 묶음 캡슐 칸 사이 세로선 — 1 × 20, 헤어라인 색. */
+/**
+ * 묶음 캡슐 칸 사이 세로선 — 1 × 20, #E3E5EA(GLDS 칩 · 탭 테두리와 같은 값).
+ * 처음엔 헤어라인 색(#EEF0F2)이었는데 흰 캡슐 위에서 너무 옅어 한 단 진하게 했다(10/15 지시). 히어로 위에서도 같은 색.
+ */
 @Composable
 private fun GlgHeaderGroupDivider() {
-    Box(Modifier.size(width = 1.dp, height = 20.dp).background(GldsHairColor))
+    Box(Modifier.size(width = 1.dp, height = 20.dp).background(ChipIdleBorder))
 }
 
 /**

@@ -56,7 +56,6 @@ import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgLineIcons
-import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.ProfileAvatar
@@ -208,11 +207,8 @@ fun MyPageScreen(
             ),
     )
     Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
-        GlgTabHeader(
-            "",
-            // 제목도 헤더 버튼과 같은 면의 불투명 알약(콘텐츠 비침 방지). 설정과 떨어져 있으니 묶지 않는다 — 흰 알약 + 흰 원.
-            leading = { GlgHeaderTitlePill("마이페이지") },
-        ) {
+        // 제목 알약은 걷었다(10/15 지시) — 하단 툴바 My 탭이 이미 어디인지 말한다. 오른쪽 설정 원만 둔다.
+        GlgTabHeader("") {
             GlgCircleIconButton(GlgLineIcons.Settings, "설정") { showSettings.value = true }
         }
     }
