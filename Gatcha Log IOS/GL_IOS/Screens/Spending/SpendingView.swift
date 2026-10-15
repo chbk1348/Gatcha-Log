@@ -385,10 +385,28 @@ struct SpendingView: View {
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        // 시스템 글래스(iOS26 Liquid Glass, 폴백 ultraThinMaterial) — 떠 있는 라운드 바(레이아웃 유지).
-        .modifier(SystemGlassBar())
+        // iOS 26 은 시스템 글래스. iOS 18 은 떠 있는 탭 툴바와 같은 흰 캡슐(10/15 — 블러 대신) — [SelectionBarSurface].
+        .modifier(SelectionBarSurface())
         .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        // 하단 툴바와 사이 = 캡슐과 + 원 사이(7.3, 10/15 — 예전엔 8 을 더 띄워 넓었다). iOS 18 아이폰은 탭 화면이 이미 툴바 위
+        // 7.3 에서 끝나 0, 그 밖은 「맨 위로」 원과 같은 12(+ 원 윗변 위 7.3 이 된다).
+        .padding(.bottom, GLGFloatingTabBar.isActive ? 0 : 12)
+    }
+
+    /// 선택 바 바탕 — iOS 26 은 Liquid Glass 그대로, iOS 18 은 **하단 툴바 형식**(10/15 지시): 흰 면 · 테두리 1 #F0F0F0 ·
+    /// 그림자 검정 6% · 퍼짐 10 · 아래로 2([GLGFloatingTabBar] · [glgTabBarCircle] 와 같은 값). 예전 ultraThinMaterial 은
+    /// 밑을 지나는 목록이 흐리게 비쳐 바가 떠 보이지 않았다.
+    private struct SelectionBarSurface: ViewModifier {
+        func body(content: Content) -> some View {
+            if #available(iOS 26.0, *) {
+                content.modifier(SystemGlassBar())
+            } else {
+                let shape = Capsule(style: .continuous)
+                content
+                    .background(shape.fill(Color.white).shadow(color: .black.opacity(0.06), radius: 10, y: 2))
+                    .overlay(shape.strokeBorder(GLGColor.divider, lineWidth: 1))
+            }
+        }
     }
 
 

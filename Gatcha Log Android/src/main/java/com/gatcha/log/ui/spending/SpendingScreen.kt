@@ -725,7 +725,9 @@ private fun SelectionActionBar(
 ) {
     Surface(
         // 하단 탭바 바로 위에 붙도록 띄우고, 좌우 16dp 마진의 넓은 알약. 하단바 스타일(그림자 X, 보더 O).
-        modifier = modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 80.dp),
+        // 탭바와 사이 = 캡슐과 + 원 사이(8) — 「맨 위로」 원과 같은 높이 계산([glgAboveTabBarFabBottom], 10/15). 예전엔 내비 바 위 80 고정이라
+        // 넓었다. 토스트는 이 알약 위 8 에 선다(가리는 것). 등록은 바깥 여백 뒤, 알약 면 자체다.
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = glgAboveTabBarFabBottom()).gldsToastObstacle(),
         shape = RoundedCornerShape(50),
         color = Color.White,
         shadowElevation = 0.dp,
