@@ -558,13 +558,6 @@ struct EnkaRosterPage: View {
                     .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .frame(maxWidth: .infinity).padding(.top, 40)
             }
-            // iOS 18 아이폰 이름 검색(10/15, Android 보유 캐릭터와 같다) — 헤더 돋보기로 열고 ✕ 로 닫는다.
-            if GldsHeader18.isActive && searchOpen18 {
-                GldsTextField(placeholder: "캐릭터 이름 검색", text: $query, trailingIcon: .search, focus: $searchFocus18)
-                    .padding(.horizontal, 20).padding(.top, 16)
-                    // 열자마자 칠 수 있어야 한다 — 버튼을 누르고 다시 입력칸을 누르게 하면 두 번 일이다.
-                    .onAppear { searchFocus18 = true }
-            }
             LazyVGrid(columns: cols, spacing: colCount >= 3 ? 8 : 10) {
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
                     // 갈린 상태에선 push 하지 않는다 — 우측 패널만 바꾼다.
@@ -576,7 +569,7 @@ struct EnkaRosterPage: View {
                 }
             }
             // 아래 20 — 섹션 아래 여백과 같다(GLDS 2.0, 10/1). 검색 입력칸이 열려 있으면 그 아래 10(Android 와 같다).
-            .padding(.horizontal, 20).padding(.top, GldsHeader18.isActive && searchOpen18 ? 10 : 16).padding(.bottom, 20)
+            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 20)
         }
         // 검색은 **부를 때만.** 늘 펼쳐 두면 목록보다 먼저 눈에 들어오는데, 정작 이름으로 찾는
         // 일은 드물다(대개 등급·속성으로 좁힌다). 안드로이드는 헤더 돋보기 버튼으로 열고,
@@ -594,7 +587,12 @@ struct EnkaRosterPage: View {
                     colCount = colCount >= 3 ? 2 : 3
                 }
                 Menu { rosterFilterItems(elements: elements, paths: paths) } label: {
-                    GldsHeaderIcon(name: "IconFilter", label: "필터").gldsHeaderCell()
+                    // 걸린 필터 수 배지(10/15, Android 와 같다) — 칩이 없어 화면에서 조건이 안 보이므로 여기서 알린다.
+                    let active = (rarity != 0 ? 1 : 0) + (element.isEmpty ? 0 : 1) + (path.isEmpty ? 0 : 1)
+                    GldsHeaderIcon(name: "IconFilter", label: active > 0 ? "필터 \(active)개 적용됨" : "필터").gldsHeaderCell()
+                        .overlay(alignment: .topTrailing) {
+                            if active > 0 { GldsHeaderBadge(count: active).offset(x: 5, y: -5) }
+                        }
                 }
                 .menuStyle(.button)
                 .buttonStyle(GldsHeaderButtonStyle())
@@ -607,6 +605,13 @@ struct EnkaRosterPage: View {
                 }
             }
         }
+        // iOS 18 아이폰 이름 검색(10/15, Android 와 같다) — 헤더 돋보기로 열면 **헤더가 아래로 늘어나** 입력필드 S 38 이 선다.
+        // 수정자 바깥에 걸어야 헤더(수정자 안)가 이 값을 받는다.
+        .environment(\.gldsHeaderExtension, GldsHeader18.isActive && searchOpen18 ? AnyView(
+            GldsTextField(placeholder: "캐릭터 이름 검색", text: $query, size: .s, trailingIcon: .search, focus: $searchFocus18)
+                // 열자마자 칠 수 있어야 한다 — 버튼을 누르고 다시 입력칸을 누르게 하면 두 번 일이다.
+                .onAppear { searchFocus18 = true }
+        ) : nil)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 열 전환 — 선택은 남는다(매번 바꾸게 하면 안 쓴다).

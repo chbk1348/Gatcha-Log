@@ -64,6 +64,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
+import com.gatcha.log.ui.components.GlgHeaderExtensionHeight
+import com.gatcha.log.ui.components.GlgDropdownMark
+import com.gatcha.log.ui.components.GlgDropdownSectionHeader
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.data.api.ArtifactScore
 import com.gatcha.log.data.api.ArtifactScoring
@@ -93,6 +98,7 @@ import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.GldsIcon
+import com.gatcha.log.ui.components.GldsFieldSize
 import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.RosterSkeleton
@@ -282,60 +288,14 @@ fun EnkaRosterPage(
         modifier = Modifier.fillMaxSize(),
         // 아래 — 마지막 줄 뒤 간격(8|10)과 합쳐 20, 그리고 제스처 바를 비키는 만큼(GLDS 2.0, 10/1).
         contentPadding = PaddingValues(
-            start = 20.dp, end = 20.dp, top = glgDetailContentTop(),
+            // 위 12 — 헤더 바로 아래 첫 줄(GLDS 「첫 섹션 위 12~18」). 퀵필터 줄이 헤더로 올라가며(10/15) 카드가 헤더에 붙었다.
+            start = 20.dp, end = 20.dp, top = glgDetailContentTop() + (if (searchOpen) GlgHeaderExtensionHeight else 0.dp) + 12.dp,
             bottom = (if (cols >= 3) 12.dp else 10.dp) + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
         ),
     ) {
         item {
             Column {
-                // 이름 검색 — 헤더의 돋보기로 연다.
-                if (searchOpen) {
-                    val focus = remember { FocusRequester() }
-                    // 열자마자 칠 수 있어야 한다. 버튼을 누르고 다시 입력칸을 누르게 하면 두 번 일이다.
-                    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-                    GldsTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        placeholder = "캐릭터 이름 검색",
-                        trailingIcon = GldsIcon.Search,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 10.dp)
-                            .focusRequester(focus),
-                    )
-                }
-                // 필터 칩 — 등급 · 속성 · 운명의길(스타레일)
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // 등급 표기는 게임이 쓰는 말을 따른다 — 젠레스는 성급이 아니라 S급/A급이다.
-                    // 열 전환 — 선택은 유지된다(매번 바꾸게 하면 안 쓴다).
-                    Surface(
-                        color = Color.White, shape = RoundedCornerShape(999.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline),
-                        modifier = Modifier.clickable { cols = if (cols >= 3) 2 else 3 },
-                    ) {
-                        Text(
-                            "${cols}열",
-                            fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-                            modifier = Modifier.padding(horizontal = 15.dp, vertical = 10.dp),
-                        )
-                    }
-                    FilterChip(
-                        "등급",
-                        if (rarityFilter == 0) "전체" else rarityShort(game, rarityFilter),
-                        listOf<Pair<String, () -> Unit>>(
-                            "전체" to { rarityFilter = 0 },
-                            rarityShort(game, 5) to { rarityFilter = 5 },
-                            rarityShort(game, 4) to { rarityFilter = 4 },
-                        ),
-                    )
-                    FilterChip("속성", elementFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { elementFilter = "" }) + elements.map { e -> e to { elementFilter = e } })
-                    if (game == "hsr" && paths.isNotEmpty()) {
-                        FilterChip("운명의길", pathFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { pathFilter = "" }) + paths.map { p -> p to { pathFilter = p } })
-                    }
-                }
+                // 열 전환 · 등급 · 속성 · 운명의 길은 헤더로 옮겼다(10/15 지시 — iOS 18 과 같은 [열 | 필터 | 검색]).
                 when {
                     // 아직 받아오는 중 — 빈 목록을 '없음'으로 보여주면 안 된다.
                     all.isEmpty() && (loading || result == null) -> RosterSkeleton()
@@ -374,40 +334,73 @@ fun EnkaRosterPage(
             Spacer(Modifier.height(if (cols >= 3) 8.dp else 10.dp))
         }
     }
-    GlgDetailHeaderOverlay(title, onBack, scrolled) {
-        GlgCircleIconButton(
-            icon = if (searchOpen) GlgLineIcons.Close else GlgLineIcons.Search,
-            contentDescription = if (searchOpen) "검색 닫기" else "이름으로 검색",
-        ) {
-            // 닫을 때 검색어도 지운다. 남겨두면 목록이 걸러진 채로 이유가 화면에서 사라진다.
-            if (searchOpen) query = ""
-            searchOpen = !searchOpen
+    // 걸린 필터 수 — 칩이 헤더로 들어가 화면에서 조건이 안 보이므로 필터 칸에 숫자 배지로 알린다(10/15).
+    val activeFilters = (if (rarityFilter != 0) 1 else 0) + (if (elementFilter.isNotBlank()) 1 else 0) + (if (pathFilter.isNotBlank()) 1 else 0)
+    var filterOpen by remember { mutableStateOf(false) }
+    // 이름 검색 — 헤더의 돋보기로 열면 **헤더가 아래로 늘어나** 입력필드가 선다(10/15 지시, 입력필드 S 38 · 흰 판).
+    val searchField: (@Composable () -> Unit)? = if (!searchOpen) null else {
+        {
+            val focus = remember { FocusRequester() }
+            // 열자마자 칠 수 있어야 한다. 버튼을 누르고 다시 입력칸을 누르게 하면 두 번 일이다.
+            LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+            GldsTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = "캐릭터 이름 검색",
+                size = GldsFieldSize.S,
+                trailingIcon = GldsIcon.Search,
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
         }
     }
+    GlgDetailHeaderOverlay(title, onBack, scrolled, extension = searchField) {
+        // 붙어 있는 셋 [열 전환 | 필터 | 검색] — 캡슐 하나(iOS 18 과 같다).
+        GlgHeaderButtonGroup {
+            GlgHeaderGroupItem(
+                if (cols >= 3) GlgLineIcons.Grid3 else GlgLineIcons.Grid2,
+                if (cols >= 3) "2열로 보기" else "3열로 보기",
+            ) { cols = if (cols >= 3) 2 else 3 }
+            Box {
+                GlgHeaderGroupItem(GlgLineIcons.Filter, "필터", badgeCount = activeFilters) { filterOpen = true }
+                // 메뉴 하나에 축마다 묶음 머리 — 골라도 닫지 않는다(등급과 속성을 이어서 바꾸는 게 보통이다).
+                GlgDropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }, alignEnd = true) {
+                    // 등급 표기는 게임이 쓰는 말을 따른다 — 젠레스는 성급이 아니라 S급/A급이다.
+                    GlgDropdownSectionHeader("등급")
+                    listOf(0, 5, 4).forEach { r ->
+                        GlgDropdownItem(
+                            text = if (r == 0) "전체" else rarityShort(game, r),
+                            selected = rarityFilter == r, mark = GlgDropdownMark.Radio,
+                            onClick = { rarityFilter = r },
+                        )
+                    }
+                    GlgDropdownSectionHeader("속성")
+                    (listOf("") + elements).forEach { e ->
+                        GlgDropdownItem(
+                            text = e.ifBlank { "전체" }, selected = elementFilter == e, mark = GlgDropdownMark.Radio,
+                            onClick = { elementFilter = e },
+                        )
+                    }
+                    if (game == "hsr" && paths.isNotEmpty()) {
+                        GlgDropdownSectionHeader("운명의 길")
+                        (listOf("") + paths).forEach { pth ->
+                            GlgDropdownItem(
+                                text = pth.ifBlank { "전체" }, selected = pathFilter == pth, mark = GlgDropdownMark.Radio,
+                                onClick = { pathFilter = pth },
+                            )
+                        }
+                    }
+                }
+            }
+            GlgHeaderGroupItem(
+                if (searchOpen) GlgLineIcons.Close else GlgLineIcons.Search,
+                if (searchOpen) "검색 닫기" else "이름으로 검색",
+            ) {
+                // 닫을 때 검색어도 지운다. 남겨두면 목록이 걸러진 채로 이유가 화면에서 사라진다.
+                if (searchOpen) query = ""
+                searchOpen = !searchOpen
+            }
+        }
     }
-}
-
-@Composable
-private fun FilterChip(label: String, current: String, items: List<Pair<String, () -> Unit>>) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Surface(
-            color = Color.White, shape = RoundedCornerShape(999.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline),
-            modifier = Modifier.clickable { expanded = true },
-        ) {
-            // 터치 영역을 넉넉히 — 11.5sp·세로 6dp 는 손가락으로 누르기에 작았다.
-            Row(Modifier.padding(horizontal = 15.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("$label·$current", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.width(5.dp))
-                Text("▾", fontSize = 11.sp, color = TextSecondary)
-            }
-        }
-        GlgDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            items.forEach { (disp, act) ->
-                GlgDropdownItem(text = disp, onClick = { act(); expanded = false })
-            }
-        }
     }
 }
 

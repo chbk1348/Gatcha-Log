@@ -210,7 +210,33 @@ internal object GlgLineIcons {
         "M15 14V15",
     )
 
-    /** 검색 — 보유 캐릭터 헤더(Android · iOS 는 시스템 검색 막대). */
+    /** 열 전환(2열 보기) — 보유 캐릭터 헤더(10/15 퀵필터를 헤더로 옮기며 iOS IconGrid2 와 같은 경로로 추가). */
+    val Grid2: ImageVector = line(
+        "IconGrid2",
+        "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
+        "M12 3V21",
+        "M3 12H21",
+    )
+
+    /** 열 전환(3열 보기) — iOS IconGrid3 와 같은 경로. */
+    val Grid3: ImageVector = line(
+        "IconGrid3",
+        "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
+        "M9 3V21",
+        "M15 3V21",
+        "M3 9H21",
+        "M3 15H21",
+    )
+
+    /** 필터 — 보유 캐릭터 헤더(등급 · 속성 · 운명의 길 메뉴). iOS IconFilter 와 같은 경로(10/14 지웠다가 10/15 다시 씀). */
+    val Filter: ImageVector = line(
+        "IconFilter",
+        "M3 5.25H21",
+        "M6.38 12H17.62",
+        "M9.75 18.75H14.25",
+    )
+
+    /** 검색 — 보유 캐릭터 헤더(Android · iOS 18 아이폰, iOS 26 은 시스템 검색 막대). */
     val Search: ImageVector = line(
         "IconSearch",
         "M10.5 4A6.5 6.5 0 1 1 10.5 17A6.5 6.5 0 0 1 10.5 4Z",
