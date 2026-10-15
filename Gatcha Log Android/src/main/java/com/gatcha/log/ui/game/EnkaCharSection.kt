@@ -375,12 +375,9 @@ fun EnkaRosterPage(
         }
     }
     GlgDetailHeaderOverlay(title, onBack, scrolled) {
-        // 게임정보 계열 헤더 버튼은 전부 `outlined + solidBackground` 다 — 여기만 다르면 튄다.
         GlgCircleIconButton(
             icon = if (searchOpen) GlgLineIcons.Close else GlgLineIcons.Search,
             contentDescription = if (searchOpen) "검색 닫기" else "이름으로 검색",
-            outlined = true,
-            solidBackground = true,
         ) {
             // 닫을 때 검색어도 지운다. 남겨두면 목록이 걸러진 채로 이유가 화면에서 사라진다.
             if (searchOpen) query = ""
@@ -691,8 +688,6 @@ fun EnkaStatPage(
                 GlgCircleIconButton(
                     icon = GlgLineIcons.Adjust,
                     contentDescription = "점수 기준",
-                    outlined = true,
-                    solidBackground = heroBg == null,
                     tint = heroTint,
                     background = heroBg,
                 ) { basisOpen = true }

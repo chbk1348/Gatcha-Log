@@ -107,6 +107,8 @@ import com.gatcha.log.data.HoyolandProgram
 import com.gatcha.log.data.api.HoyolandApi
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgHeaderElementHeight
+import com.gatcha.log.ui.components.glgHeaderSurface
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.ChipIdleBorder
 import com.gatcha.log.ui.components.ChipIdleText
@@ -544,8 +546,7 @@ fun HoyolandDetailPage(
                     actions = {
                         if (e.goodsGuide.isNotBlank()) {
                             com.gatcha.log.ui.components.GlgCircleIconButton(
-                                // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
-                                com.gatcha.log.ui.components.GlgLineIcons.Info, "굿즈존 이용 안내", outlined = true, solidBackground = true,
+                                com.gatcha.log.ui.components.GlgLineIcons.Info, "굿즈존 이용 안내",
                             ) { goodsGuideOpen = true }
                         }
                     },
@@ -600,8 +601,6 @@ fun HoyolandDetailPage(
                         GlgCircleIconButton(
                             com.gatcha.log.ui.components.GlgLineIcons.Rotate,
                             if (mapRotated) "세로로 보기" else "가로로 보기",
-                            // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
-                            outlined = true, solidBackground = true,
                         ) { mapSpinOnce = true; mapRotated = !mapRotated }
                     },
                     scrollable = !mapRotated,
@@ -662,20 +661,19 @@ fun HoyolandDetailPage(
                         //
                         // 글자를 쓰는 이유는 아이콘 하나로 "내 입장권"이 안 읽히기 때문이다. 면·테두리·
                         // 높이는 헤더 원형 버튼([GlgCircleIconButton])과 같은 값이라 같은 줄에서 따로
-                        // 놀지 않는다(흰 배경 · 1.5dp 테두리 · 44dp).
+                        // 놀지 않는다(헤더 면 [glgHeaderSurface] — 흰 바탕 · 테두리 1 · 들뜸 그림자 · [GlgHeaderElementHeight], 10/15).
+                        // 날짜를 고른 뒤에는 테두리만 강조색 55% 1.5 로 바꾼다 — 골랐다는 사실을 색이 싣는다.
                         // 종료 · 일정 미정이면 고를 날이 없다 — 버튼째 걷는다.
                         val entryDays = e.entryDayCount(entry)   // 기간 안 날짜만
                         if (e.hasEntryGroups && !e.phase().isOffSeason) {
                             val goingLabel = if (entryDays == 0) "내 입장권" else "${entryDays}일"
                             Row(
                                 Modifier
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .background(Color.White)
-                                    .border(
-                                        1.5.dp,
-                                        if (entryDays == 0) Color.Black.copy(alpha = 0.12f) else accent.copy(alpha = 0.55f),
-                                        RoundedCornerShape(22.dp),
+                                    .height(GlgHeaderElementHeight)
+                                    .glgHeaderSurface()
+                                    .then(
+                                        if (entryDays == 0) Modifier
+                                        else Modifier.border(1.5.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(50))
                                     )
                                     .clickable { entrySheetOpen = true }
                                     .padding(horizontal = 13.dp),
@@ -684,7 +682,7 @@ fun HoyolandDetailPage(
                                 Icon(
                                     com.gatcha.log.ui.components.GlgLineIcons.Ticket,
                                     contentDescription = null,
-                                    tint = if (entryDays == 0) TextSecondary else accentDeep,
+                                    tint = if (entryDays == 0) TextPrimary else accentDeep,
                                     modifier = Modifier.size(17.dp),
                                 )
                                 Spacer(Modifier.width(5.dp))

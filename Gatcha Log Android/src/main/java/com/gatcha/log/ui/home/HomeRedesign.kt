@@ -101,7 +101,9 @@ import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgHeaderButtonGroup
+import com.gatcha.log.ui.components.GlgHeaderElementHeight
+import com.gatcha.log.ui.components.GlgHeaderGroupItem
 import com.gatcha.log.ui.components.GlgLineIcons
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.components.SkeletonBox
@@ -141,52 +143,50 @@ fun HomeHeader(
     onSignOut: () -> Unit,
     onSignIn: () -> Unit,
 ) {
-    // 프로필(아바타+닉네임) 탭 → 로그아웃 드롭다운. 우측 알림벨.
-    // 프로필은 다른 헤더 버튼(알림벨)과 동일 톤의 알약 버튼 — accent 10% 배경 + accent 30% 아웃라인.
-    val accent = LocalAccent.current
+    // 프로필(아바타+닉네임) 탭 → 로그아웃 드롭다운. 그 옆 알림벨.
+    // 프로필과 알림을 **캡슐 하나**로 묶고 사이에 세로선을 둔다(C 「묶음 캡슐」, 10/15) — 둘 다 '나'에 관한 것이라 붙여 둔다.
+    // 캡슐은 왼쪽에 놓인다(시안 그대로). 오른쪽은 비운다.
     var menuOpen by remember { mutableStateOf(false) }
     Row(
-        // 다른 탭(GlgTabHeader)과 동일한 높이·세로 여백. 가로만 홈 고유(알약이 좌측 끝에 붙는 레이아웃).
+        // 다른 탭(GlgTabHeader)과 동일한 높이·세로 여백. 가로 여백은 없다 — 캡슐 왼쪽이 다른 탭 헤더와 같은 16 에 선다.
         modifier = Modifier
             .fillMaxWidth()
             .height(GlgTabHeaderHeight)
-            .padding(start = 4.dp, end = 2.dp, top = 12.dp, bottom = 16.dp),
+            .padding(top = 12.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White)                     // 불투명 베이스(콘텐츠 비침 방지)
-                    .background(accent.copy(alpha = 0.10f))      // 위에 accent 틴트
-                    .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
-                    .height(44.dp)                               // 헤더 원형 버튼(44dp)과 높이 통일
-                    .clickable { menuOpen = true }
-                    .padding(start = 5.dp, end = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ProfileAvatar(photoUrl = photoUrl, size = 30.dp)
-                Spacer(Modifier.width(8.dp))
-                Text(nickname, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+        // 안쪽 여백 0 — 프로필 칸이 왼쪽 4 · 오른쪽 14 를, 알림 칸(52)이 오른쪽 둥근 끝을 스스로 갖는다.
+        // 사진(36)은 캡슐 높이(48) 가운데에 선다 — 위아래 6.
+        GlgHeaderButtonGroup(contentPadding = PaddingValues(0.dp)) {
+            Box {
+                Row(
+                    modifier = Modifier
+                        .height(GlgHeaderElementHeight)
+                        .clickable { menuOpen = true }
+                        .padding(start = 4.dp, end = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ProfileAvatar(photoUrl = photoUrl, size = 36.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(nickname, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                }
+                GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    GlgDropdownItem(
+                        text = if (isGuest) "로그인" else "로그아웃",
+                        icon = if (isGuest) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout,
+                        danger = !isGuest,
+                        onClick = { menuOpen = false; if (isGuest) onSignIn() else onSignOut() },
+                    )
+                }
             }
-            GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                GlgDropdownItem(
-                    text = if (isGuest) "로그인" else "로그아웃",
-                    icon = if (isGuest) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout,
-                    danger = !isGuest,
-                    onClick = { menuOpen = false; if (isGuest) onSignIn() else onSignOut() },
-                )
-            }
+            GlgHeaderGroupItem(
+                GlgLineIcons.Bell,
+                contentDescription = "알림",
+                width = GlgHeaderElementHeight + 4.dp,   // 52 — 둥근 오른쪽 끝을 더 받는다(시안 48 + 칸 커진 만큼)
+                badgeCount = alertCount,
+                onClick = onBellClick,
+            )
         }
-        Spacer(Modifier.weight(1f))
-        GlgCircleIconButton(
-            GlgLineIcons.Bell,
-            contentDescription = "알림",
-            badgeCount = alertCount,
-            outlined = true,
-            solidBackground = true,
-            onClick = onBellClick,
-        )
     }
 }
 
