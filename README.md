@@ -197,6 +197,7 @@ iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https:/
 
 본 앱은 **개인이 만든 비상업 팬 프로젝트**이며, 각 게임사와 무관한 비공식 앱입니다.
 
+- **소스 코드 라이선스: [MIT](LICENSE)** — 이 저장소의 코드는 자유롭게 쓰고 고치고 배포할 수 있습니다(저작권 · 허가 문구 유지). **아래 게임 콘텐츠 · 아이콘 · 이미지와 외부 데이터는 MIT 대상이 아니며** 각 권리자의 조건을 따릅니다.
 - 게임 콘텐츠 및 재화·캐릭터 아이콘의 저작권은 각 권리자에게 있습니다 —
   **© HoYoverse**(원신 · 붕괴: 스타레일 · 젠레스 존 제로) · **© Kuro Games**(명조) · **© Hypergryph / Yostar**(명일방주: 엔드필드) 등.
 - 데이터·에셋 제공: [enka.network](https://enka.network) · [mihomo.me](https://api.mihomo.me) · [Project Amber (ambr.top)](https://ambr.top) · ennead.cc · HoYoLAB
