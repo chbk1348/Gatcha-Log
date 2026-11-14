@@ -19,7 +19,7 @@ kotlin {
     // ── Android 타겟 ──────────────────────────────────────────────
     android {
         namespace = "com.gatcha.log.shared"
-        compileSdk = 36 // :Gatcha Log Android(36)과 정합 — 단일 클래스패스 소비
+        compileSdk = 37 // :Gatcha Log Android(37)과 정합 — 단일 클래스패스 소비
         minSdk = 31 // :Gatcha Log Android 와 동일 — "최소 지원 OS"의 답이 두 개가 되지 않게 맞춘다
 
         compilerOptions {
