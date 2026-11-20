@@ -1147,9 +1147,10 @@ object HoyolabApi {
                         endMillis = cur?.optJSONObject("schedule")?.optString("end_time")?.toLongOrNull()?.times(1000) ?: 0L,
                         hasData = has))
                 }
+                fetch(HARD_CHALLENGE_URL, "need_detail=true&role_id=$uid&server=$server")?.let { add(hardChallengeMode(game, it)) }
             }
             "hsr" -> buildList {
-                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS, server)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge","role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(peakMode(game, it, server)) }
@@ -1197,6 +1198,8 @@ object HoyolabApi {
                         arr?.optJSONObject(i)?.let { add(roleCombatClear(game, it, current = i == 0)) }
                     }
                 }
+                // 지맥 제압전도 지난 기간을 data 배열에 함께 준다.
+                fetch(HARD_CHALLENGE_URL, "need_detail=true&role_id=$uid&server=$server")?.let { addAll(hardChallengeClears(game, it)) }
             }
             "hsr" -> buildList {
                 val modes = listOf(
@@ -1276,6 +1279,60 @@ object HoyolabApi {
         }
         val season = cur.optJSONObject("schedule")?.optString("schedule_id").orEmpty()
         return CombatClear(game, "현실 속 환상극", season, current, rooms)
+    }
+
+    /**
+     * 원신 지맥 제압전(Stygian Onslaught, `hard_challenge`). 별이 없고 **난이도 · 소요 시간**으로 매긴다 —
+     * 시유 방어전처럼 CombatMode.badge / CombatClear.scoreLabel / CombatRoom.rating 에 싣는다.
+     * `data[]` 한 항목이 한 기간이고 `schedule.is_valid` 가 이번 기간이다. 1인 기록(`single`)만 쓴다.
+     * 필드 이름은 genshin.py `HardChallenge` 모델 기준(2026-11-20).
+     * shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾸고, 멀티(`mp`)를 보일지 정한다.
+     */
+    private const val HARD_CHALLENGE_URL = "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/hard_challenge"
+    private const val HARD_CHALLENGE = "지맥 제압전"
+
+    private fun hardChallengeSeasons(d: JSONObject): List<JSONObject> =
+        d.optJSONArray("data")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty()
+
+    private fun hardBest(item: JSONObject?): JSONObject? =
+        item?.optJSONObject("single")?.takeIf { it.optBoolean("has_data") }?.optJSONObject("best")
+
+    private fun hardLabel(best: JSONObject?): String =
+        best?.let { "난이도 ${it.optInt("difficulty")} · ${it.optInt("second")}초" }.orEmpty()
+
+    private fun hardChallengeMode(game: String, d: JSONObject): CombatMode {
+        val seasons = hardChallengeSeasons(d)
+        val cur = seasons.firstOrNull { it.optJSONObject("schedule")?.optBoolean("is_valid") == true } ?: seasons.firstOrNull()
+        val best = hardBest(cur)
+        return CombatMode(
+            game, HARD_CHALLENGE,
+            detail = if (best != null) "최단 ${best.optInt("second")}초" else "이번 기간 미도전",
+            endMillis = cur?.optJSONObject("schedule")?.optString("end_time")?.toLongOrNull()?.times(1000) ?: 0L,
+            hasData = best != null,
+            badge = best?.let { "난이도 ${it.optInt("difficulty")}" }.orEmpty(),
+        )
+    }
+
+    /** 이번 기간(is_valid, 없으면 첫 항목)과 그 다음 하나를 지난 기간으로. 다른 모드처럼 2개까지만. */
+    internal fun hardChallengeClears(game: String, d: JSONObject): List<CombatClear> {
+        val seasons = hardChallengeSeasons(d)
+        val cur = seasons.firstOrNull { it.optJSONObject("schedule")?.optBoolean("is_valid") == true } ?: seasons.firstOrNull()
+        val past = seasons.firstOrNull { it !== cur }
+        return listOfNotNull(cur?.let { hardChallengeClear(game, it, true) }, past?.let { hardChallengeClear(game, it, false) })
+    }
+
+    private fun hardChallengeClear(game: String, item: JSONObject, current: Boolean): CombatClear {
+        val list = item.optJSONObject("single")?.optJSONArray("challenge")
+        val rooms = buildList {
+            for (i in 0 until (list?.length() ?: 0)) {
+                val c = list?.optJSONObject(i) ?: continue
+                add(CombatRoom(name = c.optString("name"), rating = "${c.optInt("second")}초", firstHalf = avatars(c.optJSONArray("teams"))))
+            }
+        }.filterNot { it.isEmpty }
+        return CombatClear(
+            game, HARD_CHALLENGE, item.optJSONObject("schedule")?.optString("name").orEmpty(), current, rooms,
+            scoreLabel = hardLabel(hardBest(item)),
+        )
     }
 
     /** 스타레일 3종 공통: all_floor_detail[] → node_1 / node_2. */
