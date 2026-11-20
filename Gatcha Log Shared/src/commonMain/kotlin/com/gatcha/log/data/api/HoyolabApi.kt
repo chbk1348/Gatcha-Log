@@ -648,6 +648,9 @@ object HoyolabApi {
             Triple("시유 방어전 v2 (지난)", "hadal_info_v2", "role_id=$uid&server=$server&schedule_type=2"),
             Triple("위험 구역 (이번)", "mem_detail", "uid=$uid&region=$server&schedule_type=1"),
             Triple("위험 구역 (지난)", "mem_detail", "uid=$uid&region=$server&schedule_type=2"),
+            // 27.60.0: 신호 탐색 기록을 authkey 없이 HoYoLAB 토큰으로 받을 수 있는지 본다(genshin.py 기준 경로 · 값).
+            Triple("신호 탐색 기록 (상시)", "gacha_record", "uid=$uid&region=$server&gacha_type=GACHA_TYPE_PERMANENT&end_id=0"),
+            Triple("신호 탐색 기록 (독점)", "gacha_record", "uid=$uid&region=$server&gacha_type=GACHA_TYPE_CHARACTER_UP&end_id=0"),
         )
         val out = mutableListOf("UID $uid · 서버 $server")
         for ((label, path, query) in candidates) {
