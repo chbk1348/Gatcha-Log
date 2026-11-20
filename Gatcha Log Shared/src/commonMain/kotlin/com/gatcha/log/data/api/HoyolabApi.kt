@@ -1250,6 +1250,7 @@ object HoyolabApi {
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(peakMode(game, it, server)) }
+                fetch(ROGUE_URL, "need_detail=true&role_id=$uid&schedule_type=3&server=$server")?.let { add(rogueMode(game, it, server)) }
             }
             else -> emptyList()
         }
@@ -1346,6 +1347,8 @@ object HoyolabApi {
                     "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak",
                     "need_all=true&role_id=$uid&schedule_type=3&server=$server",
                 )?.let { addAll(peakClears(game, it)) }
+                // 시뮬레이션 우주는 이번 · 지난 기간이 한 응답(current_record · last_record)에 온다.
+                fetch(ROGUE_URL, "need_detail=true&role_id=$uid&schedule_type=3&server=$server")?.let { addAll(rogueClears(game, it)) }
             }
             else -> emptyList<CombatClear>()
         }.map { it.orNoRecord() }.takeIf { anyOk }
@@ -1549,6 +1552,51 @@ object HoyolabApi {
             }
         }.filterNot { it.isEmpty }
         return CombatClear(game, "이상 중재", r.optJSONObject("group")?.optString("name_mi18n").orEmpty(), current, rooms)
+    }
+
+    /**
+     * 스타레일 시뮬레이션 우주(`rogue`). 별 · 주간 점수 만점이 없어 **기간 안 클리어 횟수**를 값으로 싣고,
+     * 판마다 이름 · 난이도 · 점수 · 최종 편성(`final_lineup`)을 한 칸으로 둔다.
+     * 필드 이름은 genshin.py `StarRailRogue` 모델 기준(2026-11-20). `schedule_type=3` 은 genshin.py 기본값이다.
+     * shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾼다.
+     */
+    private const val ROGUE_URL = "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/rogue"
+    private const val ROGUE = "시뮬레이션 우주"
+
+    private fun rogueMode(game: String, d: JSONObject, server: String): CombatMode {
+        val cur = d.optJSONObject("current_record")
+        val basic = cur?.optJSONObject("basic")
+        val has = cur?.optBoolean("has_data") == true
+        return CombatMode(
+            game, ROGUE,
+            detail = dayRange(basic?.optJSONObject("schedule_begin"), basic?.optJSONObject("schedule_end")).ifBlank { "기록 없음" },
+            endMillis = basic?.optJSONObject("schedule_end")?.let { hsrTimeMillis(it, server) } ?: 0L,
+            hasData = has,
+            badge = if (has) "${basic?.optInt("finish_cnt") ?: 0}회 클리어" else "",
+        )
+    }
+
+    internal fun rogueClears(game: String, d: JSONObject): List<CombatClear> =
+        listOfNotNull(
+            d.optJSONObject("current_record")?.let { rogueClear(game, it, true) },
+            d.optJSONObject("last_record")?.let { rogueClear(game, it, false) },
+        )
+
+    private fun rogueClear(game: String, rec: JSONObject, current: Boolean): CombatClear {
+        val list = rec.optJSONArray("records")
+        val rooms = buildList {
+            for (i in 0 until (list?.length() ?: 0)) {
+                val r = list?.optJSONObject(i) ?: continue
+                add(CombatRoom(
+                    name = r.optString("name"),
+                    rating = r.optInt("difficulty").takeIf { it > 0 }?.let { "난이도 $it" }.orEmpty(),
+                    detail = r.optInt("score").takeIf { it > 0 }?.let { "${thousands(it)}점" }.orEmpty(),
+                    firstHalf = avatars(r.optJSONArray("final_lineup")),
+                ))
+            }
+        }.filterNot { it.isEmpty }
+        val basic = rec.optJSONObject("basic")
+        return CombatClear(game, ROGUE, dayRange(basic?.optJSONObject("schedule_begin"), basic?.optJSONObject("schedule_end")), current, rooms)
     }
 
     /** 전투 응답의 avatars 배열 → 모델. 원신·스타레일이 같은 필드명을 쓴다(id·icon·level·rarity). */
