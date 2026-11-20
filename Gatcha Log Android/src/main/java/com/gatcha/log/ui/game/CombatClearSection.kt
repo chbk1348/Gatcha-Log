@@ -541,9 +541,9 @@ private fun RoomExpanded(room: CombatRoom, season: String, onToggle: () -> Unit)
                 // 한 편성뿐인 모드(현실 속 환상극) — '전반' 칩이 붙으면 후반이 빠진 것처럼 읽힌다.
                 HalfRow(null, room.firstHalf)
             } else {
-                HalfRow(HalfChip("전반", FirstHalfColor, FirstHalfChipBg), room.firstHalf)
+                HalfRow(HalfChip(room.firstLabel, FirstHalfColor, FirstHalfChipBg), room.firstHalf)
                 HorizontalDivider(color = PanelDivider)
-                HalfRow(HalfChip("후반", SecondHalfText, SecondHalfChipBg), room.secondHalf)
+                HalfRow(HalfChip(room.secondLabel, SecondHalfText, SecondHalfChipBg), room.secondHalf)
             }
         }
     }

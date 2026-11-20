@@ -1573,7 +1573,7 @@ class SpendingViewModel : ViewModel() {
     fun debugProbeZzzCombat(onResult: (List<String>) -> Unit) {
         val cfg = _hoyolabConfig.value
         viewModelScope.launch {
-            onResult(withContext(Dispatchers.IO) { HoyolabApi.debugProbeZzzCombat(cfg.ltuid, cfg.ltoken, cfg.zzzUid) })
+            onResult(withContext(Dispatchers.IO) { HoyolabApi.debugProbeZzzCombat(cfg.ltuid, cfg.ltoken, cfg.zzzUid, cfg.hsrUid) })
         }
     }
 

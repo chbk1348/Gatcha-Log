@@ -639,8 +639,9 @@ object HoyolabApi {
      * 경로 · 필드는 공개 라이브러리 기준 추정이라 붙이기 전에 실제 응답 구조를 확인한다. 후보마다 retcode 와
      * 키 구조(두 단계까지)를 돌려주고, 원문 앞부분을 로그("GatchaHoyo zzzProbe")에 남긴다. 토큰은 싣지 않는다.
      */
-    suspend fun debugProbeZzzCombat(ltuid: String, ltoken: String, uid: String): List<String> {
-        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return listOf("HoYoLAB 연동 · 젠레스 UID 가 필요해요")
+    suspend fun debugProbeZzzCombat(ltuid: String, ltoken: String, uid: String, hsrUid: String = ""): List<String> {
+        val hsr = debugProbeHsrCurrencyWars(ltuid, ltoken, hsrUid)
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return hsr + "HoYoLAB 연동 · 젠레스 UID 가 필요해요"
         val server = inferServer("zzz", uid)
         val base = "https://sg-public-api.hoyolab.com/event/game_record_zzz/api/zzz/"
         // 1차 확인(9/29): 옛 `challenge` 는 404, `hadal_info_v2` · `mem_detail` 이 현행. 이번엔 속 구조를 본다.
@@ -653,7 +654,7 @@ object HoyolabApi {
             Triple("신호 탐색 기록 (상시)", "gacha_record", "uid=$uid&region=$server&gacha_type=GACHA_TYPE_PERMANENT&end_id=0"),
             Triple("신호 탐색 기록 (독점)", "gacha_record", "uid=$uid&region=$server&gacha_type=GACHA_TYPE_CHARACTER_UP&end_id=0"),
         )
-        val out = mutableListOf("UID $uid · 서버 $server")
+        val out = (hsr + "젠레스 UID $uid · 서버 $server").toMutableList()
         for ((label, path, query) in candidates) {
             val res = Net.get("$base$path?$query", zzzHeaders(ltuid, ltoken, query, path))
             println("GatchaHoyo zzzProbe [$path?${query.substringAfter("server=").substringBefore('&')}] HTTP ${res.code} ${res.body.take(3000)}")
@@ -662,6 +663,30 @@ object HoyolabApi {
             val data = json.optJSONObject("data")
             out += "$label — HTTP ${res.code} · retcode ${json.optInt("retcode", -999)} ${json.optString("message")}"
             if (data != null) out += "  data: ${describeKeys(data, maxDepth = 4)}"
+        }
+        return out
+    }
+
+    /**
+     * **개발자 화면 전용** — 스타레일 화폐전쟁 엔드포인트 찾기(27.60.0). 공개 라이브러리에 없어 경로는 **추측**이다
+     * (게임 데이터의 내부 이름 GridFight 기준). 대조군으로 동작이 확인된 `challenge_peak` 를 함께 부른다.
+     * 404 · retcode ≠ 0 이면 그 경로는 없다. 원문 앞부분을 로그("GatchaHoyo hsrProbe")에 남긴다. 토큰은 싣지 않는다.
+     */
+    private suspend fun debugProbeHsrCurrencyWars(ltuid: String, ltoken: String, uid: String): List<String> {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return listOf("스타레일 UID 가 없어 화폐전쟁 후보는 건너뛰었어요")
+        val server = inferServer("hsr", uid)
+        val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
+        val paths = listOf("challenge_peak", "grid_fight", "challenge_grid_fight", "gridfight", "currency_war", "currency_wars", "challenge_currency")
+        val out = mutableListOf("스타레일 UID $uid · 서버 $server")
+        for (path in paths) {
+            val query = "need_all=true&role_id=$uid&schedule_type=1&server=$server"
+            val res = Net.get("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/$path?$query", recordHeaders(cookie, query).build())
+            println("GatchaHoyo hsrProbe [$path] HTTP ${res.code} ${res.body.take(3000)}")
+            val json = runCatching { JSONObject(res.body) }.getOrNull()
+            val label = if (path == "challenge_peak") "이상 중재 (대조군)" else "화폐전쟁 후보 $path"
+            if (json == null) { out += "$label — HTTP ${res.code} · JSON 아님"; continue }
+            out += "$label — HTTP ${res.code} · retcode ${json.optInt("retcode", -999)} ${json.optString("message")}"
+            json.optJSONObject("data")?.let { out += "  data: ${describeKeys(it, maxDepth = 2)}" }
         }
         return out
     }
@@ -1251,6 +1276,7 @@ object HoyolabApi {
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(peakMode(game, it, server)) }
                 fetch(ROGUE_URL, "need_detail=true&role_id=$uid&schedule_type=3&server=$server")?.let { add(rogueMode(game, it, server)) }
+                fetch(GRID_FIGHT_URL, "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(gridFightMode(game, it)) }
             }
             else -> emptyList()
         }
@@ -1349,6 +1375,8 @@ object HoyolabApi {
                 )?.let { addAll(peakClears(game, it)) }
                 // 시뮬레이션 우주는 이번 · 지난 기간이 한 응답(current_record · last_record)에 온다.
                 fetch(ROGUE_URL, "need_detail=true&role_id=$uid&schedule_type=3&server=$server")?.let { addAll(rogueClears(game, it)) }
+                // 화폐전쟁은 시즌으로 나뉘지 않은 최근 판 기록만 온다 — 카드 하나.
+                fetch(GRID_FIGHT_URL, "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(gridFightClear(game, it)) }
             }
             else -> emptyList<CombatClear>()
         }.map { it.orNoRecord() }.takeIf { anyOk }
@@ -1597,6 +1625,58 @@ object HoyolabApi {
         }.filterNot { it.isEmpty }
         val basic = rec.optJSONObject("basic")
         return CombatClear(game, ROGUE, dayRange(basic?.optJSONObject("schedule_begin"), basic?.optJSONObject("schedule_end")), current, rooms)
+    }
+
+    /**
+     * 스타레일 화폐전쟁(`grid_fight`). 2026-11-20 실측(개발자 메뉴 후보 확인 — 공개 라이브러리에는 없다).
+     * `grid_fight_brief` 에 주간 점수(`weekly_score_cur/max`) · 등급(`division`) · 시즌 레벨, `grid_fight_archive_list`
+     * 에 최근 판(시각 · 평가 · 앞줄 3 / 뒷줄 5 편성)이 온다. 숫자는 전부 문자열로 온다(optInt 가 읽는다).
+     * 주간 마감 시각 필드가 없어 D-day · 마감 알림은 없다.
+     */
+    private const val GRID_FIGHT_URL = "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/grid_fight"
+    private const val GRID_FIGHT = "화폐전쟁"
+
+    /** "재물의 창조주 8 · 시즌 레벨 70" */
+    private fun gridFightRank(b: JSONObject?): String = listOfNotNull(
+        b?.optJSONObject("division")?.optString("name_with_num")?.ifBlank { null },
+        b?.optInt("season_level")?.takeIf { it > 0 }?.let { "시즌 레벨 $it" },
+    ).joinToString(" · ")
+
+    private fun gridFightMode(game: String, d: JSONObject): CombatMode {
+        val b = d.optJSONObject("grid_fight_brief")
+        val has = b?.optBoolean("has_played") == true
+        return CombatMode(
+            game, GRID_FIGHT,
+            stars = b?.optInt("weekly_score_cur") ?: 0, maxStars = b?.optInt("weekly_score_max") ?: 0,
+            detail = gridFightRank(b).ifBlank { if (has) "" else "기록 없음" },
+            hasData = has,
+        )
+    }
+
+    /** 최근 판마다 한 칸 — 시각 · 평가(A) · 앞줄 / 뒷줄 편성. */
+    internal fun gridFightClear(game: String, d: JSONObject): CombatClear {
+        val list = d.optJSONArray("grid_fight_archive_list")
+        val rooms = buildList {
+            for (i in 0 until (list?.length() ?: 0)) {
+                val a = list?.optJSONObject(i) ?: continue
+                val brief = a.optJSONObject("brief")
+                val ts = brief?.optLong("archive_time_ts") ?: 0L
+                val lineup = a.optJSONObject("lineup")
+                add(CombatRoom(
+                    name = if (ts > 0) DateUtil.shortDateTime(ts * 1000) else "${i + 1}",
+                    rating = brief?.optString("archive_rank").orEmpty().removePrefix("GridFightArchiveRank"),
+                    firstHalf = avatars(lineup?.optJSONArray("front_roles")),
+                    secondHalf = avatars(lineup?.optJSONArray("back_roles")),
+                    firstLabel = "앞줄", secondLabel = "뒷줄",
+                ))
+            }
+        }.filterNot { it.isEmpty }
+        val b = d.optJSONObject("grid_fight_brief")
+        val score = b?.optInt("weekly_score_max")?.takeIf { it > 0 }?.let { "주간 ${thousands(b.optInt("weekly_score_cur"))} / ${thousands(it)}" }
+        return CombatClear(
+            game, GRID_FIGHT, current = true, rooms = rooms,
+            scoreLabel = listOfNotNull(b?.optJSONObject("division")?.optString("name_with_num")?.ifBlank { null }, score).joinToString(" · "),
+        )
     }
 
     /** 전투 응답의 avatars 배열 → 모델. 원신·스타레일이 같은 필드명을 쓴다(id·icon·level·rarity). */

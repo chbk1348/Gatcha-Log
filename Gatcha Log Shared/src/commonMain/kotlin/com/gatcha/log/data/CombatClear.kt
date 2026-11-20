@@ -39,6 +39,9 @@ data class CombatRoom(
     val rating: String = "",
     val firstHalf: List<CombatAvatar> = emptyList(),
     val secondHalf: List<CombatAvatar> = emptyList(),
+    /** 두 편성의 칩 이름 — 화폐전쟁은 "앞줄" · "뒷줄"(27.60.0). */
+    val firstLabel: String = "전반",
+    val secondLabel: String = "후반",
 ) {
     /** 편성이 하나도 안 잡힌 층 — 목록에서 뺀다(안 깬 층까지 줄줄이 나오면 화면만 길어진다). */
     val isEmpty: Boolean get() = firstHalf.isEmpty() && secondHalf.isEmpty()
