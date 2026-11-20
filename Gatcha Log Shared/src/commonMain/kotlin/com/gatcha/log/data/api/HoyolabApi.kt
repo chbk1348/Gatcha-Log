@@ -710,7 +710,83 @@ object HoyolabApi {
                     hasData = has,
                 ))
             }
+            zzzRecord(ltuid, ltoken, THRESHOLD_BRIEF, "uid=$uid&region=$server&schedule_type=1")
+                ?.optJSONObject("void_front_battle_abstract_info_brief")?.let { add(thresholdMode(it)) }
+            zzzRecord(ltuid, ltoken, "holo_boss_detail", "uid=$uid&region=$server&schedule_type=1")?.let { add(annihilationMode(it, server)) }
         }
+    }
+
+    // ----------------------------------------------------------------- 젠레스 임계 시뮬레이션 · 모의 세계 섬멸전
+    //
+    // 필드 이름은 genshin.py `ThresholdSimulation` · `AnnihilationSimulacrum` 모델 기준(2026-11-20).
+    // shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾼다.
+    private const val THRESHOLD = "임계 시뮬레이션"
+    private const val THRESHOLD_BRIEF = "void_front_battle_period_abstract_info"
+    private const val ANNIHILATION = "모의 세계 섬멸전"
+
+    /** "123,456점 · 상위 15.59%" — 기록이 없으면 빈 문자열. */
+    private fun thresholdScore(b: JSONObject): String {
+        if (!b.optBoolean("has_ending_record")) return ""
+        val rank = b.optInt("rank_percent")
+        return listOfNotNull("${thousands(b.optInt("total_score"))}점", rank.takeIf { it > 0 }?.let { "상위 ${percentLabel(it)}" })
+            .joinToString(" · ")
+    }
+
+    // shortcut: brief 에 절대 마감 시각이 없다(`end_ts` 는 남은 시간이고 단위 미상) — D-day 는 비운다.
+    private fun thresholdMode(b: JSONObject): CombatMode {
+        val has = b.optBoolean("has_ending_record")
+        val rank = b.optInt("rank_percent")
+        return CombatMode(
+            Game.ZZZ.displayName, THRESHOLD,
+            detail = when { !has -> "이번 기간 미도전"; rank > 0 -> "상위 ${percentLabel(rank)}"; else -> "" },
+            hasData = has,
+            badge = if (has) "${thousands(b.optInt("total_score"))}점" else "",
+        )
+    }
+
+    /** 보스전 1칸 + 일반 전투 칸들. 칸마다 평가(S/A/B) · 점수 · 편성 하나. 보조 전투(sub_challenge_record)는 뺀다. */
+    internal fun thresholdClear(brief: JSONObject, detail: JSONObject?, current: Boolean): CombatClear {
+        fun room(c: JSONObject, name: String) = CombatRoom(
+            name = name,
+            rating = c.optString("star"),
+            detail = c.optInt("score").takeIf { it > 0 }?.let { "${thousands(it)} / ${thousands(c.optInt("max_score"))}점" }.orEmpty(),
+            firstHalf = zzzTeam(c.optJSONArray("avatar_list"), c.optJSONObject("buddy")),
+        )
+        val rooms = buildList {
+            detail?.optJSONObject("boss_challenge_record")?.let { b ->
+                b.optJSONObject("main_challenge_record")?.let { add(room(it, b.optJSONObject("boss_info")?.optString("name").orEmpty())) }
+            }
+            val list = detail?.optJSONArray("main_challenge_record_list")
+            for (i in 0 until (list?.length() ?: 0)) list?.optJSONObject(i)?.let { add(room(it, it.optString("name"))) }
+        }.filterNot { it.isEmpty }
+        return CombatClear(Game.ZZZ.displayName, THRESHOLD, current = current, rooms = rooms, scoreLabel = thresholdScore(brief))
+    }
+
+    private fun annihilationList(d: JSONObject): List<JSONObject> =
+        d.optJSONArray("list")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty()
+
+    // shortcut: 만점을 몰라 진행 막대 없이 별 합계만 보인다.
+    private fun annihilationMode(d: JSONObject, server: String): CombatMode {
+        val list = annihilationList(d)
+        val stars = list.sumOf { it.optInt("star") }
+        return CombatMode(
+            Game.ZZZ.displayName, ANNIHILATION, stars = stars,
+            detail = if (list.isNotEmpty()) dayRange(d.optJSONObject("start_time"), d.optJSONObject("end_time")) else "이번 기간 미도전",
+            endMillis = d.optJSONObject("end_time")?.let { hsrTimeMillis(it, server) } ?: 0L,
+            hasData = list.isNotEmpty(),
+            badge = if (list.isNotEmpty()) "★$stars" else "",
+        )
+    }
+
+    /** 보스마다 한 칸 — 별 · 편성(에이전트만, 봉플러는 안 온다). */
+    internal fun annihilationClear(d: JSONObject, current: Boolean): CombatClear {
+        val rooms = annihilationList(d).map { c ->
+            CombatRoom(name = c.optJSONObject("boss")?.optString("name").orEmpty(), stars = c.optInt("star"), firstHalf = zzzTeam(c.optJSONArray("avatar_list"), null))
+        }.filterNot { it.isEmpty }
+        return CombatClear(
+            Game.ZZZ.displayName, ANNIHILATION,
+            season = dayRange(d.optJSONObject("start_time"), d.optJSONObject("end_time")), current = current, rooms = rooms,
+        )
     }
 
     /** 클리어 편성용 — 시유 방어전 이번 · 지난 기간. 둘 다 못 받으면 null(실패). */
@@ -724,6 +800,23 @@ object HoyolabApi {
             // 편성이 없어도 사유(note)가 있으면 남긴다 — 화면이 그 한 줄을 그린다.
             d.optJSONObject("hadal_info_v2")?.let { hadalClear(it, current) }
                 ?.takeIf { it.hasLineup || it.note.isNotBlank() }?.let { out += it }
+        }
+        // 임계 시뮬레이션 — 상세는 brief 의 void_front_id 가 있어야 받는다.
+        for ((type, current) in listOf(1 to true, 2 to false)) {
+            val brief = zzzRecord(ltuid, ltoken, THRESHOLD_BRIEF, "uid=$uid&region=$server&schedule_type=$type")
+                ?.optJSONObject("void_front_battle_abstract_info_brief") ?: continue
+            anyOk = true
+            val id = brief.optInt("void_front_id")
+            val detail = if (id != 0 && brief.optBoolean("has_ending_record")) {
+                zzzRecord(ltuid, ltoken, "void_front_battle_period_detail", "uid=$uid&region=$server&void_front_id=$id&schedule_type=$type")
+                    ?.optJSONObject("void_front_battle_detail")
+            } else null
+            out += thresholdClear(brief, detail, current).orNoRecord()
+        }
+        for ((type, current) in listOf(1 to true, 2 to false)) {
+            val d = zzzRecord(ltuid, ltoken, "holo_boss_detail", "uid=$uid&region=$server&schedule_type=$type") ?: continue
+            anyOk = true
+            out += annihilationClear(d, current).orNoRecord()
         }
         return out.takeIf { anyOk }
     }
@@ -814,11 +907,10 @@ object HoyolabApi {
     private fun zzzRarity(r: String): Int = when (r) { "S" -> 5; "A" -> 4; "B" -> 3; else -> 0 }
 
     /** "9/18~10/2" — 기간 시작 · 끝(서버가 준 연월일 그대로). */
-    private fun periodLabel(h: JSONObject): String {
-        val b = h.optJSONObject("hadal_begin_time") ?: return ""
-        val e = h.optJSONObject("hadal_end_time") ?: return ""
-        return "${b.optInt("month")}/${b.optInt("day")}~${e.optInt("month")}/${e.optInt("day")}"
-    }
+    private fun periodLabel(h: JSONObject): String = dayRange(h.optJSONObject("hadal_begin_time"), h.optJSONObject("hadal_end_time"))
+
+    private fun dayRange(b: JSONObject?, e: JSONObject?): String =
+        if (b == null || e == null) "" else "${b.optInt("month")}/${b.optInt("day")}~${e.optInt("month")}/${e.optInt("day")}"
 
     private fun thousands(n: Int): String = com.gatcha.log.util.num(n)   // 천 단위 콤마 — 공용 한 벌
 
