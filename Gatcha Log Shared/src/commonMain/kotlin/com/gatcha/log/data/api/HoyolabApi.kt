@@ -1152,6 +1152,8 @@ object HoyolabApi {
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12, server)) }
+                // shortcut: 이상 중재 응답이 다른 세 모드와 같은 모양(groups · star_num · max_floor)이라고 가정했고 만점도 몰라 0. 실제 응답 픽스처를 받으면 확정한다.
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "이상 중재", it, 0, server)) }
             }
             else -> emptyList()
         }
@@ -1202,6 +1204,8 @@ object HoyolabApi {
                     "challenge" to "혼돈의 기억",
                     "challenge_story" to "허구 이야기",
                     "challenge_boss" to "종말의 환영",
+                    // shortcut: all_floor_detail · node_1/2 모양이라고 가정했다. 응답이 다르면 전용 파서 peakClear 를 둔다.
+                    "challenge_peak" to "이상 중재",
                 )
                 modes.forEach { (path, name) ->
                     schedules.forEach { (type, current) ->
