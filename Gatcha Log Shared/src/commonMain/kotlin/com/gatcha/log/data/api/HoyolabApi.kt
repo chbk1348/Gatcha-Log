@@ -1152,8 +1152,7 @@ object HoyolabApi {
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12, server)) }
-                // shortcut: 이상 중재 응답이 다른 세 모드와 같은 모양(groups · star_num · max_floor)이라고 가정했고 만점도 몰라 0. 실제 응답 픽스처를 받으면 확정한다.
-                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "이상 중재", it, 0, server)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(peakMode(game, it, server)) }
             }
             else -> emptyList()
         }
@@ -1204,8 +1203,6 @@ object HoyolabApi {
                     "challenge" to "혼돈의 기억",
                     "challenge_story" to "허구 이야기",
                     "challenge_boss" to "종말의 환영",
-                    // shortcut: all_floor_detail · node_1/2 모양이라고 가정했다. 응답이 다르면 전용 파서 peakClear 를 둔다.
-                    "challenge_peak" to "이상 중재",
                 )
                 modes.forEach { (path, name) ->
                     schedules.forEach { (type, current) ->
@@ -1215,6 +1212,11 @@ object HoyolabApi {
                         )?.let { add(hsrClear(game, name, it, current, starMax = if (path == "challenge") 3 else 0)) }
                     }
                 }
+                // 이상 중재는 schedule_type=2 가 없다 — 3 한 번에 최근 시즌 여럿이 온다.
+                fetch(
+                    "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak",
+                    "need_all=true&role_id=$uid&schedule_type=3&server=$server",
+                )?.let { addAll(peakClears(game, it)) }
             }
             else -> emptyList<CombatClear>()
         }.map { it.orNoRecord() }.takeIf { anyOk }
@@ -1315,6 +1317,55 @@ object HoyolabApi {
             game, mode, group?.optString("name_mi18n").orEmpty(), current, rooms,
             maxTotal = if (rooms.any { it.name.contains(STARRISE) }) MOC_MAX_STARS else 0,
         )
+    }
+
+    /**
+     * 스타레일 이상 중재(challenge_peak). 다른 세 모드와 모양이 다르다 — `challenge_peak_records[]` 한 항목이
+     * 한 시즌이고, 그 안에 잡몹 기록 여럿(`mob_records`)과 보스 기록 하나(`boss_record`)가 있다.
+     * 필드 이름은 genshin.py `AnomalyArbitration` 모델 기준(2026-11-20).
+     * shortcut: 실응답으로 확인하지 않았고 만점도 몰라 0(분모 없이 ★N). 실제 응답을 받으면 픽스처로 바꾼다.
+     */
+    private fun peakRecords(d: JSONObject): List<JSONObject> =
+        d.optJSONArray("challenge_peak_records")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty()
+
+    private fun peakMode(game: String, d: JSONObject, server: String): CombatMode {
+        val r = peakRecords(d).firstOrNull()
+        val group = r?.optJSONObject("group")
+        return CombatMode(
+            game, "이상 중재",
+            stars = (r?.optInt("boss_stars") ?: 0) + (r?.optInt("mob_stars") ?: 0), maxStars = 0,
+            detail = group?.optString("name_mi18n").orEmpty().ifBlank { "기록 없음" },
+            endMillis = group?.optJSONObject("end_time")?.let { hsrTimeMillis(it, server) } ?: 0L,
+            hasData = r?.optBoolean("has_challenge_record") == true,
+        )
+    }
+
+    /** 이번 시즌(status=Running, 없으면 첫 항목)과 그 다음 하나를 지난 시즌으로. 다른 모드처럼 2개까지만. */
+    internal fun peakClears(game: String, d: JSONObject): List<CombatClear> {
+        val records = peakRecords(d)
+        val cur = records.firstOrNull { it.optJSONObject("group")?.optString("status") == "Running" } ?: records.firstOrNull()
+        val past = records.firstOrNull { it !== cur }
+        return listOfNotNull(cur?.let { peakClear(game, it, true) }, past?.let { peakClear(game, it, false) })
+    }
+
+    private fun peakClear(game: String, r: JSONObject, current: Boolean): CombatClear {
+        val mobNames = r.optJSONArray("mob_infos")?.let { a ->
+            (0 until a.length()).mapNotNull { a.optJSONObject(it) }.associate { it.optInt("maze_id") to it.optString("name") }
+        }.orEmpty()
+        val rooms = buildList {
+            val mobs = r.optJSONArray("mob_records")
+            for (i in 0 until (mobs?.length() ?: 0)) {
+                val m = mobs?.optJSONObject(i) ?: continue
+                add(CombatRoom(name = mobNames[m.optInt("maze_id")].orEmpty(), stars = m.optInt("star_num"), firstHalf = avatars(m.optJSONArray("avatars"))))
+            }
+            r.optJSONObject("boss_record")?.let { b ->
+                add(CombatRoom(
+                    name = r.optJSONObject("boss_info")?.optString("name_mi18n").orEmpty(),
+                    stars = b.optInt("star_num"), firstHalf = avatars(b.optJSONArray("avatars")),
+                ))
+            }
+        }.filterNot { it.isEmpty }
+        return CombatClear(game, "이상 중재", r.optJSONObject("group")?.optString("name_mi18n").orEmpty(), current, rooms)
     }
 
     /** 전투 응답의 avatars 배열 → 모델. 원신·스타레일이 같은 필드명을 쓴다(id·icon·level·rarity). */
