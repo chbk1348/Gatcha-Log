@@ -1,6 +1,7 @@
 package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
+import com.gatcha.log.util.num
 import kotlin.math.ceil
 
 /** HoYoLAB 연동 정보 (쿠키 + 게임별 UID) */
@@ -396,6 +397,21 @@ data class CombatMode(
     fun dDay(now: Long = currentTimeMillis()): Int? =
         if (endMillis <= 0) null else DateUtil.daysLeft(endMillis, now)
 }
+
+/**
+ * 게임 계정 통계(HoYoLAB game_record `index`) — 전투 콘텐츠 게임 섹션 머리 아래 지표 줄(27.60.0 B안).
+ * 화면 표기는 [cells] 한 곳에서 만든다(Android · iOS 같은 값).
+ */
+data class AccountStats(val game: String, val activeDays: Int, val achievements: Int, val characters: Int) {
+    fun cells(): List<StatCell> = listOf(
+        StatCell("${num(activeDays)}일", "활동 일수"),
+        StatCell(num(achievements), "업적"),
+        StatCell(num(characters), if (game == Game.ZZZ.displayName) "에이전트" else "캐릭터"),
+    )
+}
+
+/** 지표 칸 하나 — 값 15 Bold · 라벨 12. */
+data class StatCell(val value: String, val label: String)
 
 /** 전투 진행도 요약 머리 — 만점 [full] / 전체 [total], 만점 아닌 모드 중 가장 급한 마감 [urgentDDay](없으면 null). */
 data class CombatSummary(val full: Int, val total: Int, val urgentDDay: Int?) {

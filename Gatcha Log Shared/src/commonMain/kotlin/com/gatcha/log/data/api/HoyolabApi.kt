@@ -1,5 +1,6 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.data.AccountStats
 import com.gatcha.log.data.ErrorBus
 import com.gatcha.log.data.CombatAvatar
 import com.gatcha.log.data.CombatClear
@@ -1252,6 +1253,36 @@ object HoyolabApi {
             }
             else -> emptyList()
         }
+    }
+
+    // ----------------------------------------------------------------- 계정 통계(index)
+    /**
+     * 활동 일수 · 업적 · 보유 캐릭터 수. 실패 · 미연동이면 null.
+     * 키 이름이 게임마다 다르다 — genshin.py 모델 기준(2026-11-20).
+     * shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾼다.
+     */
+    suspend fun getAccountStats(ltuid: String, ltoken: String, gameKey: String, uid: String): AccountStats? {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
+        val q = "role_id=$uid&server=${inferServer(gameKey, uid)}"
+        val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
+        val data = when (gameKey) {
+            "genshin" -> recordData(cookie, "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/index", "avatar_list_type=0&$q")
+            "hsr" -> recordData(cookie, "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/index", q)
+            "zzz" -> zzzRecord(ltuid, ltoken, "index", q)
+            else -> null
+        } ?: return null
+        return accountStats(gameFor(gameKey).displayName, data)
+    }
+
+    internal fun accountStats(game: String, d: JSONObject): AccountStats? {
+        val s = d.optJSONObject("stats") ?: return null
+        fun pick(vararg keys: String) = keys.firstNotNullOfOrNull { k -> s.optInt(k, -1).takeIf { it >= 0 } } ?: 0
+        return AccountStats(
+            game,
+            activeDays = pick("active_day_number", "active_days"),
+            achievements = pick("achievement_number", "achievement_num", "achievement_count"),
+            characters = pick("avatar_number", "avatar_num"),
+        )
     }
 
     // ----------------------------------------------------------------- 엔드 콘텐츠 클리어 상세

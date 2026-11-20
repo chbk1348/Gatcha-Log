@@ -155,7 +155,7 @@ private struct ListRow<Content: View>: View {
 }
 
 /// 세 칸 지표 줄 — 값 15 · 라벨 12, 왼쪽 정렬.
-private struct StatTriple: View {
+struct StatTriple: View {
     let cells: [(String, String)]
     var body: some View {
         HStack(spacing: 0) {
