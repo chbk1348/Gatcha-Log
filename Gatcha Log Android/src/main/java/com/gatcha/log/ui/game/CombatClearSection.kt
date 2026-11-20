@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -449,7 +450,7 @@ private fun RoomCollapsed(room: CombatRoom, season: String, onToggle: () -> Unit
             .semantics { stateDescription = "접힘" }
             .padding(vertical = 12.dp),
     ) {
-        FloorName(room, season, Modifier.width(36.dp))
+        FloorName(room, season, Modifier.widthIn(min = 36.dp))   // iOS 와 같다 — 최소 36, 긴 이름(이상 중재 보스 · 잡몹)은 다 보인다
         Spacer(Modifier.width(8.dp))
         StarChip(room)
         Row(
