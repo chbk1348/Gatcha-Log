@@ -108,6 +108,7 @@ fun GameInfoScreen(
     val newsFailed by viewModel.newsFailed.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     val combat by viewModel.combat.collectAsStateWithLifecycle()
+    val accountStats by viewModel.accountStats.collectAsStateWithLifecycle()
     val combatClears by viewModel.combatClears.collectAsStateWithLifecycle()
     val combatClearsLoading by viewModel.combatClearsLoading.collectAsStateWithLifecycle()
     val combatClearsFailed by viewModel.combatClearsFailed.collectAsStateWithLifecycle()
@@ -349,6 +350,7 @@ fun GameInfoScreen(
                 GameTabbedSection(
                     banners = banners,
                     combat = combat,
+                    stats = accountStats,
                     ledgers = ledgers,
                     isRefreshing = isRefreshing,
                     linked = hoyolab.isLinked,

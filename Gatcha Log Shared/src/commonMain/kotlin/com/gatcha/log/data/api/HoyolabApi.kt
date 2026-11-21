@@ -1,5 +1,6 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.data.AccountStats
 import com.gatcha.log.data.ErrorBus
 import com.gatcha.log.data.CombatAvatar
 import com.gatcha.log.data.CombatClear
@@ -638,8 +639,9 @@ object HoyolabApi {
      * 경로 · 필드는 공개 라이브러리 기준 추정이라 붙이기 전에 실제 응답 구조를 확인한다. 후보마다 retcode 와
      * 키 구조(두 단계까지)를 돌려주고, 원문 앞부분을 로그("GatchaHoyo zzzProbe")에 남긴다. 토큰은 싣지 않는다.
      */
-    suspend fun debugProbeZzzCombat(ltuid: String, ltoken: String, uid: String): List<String> {
-        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return listOf("HoYoLAB 연동 · 젠레스 UID 가 필요해요")
+    suspend fun debugProbeZzzCombat(ltuid: String, ltoken: String, uid: String, hsrUid: String = ""): List<String> {
+        val hsr = debugProbeHsrCurrencyWars(ltuid, ltoken, hsrUid)
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return hsr + "HoYoLAB 연동 · 젠레스 UID 가 필요해요"
         val server = inferServer("zzz", uid)
         val base = "https://sg-public-api.hoyolab.com/event/game_record_zzz/api/zzz/"
         // 1차 확인(9/29): 옛 `challenge` 는 404, `hadal_info_v2` · `mem_detail` 이 현행. 이번엔 속 구조를 본다.
@@ -648,8 +650,11 @@ object HoyolabApi {
             Triple("시유 방어전 v2 (지난)", "hadal_info_v2", "role_id=$uid&server=$server&schedule_type=2"),
             Triple("위험 구역 (이번)", "mem_detail", "uid=$uid&region=$server&schedule_type=1"),
             Triple("위험 구역 (지난)", "mem_detail", "uid=$uid&region=$server&schedule_type=2"),
+            // 27.60.0: 신호 탐색 기록을 authkey 없이 HoYoLAB 토큰으로 받을 수 있는지 본다(genshin.py 기준 경로 · 값).
+            Triple("신호 탐색 기록 (상시)", "gacha_record", "uid=$uid&region=$server&gacha_type=GACHA_TYPE_PERMANENT&end_id=0"),
+            Triple("신호 탐색 기록 (독점)", "gacha_record", "uid=$uid&region=$server&gacha_type=GACHA_TYPE_CHARACTER_UP&end_id=0"),
         )
-        val out = mutableListOf("UID $uid · 서버 $server")
+        val out = (hsr + "젠레스 UID $uid · 서버 $server").toMutableList()
         for ((label, path, query) in candidates) {
             val res = Net.get("$base$path?$query", zzzHeaders(ltuid, ltoken, query, path))
             println("GatchaHoyo zzzProbe [$path?${query.substringAfter("server=").substringBefore('&')}] HTTP ${res.code} ${res.body.take(3000)}")
@@ -658,6 +663,30 @@ object HoyolabApi {
             val data = json.optJSONObject("data")
             out += "$label — HTTP ${res.code} · retcode ${json.optInt("retcode", -999)} ${json.optString("message")}"
             if (data != null) out += "  data: ${describeKeys(data, maxDepth = 4)}"
+        }
+        return out
+    }
+
+    /**
+     * **개발자 화면 전용** — 스타레일 화폐전쟁 엔드포인트 찾기(27.60.0). 공개 라이브러리에 없어 경로는 **추측**이다
+     * (게임 데이터의 내부 이름 GridFight 기준). 대조군으로 동작이 확인된 `challenge_peak` 를 함께 부른다.
+     * 404 · retcode ≠ 0 이면 그 경로는 없다. 원문 앞부분을 로그("GatchaHoyo hsrProbe")에 남긴다. 토큰은 싣지 않는다.
+     */
+    private suspend fun debugProbeHsrCurrencyWars(ltuid: String, ltoken: String, uid: String): List<String> {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return listOf("스타레일 UID 가 없어 화폐전쟁 후보는 건너뛰었어요")
+        val server = inferServer("hsr", uid)
+        val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
+        val paths = listOf("challenge_peak", "grid_fight", "challenge_grid_fight", "gridfight", "currency_war", "currency_wars", "challenge_currency")
+        val out = mutableListOf("스타레일 UID $uid · 서버 $server")
+        for (path in paths) {
+            val query = "need_all=true&role_id=$uid&schedule_type=1&server=$server"
+            val res = Net.get("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/$path?$query", recordHeaders(cookie, query).build())
+            println("GatchaHoyo hsrProbe [$path] HTTP ${res.code} ${res.body.take(3000)}")
+            val json = runCatching { JSONObject(res.body) }.getOrNull()
+            val label = if (path == "challenge_peak") "이상 중재 (대조군)" else "화폐전쟁 후보 $path"
+            if (json == null) { out += "$label — HTTP ${res.code} · JSON 아님"; continue }
+            out += "$label — HTTP ${res.code} · retcode ${json.optInt("retcode", -999)} ${json.optString("message")}"
+            json.optJSONObject("data")?.let { out += "  data: ${describeKeys(it, maxDepth = 2)}" }
         }
         return out
     }
@@ -707,7 +736,83 @@ object HoyolabApi {
                     hasData = has,
                 ))
             }
+            zzzRecord(ltuid, ltoken, THRESHOLD_BRIEF, "uid=$uid&region=$server&schedule_type=1")
+                ?.optJSONObject("void_front_battle_abstract_info_brief")?.let { add(thresholdMode(it)) }
+            zzzRecord(ltuid, ltoken, "holo_boss_detail", "uid=$uid&region=$server&schedule_type=1")?.let { add(annihilationMode(it, server)) }
         }
+    }
+
+    // ----------------------------------------------------------------- 젠레스 임계 시뮬레이션 · 모의 세계 섬멸전
+    //
+    // 필드 이름은 genshin.py `ThresholdSimulation` · `AnnihilationSimulacrum` 모델 기준(2026-11-20).
+    // shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾼다.
+    private const val THRESHOLD = "임계 시뮬레이션"
+    private const val THRESHOLD_BRIEF = "void_front_battle_period_abstract_info"
+    private const val ANNIHILATION = "모의 세계 섬멸전"
+
+    /** "123,456점 · 상위 15.59%" — 기록이 없으면 빈 문자열. */
+    private fun thresholdScore(b: JSONObject): String {
+        if (!b.optBoolean("has_ending_record")) return ""
+        val rank = b.optInt("rank_percent")
+        return listOfNotNull("${thousands(b.optInt("total_score"))}점", rank.takeIf { it > 0 }?.let { "상위 ${percentLabel(it)}" })
+            .joinToString(" · ")
+    }
+
+    // shortcut: brief 에 절대 마감 시각이 없다(`end_ts` 는 남은 시간이고 단위 미상) — D-day 는 비운다.
+    private fun thresholdMode(b: JSONObject): CombatMode {
+        val has = b.optBoolean("has_ending_record")
+        val rank = b.optInt("rank_percent")
+        return CombatMode(
+            Game.ZZZ.displayName, THRESHOLD,
+            detail = when { !has -> "이번 기간 미도전"; rank > 0 -> "상위 ${percentLabel(rank)}"; else -> "" },
+            hasData = has,
+            badge = if (has) "${thousands(b.optInt("total_score"))}점" else "",
+        )
+    }
+
+    /** 보스전 1칸 + 일반 전투 칸들. 칸마다 평가(S/A/B) · 점수 · 편성 하나. 보조 전투(sub_challenge_record)는 뺀다. */
+    internal fun thresholdClear(brief: JSONObject, detail: JSONObject?, current: Boolean): CombatClear {
+        fun room(c: JSONObject, name: String) = CombatRoom(
+            name = name,
+            rating = c.optString("star"),
+            detail = c.optInt("score").takeIf { it > 0 }?.let { "${thousands(it)} / ${thousands(c.optInt("max_score"))}점" }.orEmpty(),
+            firstHalf = zzzTeam(c.optJSONArray("avatar_list"), c.optJSONObject("buddy")),
+        )
+        val rooms = buildList {
+            detail?.optJSONObject("boss_challenge_record")?.let { b ->
+                b.optJSONObject("main_challenge_record")?.let { add(room(it, b.optJSONObject("boss_info")?.optString("name").orEmpty())) }
+            }
+            val list = detail?.optJSONArray("main_challenge_record_list")
+            for (i in 0 until (list?.length() ?: 0)) list?.optJSONObject(i)?.let { add(room(it, it.optString("name"))) }
+        }.filterNot { it.isEmpty }
+        return CombatClear(Game.ZZZ.displayName, THRESHOLD, current = current, rooms = rooms, scoreLabel = thresholdScore(brief))
+    }
+
+    private fun annihilationList(d: JSONObject): List<JSONObject> =
+        d.optJSONArray("list")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty()
+
+    // shortcut: 만점을 몰라 진행 막대 없이 별 합계만 보인다.
+    private fun annihilationMode(d: JSONObject, server: String): CombatMode {
+        val list = annihilationList(d)
+        val stars = list.sumOf { it.optInt("star") }
+        return CombatMode(
+            Game.ZZZ.displayName, ANNIHILATION, stars = stars,
+            detail = if (list.isNotEmpty()) dayRange(d.optJSONObject("start_time"), d.optJSONObject("end_time")) else "이번 기간 미도전",
+            endMillis = d.optJSONObject("end_time")?.let { hsrTimeMillis(it, server) } ?: 0L,
+            hasData = list.isNotEmpty(),
+            badge = if (list.isNotEmpty()) "★$stars" else "",
+        )
+    }
+
+    /** 보스마다 한 칸 — 별 · 편성(에이전트만, 봉플러는 안 온다). */
+    internal fun annihilationClear(d: JSONObject, current: Boolean): CombatClear {
+        val rooms = annihilationList(d).map { c ->
+            CombatRoom(name = c.optJSONObject("boss")?.optString("name").orEmpty(), stars = c.optInt("star"), firstHalf = zzzTeam(c.optJSONArray("avatar_list"), null))
+        }.filterNot { it.isEmpty }
+        return CombatClear(
+            Game.ZZZ.displayName, ANNIHILATION,
+            season = dayRange(d.optJSONObject("start_time"), d.optJSONObject("end_time")), current = current, rooms = rooms,
+        )
     }
 
     /** 클리어 편성용 — 시유 방어전 이번 · 지난 기간. 둘 다 못 받으면 null(실패). */
@@ -721,6 +826,23 @@ object HoyolabApi {
             // 편성이 없어도 사유(note)가 있으면 남긴다 — 화면이 그 한 줄을 그린다.
             d.optJSONObject("hadal_info_v2")?.let { hadalClear(it, current) }
                 ?.takeIf { it.hasLineup || it.note.isNotBlank() }?.let { out += it }
+        }
+        // 임계 시뮬레이션 — 상세는 brief 의 void_front_id 가 있어야 받는다.
+        for ((type, current) in listOf(1 to true, 2 to false)) {
+            val brief = zzzRecord(ltuid, ltoken, THRESHOLD_BRIEF, "uid=$uid&region=$server&schedule_type=$type")
+                ?.optJSONObject("void_front_battle_abstract_info_brief") ?: continue
+            anyOk = true
+            val id = brief.optInt("void_front_id")
+            val detail = if (id != 0 && brief.optBoolean("has_ending_record")) {
+                zzzRecord(ltuid, ltoken, "void_front_battle_period_detail", "uid=$uid&region=$server&void_front_id=$id&schedule_type=$type")
+                    ?.optJSONObject("void_front_battle_detail")
+            } else null
+            out += thresholdClear(brief, detail, current).orNoRecord()
+        }
+        for ((type, current) in listOf(1 to true, 2 to false)) {
+            val d = zzzRecord(ltuid, ltoken, "holo_boss_detail", "uid=$uid&region=$server&schedule_type=$type") ?: continue
+            anyOk = true
+            out += annihilationClear(d, current).orNoRecord()
         }
         return out.takeIf { anyOk }
     }
@@ -811,11 +933,10 @@ object HoyolabApi {
     private fun zzzRarity(r: String): Int = when (r) { "S" -> 5; "A" -> 4; "B" -> 3; else -> 0 }
 
     /** "9/18~10/2" — 기간 시작 · 끝(서버가 준 연월일 그대로). */
-    private fun periodLabel(h: JSONObject): String {
-        val b = h.optJSONObject("hadal_begin_time") ?: return ""
-        val e = h.optJSONObject("hadal_end_time") ?: return ""
-        return "${b.optInt("month")}/${b.optInt("day")}~${e.optInt("month")}/${e.optInt("day")}"
-    }
+    private fun periodLabel(h: JSONObject): String = dayRange(h.optJSONObject("hadal_begin_time"), h.optJSONObject("hadal_end_time"))
+
+    private fun dayRange(b: JSONObject?, e: JSONObject?): String =
+        if (b == null || e == null) "" else "${b.optInt("month")}/${b.optInt("day")}~${e.optInt("month")}/${e.optInt("day")}"
 
     private fun thousands(n: Int): String = com.gatcha.log.util.num(n)   // 천 단위 콤마 — 공용 한 벌
 
@@ -1147,14 +1268,48 @@ object HoyolabApi {
                         endMillis = cur?.optJSONObject("schedule")?.optString("end_time")?.toLongOrNull()?.times(1000) ?: 0L,
                         hasData = has))
                 }
+                fetch(HARD_CHALLENGE_URL, "need_detail=true&role_id=$uid&server=$server")?.let { add(hardChallengeMode(game, it)) }
             }
             "hsr" -> buildList {
-                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS, server)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge","role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12, server)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12, server)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(peakMode(game, it, server)) }
+                fetch(ROGUE_URL, "need_detail=true&role_id=$uid&schedule_type=3&server=$server")?.let { add(rogueMode(game, it, server)) }
+                fetch(GRID_FIGHT_URL, "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(gridFightMode(game, it)) }
             }
             else -> emptyList()
         }
+    }
+
+    // ----------------------------------------------------------------- 계정 통계(index)
+    /**
+     * 활동 일수 · 업적 · 보유 캐릭터 수. 실패 · 미연동이면 null.
+     * 키 이름이 게임마다 다르다 — genshin.py 모델 기준(2026-11-20).
+     * shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾼다.
+     */
+    suspend fun getAccountStats(ltuid: String, ltoken: String, gameKey: String, uid: String): AccountStats? {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
+        val q = "role_id=$uid&server=${inferServer(gameKey, uid)}"
+        val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
+        val data = when (gameKey) {
+            "genshin" -> recordData(cookie, "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/index", "avatar_list_type=0&$q")
+            "hsr" -> recordData(cookie, "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/index", q)
+            "zzz" -> zzzRecord(ltuid, ltoken, "index", q)
+            else -> null
+        } ?: return null
+        return accountStats(gameFor(gameKey).displayName, data)
+    }
+
+    internal fun accountStats(game: String, d: JSONObject): AccountStats? {
+        val s = d.optJSONObject("stats") ?: return null
+        fun pick(vararg keys: String) = keys.firstNotNullOfOrNull { k -> s.optInt(k, -1).takeIf { it >= 0 } } ?: 0
+        return AccountStats(
+            game,
+            activeDays = pick("active_day_number", "active_days"),
+            achievements = pick("achievement_number", "achievement_num", "achievement_count"),
+            characters = pick("avatar_number", "avatar_num"),
+        )
     }
 
     // ----------------------------------------------------------------- 엔드 콘텐츠 클리어 상세
@@ -1196,6 +1351,8 @@ object HoyolabApi {
                         arr?.optJSONObject(i)?.let { add(roleCombatClear(game, it, current = i == 0)) }
                     }
                 }
+                // 지맥 제압전도 지난 기간을 data 배열에 함께 준다.
+                fetch(HARD_CHALLENGE_URL, "need_detail=true&role_id=$uid&server=$server")?.let { addAll(hardChallengeClears(game, it)) }
             }
             "hsr" -> buildList {
                 val modes = listOf(
@@ -1211,6 +1368,15 @@ object HoyolabApi {
                         )?.let { add(hsrClear(game, name, it, current, starMax = if (path == "challenge") 3 else 0)) }
                     }
                 }
+                // 이상 중재는 schedule_type=2 가 없다 — 3 한 번에 최근 시즌 여럿이 온다.
+                fetch(
+                    "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_peak",
+                    "need_all=true&role_id=$uid&schedule_type=3&server=$server",
+                )?.let { addAll(peakClears(game, it)) }
+                // 시뮬레이션 우주는 이번 · 지난 기간이 한 응답(current_record · last_record)에 온다.
+                fetch(ROGUE_URL, "need_detail=true&role_id=$uid&schedule_type=3&server=$server")?.let { addAll(rogueClears(game, it)) }
+                // 화폐전쟁은 시즌으로 나뉘지 않은 최근 판 기록만 온다 — 카드 하나.
+                fetch(GRID_FIGHT_URL, "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(gridFightClear(game, it)) }
             }
             else -> emptyList<CombatClear>()
         }.map { it.orNoRecord() }.takeIf { anyOk }
@@ -1272,6 +1438,60 @@ object HoyolabApi {
         return CombatClear(game, "현실 속 환상극", season, current, rooms)
     }
 
+    /**
+     * 원신 지맥 제압전(Stygian Onslaught, `hard_challenge`). 별이 없고 **난이도 · 소요 시간**으로 매긴다 —
+     * 시유 방어전처럼 CombatMode.badge / CombatClear.scoreLabel / CombatRoom.rating 에 싣는다.
+     * `data[]` 한 항목이 한 기간이고 `schedule.is_valid` 가 이번 기간이다. 1인 기록(`single`)만 쓴다.
+     * 필드 이름은 genshin.py `HardChallenge` 모델 기준(2026-11-20).
+     * shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾸고, 멀티(`mp`)를 보일지 정한다.
+     */
+    private const val HARD_CHALLENGE_URL = "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/hard_challenge"
+    private const val HARD_CHALLENGE = "지맥 제압전"
+
+    private fun hardChallengeSeasons(d: JSONObject): List<JSONObject> =
+        d.optJSONArray("data")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty()
+
+    private fun hardBest(item: JSONObject?): JSONObject? =
+        item?.optJSONObject("single")?.takeIf { it.optBoolean("has_data") }?.optJSONObject("best")
+
+    private fun hardLabel(best: JSONObject?): String =
+        best?.let { "난이도 ${it.optInt("difficulty")} · ${it.optInt("second")}초" }.orEmpty()
+
+    private fun hardChallengeMode(game: String, d: JSONObject): CombatMode {
+        val seasons = hardChallengeSeasons(d)
+        val cur = seasons.firstOrNull { it.optJSONObject("schedule")?.optBoolean("is_valid") == true } ?: seasons.firstOrNull()
+        val best = hardBest(cur)
+        return CombatMode(
+            game, HARD_CHALLENGE,
+            detail = if (best != null) "최단 ${best.optInt("second")}초" else "이번 기간 미도전",
+            endMillis = cur?.optJSONObject("schedule")?.optString("end_time")?.toLongOrNull()?.times(1000) ?: 0L,
+            hasData = best != null,
+            badge = best?.let { "난이도 ${it.optInt("difficulty")}" }.orEmpty(),
+        )
+    }
+
+    /** 이번 기간(is_valid, 없으면 첫 항목)과 그 다음 하나를 지난 기간으로. 다른 모드처럼 2개까지만. */
+    internal fun hardChallengeClears(game: String, d: JSONObject): List<CombatClear> {
+        val seasons = hardChallengeSeasons(d)
+        val cur = seasons.firstOrNull { it.optJSONObject("schedule")?.optBoolean("is_valid") == true } ?: seasons.firstOrNull()
+        val past = seasons.firstOrNull { it !== cur }
+        return listOfNotNull(cur?.let { hardChallengeClear(game, it, true) }, past?.let { hardChallengeClear(game, it, false) })
+    }
+
+    private fun hardChallengeClear(game: String, item: JSONObject, current: Boolean): CombatClear {
+        val list = item.optJSONObject("single")?.optJSONArray("challenge")
+        val rooms = buildList {
+            for (i in 0 until (list?.length() ?: 0)) {
+                val c = list?.optJSONObject(i) ?: continue
+                add(CombatRoom(name = c.optString("name"), rating = "${c.optInt("second")}초", firstHalf = avatars(c.optJSONArray("teams"))))
+            }
+        }.filterNot { it.isEmpty }
+        return CombatClear(
+            game, HARD_CHALLENGE, item.optJSONObject("schedule")?.optString("name").orEmpty(), current, rooms,
+            scoreLabel = hardLabel(hardBest(item)),
+        )
+    }
+
     /** 스타레일 3종 공통: all_floor_detail[] → node_1 / node_2. */
     /**
      * 스타레일 3종 공통: all_floor_detail[] → node_1 / node_2.
@@ -1310,6 +1530,152 @@ object HoyolabApi {
         return CombatClear(
             game, mode, group?.optString("name_mi18n").orEmpty(), current, rooms,
             maxTotal = if (rooms.any { it.name.contains(STARRISE) }) MOC_MAX_STARS else 0,
+        )
+    }
+
+    /**
+     * 스타레일 이상 중재(challenge_peak). 다른 세 모드와 모양이 다르다 — `challenge_peak_records[]` 한 항목이
+     * 한 시즌이고, 그 안에 잡몹 기록 여럿(`mob_records`)과 보스 기록 하나(`boss_record`)가 있다.
+     * 필드 이름은 genshin.py `AnomalyArbitration` 모델 기준(2026-11-20).
+     * shortcut: 실응답으로 확인하지 않았고 만점도 몰라 0(분모 없이 ★N). 실제 응답을 받으면 픽스처로 바꾼다.
+     */
+    private fun peakRecords(d: JSONObject): List<JSONObject> =
+        d.optJSONArray("challenge_peak_records")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }.orEmpty()
+
+    private fun peakMode(game: String, d: JSONObject, server: String): CombatMode {
+        val r = peakRecords(d).firstOrNull()
+        val group = r?.optJSONObject("group")
+        return CombatMode(
+            game, "이상 중재",
+            stars = (r?.optInt("boss_stars") ?: 0) + (r?.optInt("mob_stars") ?: 0), maxStars = 0,
+            detail = group?.optString("name_mi18n").orEmpty().ifBlank { "기록 없음" },
+            endMillis = group?.optJSONObject("end_time")?.let { hsrTimeMillis(it, server) } ?: 0L,
+            hasData = r?.optBoolean("has_challenge_record") == true,
+        )
+    }
+
+    /** 이번 시즌(status=Running, 없으면 첫 항목)과 그 다음 하나를 지난 시즌으로. 다른 모드처럼 2개까지만. */
+    internal fun peakClears(game: String, d: JSONObject): List<CombatClear> {
+        val records = peakRecords(d)
+        val cur = records.firstOrNull { it.optJSONObject("group")?.optString("status") == "Running" } ?: records.firstOrNull()
+        val past = records.firstOrNull { it !== cur }
+        return listOfNotNull(cur?.let { peakClear(game, it, true) }, past?.let { peakClear(game, it, false) })
+    }
+
+    private fun peakClear(game: String, r: JSONObject, current: Boolean): CombatClear {
+        val mobNames = r.optJSONArray("mob_infos")?.let { a ->
+            (0 until a.length()).mapNotNull { a.optJSONObject(it) }.associate { it.optInt("maze_id") to it.optString("name") }
+        }.orEmpty()
+        val rooms = buildList {
+            val mobs = r.optJSONArray("mob_records")
+            for (i in 0 until (mobs?.length() ?: 0)) {
+                val m = mobs?.optJSONObject(i) ?: continue
+                add(CombatRoom(name = mobNames[m.optInt("maze_id")].orEmpty(), stars = m.optInt("star_num"), firstHalf = avatars(m.optJSONArray("avatars"))))
+            }
+            r.optJSONObject("boss_record")?.let { b ->
+                add(CombatRoom(
+                    name = r.optJSONObject("boss_info")?.optString("name_mi18n").orEmpty(),
+                    stars = b.optInt("star_num"), firstHalf = avatars(b.optJSONArray("avatars")),
+                ))
+            }
+        }.filterNot { it.isEmpty }
+        return CombatClear(game, "이상 중재", r.optJSONObject("group")?.optString("name_mi18n").orEmpty(), current, rooms)
+    }
+
+    /**
+     * 스타레일 시뮬레이션 우주(`rogue`). 별 · 주간 점수 만점이 없어 **기간 안 클리어 횟수**를 값으로 싣고,
+     * 판마다 이름 · 난이도 · 점수 · 최종 편성(`final_lineup`)을 한 칸으로 둔다.
+     * 필드 이름은 genshin.py `StarRailRogue` 모델 기준(2026-11-20). `schedule_type=3` 은 genshin.py 기본값이다.
+     * shortcut: 실응답으로 확인하지 않았다. 실제 응답을 받으면 픽스처로 바꾼다.
+     */
+    private const val ROGUE_URL = "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/rogue"
+    private const val ROGUE = "시뮬레이션 우주"
+
+    private fun rogueMode(game: String, d: JSONObject, server: String): CombatMode {
+        val cur = d.optJSONObject("current_record")
+        val basic = cur?.optJSONObject("basic")
+        val has = cur?.optBoolean("has_data") == true
+        return CombatMode(
+            game, ROGUE,
+            detail = dayRange(basic?.optJSONObject("schedule_begin"), basic?.optJSONObject("schedule_end")).ifBlank { "기록 없음" },
+            endMillis = basic?.optJSONObject("schedule_end")?.let { hsrTimeMillis(it, server) } ?: 0L,
+            hasData = has,
+            badge = if (has) "${basic?.optInt("finish_cnt") ?: 0}회 클리어" else "",
+        )
+    }
+
+    internal fun rogueClears(game: String, d: JSONObject): List<CombatClear> =
+        listOfNotNull(
+            d.optJSONObject("current_record")?.let { rogueClear(game, it, true) },
+            d.optJSONObject("last_record")?.let { rogueClear(game, it, false) },
+        )
+
+    private fun rogueClear(game: String, rec: JSONObject, current: Boolean): CombatClear {
+        val list = rec.optJSONArray("records")
+        val rooms = buildList {
+            for (i in 0 until (list?.length() ?: 0)) {
+                val r = list?.optJSONObject(i) ?: continue
+                add(CombatRoom(
+                    name = r.optString("name"),
+                    rating = r.optInt("difficulty").takeIf { it > 0 }?.let { "난이도 $it" }.orEmpty(),
+                    detail = r.optInt("score").takeIf { it > 0 }?.let { "${thousands(it)}점" }.orEmpty(),
+                    firstHalf = avatars(r.optJSONArray("final_lineup")),
+                ))
+            }
+        }.filterNot { it.isEmpty }
+        val basic = rec.optJSONObject("basic")
+        return CombatClear(game, ROGUE, dayRange(basic?.optJSONObject("schedule_begin"), basic?.optJSONObject("schedule_end")), current, rooms)
+    }
+
+    /**
+     * 스타레일 화폐전쟁(`grid_fight`). 2026-11-20 실측(개발자 메뉴 후보 확인 — 공개 라이브러리에는 없다).
+     * `grid_fight_brief` 에 주간 점수(`weekly_score_cur/max`) · 등급(`division`) · 시즌 레벨, `grid_fight_archive_list`
+     * 에 최근 판(시각 · 평가 · 앞줄 3 / 뒷줄 5 편성)이 온다. 숫자는 전부 문자열로 온다(optInt 가 읽는다).
+     * 주간 마감 시각 필드가 없어 D-day · 마감 알림은 없다.
+     */
+    private const val GRID_FIGHT_URL = "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/grid_fight"
+    private const val GRID_FIGHT = "화폐전쟁"
+
+    /** "재물의 창조주 8 · 시즌 레벨 70" */
+    private fun gridFightRank(b: JSONObject?): String = listOfNotNull(
+        b?.optJSONObject("division")?.optString("name_with_num")?.ifBlank { null },
+        b?.optInt("season_level")?.takeIf { it > 0 }?.let { "시즌 레벨 $it" },
+    ).joinToString(" · ")
+
+    private fun gridFightMode(game: String, d: JSONObject): CombatMode {
+        val b = d.optJSONObject("grid_fight_brief")
+        val has = b?.optBoolean("has_played") == true
+        return CombatMode(
+            game, GRID_FIGHT,
+            stars = b?.optInt("weekly_score_cur") ?: 0, maxStars = b?.optInt("weekly_score_max") ?: 0,
+            detail = gridFightRank(b).ifBlank { if (has) "" else "기록 없음" },
+            hasData = has,
+        )
+    }
+
+    /** 최근 판마다 한 칸 — 시각 · 평가(A) · 앞줄 / 뒷줄 편성. */
+    internal fun gridFightClear(game: String, d: JSONObject): CombatClear {
+        val list = d.optJSONArray("grid_fight_archive_list")
+        val rooms = buildList {
+            for (i in 0 until (list?.length() ?: 0)) {
+                val a = list?.optJSONObject(i) ?: continue
+                val brief = a.optJSONObject("brief")
+                val ts = brief?.optLong("archive_time_ts") ?: 0L
+                val lineup = a.optJSONObject("lineup")
+                add(CombatRoom(
+                    name = if (ts > 0) DateUtil.shortDateTime(ts * 1000) else "${i + 1}",
+                    rating = brief?.optString("archive_rank").orEmpty().removePrefix("GridFightArchiveRank"),
+                    firstHalf = avatars(lineup?.optJSONArray("front_roles")),
+                    secondHalf = avatars(lineup?.optJSONArray("back_roles")),
+                    firstLabel = "앞줄", secondLabel = "뒷줄",
+                ))
+            }
+        }.filterNot { it.isEmpty }
+        val b = d.optJSONObject("grid_fight_brief")
+        val score = b?.optInt("weekly_score_max")?.takeIf { it > 0 }?.let { "주간 ${thousands(b.optInt("weekly_score_cur"))} / ${thousands(it)}" }
+        return CombatClear(
+            game, GRID_FIGHT, current = true, rooms = rooms,
+            scoreLabel = listOfNotNull(b?.optJSONObject("division")?.optString("name_with_num")?.ifBlank { null }, score).joinToString(" · "),
         )
     }
 

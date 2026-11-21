@@ -32,7 +32,7 @@ data class GiftReward(val name: String, val qty: String, val premium: Boolean) {
 
     companion object {
         /**
-         * 공식 한국어 이름 → 아이콘. 출처는 Android `GameCurrency` 와 같은 Project Amber(yatta) 의 ID 주소 —
+         * 공식 한국어 이름 → 아이콘. 출처는 Project Amber(yatta) 의 ID 주소 —
          * 이름 · ID 는 yatta `api/v2/kr` 로 맞춰 봤다(10/15). 젠레스(폴리크롬 · 데니 · 마스터 테이프)는
          * 안정 공개 출처가 없어 비워 둔다.
          */

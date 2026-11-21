@@ -872,6 +872,7 @@ class SpendingViewModel : ViewModel() {
         _noteErrors.value = emptyMap()
         _ledgers.value = emptyList()
         _combat.value = emptyList()
+        _accountStats.value = emptyList()
         clears.reset()
         lastLiveNoteAt = 0L
     }
@@ -1215,6 +1216,10 @@ class SpendingViewModel : ViewModel() {
     // 전투 콘텐츠 진행도(나선 비경·현실 속 환상극·혼돈의 기억·허구 이야기·종말의 환영).
     private val _combat = MutableStateFlow<List<CombatMode>>(emptyList())
     val combat: StateFlow<List<CombatMode>> = _combat.asStateFlow()
+
+    // shortcut: 캐시하지 않아 앱을 켤 때마다 네트워크가 올 때까지 비어 있다. 늦게 뜨는 게 거슬리면 전투처럼 repo 캐시를 붙인다.
+    private val _accountStats = MutableStateFlow<List<AccountStats>>(emptyList())
+    val accountStats: StateFlow<List<AccountStats>> = _accountStats.asStateFlow()
 
     // ── 엔드 콘텐츠 클리어 편성(층·간별로 어떤 캐릭터를 썼는지) — [CombatClearsController] ──
     private val clears = CombatClearsController(viewModelScope, { repo }, { _hoyolabConfig.value }) { enka.characterNamesByGame() }
@@ -1568,7 +1573,7 @@ class SpendingViewModel : ViewModel() {
     fun debugProbeZzzCombat(onResult: (List<String>) -> Unit) {
         val cfg = _hoyolabConfig.value
         viewModelScope.launch {
-            onResult(withContext(Dispatchers.IO) { HoyolabApi.debugProbeZzzCombat(cfg.ltuid, cfg.ltoken, cfg.zzzUid) })
+            onResult(withContext(Dispatchers.IO) { HoyolabApi.debugProbeZzzCombat(cfg.ltuid, cfg.ltoken, cfg.zzzUid, cfg.hsrUid) })
         }
     }
 
@@ -2055,6 +2060,9 @@ class SpendingViewModel : ViewModel() {
                     val combatDeferred = uids.map { (key, uid) ->
                         async(Dispatchers.IO) { HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid) }
                     }
+                    val statsDeferred = uids.map { (key, uid) ->
+                        async(Dispatchers.IO) { HoyolabApi.getAccountStats(cfg.ltuid, cfg.ltoken, key, uid) }
+                    }
                     // 행동력은 **캘린더를 기다리지 않는다.** 예전엔 ennead 6게임을 전부 await 하고
                     // 배너·이벤트·도전을 저장한 뒤에야 노트를 대입해서, 데일리 최상단 카드가
                     // 자기 응답이 진작 도착한 뒤에도 몇 초를 더 기다렸다. 요청은 어차피 위에서
@@ -2213,6 +2221,13 @@ class SpendingViewModel : ViewModel() {
                                 _ledgers.update { prev ->
                                     mergeByGame(prev, listOf(ledger), setOf(ledger.game)) { it.game }.sortedByGameOrder { it.game }
                                 }
+                            }
+                        }
+                        // 계정 통계 — 게임마다 도착하는 대로. 못 받은 게임은 직전 값을 남긴다.
+                        statsDeferred.forEach { d ->
+                            launch {
+                                val s = d.await() ?: return@launch
+                                _accountStats.update { prev -> (prev.filter { it.game != s.game } + s).sortedByGameOrder { it.game } }
                             }
                         }
                         launch {

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -449,7 +450,7 @@ private fun RoomCollapsed(room: CombatRoom, season: String, onToggle: () -> Unit
             .semantics { stateDescription = "접힘" }
             .padding(vertical = 12.dp),
     ) {
-        FloorName(room, season, Modifier.width(36.dp))
+        FloorName(room, season, Modifier.widthIn(min = 36.dp))   // iOS 와 같다 — 최소 36, 긴 이름(이상 중재 보스 · 잡몹)은 다 보인다
         Spacer(Modifier.width(8.dp))
         StarChip(room)
         Row(
@@ -540,9 +541,9 @@ private fun RoomExpanded(room: CombatRoom, season: String, onToggle: () -> Unit)
                 // 한 편성뿐인 모드(현실 속 환상극) — '전반' 칩이 붙으면 후반이 빠진 것처럼 읽힌다.
                 HalfRow(null, room.firstHalf)
             } else {
-                HalfRow(HalfChip("전반", FirstHalfColor, FirstHalfChipBg), room.firstHalf)
+                HalfRow(HalfChip(room.firstLabel, FirstHalfColor, FirstHalfChipBg), room.firstHalf)
                 HorizontalDivider(color = PanelDivider)
-                HalfRow(HalfChip("후반", SecondHalfText, SecondHalfChipBg), room.secondHalf)
+                HalfRow(HalfChip(room.secondLabel, SecondHalfText, SecondHalfChipBg), room.secondHalf)
             }
         }
     }

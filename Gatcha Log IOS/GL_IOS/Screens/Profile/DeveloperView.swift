@@ -128,7 +128,7 @@ struct DeveloperView: View {
             }
             SetDivider()
             // 붙이기 전에 실제 응답 구조를 본다 — 경로 · 필드가 공개 라이브러리 기준 추정이다.
-            devRow("shield.lefthalf.filled", .navy, "젠레스 전투 API 확인", "시유 방어전 · 위험 구역 응답 구조") {
+            devRow("shield.lefthalf.filled", .navy, "젠레스 전투 API 확인", "젠레스 전투 · 신호 탐색 기록 · 스타레일 화폐전쟁 후보") {
                 show("젠레스 전투 API", ["불러오는 중…"])
                 store.debugProbeZzzCombat { show("젠레스 전투 API", $0) }
             }
