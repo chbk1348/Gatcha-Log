@@ -10,11 +10,11 @@ plugins {
 
 android {
     namespace = "com.gatcha.log.baselineprofile"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 28 // Baseline Profile 수집은 API 28+ 기기에서 동작
-        targetSdk = 37
+        targetSdk = 34
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

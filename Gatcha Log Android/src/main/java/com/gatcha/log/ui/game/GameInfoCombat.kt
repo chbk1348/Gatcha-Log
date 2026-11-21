@@ -19,14 +19,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gatcha.log.data.AccountStats
 import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.CombatSummary
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
-import com.gatcha.log.ui.profile.StatTriple
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.Urgent
@@ -76,18 +74,12 @@ private fun RowScope.SummaryChip(label: String, value: String, valueColor: Color
  * 섹션 하나가 게임 하나다 — 게임 사이는 부르는 쪽의 띠(GiBand)가 가른다.
  */
 @Composable
-internal fun CombatGameCard(game: Game, modes: List<CombatMode>, stats: AccountStats? = null, modifier: Modifier = Modifier) {
+internal fun CombatGameCard(game: Game, modes: List<CombatMode>, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
             GlgGameTag(game.displayName, size = GameTagSize.Small)
             Spacer(Modifier.width(8.dp))
             Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        }
-        // 계정 통계(27.60.0 B안) — 게임 머리 아래 지표 줄, 전투 줄과는 헤어라인으로 가른다.
-        stats?.let { s ->
-            StatTriple(*s.cells().map { it.value to it.label }.toTypedArray())
-            Spacer(Modifier.height(14.dp))
-            GiHairline()
         }
         modes.forEachIndexed { i, m ->
             CombatRow(m)

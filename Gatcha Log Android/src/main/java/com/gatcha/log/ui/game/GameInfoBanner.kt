@@ -27,7 +27,6 @@ import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.PatchInfo
-import com.gatcha.log.data.AccountStats
 import com.gatcha.log.data.combatSummary
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.theme.DividerColor
@@ -40,7 +39,6 @@ import com.gatcha.log.ui.theme.TextSecondary
 fun GameTabbedSection(
     banners: List<GachaBanner>,
     combat: List<CombatMode>,
-    stats: List<AccountStats> = emptyList(),
     ledgers: List<MonthlyLedger>,
     isRefreshing: Boolean,
     linked: Boolean = true,
@@ -73,7 +71,7 @@ fun GameTabbedSection(
                     val first = i == 0 && summary.total == 0
                     if (!first) GiBand()
                     // 마지막 줄이 아래 12 를 가져 8 + 12 = 띠까지(맨 아래면 끝까지) 보이는 20.
-                    GiPageSection(top = if (first) 12.dp else 22.dp, bottom = 8.dp) { CombatGameCard(g, c, stats.firstOrNull { it.game == g.displayName }) }
+                    GiPageSection(top = if (first) 12.dp else 22.dp, bottom = 8.dp) { CombatGameCard(g, c) }
                 }
                 if (ledgerList.isNotEmpty()) {
                     if (combatGames.isNotEmpty()) GiBand()

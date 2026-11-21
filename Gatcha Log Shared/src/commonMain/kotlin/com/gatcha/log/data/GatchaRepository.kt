@@ -868,8 +868,6 @@ class GatchaRepository(
                                 rating = r.optString("rating", ""),
                                 firstHalf = avatarsFrom(r.optJSONArray("first")),
                                 secondHalf = avatarsFrom(r.optJSONArray("second")),
-                                firstLabel = r.optString("firstLabel", "전반"),
-                                secondLabel = r.optString("secondLabel", "후반"),
                             )
                         }
                     },
@@ -912,7 +910,6 @@ class GatchaRepository(
                     put("name", r.name); put("stars", r.stars); put("maxStars", r.maxStars)
                     put("detail", r.detail); put("rating", r.rating)
                     put("first", avatarsTo(r.firstHalf)); put("second", avatarsTo(r.secondHalf))
-                    put("firstLabel", r.firstLabel); put("secondLabel", r.secondLabel)
                 })
             }
             arr.put(JSONObject().apply {

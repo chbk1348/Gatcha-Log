@@ -478,9 +478,9 @@ private struct RoomRow: View {
             if room.secondHalf.isEmpty {
                 HalfRow(chip: nil, team: room.firstHalf)
             } else {
-                HalfRow(chip: (room.firstLabel, firstHalfColor, firstHalfTint), team: room.firstHalf)
+                HalfRow(chip: ("전반", firstHalfColor, firstHalfTint), team: room.firstHalf)
                 Rectangle().fill(panelDivider).frame(height: 1)
-                HalfRow(chip: (room.secondLabel, secondHalfText, secondHalfTint), team: room.secondHalf)
+                HalfRow(chip: ("후반", secondHalfText, secondHalfTint), team: room.secondHalf)
             }
         }
         .padding(10)

@@ -44,7 +44,7 @@ struct GameTabbedSection: View {
                     let first = i == 0 && summary.total == 0
                     if !first { GiBand() }
                     // 마지막 줄이 아래 12 를 가져 8 + 12 = 띠까지(맨 아래면 끝까지) 보이는 20.
-                    GiPageSection(top: first ? 12 : 22, bottom: 8) { CombatCard(game: p.0, modes: p.1, stats: store.accountStats.first { $0.game == p.0.displayName }) }
+                    GiPageSection(top: first ? 12 : 22, bottom: 8) { CombatCard(game: p.0, modes: p.1) }
                 }
                 if !ledgers.isEmpty {
                     if !combatGames.isEmpty { GiBand() }
@@ -163,17 +163,10 @@ private struct CombatSummaryHead: View {
 private struct CombatCard: View {
     let game: Game
     let modes: [CombatMode]
-    var stats: AccountStats? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) { GLGGameTag(game: game.displayName, size: .small); Text(game.shortName).font(.pretendard(size: 17, weight: .bold)) }
                 .padding(.bottom, 4)
-            // 계정 통계(27.60.0 B안) — 게임 머리 아래 지표 줄, 전투 줄과는 헤어라인으로 가른다. Android 와 같다.
-            if let s = stats {
-                StatTriple(cells: s.cells().map { ($0.value, $0.label) })
-                Spacer().frame(height: 14)
-                GiHairline()
-            }
             ForEach(Array(modes.enumerated()), id: \.offset) { i, m in
                 combatRow(m)
                 if i < modes.count - 1 { GiHairline() }

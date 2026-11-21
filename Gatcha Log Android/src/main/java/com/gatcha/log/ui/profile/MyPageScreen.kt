@@ -283,7 +283,7 @@ private fun ListRow(content: @Composable RowScope.() -> Unit) {
 
 /** 세 칸 지표 줄 — 값 15 · 라벨 12, 왼쪽 정렬. */
 @Composable
-internal fun StatTriple(vararg cells: Pair<String, String>) {
+private fun StatTriple(vararg cells: Pair<String, String>) {
     Row(Modifier.fillMaxWidth().padding(top = 18.dp)) {
         cells.forEach { (value, label) ->
             Column(Modifier.weight(1f)) {

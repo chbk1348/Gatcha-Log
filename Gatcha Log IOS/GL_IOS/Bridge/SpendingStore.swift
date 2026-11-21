@@ -124,7 +124,6 @@ final class SpendingStore {
         mirror(vm.challenges, to: \.challenges, .now)
         mirror(vm.gameNews, to: \.gameNews, .now)
         mirror(vm.combat, to: \.combat, .now)
-        mirror(vm.accountStats, to: \.accountStats, .now)
         mirror(vm.combatClears, to: \.combatClears, .nowUnseeded)
         mirror(vm.combatClearsLoading, to: \.combatClearsLoading, .nowUnseeded)
         mirror(vm.combatClearsFailed, to: \.combatClearsFailed, .nowUnseeded)
@@ -471,7 +470,6 @@ final class SpendingStore {
     private(set) var gameNews: [NewsItem] = []
     private(set) var ledgers: [MonthlyLedger] = []
     private(set) var combat: [CombatMode] = []
-    private(set) var accountStats: [AccountStats] = []
     private(set) var collabBannerExpanded: Bool = false
 
     // Kotlin 기본 인자는 Swift 로 안 넘어온다 — silent 를 명시해야 한다(사용자가 부른 새로고침이므로 false).
